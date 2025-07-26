@@ -1,0 +1,190 @@
+# ProjectX Trading System - Cursor AI Rules
+
+## Project Overview
+This is a Python trading system that integrates with ProjectX Gateway API for real-time market data, order management, and market analysis. The system uses Polars for data processing and emphasizes performance, accuracy, and real-time capabilities.
+
+## ProjectX API Integration Rules
+
+### Real-time Data Payloads
+- **ALWAYS** validate ProjectX payload structure before processing
+- **NEVER** assume nested "data" wrapper - payloads are typically direct objects
+- **ALWAYS** handle missing optional fields gracefully using `.get()` method
+- **ALWAYS** validate enum values against ProjectX documentation:
+  - `DomType` (0-11): Unknown=0, Ask=1, Bid=2, BestAsk=3, BestBid=4, Trade=5, Reset=6, Low=7, High=8, NewBestBid=9, NewBestAsk=10, Fill=11
+  - `PositionType` (0-2): Undefined=0, Long=1, Short=2
+  - `OrderStatus` (0-6): None=0, Open=1, Filled=2, Cancelled=3, Expired=4, Rejected=5, Pending=6
+  - `OrderSide` (0-1): Bid=0, Ask=1
+  - `TradeLogType` (0-1): Buy=0, Sell=1
+
+### Required ProjectX Payload Fields
+- **GatewayDepth**: `timestamp`, `type` (DomType), `price`, `volume`, `currentVolume`
+- **GatewayQuote**: `symbol`, `lastPrice`, `bestBid`, `bestAsk`, `timestamp`
+- **GatewayTrade**: `symbolId`, `price`, `timestamp`, `type` (TradeLogType), `volume`
+- **GatewayUserPosition**: `id`, `accountId`, `contractId`, `type` (PositionType), `size`, `averagePrice`
+- **GatewayUserOrder**: `id`, `accountId`, `contractId`, `status` (OrderStatus), `type` (OrderType), `side` (OrderSide), `size`
+
+### Symbol Matching Rules
+- **ALWAYS** use symbol ID extraction for filtering: extract base symbol from full symbol ID (e.g., "F.US.EP" from "F.US.EP.U25")
+- **NEVER** use exact string matching for contract-specific symbols
+- **ALWAYS** implement `_symbol_matches_instrument()` pattern for filtering
+
+## Code Style & Formatting Rules
+
+### Type Hints
+- **ALWAYS** use modern Python 3.10+ union syntax: `int | None` instead of `Optional[int]`
+- **ALWAYS** use `X | Y` in isinstance calls instead of `(X, Y)` tuples
+- **ALWAYS** include comprehensive type hints for all method parameters and return values
+- **PREFER** `dict[str, Any]` over `Dict[str, Any]`
+
+### Error Handling
+- **ALWAYS** wrap ProjectX API calls in try-catch blocks
+- **ALWAYS** log errors with context: `self.logger.error(f"Error in {method_name}: {e}")`
+- **ALWAYS** return meaningful error responses instead of raising exceptions
+- **NEVER** let payload validation errors crash the application
+
+### Data Processing
+- **PREFER** Polars over Pandas for all DataFrame operations
+- **NEVER** include Pandas fallbacks or compatibility code
+- **ALWAYS** use `with self.orderbook_lock:` for thread-safe operations
+- **ALWAYS** validate DataFrame schemas before operations
+- **PREFER** vectorized operations over loops when possible
+
+## Performance & Memory Rules
+
+### Time Filtering
+- **ALWAYS** implement time window filtering for analysis methods
+- **ALWAYS** filter data BEFORE processing to reduce memory usage
+- **ALWAYS** provide `time_window_minutes` parameter for time-sensitive analysis
+- **PREFER** recent data over complete historical data for real-time analysis
+
+### Memory Management
+- **ALWAYS** implement data cleanup for old entries
+- **ALWAYS** use appropriate data types (int vs float vs str)
+- **NEVER** store unnecessary historical data indefinitely
+- **PREFER** lazy evaluation and streaming where possible
+
+## Testing & Validation Rules
+
+### Test Methods
+- **ALWAYS** include comprehensive test methods for new features
+- **ALWAYS** test both success and failure scenarios
+- **ALWAYS** validate prerequisites before running tests
+- **ALWAYS** return structured test results with `validation`, `performance_metrics`, and `recommendations`
+- **PREFER** internal test methods over external test files for component validation
+
+### Validation Patterns
+- **ALWAYS** implement `_validate_*_payload()` methods for API data
+- **ALWAYS** check for required fields before processing
+- **ALWAYS** validate enum values against expected ranges
+- **ALWAYS** provide clear error messages for validation failures
+
+## Market Analysis Rules
+
+### Indicator Implementation
+- **ALWAYS** maintain talib-style function calls for indicators
+- **ALWAYS** implement time filtering for all analysis methods
+- **ALWAYS** return comprehensive analysis with metadata
+- **PREFER** confidence scores and statistical validation over simple thresholds
+
+### Data Consistency
+- **ALWAYS** ensure consistent time windows across related analysis methods
+- **ALWAYS** synchronize lookback periods between different analytics
+- **ALWAYS** handle edge cases (empty data, insufficient history)
+- **NEVER** assume data availability without validation
+
+## Documentation Rules
+
+### Method Documentation
+- **ALWAYS** include comprehensive docstrings with Args and Returns sections
+- **ALWAYS** document ProjectX API integration specifics
+- **ALWAYS** include usage examples for complex methods
+- **ALWAYS** document enum mappings and expected value ranges
+
+### Code Comments
+- **ALWAYS** comment complex business logic and calculations
+- **ALWAYS** explain ProjectX-specific behavior and quirks
+- **ALWAYS** document thread safety considerations
+- **PREFER** inline comments for non-obvious operations
+
+## Architecture Rules
+
+### Dependency Management
+- **ALWAYS** use `uv` as the package manager
+- **NEVER** require backwards compatibility (new project)
+- **PREFER** modern Python features and syntax
+- **ALWAYS** specify exact versions for critical dependencies
+
+### Real-time Integration
+- **ALWAYS** implement callback patterns for real-time updates
+- **ALWAYS** handle connection failures gracefully
+- **ALWAYS** implement proper cleanup for resources
+- **PREFER** event-driven architecture over polling
+
+### Thread Safety
+- **ALWAYS** use appropriate locking mechanisms
+- **ALWAYS** consider concurrent access patterns
+- **NEVER** modify shared data without proper synchronization
+- **PREFER** immutable data structures where possible
+
+## Specific ProjectX Considerations
+
+### Enum Handling
+- **ALWAYS** map integer enum values to semantic meanings
+- **ALWAYS** handle unknown/undefined enum values gracefully
+- **NEVER** assume enum values are sequential or complete
+- **ALWAYS** document enum mappings in comments
+
+### Position Management
+- Position closure detection: `size == 0` (NOT `type == 0`)
+- `type=0` means "Undefined" in PositionType, not closed
+
+### Order Management
+- Handle all OrderStatus values: Filled=2, Cancelled=3, Expired=4, Rejected=5, Pending=6
+- Use symbolId for filtering when available
+
+### Market Data
+- Use `lastPrice`, `bestBid`, `bestAsk` from GatewayQuote
+- Extract trade direction from TradeLogType enum
+- Handle spread calculation and trade classification
+
+## Code Quality Rules
+
+### Conciseness
+- **PREFER** concise code fixes over verbose explanations
+- **AVOID** unnecessary code duplication
+- **PREFER** helper methods for repeated logic
+- **ALWAYS** consider readability vs brevity trade-offs
+
+### Consistency
+- **ALWAYS** follow established patterns within the codebase
+- **ALWAYS** use consistent naming conventions
+- **ALWAYS** maintain consistent error handling patterns
+- **PREFER** established abstractions over new ones
+
+## Example Patterns
+
+### Payload Validation
+```python
+def _validate_quote_payload(self, quote_data: dict) -> bool:
+    required_fields = ["symbol", "lastPrice", "bestBid", "bestAsk", "timestamp"]
+    return all(field in quote_data for field in required_fields)
+```
+
+### Time Filtering
+```python
+def get_analysis(self, time_window_minutes: int | None = None) -> dict[str, Any]:
+    trades_to_analyze = self.recent_trades
+    if time_window_minutes is not None:
+        cutoff_time = datetime.now(self.timezone) - timedelta(minutes=time_window_minutes)
+        trades_to_analyze = trades_to_analyze.filter(pl.col("timestamp") >= cutoff_time)
+```
+
+### Test Method Structure
+```python
+def test_feature(self, test_params: dict[str, Any] | None = None) -> dict[str, Any]:
+    # Validate prerequisites
+    # Run tests with error handling
+    # Return structured results with validation, performance, recommendations
+```
+
+These rules ensure consistent ProjectX integration, maintain code quality, and provide clear guidance for future development. 
