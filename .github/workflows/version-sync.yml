@@ -1,0 +1,54 @@
+name: Version Synchronization
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/project_x_py/__init__.py']
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force version synchronization'
+        required: false
+        default: 'false'
+
+jobs:
+  sync-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Check version synchronization
+        id: check-sync
+        run: |
+          python scripts/version_sync.py
+          if git diff --quiet; then
+            echo "sync_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "sync_needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit version updates
+        if: steps.check-sync.outputs.sync_needed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          git commit -m "🔄 Auto-sync version numbers [skip ci]"
+          git push
+
+      - name: Create version tag
+        if: steps.check-sync.outputs.sync_needed == 'true'
+        run: |
+          VERSION=$(python -c "from src.project_x_py import __version__; print(__version__)")
+          git tag "v$VERSION" || echo "Tag v$VERSION already exists"
+          git push origin "v$VERSION" || echo "Tag v$VERSION already pushed" 
