@@ -538,6 +538,8 @@ def create_trading_suite(
         >>> # Initialize components
         >>> suite["data_manager"].initialize(initial_days=30)
         >>> suite["data_manager"].start_realtime_feed()
+        >>> # Add market depth callback
+        >>> suite["realtime_client"].add_callback("market_depth", suite["orderbook"].process_market_depth)
         >>> # Place orders
         >>> bracket = suite["order_manager"].place_bracket_order(
         ...     "MGC", 0, 1, 2045.0, 2040.0, 2055.0

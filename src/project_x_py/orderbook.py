@@ -20,6 +20,22 @@ Key Features:
 - Statistical significance testing for pattern recognition
 - Real-time market maker and iceberg detection
 - Comprehensive liquidity and depth analysis
+
+ProjectX DomType Enum Reference:
+- Type 0 = Unknown
+- Type 1 = Ask
+- Type 2 = Bid
+- Type 3 = BestAsk
+- Type 4 = BestBid
+- Type 5 = Trade
+- Type 6 = Reset
+- Type 7 = Low (session low)
+- Type 8 = High (session high)
+- Type 9 = NewBestBid
+- Type 10 = NewBestAsk
+- Type 11 = Fill
+
+Source: https://gateway.docs.projectx.com/docs/realtime/
 """
 
 import gc
@@ -109,12 +125,20 @@ class OrderBook:
                 "volume": [],
                 "timestamp": [],
                 "side": [],  # "buy" or "sell" inferred from price movement
+                "spread_at_trade": [],  # Spread when trade occurred
+                "mid_price_at_trade": [],  # Mid price when trade occurred
+                "best_bid_at_trade": [],  # Best bid when trade occurred
+                "best_ask_at_trade": [],  # Best ask when trade occurred
             },
             schema={
                 "price": pl.Float64,
                 "volume": pl.Int64,
                 "timestamp": pl.Datetime,
                 "side": pl.Utf8,
+                "spread_at_trade": pl.Float64,
+                "mid_price_at_trade": pl.Float64,
+                "best_bid_at_trade": pl.Float64,
+                "best_ask_at_trade": pl.Float64,
             },
         )
 
@@ -125,14 +149,20 @@ class OrderBook:
 
         # Statistics for different order types
         self.order_type_stats = {
-            "type_1_count": 0,  # Ask updates
-            "type_2_count": 0,  # Bid updates
-            "type_5_count": 0,  # Trade executions
-            "type_9_count": 0,  # Order modifications
-            "type_10_count": 0,  # Order modifications/cancellations
-            "other_types": 0,  # Unknown types
-            "skipped_updates": 0,  # Added for skipped updates
-            "integrity_fixes": 0,  # Added for orderbook integrity fixes
+            "type_1_count": 0,  # Ask
+            "type_2_count": 0,  # Bid
+            "type_3_count": 0,  # BestAsk
+            "type_4_count": 0,  # BestBid
+            "type_5_count": 0,  # Trade
+            "type_6_count": 0,  # Reset
+            "type_7_count": 0,  # Low
+            "type_8_count": 0,  # High
+            "type_9_count": 0,  # NewBestBid
+            "type_10_count": 0,  # NewBestAsk
+            "type_11_count": 0,  # Fill
+            "other_types": 0,  # Unknown/other types
+            "skipped_updates": 0,  # Skipped updates
+            "integrity_fixes": 0,  # Orderbook integrity fixes
         }
 
         # Callbacks for orderbook events
@@ -244,20 +274,35 @@ class OrderBook:
                 for entry in depth_data:
                     price = entry.get("price", 0.0)
                     volume = entry.get("volume", 0)
+                    # Note: ProjectX can provide both 'volume' (total at price level)
+                    # and 'currentVolume' (current at price level). Using 'volume' for now.
+                    # current_volume = entry.get("currentVolume", volume)  # Future enhancement
                     entry_type = entry.get("type", 0)
                     timestamp_str = entry.get("timestamp", "")
 
                     # Update statistics
                     if entry_type == 1:
-                        self.order_type_stats["type_1_count"] += 1
+                        self.order_type_stats["type_1_count"] += 1  # Ask
                     elif entry_type == 2:
-                        self.order_type_stats["type_2_count"] += 1
+                        self.order_type_stats["type_2_count"] += 1  # Bid
+                    elif entry_type == 3:
+                        self.order_type_stats["type_3_count"] += 1  # BestAsk
+                    elif entry_type == 4:
+                        self.order_type_stats["type_4_count"] += 1  # BestBid
                     elif entry_type == 5:
-                        self.order_type_stats["type_5_count"] += 1
+                        self.order_type_stats["type_5_count"] += 1  # Trade
+                    elif entry_type == 6:
+                        self.order_type_stats["type_6_count"] += 1  # Reset
+                    elif entry_type == 7:
+                        self.order_type_stats["type_7_count"] += 1  # Low
+                    elif entry_type == 8:
+                        self.order_type_stats["type_8_count"] += 1  # High
                     elif entry_type == 9:
-                        self.order_type_stats["type_9_count"] += 1
+                        self.order_type_stats["type_9_count"] += 1  # NewBestBid
                     elif entry_type == 10:
-                        self.order_type_stats["type_10_count"] += 1
+                        self.order_type_stats["type_10_count"] += 1  # NewBestAsk
+                    elif entry_type == 11:
+                        self.order_type_stats["type_11_count"] += 1  # Fill
                     else:
                         self.order_type_stats["other_types"] += 1
 
@@ -276,12 +321,19 @@ class OrderBook:
                     else:
                         timestamp = current_time
 
-                    # Enhanced type mapping based on TopStepX format:
-                    # Type 1 = Ask/Offer (selling pressure)
-                    # Type 2 = Bid (buying pressure)
-                    # Type 5 = Trade (market execution) - record for trade flow analysis
-                    # Type 9 = Order modification (update existing order)
-                    # Type 10 = Order modification/cancellation (often volume=0 means cancel)
+                    # Enhanced type mapping based on ProjectX DomType enum:
+                    # Type 0 = Unknown
+                    # Type 1 = Ask
+                    # Type 2 = Bid
+                    # Type 3 = BestAsk
+                    # Type 4 = BestBid
+                    # Type 5 = Trade
+                    # Type 6 = Reset
+                    # Type 7 = Low
+                    # Type 8 = High
+                    # Type 9 = NewBestBid
+                    # Type 10 = NewBestAsk
+                    # Type 11 = Fill
 
                     if entry_type == 2:  # Bid
                         bid_updates.append(
@@ -301,6 +353,42 @@ class OrderBook:
                                 "type": "ask",
                             }
                         )
+                    elif entry_type == 4:  # BestBid
+                        bid_updates.append(
+                            {
+                                "price": float(price),
+                                "volume": int(volume),
+                                "timestamp": timestamp,
+                                "type": "best_bid",
+                            }
+                        )
+                    elif entry_type == 3:  # BestAsk
+                        ask_updates.append(
+                            {
+                                "price": float(price),
+                                "volume": int(volume),
+                                "timestamp": timestamp,
+                                "type": "best_ask",
+                            }
+                        )
+                    elif entry_type == 9:  # NewBestBid
+                        bid_updates.append(
+                            {
+                                "price": float(price),
+                                "volume": int(volume),
+                                "timestamp": timestamp,
+                                "type": "new_best_bid",
+                            }
+                        )
+                    elif entry_type == 10:  # NewBestAsk
+                        ask_updates.append(
+                            {
+                                "price": float(price),
+                                "volume": int(volume),
+                                "timestamp": timestamp,
+                                "type": "new_best_ask",
+                            }
+                        )
                     elif entry_type == 5:  # Trade execution
                         if volume > 0:  # Only record actual trades with volume
                             trade_updates.append(
@@ -310,179 +398,50 @@ class OrderBook:
                                     "timestamp": timestamp,
                                 }
                             )
-                    elif entry_type in [9, 10]:  # Order modifications
-                        # Type 9/10 can affect both bid and ask sides
-                        # We need to determine which side based on price relative to current mid
-                        best_prices = self.get_best_bid_ask()
-                        mid_price = best_prices.get("mid")
-                        current_best_bid = best_prices.get("bid")
-                        current_best_ask = best_prices.get("ask")
-
-                        side_determined = False
-
-                        # Method 1: Use current best bid/ask for more accurate classification
-                        if (
-                            not side_determined
-                            and current_best_bid is not None
-                            and current_best_ask is not None
-                        ):
-                            try:
-                                # Create a larger buffer zone around the current spread
-                                spread = current_best_ask - current_best_bid
-                                buffer = max(
-                                    0.1, spread * 0.5
-                                )  # At least 0.1 points or 50% of spread
-
-                                bid_max_threshold = current_best_bid + buffer
-                                ask_min_threshold = current_best_ask - buffer
-
-                                if price <= bid_max_threshold:
-                                    bid_updates.append(
-                                        {
-                                            "price": float(price),
-                                            "volume": int(volume),
-                                            "timestamp": timestamp,
-                                            "type": f"bid_mod_{entry_type}",
-                                        }
-                                    )
-                                    side_determined = True
-                                elif price >= ask_min_threshold:
-                                    ask_updates.append(
-                                        {
-                                            "price": float(price),
-                                            "volume": int(volume),
-                                            "timestamp": timestamp,
-                                            "type": f"ask_mod_{entry_type}",
-                                        }
-                                    )
-                                    side_determined = True
-                            except Exception:
-                                pass
-
-                        # Method 2: If we have a mid price but no current best prices
-                        if not side_determined and mid_price is not None and price != 0:
-                            if price <= mid_price:
-                                bid_updates.append(
-                                    {
-                                        "price": float(price),
-                                        "volume": int(volume),
-                                        "timestamp": timestamp,
-                                        "type": f"bid_mod_{entry_type}",
-                                    }
-                                )
-                                side_determined = True
-                            else:
-                                ask_updates.append(
-                                    {
-                                        "price": float(price),
-                                        "volume": int(volume),
-                                        "timestamp": timestamp,
-                                        "type": f"ask_mod_{entry_type}",
-                                    }
-                                )
-                                side_determined = True
-
-                        # Method 3: Check if this price level already exists on either side
-                        if not side_determined:
-                            try:
-                                bid_exists = (
-                                    len(
-                                        self.orderbook_bids.filter(
-                                            pl.col("price") == price
-                                        )
-                                    )
-                                    > 0
-                                )
-                                ask_exists = (
-                                    len(
-                                        self.orderbook_asks.filter(
-                                            pl.col("price") == price
-                                        )
-                                    )
-                                    > 0
-                                )
-
-                                if bid_exists and not ask_exists:
-                                    bid_updates.append(
-                                        {
-                                            "price": float(price),
-                                            "volume": int(volume),
-                                            "timestamp": timestamp,
-                                            "type": f"bid_mod_{entry_type}",
-                                        }
-                                    )
-                                    side_determined = True
-                                elif ask_exists and not bid_exists:
-                                    ask_updates.append(
-                                        {
-                                            "price": float(price),
-                                            "volume": int(volume),
-                                            "timestamp": timestamp,
-                                            "type": f"ask_mod_{entry_type}",
-                                        }
-                                    )
-                                    side_determined = True
-                            except Exception:
-                                pass
-
-                        # Method 4: Use historical price patterns if available
-                        if (
-                            not side_determined
-                            and len(self.orderbook_bids) > 0
-                            and len(self.orderbook_asks) > 0
-                        ):
-                            try:
-                                # Get the median of current bid and ask prices for better classification
-                                bid_prices = (
-                                    self.orderbook_bids.select(pl.col("price"))
-                                    .to_series()
-                                    .to_list()
-                                )
-                                ask_prices = (
-                                    self.orderbook_asks.select(pl.col("price"))
-                                    .to_series()
-                                    .to_list()
-                                )
-
-                                if bid_prices and ask_prices:
-                                    max_bid = max(bid_prices)
-                                    min_ask = min(ask_prices)
-
-                                    # If price is clearly in bid territory
-                                    if price <= max_bid:
-                                        bid_updates.append(
-                                            {
-                                                "price": float(price),
-                                                "volume": int(volume),
-                                                "timestamp": timestamp,
-                                                "type": f"bid_mod_{entry_type}",
-                                            }
-                                        )
-                                        side_determined = True
-                                    # If price is clearly in ask territory
-                                    elif price >= min_ask:
-                                        ask_updates.append(
-                                            {
-                                                "price": float(price),
-                                                "volume": int(volume),
-                                                "timestamp": timestamp,
-                                                "type": f"ask_mod_{entry_type}",
-                                            }
-                                        )
-                                        side_determined = True
-                            except Exception:
-                                pass
-
-                        # If still can't determine side, skip this update to avoid corruption
-                        if not side_determined:
-                            self.logger.warning(
-                                f"Unable to classify order modification type {entry_type} "
-                                f"at price {price} with volume {volume}. Skipping to avoid orderbook corruption."
+                    elif entry_type == 11:  # Fill (alternative trade representation)
+                        if volume > 0:
+                            trade_updates.append(
+                                {
+                                    "price": float(price),
+                                    "volume": int(volume),
+                                    "timestamp": timestamp,
+                                }
                             )
-                            # Update statistics for skipped updates
-                            self.order_type_stats["skipped_updates"] = (
-                                self.order_type_stats.get("skipped_updates", 0) + 1
-                            )
+                    elif entry_type == 6:  # Reset - clear orderbook
+                        self.logger.info(
+                            "OrderBook reset signal received, clearing data"
+                        )
+                        self.orderbook_bids = pl.DataFrame(
+                            {"price": [], "volume": [], "timestamp": [], "type": []},
+                            schema={
+                                "price": pl.Float64,
+                                "volume": pl.Int64,
+                                "timestamp": pl.Datetime,
+                                "type": pl.Utf8,
+                            },
+                        )
+                        self.orderbook_asks = pl.DataFrame(
+                            {"price": [], "volume": [], "timestamp": [], "type": []},
+                            schema={
+                                "price": pl.Float64,
+                                "volume": pl.Int64,
+                                "timestamp": pl.Datetime,
+                                "type": pl.Utf8,
+                            },
+                        )
+                    elif entry_type in [
+                        7,
+                        8,
+                    ]:  # Low/High - informational, could be used for day range
+                        # These are typically session low/high updates, log for awareness
+                        self.logger.debug(
+                            f"Session {'low' if entry_type == 7 else 'high'} update: {price}"
+                        )
+                    elif entry_type == 0:  # Unknown
+                        self.logger.debug(
+                            f"Unknown DOM type received: price={price}, volume={volume}"
+                        )
+                    # Note: We removed the complex classification logic for types 9/10 since they're now clearly defined
 
                 # Update bid levels
                 if bid_updates:
@@ -586,15 +545,64 @@ class OrderBook:
             best_bid = best_prices.get("bid")
             best_ask = best_prices.get("ask")
 
-            # Enhance trade data with side detection
-            enhanced_trades = trade_updates.with_columns(
-                pl.when(pl.col("price") >= best_ask)
-                .then(pl.lit("buy"))
-                .when(pl.col("price") <= best_bid)
-                .then(pl.lit("sell"))
-                .otherwise(pl.lit("unknown"))
-                .alias("side")
-            )
+            # Enhanced trade direction detection with improved logic
+            if best_bid is not None and best_ask is not None:
+                # Calculate mid price for better classification
+                mid_price = (best_bid + best_ask) / 2
+                spread = best_ask - best_bid
+
+                # Use spread-aware logic for better trade direction detection
+                # Wider spreads require more conservative classification
+                spread_threshold = spread * 0.25  # 25% of spread as buffer zone
+
+                enhanced_trades = trade_updates.with_columns(
+                    pl.when(pl.col("price") >= best_ask)
+                    .then(pl.lit("buy"))  # Trade at or above ask = aggressive buy
+                    .when(pl.col("price") <= best_bid)
+                    .then(pl.lit("sell"))  # Trade at or below bid = aggressive sell
+                    .when(pl.col("price") >= (mid_price + spread_threshold))
+                    .then(pl.lit("buy"))  # Above mid + buffer = likely buy
+                    .when(pl.col("price") <= (mid_price - spread_threshold))
+                    .then(pl.lit("sell"))  # Below mid - buffer = likely sell
+                    .when(spread <= 0.01)  # Very tight spread (1 cent or less)
+                    .then(
+                        pl.when(pl.col("price") > mid_price)
+                        .then(pl.lit("buy"))
+                        .otherwise(pl.lit("sell"))
+                    )
+                    .otherwise(pl.lit("neutral"))  # In the spread buffer zone
+                    .alias("side")
+                )
+
+                # Add spread metadata to trades for analysis
+                enhanced_trades = enhanced_trades.with_columns(
+                    [
+                        pl.lit(spread).alias("spread_at_trade"),
+                        pl.lit(mid_price).alias("mid_price_at_trade"),
+                        pl.lit(best_bid).alias("best_bid_at_trade"),
+                        pl.lit(best_ask).alias("best_ask_at_trade"),
+                    ]
+                )
+            else:
+                # Fallback to basic classification if no best prices available
+                enhanced_trades = trade_updates.with_columns(
+                    pl.when((best_ask is not None) & (pl.col("price") >= best_ask))
+                    .then(pl.lit("buy"))
+                    .when((best_bid is not None) & (pl.col("price") <= best_bid))
+                    .then(pl.lit("sell"))
+                    .otherwise(pl.lit("unknown"))
+                    .alias("side")
+                )
+
+                # Add null metadata for consistency when best prices unavailable
+                enhanced_trades = enhanced_trades.with_columns(
+                    [
+                        pl.lit(None, dtype=pl.Float64).alias("spread_at_trade"),
+                        pl.lit(None, dtype=pl.Float64).alias("mid_price_at_trade"),
+                        pl.lit(best_bid, dtype=pl.Float64).alias("best_bid_at_trade"),
+                        pl.lit(best_ask, dtype=pl.Float64).alias("best_ask_at_trade"),
+                    ]
+                )
 
             # Combine with existing trade data
             if self.recent_trades.height > 0:
@@ -694,15 +702,31 @@ class OrderBook:
             volume = entry.get("volume", 0)
             entry_type = entry.get("type", 0)
 
-            # Type mapping based on TopStepX format:
-            # Type 1 = Ask/Offer (selling pressure)
-            # Type 2 = Bid (buying pressure)
-            # Type 5 = Trade (market execution)
-            # Type 9/10 = Order modifications
+            # Type mapping based on ProjectX DomType enum:
+            # Type 0 = Unknown
+            # Type 1 = Ask
+            # Type 2 = Bid
+            # Type 3 = BestAsk
+            # Type 4 = BestBid
+            # Type 5 = Trade
+            # Type 6 = Reset
+            # Type 7 = Low
+            # Type 8 = High
+            # Type 9 = NewBestBid
+            # Type 10 = NewBestAsk
+            # Type 11 = Fill
 
             if entry_type == 2 and volume > 0:  # Bid
                 bids.append({"price": price, "volume": volume})
             elif entry_type == 1 and volume > 0:  # Ask
+                asks.append({"price": price, "volume": volume})
+            elif entry_type == 4 and volume > 0:  # BestBid
+                bids.append({"price": price, "volume": volume})
+            elif entry_type == 3 and volume > 0:  # BestAsk
+                asks.append({"price": price, "volume": volume})
+            elif entry_type == 9 and volume > 0:  # NewBestBid
+                bids.append({"price": price, "volume": volume})
+            elif entry_type == 10 and volume > 0:  # NewBestAsk
                 asks.append({"price": price, "volume": volume})
 
         # Sort bids (highest to lowest) and asks (lowest to highest)
@@ -922,18 +946,31 @@ class OrderBook:
             count: Number of recent trades to return
 
         Returns:
-            pl.DataFrame: Recent trades with price, volume, timestamp, side
+            pl.DataFrame: Recent trades with price, volume, timestamp, side, and spread metadata
         """
         try:
             with self.orderbook_lock:
                 if len(self.recent_trades) == 0:
                     return pl.DataFrame(
-                        {"price": [], "volume": [], "timestamp": [], "side": []},
+                        {
+                            "price": [],
+                            "volume": [],
+                            "timestamp": [],
+                            "side": [],
+                            "spread_at_trade": [],
+                            "mid_price_at_trade": [],
+                            "best_bid_at_trade": [],
+                            "best_ask_at_trade": [],
+                        },
                         schema={
                             "price": pl.Float64,
                             "volume": pl.Int64,
                             "timestamp": pl.Datetime,
                             "side": pl.Utf8,
+                            "spread_at_trade": pl.Float64,
+                            "mid_price_at_trade": pl.Float64,
+                            "best_bid_at_trade": pl.Float64,
+                            "best_ask_at_trade": pl.Float64,
                         },
                     )
 
@@ -947,6 +984,10 @@ class OrderBook:
                     "volume": pl.Int64,
                     "timestamp": pl.Datetime,
                     "side": pl.Utf8,
+                    "spread_at_trade": pl.Float64,
+                    "mid_price_at_trade": pl.Float64,
+                    "best_bid_at_trade": pl.Float64,
+                    "best_ask_at_trade": pl.Float64,
                 }
             )
 
@@ -957,12 +998,25 @@ class OrderBook:
         try:
             with self.orderbook_lock:
                 self.recent_trades = pl.DataFrame(
-                    {"price": [], "volume": [], "timestamp": [], "side": []},
+                    {
+                        "price": [],
+                        "volume": [],
+                        "timestamp": [],
+                        "side": [],
+                        "spread_at_trade": [],
+                        "mid_price_at_trade": [],
+                        "best_bid_at_trade": [],
+                        "best_ask_at_trade": [],
+                    },
                     schema={
                         "price": pl.Float64,
                         "volume": pl.Int64,
                         "timestamp": pl.Datetime,
                         "side": pl.Utf8,
+                        "spread_at_trade": pl.Float64,
+                        "mid_price_at_trade": pl.Float64,
+                        "best_bid_at_trade": pl.Float64,
+                        "best_ask_at_trade": pl.Float64,
                     },
                 )
 
@@ -2038,6 +2092,9 @@ class OrderBook:
                 "support_resistance": self.get_support_resistance_levels(),
                 "orderbook_snapshot": self.get_orderbook_snapshot(),
                 "trade_flow": self.get_trade_flow_summary(),
+                "dom_event_analysis": self.get_dom_event_analysis(),
+                "best_price_analysis": self.get_best_price_change_analysis(),
+                "spread_analysis": self.get_spread_analysis(),
                 "timestamp": datetime.now(self.timezone),
                 "analysis_summary": {
                     "data_quality": "high"
@@ -2080,21 +2137,37 @@ class OrderBook:
                 self.logger.error(f"Error in {event_type} orderbook callback: {e}")
 
     def get_statistics(self) -> dict[str, Any]:
-        """Get statistics about the orderbook."""
+        """Get comprehensive statistics about the orderbook with enhanced DOM analysis."""
         with self.orderbook_lock:
             best_prices = self.get_best_bid_ask()
+            dom_analysis = self.get_dom_event_analysis()
+
             return {
                 "instrument": self.instrument,
-                "bid_levels": len(self.orderbook_bids),
-                "ask_levels": len(self.orderbook_asks),
-                "best_bid": best_prices.get("bid"),
-                "best_ask": best_prices.get("ask"),
-                "spread": best_prices.get("spread"),
-                "mid_price": best_prices.get("mid"),
-                "last_update": self.last_orderbook_update,
-                "level2_updates": self.level2_update_count,
-                "recent_trades_count": len(self.recent_trades),
-                "order_type_stats": self.get_order_type_statistics(),
+                "orderbook_state": {
+                    "bid_levels": len(self.orderbook_bids),
+                    "ask_levels": len(self.orderbook_asks),
+                    "best_bid": best_prices.get("bid"),
+                    "best_ask": best_prices.get("ask"),
+                    "spread": best_prices.get("spread"),
+                    "mid_price": best_prices.get("mid"),
+                },
+                "data_flow": {
+                    "last_update": self.last_orderbook_update,
+                    "level2_updates": self.level2_update_count,
+                    "recent_trades_count": len(self.recent_trades),
+                },
+                "dom_event_breakdown": {
+                    "raw_stats": self.get_order_type_statistics(),
+                    "event_quality": dom_analysis.get("analysis", {})
+                    .get("market_activity_insights", {})
+                    .get("data_quality", {}),
+                    "market_activity": dom_analysis.get("analysis", {}).get(
+                        "market_activity_insights", {}
+                    ),
+                },
+                "performance_metrics": self.get_memory_stats(),
+                "timestamp": datetime.now(self.timezone),
             }
 
     # Helper methods for advanced iceberg detection
@@ -2242,3 +2315,404 @@ class OrderBook:
             enhanced_icebergs.append(iceberg)
 
         return enhanced_icebergs
+
+    def get_dom_event_analysis(self, time_window_minutes: int = 30) -> dict[str, Any]:
+        """
+        Analyze DOM event patterns using the corrected ProjectX DomType understanding.
+
+        Args:
+            time_window_minutes: Time window for analysis
+
+        Returns:
+            dict: DOM event analysis with market structure insights
+        """
+        try:
+            stats = self.get_order_type_statistics().copy()
+
+            # Calculate total DOM events
+            total_events = (
+                sum(stats.values())
+                - stats.get("skipped_updates", 0)
+                - stats.get("integrity_fixes", 0)
+            )
+
+            if total_events == 0:
+                return {
+                    "dom_events": stats,
+                    "analysis": {"note": "No DOM events recorded"},
+                }
+
+            # Calculate percentages and insights
+            analysis = {
+                "total_dom_events": total_events,
+                "event_distribution": {
+                    "regular_updates": {
+                        "bid_updates": stats.get("type_2_count", 0),
+                        "ask_updates": stats.get("type_1_count", 0),
+                        "percentage": (
+                            (
+                                stats.get("type_1_count", 0)
+                                + stats.get("type_2_count", 0)
+                            )
+                            / total_events
+                            * 100
+                        )
+                        if total_events > 0
+                        else 0,
+                    },
+                    "best_price_updates": {
+                        "best_bid": stats.get("type_4_count", 0),
+                        "best_ask": stats.get("type_3_count", 0),
+                        "new_best_bid": stats.get("type_9_count", 0),
+                        "new_best_ask": stats.get("type_10_count", 0),
+                        "total": stats.get("type_3_count", 0)
+                        + stats.get("type_4_count", 0)
+                        + stats.get("type_9_count", 0)
+                        + stats.get("type_10_count", 0),
+                        "percentage": (
+                            (
+                                stats.get("type_3_count", 0)
+                                + stats.get("type_4_count", 0)
+                                + stats.get("type_9_count", 0)
+                                + stats.get("type_10_count", 0)
+                            )
+                            / total_events
+                            * 100
+                        )
+                        if total_events > 0
+                        else 0,
+                    },
+                    "trade_executions": {
+                        "trades": stats.get("type_5_count", 0),
+                        "fills": stats.get("type_11_count", 0),
+                        "total": stats.get("type_5_count", 0)
+                        + stats.get("type_11_count", 0),
+                        "percentage": (
+                            (
+                                stats.get("type_5_count", 0)
+                                + stats.get("type_11_count", 0)
+                            )
+                            / total_events
+                            * 100
+                        )
+                        if total_events > 0
+                        else 0,
+                    },
+                    "market_structure": {
+                        "resets": stats.get("type_6_count", 0),
+                        "session_high": stats.get("type_8_count", 0),
+                        "session_low": stats.get("type_7_count", 0),
+                        "percentage": (
+                            (
+                                stats.get("type_6_count", 0)
+                                + stats.get("type_7_count", 0)
+                                + stats.get("type_8_count", 0)
+                            )
+                            / total_events
+                            * 100
+                        )
+                        if total_events > 0
+                        else 0,
+                    },
+                },
+                "market_activity_insights": {
+                    "best_price_volatility": "high"
+                    if (stats.get("type_9_count", 0) + stats.get("type_10_count", 0))
+                    > total_events * 0.1
+                    else "normal",
+                    "trade_to_quote_ratio": (
+                        stats.get("type_5_count", 0) + stats.get("type_11_count", 0)
+                    )
+                    / max(
+                        1, stats.get("type_1_count", 0) + stats.get("type_2_count", 0)
+                    ),
+                    "market_maker_activity": "active"
+                    if (stats.get("type_1_count", 0) + stats.get("type_2_count", 0))
+                    > (stats.get("type_5_count", 0) + stats.get("type_11_count", 0)) * 3
+                    else "moderate",
+                    "data_quality": {
+                        "integrity_fixes_needed": stats.get("integrity_fixes", 0),
+                        "skipped_updates": stats.get("skipped_updates", 0),
+                        "data_quality_score": max(
+                            0,
+                            min(
+                                100,
+                                100
+                                - (
+                                    stats.get("skipped_updates", 0)
+                                    + stats.get("integrity_fixes", 0)
+                                )
+                                / max(1, total_events)
+                                * 100,
+                            ),
+                        ),
+                    },
+                },
+            }
+
+            return {
+                "dom_events": stats,
+                "analysis": analysis,
+                "timestamp": datetime.now(self.timezone),
+                "time_window_minutes": time_window_minutes,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error analyzing DOM events: {e}")
+            return {"dom_events": self.get_order_type_statistics(), "error": str(e)}
+
+    def get_best_price_change_analysis(
+        self, time_window_minutes: int = 10
+    ) -> dict[str, Any]:
+        """
+        Analyze best price change patterns using NewBestBid/NewBestAsk events.
+
+        Args:
+            time_window_minutes: Time window for analysis
+
+        Returns:
+            dict: Best price change analysis
+        """
+        try:
+            stats = self.get_order_type_statistics()
+
+            # Calculate best price change frequency
+            new_best_bid_count = stats.get("type_9_count", 0)  # NewBestBid
+            new_best_ask_count = stats.get("type_10_count", 0)  # NewBestAsk
+            best_bid_count = stats.get("type_4_count", 0)  # BestBid
+            best_ask_count = stats.get("type_3_count", 0)  # BestAsk
+
+            total_best_events = (
+                new_best_bid_count
+                + new_best_ask_count
+                + best_bid_count
+                + best_ask_count
+            )
+
+            if total_best_events == 0:
+                return {
+                    "best_price_changes": 0,
+                    "analysis": {"note": "No best price events recorded"},
+                }
+
+            # Get current best prices for context
+            current_best = self.get_best_bid_ask()
+
+            analysis = {
+                "best_price_events": {
+                    "new_best_bid": new_best_bid_count,
+                    "new_best_ask": new_best_ask_count,
+                    "best_bid_updates": best_bid_count,
+                    "best_ask_updates": best_ask_count,
+                    "total": total_best_events,
+                },
+                "price_movement_indicators": {
+                    "bid_side_activity": new_best_bid_count + best_bid_count,
+                    "ask_side_activity": new_best_ask_count + best_ask_count,
+                    "bid_vs_ask_ratio": (new_best_bid_count + best_bid_count)
+                    / max(1, new_best_ask_count + best_ask_count),
+                    "new_best_frequency": (new_best_bid_count + new_best_ask_count)
+                    / max(1, total_best_events),
+                    "price_volatility_indicator": "high"
+                    if (new_best_bid_count + new_best_ask_count)
+                    > total_best_events * 0.6
+                    else "normal",
+                },
+                "market_microstructure": {
+                    "current_spread": current_best.get("spread"),
+                    "current_mid": current_best.get("mid"),
+                    "best_bid": current_best.get("bid"),
+                    "best_ask": current_best.get("ask"),
+                    "spread_activity": "active" if total_best_events > 10 else "quiet",
+                },
+                "time_metrics": {
+                    "events_per_minute": total_best_events
+                    / max(1, time_window_minutes),
+                    "estimated_tick_frequency": f"{60 / max(1, total_best_events / max(1, time_window_minutes)):.1f} seconds between best price changes"
+                    if total_best_events > 0
+                    else "No changes",
+                },
+            }
+
+            return {
+                "best_price_changes": total_best_events,
+                "analysis": analysis,
+                "timestamp": datetime.now(self.timezone),
+                "time_window_minutes": time_window_minutes,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error analyzing best price changes: {e}")
+            return {"best_price_changes": 0, "error": str(e)}
+
+    def get_spread_analysis(self, time_window_minutes: int = 30) -> dict[str, Any]:
+        """
+        Analyze spread patterns and their impact on trade direction detection.
+
+        Args:
+            time_window_minutes: Time window for analysis
+
+        Returns:
+            dict: Spread analysis with trade direction insights
+        """
+        try:
+            with self.orderbook_lock:
+                if len(self.recent_trades) == 0:
+                    return {
+                        "spread_analysis": {},
+                        "analysis": {"note": "No trade data available"},
+                    }
+
+                # Filter trades from time window
+                cutoff_time = datetime.now(self.timezone) - timedelta(
+                    minutes=time_window_minutes
+                )
+                recent_trades = self.recent_trades.filter(
+                    pl.col("timestamp") >= cutoff_time
+                )
+
+                if len(recent_trades) == 0:
+                    return {
+                        "spread_analysis": {},
+                        "analysis": {"note": "No trades in time window"},
+                    }
+
+                # Check if spread metadata is available
+                if "spread_at_trade" not in recent_trades.columns:
+                    return {
+                        "spread_analysis": {},
+                        "analysis": {
+                            "note": "Spread metadata not available (legacy data)"
+                        },
+                    }
+
+                # Filter out trades with null spread data
+                trades_with_spread = recent_trades.filter(
+                    pl.col("spread_at_trade").is_not_null()
+                )
+
+                if len(trades_with_spread) == 0:
+                    return {
+                        "spread_analysis": {},
+                        "analysis": {
+                            "note": "No trades with spread metadata in time window"
+                        },
+                    }
+
+                # Calculate spread statistics
+                spread_stats = trades_with_spread.select(
+                    [
+                        pl.col("spread_at_trade").mean().alias("avg_spread"),
+                        pl.col("spread_at_trade").median().alias("median_spread"),
+                        pl.col("spread_at_trade").min().alias("min_spread"),
+                        pl.col("spread_at_trade").max().alias("max_spread"),
+                        pl.col("spread_at_trade").std().alias("spread_volatility"),
+                    ]
+                ).to_dicts()[0]
+
+                # Analyze trade direction by spread size
+                spread_buckets = trades_with_spread.with_columns(
+                    [
+                        pl.when(pl.col("spread_at_trade") <= 0.01)
+                        .then(pl.lit("tight"))
+                        .when(pl.col("spread_at_trade") <= 0.05)
+                        .then(pl.lit("normal"))
+                        .when(pl.col("spread_at_trade") <= 0.10)
+                        .then(pl.lit("wide"))
+                        .otherwise(pl.lit("very_wide"))
+                        .alias("spread_category")
+                    ]
+                )
+
+                # Trade direction distribution by spread category
+                direction_by_spread = (
+                    spread_buckets.group_by(["spread_category", "side"])
+                    .agg(
+                        [
+                            pl.count().alias("trade_count"),
+                            pl.col("volume").sum().alias("total_volume"),
+                        ]
+                    )
+                    .sort(["spread_category", "side"])
+                )
+
+                # Calculate spread impact on direction confidence
+                neutral_trades = spread_buckets.filter(pl.col("side") == "neutral")
+                total_trades = len(spread_buckets)
+                neutral_percentage = (
+                    (len(neutral_trades) / total_trades * 100)
+                    if total_trades > 0
+                    else 0
+                )
+
+                # Current spread context
+                current_best = self.get_best_bid_ask()
+                current_spread = current_best.get("spread", 0)
+
+                # Spread trend analysis
+                if len(trades_with_spread) > 10:
+                    recent_spread_trend = (
+                        trades_with_spread.tail(10)
+                        .select(
+                            [
+                                pl.col("spread_at_trade")
+                                .mean()
+                                .alias("recent_avg_spread")
+                            ]
+                        )
+                        .item()
+                    )
+
+                    spread_trend = (
+                        "widening"
+                        if recent_spread_trend > spread_stats["avg_spread"] * 1.1
+                        else "tightening"
+                        if recent_spread_trend < spread_stats["avg_spread"] * 0.9
+                        else "stable"
+                    )
+                else:
+                    recent_spread_trend = spread_stats["avg_spread"]
+                    spread_trend = "stable"
+
+                analysis = {
+                    "spread_statistics": spread_stats,
+                    "current_spread": current_spread,
+                    "spread_trend": spread_trend,
+                    "recent_avg_spread": recent_spread_trend,
+                    "trade_direction_analysis": {
+                        "neutral_trade_percentage": neutral_percentage,
+                        "classification_confidence": "high"
+                        if neutral_percentage < 10
+                        else "medium"
+                        if neutral_percentage < 25
+                        else "low",
+                        "spread_impact": "minimal"
+                        if spread_stats["spread_volatility"] < 0.01
+                        else "moderate"
+                        if spread_stats["spread_volatility"] < 0.05
+                        else "high",
+                    },
+                    "direction_by_spread_category": direction_by_spread.to_dicts(),
+                    "market_microstructure": {
+                        "spread_efficiency": "efficient"
+                        if spread_stats["avg_spread"] < 0.02
+                        else "normal"
+                        if spread_stats["avg_spread"] < 0.05
+                        else "wide",
+                        "volatility_indicator": "low"
+                        if spread_stats["spread_volatility"] < 0.01
+                        else "normal"
+                        if spread_stats["spread_volatility"] < 0.03
+                        else "high",
+                    },
+                }
+
+                return {
+                    "spread_analysis": analysis,
+                    "timestamp": datetime.now(self.timezone),
+                    "time_window_minutes": time_window_minutes,
+                }
+
+        except Exception as e:
+            self.logger.error(f"Error analyzing spread patterns: {e}")
+            return {"spread_analysis": {}, "error": str(e)}
