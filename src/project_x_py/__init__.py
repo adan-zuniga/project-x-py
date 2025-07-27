@@ -1,20 +1,20 @@
 """
 ProjectX Python SDK for Trading Applications
 
-A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing developers 
-with tools to build sophisticated trading strategies and applications. This library offers 
+A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing developers
+with tools to build sophisticated trading strategies and applications. This library offers
 comprehensive access to:
 
 - Market data retrieval and real-time streaming
-- Account management and authentication  
+- Account management and authentication
 - Order placement, modification, and cancellation
 - Position management and portfolio analytics
 - Trade history and execution analysis
 - Advanced technical indicators and market analysis
 - Level 2 orderbook depth and market microstructure
 
-**Important**: This is a development toolkit/SDK, not a trading strategy itself. 
-It provides the infrastructure to help developers create their own trading applications 
+**Important**: This is a development toolkit/SDK, not a trading strategy itself.
+It provides the infrastructure to help developers create their own trading applications
 that integrate with the ProjectX platform.
 
 Author: TexasCoding
@@ -362,13 +362,10 @@ def create_client(
     Example:
         >>> # Using environment variables (recommended)
         >>> client = create_client()
-        >>> 
         >>> # Using explicit credentials
         >>> client = create_client("username", "api_key")
-        >>> 
         >>> # Using specific account
         >>> client = create_client(account_name="Main Trading Account")
-        >>> 
         >>> # Using custom configuration
         >>> config = create_custom_config(api_url="https://custom.api.com")
         >>> client = create_client(config=config)
@@ -404,10 +401,8 @@ def create_realtime_client(
         >>> client = ProjectX.from_env()
         >>> jwt_token = client.get_session_token()
         >>> account = client.get_account_info()
-        >>> 
         >>> # Create real-time client
         >>> realtime_client = create_realtime_client(jwt_token, account.id)
-        >>> 
         >>> # Connect and subscribe
         >>> realtime_client.connect()
         >>> realtime_client.subscribe_user_updates()
@@ -442,7 +437,7 @@ def create_data_manager(
         instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
         project_x: ProjectX client instance for historical data and API access
         realtime_client: ProjectXRealtimeClient instance for real-time market data feeds
-        timeframes: List of timeframes to track (default: ["5min"]). 
+        timeframes: List of timeframes to track (default: ["5min"]).
                    Common: ["5sec", "1min", "5min", "15min", "1hour", "1day"]
         config: Configuration object with timezone settings (uses defaults if None)
 
@@ -453,19 +448,16 @@ def create_data_manager(
         >>> # Setup clients
         >>> client = ProjectX.from_env()
         >>> realtime_client = create_realtime_client(jwt_token, account_id)
-        >>> 
         >>> # Create data manager for multiple timeframes
         >>> data_manager = create_data_manager(
         ...     instrument="MGC",
         ...     project_x=client,
         ...     realtime_client=realtime_client,
-        ...     timeframes=["5sec", "1min", "5min", "15min"]
+        ...     timeframes=["5sec", "1min", "5min", "15min"],
         ... )
-        >>> 
         >>> # Initialize with historical data and start real-time feed
         >>> data_manager.initialize(initial_days=30)
         >>> data_manager.start_realtime_feed()
-        >>> 
         >>> # Access multi-timeframe data
         >>> current_5min = data_manager.get_data("5min")
         >>> current_1min = data_manager.get_data("1min")
@@ -507,16 +499,13 @@ def create_orderbook(
     Example:
         >>> # Create orderbook for market depth analysis
         >>> orderbook = create_orderbook("MGC")
-        >>> 
         >>> # Connect to real-time client for depth updates
         >>> realtime_client.add_callback("market_depth", orderbook.process_market_depth)
-        >>> 
         >>> # Access market depth analytics
         >>> snapshot = orderbook.get_orderbook_snapshot()
         >>> spread = orderbook.get_bid_ask_spread()
         >>> imbalance = orderbook.get_order_imbalance()
         >>> iceberg_signals = orderbook.detect_iceberg_orders()
-        >>> 
         >>> # Volume analysis
         >>> volume_profile = orderbook.get_volume_profile()
         >>> liquidity_analysis = orderbook.analyze_liquidity_distribution()
@@ -606,7 +595,7 @@ def create_trading_suite(
 
     This factory function provides developers with a comprehensive suite of connected
     components for building sophisticated trading applications. It sets up:
-    
+
     - Single ProjectXRealtimeClient for efficient WebSocket connections
     - ProjectXRealtimeDataManager for multi-timeframe OHLCV data management
     - OrderBook for advanced market depth analysis and microstructure insights
@@ -629,7 +618,7 @@ def create_trading_suite(
         dict: Complete trading toolkit with keys:
               - "realtime_client": ProjectXRealtimeClient for WebSocket connections
               - "data_manager": ProjectXRealtimeDataManager for OHLCV data
-              - "orderbook": OrderBook for market depth analysis  
+              - "orderbook": OrderBook for market depth analysis
               - "order_manager": OrderManager for order operations
               - "position_manager": PositionManager for position tracking
               - "config": ProjectXConfig used for initialization
@@ -644,7 +633,9 @@ def create_trading_suite(
         >>> suite["data_manager"].initialize(initial_days=30)
         >>> suite["data_manager"].start_realtime_feed()
         >>> # Add market depth callback
-        >>> suite["realtime_client"].add_callback("market_depth", suite["orderbook"].process_market_depth)
+        >>> suite["realtime_client"].add_callback(
+        ...     "market_depth", suite["orderbook"].process_market_depth
+        ... )
         >>> # Place orders
         >>> bracket = suite["order_manager"].place_bracket_order(
         ...     "MGC", 0, 1, 2045.0, 2040.0, 2055.0
