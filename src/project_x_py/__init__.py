@@ -24,9 +24,10 @@ from .client import ProjectX
 # Configuration management
 from .config import (
     ConfigManager,
-    check_environment,
-    create_config_template,
+    create_custom_config,
     load_default_config,
+    load_projectx_gateway_config,
+    load_topstepx_config,
 )
 
 # Exceptions
@@ -160,9 +161,8 @@ __all__ = [
     "calculate_volatility_metrics",
     "calculate_volume_profile",
     "calculate_williams_r",
-    "check_environment",
     "convert_timeframe_to_seconds",
-    "create_config_template",
+    "create_custom_config",
     "create_data_manager",
     "create_data_snapshot",
     "create_order_manager",
@@ -179,6 +179,8 @@ __all__ = [
     "get_market_session_info",
     "is_market_hours",
     "load_default_config",
+    "load_projectx_gateway_config",
+    "load_topstepx_config",
     "round_to_tick_size",
     "setup_logging",
     "validate_contract_id",
@@ -562,8 +564,7 @@ def create_trading_suite(
     realtime_client = ProjectXRealtimeClient(
         jwt_token=jwt_token,
         account_id=account_id,
-        user_hub_url=config.user_hub_url,
-        market_hub_url=config.market_hub_url,
+        config=config,
     )
 
     # Create OHLCV data manager with dependency injection

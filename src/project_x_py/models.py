@@ -259,12 +259,23 @@ class BracketOrderResponse:
 class ProjectXConfig:
     """
     Configuration settings for the ProjectX client.
+    
+    Default URLs are set for TopStepX endpoints. For ProjectX Gateway, 
+    update the URLs accordingly:
+    
+    ProjectX Gateway (Demo):
+    - user_hub_url: "https://gateway-rtc-demo.s2f.projectx.com/hubs/user"
+    - market_hub_url: "https://gateway-rtc-demo.s2f.projectx.com/hubs/market"
+    
+    TopStepX (Default):
+    - user_hub_url: "https://rtc.topstepx.com/hubs/user"
+    - market_hub_url: "https://rtc.topstepx.com/hubs/market"
 
     Attributes:
         api_url (str): Base URL for the API endpoints
         realtime_url (str): URL for real-time WebSocket connections
-        user_hub_url (str): URL for user hub WebSocket
-        market_hub_url (str): URL for market hub WebSocket
+        user_hub_url (str): URL for user hub WebSocket (accounts, positions, orders)
+        market_hub_url (str): URL for market hub WebSocket (quotes, trades, depth)
         timezone (str): Timezone for timestamp handling
         timeout_seconds (int): Request timeout in seconds
         retry_attempts (int): Number of retry attempts for failed requests

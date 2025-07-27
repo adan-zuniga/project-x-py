@@ -231,6 +231,57 @@ def load_default_config() -> ProjectXConfig:
     return manager.load_config()
 
 
+def load_projectx_gateway_config() -> ProjectXConfig:
+    """
+    Load configuration for ProjectX Gateway demo endpoints.
+    
+    Returns:
+        ProjectXConfig: Configuration with ProjectX Gateway URLs
+    """
+    config = load_default_config()
+    config.user_hub_url = "https://gateway-rtc-demo.s2f.projectx.com/hubs/user"
+    config.market_hub_url = "https://gateway-rtc-demo.s2f.projectx.com/hubs/market"
+    return config
+
+
+def load_topstepx_config() -> ProjectXConfig:
+    """
+    Load configuration for TopStepX endpoints (uses default config).
+    
+    Returns:
+        ProjectXConfig: Configuration with TopStepX URLs
+    """
+    return load_default_config()
+
+
+def create_custom_config(
+    user_hub_url: str,
+    market_hub_url: str,
+    **kwargs
+) -> ProjectXConfig:
+    """
+    Create custom configuration with specified URLs.
+    
+    Args:
+        user_hub_url: Custom user hub URL
+        market_hub_url: Custom market hub URL
+        **kwargs: Additional configuration parameters
+        
+    Returns:
+        ProjectXConfig: Custom configuration instance
+    """
+    config = load_default_config()
+    config.user_hub_url = user_hub_url
+    config.market_hub_url = market_hub_url
+    
+    # Apply any additional kwargs
+    for key, value in kwargs.items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+    
+    return config
+
+
 def create_config_template(file_path: str | Path) -> None:
     """
     Create a configuration file template.

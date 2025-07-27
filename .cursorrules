@@ -7,6 +7,15 @@ This is a Python SDK/client library for the ProjectX Trading Platform (https://w
 
 ## ProjectX API Integration Rules
 
+### Configurable Platform Endpoints
+- **ALWAYS** use configuration objects for URL management
+- **NEVER** hardcode platform URLs in business logic
+- **ALWAYS** support both ProjectX Gateway and TopStepX endpoints:
+  - ProjectX Gateway (demo): `https://gateway-rtc-demo.s2f.projectx.com/hubs/*`
+  - TopStepX (production): `https://rtc.topstepx.com/hubs/*`
+- **PREFER** configuration helpers: `load_projectx_gateway_config()`, `load_topstepx_config()`, `create_custom_config()`
+- **ALWAYS** allow URL overrides via parameters or environment variables
+
 ### Real-time Data Payloads
 - **ALWAYS** validate ProjectX payload structure before processing
 - **NEVER** assume nested "data" wrapper - payloads are typically direct objects
