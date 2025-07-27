@@ -338,7 +338,34 @@ class OrderManager:
                 self.logger.error(f"Error in {event_type} callback: {e}")
 
     def add_callback(self, event_type: str, callback):
-        """Add a callback for order events."""
+        """
+        Register a callback function for specific order events.
+
+        Allows you to listen for order fills, cancellations, rejections, and other
+        order status changes to build custom monitoring and notification systems.
+
+        Args:
+            event_type: Type of event to listen for
+                - "order_filled": Order completely filled
+                - "order_cancelled": Order cancelled
+                - "order_expired": Order expired
+                - "order_rejected": Order rejected by exchange
+                - "order_pending": Order pending submission
+                - "trade_execution": Trade execution notification
+            callback: Function to call when event occurs
+                Should accept one argument: the order data dict
+
+        Example:
+            >>> def on_order_filled(order_data):
+            ...     print(
+            ...         f"Order filled: {order_data.get('id')} - {order_data.get('contractId')}"
+            ...     )
+            ...     print(f"Fill volume: {order_data.get('fillVolume', 0)}")
+            >>> order_manager.add_callback("order_filled", on_order_filled)
+            >>> def on_order_cancelled(order_data):
+            ...     print(f"Order cancelled: {order_data.get('id')}")
+            >>> order_manager.add_callback("order_cancelled", on_order_cancelled)
+        """
         self.order_callbacks[event_type].append(callback)
 
     # ================================================================================
@@ -347,13 +374,29 @@ class OrderManager:
 
     def get_tracked_order_status(self, order_id: str) -> dict[str, Any] | None:
         """
-        Get cached order status from realtime tracking.
+        Get cached order status from real-time tracking for faster access.
+
+        When real-time mode is enabled, this method provides instant access to
+        order status without requiring API calls, improving performance.
 
         Args:
-            order_id: Order ID to get status for
+            order_id: Order ID to get status for (as string)
 
         Returns:
-            dict: Order data if tracked, None otherwise
+            dict: Complete order data if tracked in cache, None if not found
+                Contains all ProjectX GatewayUserOrder fields:
+                - id, accountId, contractId, status, type, side, size
+                - limitPrice, stopPrice, fillVolume, filledPrice, etc.
+
+        Example:
+            >>> order_data = order_manager.get_tracked_order_status("12345")
+            >>> if order_data:
+            ...     print(
+            ...         f"Status: {order_data['status']}"
+            ...     )  # 1=Open, 2=Filled, 3=Cancelled
+            ...     print(f"Fill volume: {order_data.get('fillVolume', 0)}")
+            >>> else:
+            ...     print("Order not found in cache")
         """
         with self.order_lock:
             return self.tracked_orders.get(order_id)
@@ -362,11 +405,22 @@ class OrderManager:
         """
         Check if an order has been filled using cached data with API fallback.
 
+        Efficiently checks order fill status by first consulting the real-time
+        cache (if available) before falling back to API queries for maximum
+        performance.
+
         Args:
-            order_id: Order ID to check (str or int)
+            order_id: Order ID to check (accepts both string and integer)
 
         Returns:
-            bool: True if order is filled
+            bool: True if order status is 2 (Filled), False otherwise
+
+        Example:
+            >>> if order_manager.is_order_filled(12345):
+            ...     print("Order has been filled")
+            ...     # Proceed with next trading logic
+            >>> else:
+            ...     print("Order still pending")
         """
         order_id_str = str(order_id)
 
@@ -382,7 +436,15 @@ class OrderManager:
         return order is not None and order.status == 2  # 2 = Filled
 
     def clear_order_tracking(self):
-        """Clear internal order tracking cache."""
+        """
+        Clear internal order tracking cache for memory management.
+
+        Removes all cached order data from the real-time tracking system.
+        Useful for memory cleanup or when restarting order monitoring.
+
+        Example:
+            >>> order_manager.clear_order_tracking()
+        """
         with self.order_lock:
             self.tracked_orders.clear()
             self.order_status_cache.clear()
@@ -1374,12 +1436,25 @@ class OrderManager:
         self, order_id: int, contract_id: str, order_category: str
     ):
         """
-        Track an order as being related to a position.
+        Track an order as being related to a position for synchronization.
+
+        Establishes a relationship between an order and a position to enable
+        automatic order management when positions change (size adjustments,
+        closures, etc.).
 
         Args:
             order_id: Order ID to track
             contract_id: Contract ID the order relates to
-            order_category: Category: 'entry', 'stop', or 'target'
+            order_category: Order category for the relationship:
+                - 'entry': Entry orders that create positions
+                - 'stop': Stop loss orders for risk management
+                - 'target': Take profit orders for profit taking
+
+        Example:
+            >>> # Track a stop loss order for MGC position
+            >>> order_manager.track_order_for_position(12345, "MGC", "stop")
+            >>> # Track a take profit order
+            >>> order_manager.track_order_for_position(12346, "MGC", "target")
         """
         with self.order_lock:
             if order_category in ["entry", "stop", "target"]:
@@ -1392,10 +1467,16 @@ class OrderManager:
 
     def untrack_order(self, order_id: int):
         """
-        Remove order from position tracking.
+        Remove order from position tracking when no longer needed.
+
+        Removes the order-position relationship, typically called when orders
+        are filled, cancelled, or expired.
 
         Args:
-            order_id: Order ID to untrack
+            order_id: Order ID to remove from tracking
+
+        Example:
+            >>> order_manager.untrack_order(12345)
         """
         with self.order_lock:
             contract_id = self.order_to_position.pop(order_id, None)
@@ -1410,13 +1491,26 @@ class OrderManager:
 
     def get_position_orders(self, contract_id: str) -> dict[str, list[int]]:
         """
-        Get all orders related to a position.
+        Get all orders related to a specific position.
+
+        Retrieves all tracked orders associated with a position, organized
+        by category for position management and synchronization.
 
         Args:
             contract_id: Contract ID to get orders for
 
         Returns:
-            Dict with lists of order IDs by category
+            Dict with lists of order IDs organized by category:
+                - entry_orders: List of entry order IDs
+                - stop_orders: List of stop loss order IDs
+                - target_orders: List of take profit order IDs
+
+        Example:
+            >>> orders = order_manager.get_position_orders("MGC")
+            >>> print(f"Stop orders: {orders['stop_orders']}")
+            >>> print(f"Target orders: {orders['target_orders']}")
+            >>> if orders["entry_orders"]:
+            ...     print(f"Entry orders still pending: {orders['entry_orders']}")
         """
         with self.order_lock:
             return {
@@ -1691,10 +1785,31 @@ class OrderManager:
 
     def get_order_statistics(self) -> dict[str, Any]:
         """
-        Get order management statistics.
+        Get comprehensive order management statistics and system health information.
+
+        Provides detailed metrics about order activity, real-time tracking status,
+        position-order relationships, and system health for monitoring and debugging.
 
         Returns:
-            Dict with statistics and health information
+            Dict with complete statistics including:
+                - statistics: Core order metrics (placed, cancelled, modified, etc.)
+                - realtime_enabled: Whether real-time order tracking is active
+                - tracked_orders: Number of orders currently in cache
+                - position_order_relationships: Details about order-position links
+                - callbacks_registered: Number of callbacks per event type
+                - health_status: Overall system health status
+
+        Example:
+            >>> stats = order_manager.get_order_statistics()
+            >>> print(f"Orders placed: {stats['statistics']['orders_placed']}")
+            >>> print(f"Real-time enabled: {stats['realtime_enabled']}")
+            >>> print(f"Tracked orders: {stats['tracked_orders']}")
+            >>> relationships = stats["position_order_relationships"]
+            >>> print(
+            ...     f"Positions with orders: {relationships['positions_with_orders']}"
+            ... )
+            >>> for contract_id, orders in relationships["position_summary"].items():
+            ...     print(f"  {contract_id}: {orders['total']} orders")
         """
         with self.order_lock:
             # Use internal order tracking
@@ -1738,10 +1853,31 @@ class OrderManager:
 
     def get_realtime_validation_status(self) -> dict[str, Any]:
         """
-        Get validation status for real-time order feed integration.
+        Get validation status for real-time order feed integration and compliance.
+
+        Provides detailed information about real-time integration status,
+        payload validation settings, and ProjectX API compliance for debugging
+        and system validation.
 
         Returns:
-            Dict with validation metrics and status information
+            Dict with comprehensive validation status including:
+                - realtime_enabled: Whether real-time updates are active
+                - tracked_orders_count: Number of orders being tracked
+                - order_callbacks_registered: Number of order update callbacks
+                - payload_validation: Settings for validating ProjectX order payloads
+                - projectx_compliance: Compliance status with ProjectX API format
+                - statistics: Current order management statistics
+
+        Example:
+            >>> status = order_manager.get_realtime_validation_status()
+            >>> print(f"Real-time enabled: {status['realtime_enabled']}")
+            >>> print(f"Tracking {status['tracked_orders_count']} orders")
+            >>> compliance = status["projectx_compliance"]
+            >>> for check, result in compliance.items():
+            ...     print(f"{check}: {result}")
+            >>> # Validate order status enum understanding
+            >>> status_enum = status["payload_validation"]["order_status_enum"]
+            >>> print(f"Filled status code: {status_enum['Filled']}")
         """
         # Use internal order tracking
         with self.order_lock:
@@ -1797,7 +1933,17 @@ class OrderManager:
         }
 
     def cleanup(self):
-        """Clean up resources and connections."""
+        """
+        Clean up resources and connections when shutting down.
+
+        Properly shuts down order tracking, clears cached data, and releases
+        resources to prevent memory leaks when the OrderManager is no
+        longer needed.
+
+        Example:
+            >>> # Proper shutdown
+            >>> order_manager.cleanup()
+        """
         with self.order_lock:
             self.order_callbacks.clear()
             self.position_orders.clear()

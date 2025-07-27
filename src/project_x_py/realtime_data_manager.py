@@ -160,14 +160,38 @@ class ProjectXRealtimeDataManager:
         timezone: str = "America/Chicago",
     ):
         """
-        Initialize the real-time OHLCV data manager.
+        Initialize the optimized real-time OHLCV data manager with dependency injection.
+
+        Creates a multi-timeframe OHLCV data manager that eliminates the need for
+        repeated API polling by loading historical data once and maintaining live
+        updates via WebSocket feeds. Uses dependency injection pattern for clean
+        integration with existing ProjectX infrastructure.
 
         Args:
-            instrument: Trading instrument (e.g., "MGC", "MNQ")
-            project_x: ProjectX client for initial data loading
-            realtime_client: ProjectXRealtimeClient instance for real-time data
+            instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+                Must match the contract ID format expected by ProjectX
+            project_x: ProjectX client instance for initial historical data loading
+                Used only during initialization for bulk data retrieval
+            realtime_client: ProjectXRealtimeClient instance for live market data
+                Shared instance across multiple managers for efficiency
             timeframes: List of timeframes to track (default: ["5min"])
+                Available: ["5sec", "15sec", "1min", "5min", "15min", "1hr", "4hr"]
             timezone: Timezone for timestamp handling (default: "America/Chicago")
+                Should match your trading session timezone
+
+        Example:
+            >>> # Create shared realtime client
+            >>> realtime_client = ProjectXRealtimeClient(jwt_token, account_id)
+            >>> # Initialize multi-timeframe manager
+            >>> manager = ProjectXRealtimeDataManager(
+            ...     instrument="MGC",
+            ...     project_x=project_x_client,
+            ...     realtime_client=realtime_client,
+            ...     timeframes=["1min", "5min", "15min", "1hr"],
+            ... )
+            >>> # Load historical data for all timeframes
+            >>> if manager.initialize(initial_days=30):
+            ...     print("Ready for real-time trading")
         """
         if timeframes is None:
             timeframes = ["5min"]
@@ -299,10 +323,32 @@ class ProjectXRealtimeDataManager:
 
     def get_memory_stats(self) -> dict:
         """
-        Get current memory usage statistics.
+        Get comprehensive memory usage statistics for the real-time data manager.
+
+        Provides detailed information about current memory usage, data structure
+        sizes, cleanup statistics, and performance metrics for monitoring and
+        optimization in production environments.
 
         Returns:
-            Dictionary with memory statistics
+            Dict with memory and performance statistics:
+                - total_bars: Total OHLCV bars stored across all timeframes
+                - bars_cleaned: Number of bars removed by cleanup processes
+                - ticks_processed: Total number of price ticks processed
+                - last_cleanup: Timestamp of last automatic cleanup
+                - timeframe_breakdown: Per-timeframe memory usage details
+                - tick_buffer_size: Current size of tick data buffer
+                - memory_efficiency: Calculated efficiency metrics
+
+        Example:
+            >>> stats = manager.get_memory_stats()
+            >>> print(f"Total bars in memory: {stats['total_bars']}")
+            >>> print(f"Ticks processed: {stats['ticks_processed']}")
+            >>> # Check memory efficiency
+            >>> for tf, count in stats.get("timeframe_breakdown", {}).items():
+            ...     print(f"{tf}: {count} bars")
+            >>> # Monitor cleanup activity
+            >>> if stats["bars_cleaned"] > 1000:
+            ...     print("High cleanup activity - consider increasing limits")
         """
         with self.data_lock:
             timeframe_stats = {}
@@ -327,13 +373,38 @@ class ProjectXRealtimeDataManager:
 
     def initialize(self, initial_days: int = 1) -> bool:
         """
-        Initialize the data manager by loading historical OHLCV data for all timeframes.
+        Initialize the real-time data manager by loading historical OHLCV data.
+
+        Loads historical data for all configured timeframes to provide a complete
+        foundation for real-time updates. This eliminates the need for repeated
+        API calls during live trading by front-loading all necessary historical context.
 
         Args:
-            initial_days: Number of days of historical data to load initially
+            initial_days: Number of days of historical data to load (default: 1)
+                More days provide better historical context but increase initialization time
+                Recommended: 1-7 days for intraday, 30+ days for longer-term strategies
 
         Returns:
-            bool: True if initialization successful
+            bool: True if initialization completed successfully, False if errors occurred
+
+        Initialization Process:
+            1. Validates ProjectX client connectivity
+            2. Loads historical data for each configured timeframe
+            3. Synchronizes timestamps across all timeframes
+            4. Prepares data structures for real-time updates
+            5. Validates data integrity and completeness
+
+        Example:
+            >>> # Quick initialization for scalping
+            >>> if manager.initialize(initial_days=1):
+            ...     print("Ready for high-frequency trading")
+            >>> # Comprehensive initialization for swing trading
+            >>> if manager.initialize(initial_days=30):
+            ...     print("Historical context loaded for swing strategies")
+            >>> # Handle initialization failure
+            >>> if not manager.initialize():
+            ...     print("Initialization failed - check API connectivity")
+            ...     # Implement fallback procedures
         """
         try:
             self.logger.info(
@@ -448,10 +519,34 @@ class ProjectXRealtimeDataManager:
 
     def start_realtime_feed(self) -> bool:
         """
-        Start the real-time OHLCV data feed by registering callbacks with the existing realtime client.
+        Start the real-time OHLCV data feed using WebSocket connections.
+
+        Activates real-time price updates by registering callbacks with the
+        ProjectXRealtimeClient. Once started, all OHLCV timeframes will be
+        updated automatically as new market data arrives.
 
         Returns:
-            bool: True if real-time feed started successfully
+            bool: True if real-time feed started successfully, False if errors occurred
+
+        Prerequisites:
+            - initialize() must be called first to load historical data
+            - ProjectXRealtimeClient must be connected and authenticated
+            - Contract ID must be resolved for the trading instrument
+
+        Example:
+            >>> # Standard startup sequence
+            >>> if manager.initialize(initial_days=5):
+            ...     if manager.start_realtime_feed():
+            ...         print("Real-time OHLCV feed active")
+            ...         # Begin trading operations
+            ...         current_price = manager.get_current_price()
+            ...     else:
+            ...         print("Failed to start real-time feed")
+            >>> # Monitor feed status
+            >>> if manager.start_realtime_feed():
+            ...     print(f"Tracking {manager.instrument} in real-time")
+            ...     # Set up callbacks for trading signals
+            ...     manager.add_callback("data_update", handle_price_update)
         """
         try:
             if not self.contract_id:
@@ -495,7 +590,25 @@ class ProjectXRealtimeDataManager:
             return False
 
     def stop_realtime_feed(self):
-        """Stop the real-time OHLCV data feed and clean up callbacks."""
+        """
+        Stop the real-time OHLCV data feed and cleanup resources.
+
+        Gracefully shuts down real-time data processing by unregistering
+        callbacks and cleaning up resources. Historical data remains available
+        after stopping the feed.
+
+        Example:
+            >>> # Graceful shutdown
+            >>> manager.stop_realtime_feed()
+            >>> print("Real-time feed stopped - historical data still available")
+            >>> # Emergency stop in error conditions
+            >>> try:
+            ...     # Trading operations
+            ...     pass
+            >>> except Exception as e:
+            ...     print(f"Error: {e} - stopping real-time feed")
+            ...     manager.stop_realtime_feed()
+        """
         try:
             self.logger.info("🛑 Stopping real-time OHLCV data feed...")
             self.is_running = False
@@ -857,14 +970,40 @@ class ProjectXRealtimeDataManager:
         self, timeframe: str = "5min", bars: int | None = None
     ) -> pl.DataFrame | None:
         """
-        Get OHLCV data for a specific timeframe.
+        Get OHLCV data for a specific timeframe with optional bar limiting.
+
+        Retrieves the most recent OHLCV (Open, High, Low, Close, Volume) data
+        for the specified timeframe. Data is maintained in real-time and is
+        immediately available without API delays.
 
         Args:
-            timeframe: Timeframe key ("15sec", "1min", "5min", "15min")
-            bars: Number of recent bars to return (None for all)
+            timeframe: Timeframe identifier (default: "5min")
+                Available: "5sec", "15sec", "1min", "5min", "15min", "1hr", "4hr"
+            bars: Number of recent bars to return (default: None for all data)
+                Limits the result to the most recent N bars for memory efficiency
 
         Returns:
-            pl.DataFrame: OHLCV data for the timeframe
+            pl.DataFrame with OHLCV columns or None if no data available:
+                - timestamp: Bar timestamp (timezone-aware)
+                - open: Opening price for the bar period
+                - high: Highest price during the bar period
+                - low: Lowest price during the bar period
+                - close: Closing price for the bar period
+                - volume: Total volume traded during the bar period
+
+        Example:
+            >>> # Get last 100 5-minute bars
+            >>> data_5m = manager.get_data("5min", bars=100)
+            >>> if data_5m is not None and not data_5m.is_empty():
+            ...     current_price = data_5m["close"].tail(1).item()
+            ...     print(f"Current price: ${current_price:.2f}")
+            ...     # Calculate simple moving average
+            ...     sma_20 = data_5m["close"].tail(20).mean()
+            ...     print(f"20-period SMA: ${sma_20:.2f}")
+            >>> # Get high-frequency data for scalping
+            >>> data_15s = manager.get_data("15sec", bars=200)
+            >>> # Get all available 1-hour data
+            >>> data_1h = manager.get_data("1hr")
         """
         try:
             with self.data_lock:
@@ -889,7 +1028,36 @@ class ProjectXRealtimeDataManager:
         bars: int | None = None,
         indicators: list[str] | None = None,
     ) -> pl.DataFrame | None:
-        """Get OHLCV data with optional computed indicators."""
+        """
+        Get OHLCV data with optional computed technical indicators.
+
+        Retrieves OHLCV data and optionally computes technical indicators
+        with intelligent caching to avoid redundant calculations. Future
+        implementation will integrate with the project_x_py.indicators module.
+
+        Args:
+            timeframe: Timeframe identifier (default: "5min")
+            bars: Number of recent bars to return (default: None for all)
+            indicators: List of indicator names to compute (default: None)
+                Future indicators: ["sma_20", "rsi_14", "macd", "bb_20"]
+
+        Returns:
+            pl.DataFrame: OHLCV data with additional indicator columns
+                Original columns: timestamp, open, high, low, close, volume
+                Indicator columns: Added based on indicators parameter
+
+        Example:
+            >>> # Get data with simple moving average (future implementation)
+            >>> data = manager.get_data_with_indicators(
+            ...     timeframe="5min", bars=100, indicators=["sma_20", "rsi_14"]
+            ... )
+            >>> # Current implementation returns OHLCV data without indicators
+            >>> data = manager.get_data_with_indicators("5min", bars=50)
+            >>> if data is not None:
+            ...     # Manual indicator calculation until integration complete
+            ...     sma_20 = data["close"].rolling_mean(20)
+            ...     print(f"Latest SMA(20): {sma_20.tail(1).item():.2f}")
+        """
         data = self.get_data(timeframe, bars)
         if data is None or indicators is None or not indicators:
             return data
@@ -910,14 +1078,42 @@ class ProjectXRealtimeDataManager:
         self, timeframes: list[str] | None = None, bars: int | None = None
     ) -> dict[str, pl.DataFrame]:
         """
-        Get multi-timeframe OHLCV data.
+        Get synchronized multi-timeframe OHLCV data for comprehensive analysis.
+
+        Retrieves OHLCV data across multiple timeframes simultaneously,
+        ensuring perfect synchronization for multi-timeframe trading strategies.
+        All timeframes are maintained in real-time from the same tick source.
 
         Args:
-            timeframes: List of timeframes to return (None for all)
-            bars: Number of recent bars per timeframe (None for all)
+            timeframes: List of timeframes to include (default: None for all configured)
+                Example: ["1min", "5min", "15min", "1hr"]
+            bars: Number of recent bars per timeframe (default: None for all available)
+                Applied uniformly across all requested timeframes
 
         Returns:
-            dict: Dictionary mapping timeframe keys to OHLCV DataFrames
+            Dict mapping timeframe keys to OHLCV DataFrames:
+                Keys: Timeframe identifiers ("5min", "1hr", etc.)
+                Values: pl.DataFrame with OHLCV columns or empty if no data
+
+        Example:
+            >>> # Get comprehensive multi-timeframe analysis data
+            >>> mtf_data = manager.get_mtf_data(
+            ...     timeframes=["5min", "15min", "1hr"], bars=100
+            ... )
+            >>> # Analyze each timeframe
+            >>> for tf, data in mtf_data.items():
+            ...     if not data.is_empty():
+            ...         current_price = data["close"].tail(1).item()
+            ...         bars_count = len(data)
+            ...         print(f"{tf}: ${current_price:.2f} ({bars_count} bars)")
+            >>> # Check trend alignment across timeframes
+            >>> trends = {}
+            >>> for tf, data in mtf_data.items():
+            ...     if len(data) >= 20:
+            ...         sma_20 = data["close"].tail(20).mean()
+            ...         current = data["close"].tail(1).item()
+            ...         trends[tf] = "bullish" if current > sma_20 else "bearish"
+            >>> print(f"Multi-timeframe trend: {trends}")
         """
         if timeframes is None:
             timeframes = list(self.timeframes.keys())
@@ -932,7 +1128,27 @@ class ProjectXRealtimeDataManager:
         return mtf_data
 
     def get_current_price(self) -> float | None:
-        """Get the current market price from the most recent OHLCV data."""
+        """
+        Get the current market price from the most recent OHLCV data.
+
+        Retrieves the latest close price from the fastest available timeframe
+        to provide the most up-to-date market price. Automatically selects
+        the highest frequency timeframe configured for maximum accuracy.
+
+        Returns:
+            float: Current market price (close of most recent bar) or None if no data
+
+        Example:
+            >>> current_price = manager.get_current_price()
+            >>> if current_price:
+            ...     print(f"Current market price: ${current_price:.2f}")
+            ...     # Use for order placement
+            ...     if current_price > resistance_level:
+            ...         # Place buy order logic
+            ...         pass
+            >>> else:
+            ...     print("No current price data available")
+        """
         try:
             # Use the fastest timeframe available for current price
             fastest_tf = None
@@ -954,23 +1170,76 @@ class ProjectXRealtimeDataManager:
 
     def add_callback(self, event_type: str, callback: Callable):
         """
-        Add a callback for specific OHLCV events.
+        Register a callback function for specific OHLCV and real-time events.
+
+        Allows you to listen for data updates, new bar formations, and other
+        events to build custom monitoring, alerting, and analysis systems.
 
         Args:
-            event_type: Type of event ('data_update', 'new_bar', etc.)
-            callback: Callback function to execute
+            event_type: Type of event to listen for:
+                - "data_update": Price tick processed and timeframes updated
+                - "new_bar": New OHLCV bar completed for any timeframe
+                - "timeframe_update": Specific timeframe data updated
+                - "initialization_complete": Historical data loading finished
+            callback: Function to call when event occurs
+                Should accept one argument: the event data dict
+                Can be sync or async function (async automatically handled)
+
+        Example:
+            >>> def on_data_update(data):
+            ...     print(f"Price update: ${data['price']:.2f} @ {data['timestamp']}")
+            ...     print(f"Volume: {data['volume']}")
+            >>> manager.add_callback("data_update", on_data_update)
+            >>> def on_new_bar(data):
+            ...     tf = data["timeframe"]
+            ...     bar = data["bar_data"]
+            ...     print(f"New {tf} bar: O:{bar['open']:.2f} H:{bar['high']:.2f}")
+            >>> manager.add_callback("new_bar", on_new_bar)
+            >>> # Async callback example
+            >>> async def on_async_update(data):
+            ...     await some_async_operation(data)
+            >>> manager.add_callback("data_update", on_async_update)
         """
         self.callbacks[event_type].append(callback)
         self.logger.debug(f"Added OHLCV callback for {event_type}")
 
     def remove_callback(self, event_type: str, callback: Callable):
-        """Remove a callback for specific events."""
+        """
+        Remove a specific callback function from event notifications.
+
+        Args:
+            event_type: Event type the callback was registered for
+            callback: The exact callback function to remove
+
+        Example:
+            >>> # Remove previously registered callback
+            >>> manager.remove_callback("data_update", on_data_update)
+        """
         if callback in self.callbacks[event_type]:
             self.callbacks[event_type].remove(callback)
             self.logger.debug(f"Removed OHLCV callback for {event_type}")
 
     def set_main_loop(self, loop=None):
-        """Set the main event loop for async callback execution from threads."""
+        """
+        Set the main event loop for async callback execution from threads.
+
+        Configures the event loop used for executing async callbacks when they
+        are triggered from thread contexts. This is essential for proper async
+        callback handling in multi-threaded environments.
+
+        Args:
+            loop: asyncio event loop to use (default: None to auto-detect)
+                If None, attempts to get the currently running event loop
+
+        Example:
+            >>> import asyncio
+            >>> # Set up event loop for async callbacks
+            >>> loop = asyncio.new_event_loop()
+            >>> asyncio.set_event_loop(loop)
+            >>> manager.set_main_loop(loop)
+            >>> # Or auto-detect current loop
+            >>> manager.set_main_loop()  # Uses current running loop
+        """
         if loop is None:
             try:
                 loop = asyncio.get_running_loop()
@@ -1008,7 +1277,37 @@ class ProjectXRealtimeDataManager:
                 self.logger.error(f"Error in {event_type} callback: {e}")
 
     def get_statistics(self) -> dict:
-        """Get statistics about the real-time OHLCV data manager."""
+        """
+        Get comprehensive statistics about the real-time OHLCV data manager.
+
+        Provides detailed information about system state, data availability,
+        connection status, and per-timeframe metrics for monitoring and
+        debugging in production environments.
+
+        Returns:
+            Dict with complete system statistics:
+                - is_running: Whether real-time feed is active
+                - contract_id: Contract ID being tracked
+                - instrument: Trading instrument name
+                - timeframes: Per-timeframe data statistics
+                - realtime_client_available: Whether realtime client is configured
+                - realtime_client_connected: Whether WebSocket connection is active
+
+        Example:
+            >>> stats = manager.get_statistics()
+            >>> print(f"System running: {stats['is_running']}")
+            >>> print(f"Instrument: {stats['instrument']}")
+            >>> print(f"Connection: {stats['realtime_client_connected']}")
+            >>> # Check per-timeframe data
+            >>> for tf, tf_stats in stats["timeframes"].items():
+            ...     print(
+            ...         f"{tf}: {tf_stats['bars']} bars, latest: ${tf_stats['latest_price']:.2f}"
+            ...     )
+            ...     print(f"  Last update: {tf_stats['latest_time']}")
+            >>> # System health check
+            >>> if not stats["realtime_client_connected"]:
+            ...     print("Warning: Real-time connection lost")
+        """
         stats: dict[str, Any] = {
             "is_running": self.is_running,
             "contract_id": self.contract_id,
@@ -1040,10 +1339,37 @@ class ProjectXRealtimeDataManager:
 
     def health_check(self) -> bool:
         """
-        Perform a health check on the real-time OHLCV data manager.
+        Perform comprehensive health check on the real-time OHLCV data manager.
+
+        Validates system state, connection status, data freshness, and overall
+        system health to ensure reliable operation in production environments.
+        Provides detailed logging for troubleshooting when issues are detected.
 
         Returns:
-            bool: True if healthy, False if issues detected
+            bool: True if all systems are healthy, False if any issues detected
+
+        Health Check Criteria:
+            - Real-time feed must be actively running
+            - WebSocket connection must be established
+            - All timeframes must have recent data
+            - Data staleness must be within acceptable thresholds
+            - No critical errors in recent operations
+
+        Example:
+            >>> if manager.health_check():
+            ...     print("System healthy - ready for trading")
+            ...     # Proceed with trading operations
+            ...     current_price = manager.get_current_price()
+            >>> else:
+            ...     print("System issues detected - check logs")
+            ...     # Implement recovery procedures
+            ...     success = manager.force_data_refresh()
+            >>> # Use in monitoring loop
+            >>> import time
+            >>> while trading_active:
+            ...     if not manager.health_check():
+            ...         alert_system_admin("RealtimeDataManager unhealthy")
+            ...     time.sleep(60)  # Check every minute
         """
         try:
             # Check if running
@@ -1104,8 +1430,28 @@ class ProjectXRealtimeDataManager:
         """
         Clean up old OHLCV data to manage memory usage in long-running sessions.
 
+        Removes old historical data while preserving recent bars to maintain
+        memory efficiency during extended trading sessions. Uses sliding window
+        approach to keep the most recent and relevant data.
+
         Args:
-            max_bars_per_timeframe: Maximum number of bars to keep per timeframe
+            max_bars_per_timeframe: Maximum number of bars to keep per timeframe (default: 1000)
+                Reduces to this limit when timeframes exceed the threshold
+                Higher values provide more historical context but use more memory
+
+        Example:
+            >>> # Aggressive memory management for limited resources
+            >>> manager.cleanup_old_data(max_bars_per_timeframe=500)
+            >>> # Conservative cleanup for analysis-heavy applications
+            >>> manager.cleanup_old_data(max_bars_per_timeframe=2000)
+            >>> # Scheduled cleanup for long-running systems
+            >>> import threading, time
+            >>> def periodic_cleanup():
+            ...     while True:
+            ...         time.sleep(3600)  # Every hour
+            ...         manager.cleanup_old_data()
+            >>> cleanup_thread = threading.Thread(target=periodic_cleanup, daemon=True)
+            >>> cleanup_thread.start()
         """
         try:
             with self.data_lock:
@@ -1130,10 +1476,40 @@ class ProjectXRealtimeDataManager:
     def force_data_refresh(self) -> bool:
         """
         Force a complete OHLCV data refresh by reloading historical data.
-        Useful for recovery from data corruption or extended disconnections.
+
+        Performs a full system reset and data reload, useful for recovery from
+        data corruption, extended disconnections, or when data integrity is
+        compromised. Temporarily stops real-time feeds during the refresh.
 
         Returns:
-            bool: True if refresh successful
+            bool: True if refresh completed successfully, False if errors occurred
+
+        Recovery Process:
+            1. Stops active real-time data feeds
+            2. Clears all cached OHLCV data
+            3. Reloads complete historical data for all timeframes
+            4. Restarts real-time feeds if they were previously active
+            5. Validates data integrity post-refresh
+
+        Example:
+            >>> # Recover from connection issues
+            >>> if not manager.health_check():
+            ...     print("Attempting data refresh...")
+            ...     if manager.force_data_refresh():
+            ...         print("Data refresh successful")
+            ...         # Resume normal operations
+            ...         current_price = manager.get_current_price()
+            ...     else:
+            ...         print("Data refresh failed - manual intervention required")
+            >>> # Scheduled maintenance refresh
+            >>> import schedule
+            >>> schedule.every().day.at("06:00").do(manager.force_data_refresh)
+            >>> # Use in error recovery
+            >>> try:
+            ...     data = manager.get_data("5min")
+            ... except Exception as e:
+            ...     print(f"Data access failed: {e}")
+            ...     manager.force_data_refresh()
         """
         try:
             self.logger.info("🔄 Forcing complete OHLCV data refresh...")

@@ -351,7 +351,33 @@ class PositionManager:
                 self.logger.error(f"Error in {event_type} callback: {e}")
 
     def add_callback(self, event_type: str, callback):
-        """Add a callback for position events."""
+        """
+        Register a callback function for specific position events.
+
+        Allows you to listen for position updates, closures, account changes, and alerts
+        to build custom monitoring and notification systems.
+
+        Args:
+            event_type: Type of event to listen for
+                - "position_update": Position size or price changes
+                - "position_closed": Position fully closed (size = 0)
+                - "account_update": Account-level changes
+                - "position_alert": Position alert triggered
+            callback: Function to call when event occurs
+                Should accept one argument: the event data dict
+
+        Example:
+            >>> def on_position_update(data):
+            ...     pos = data.get("data", {})
+            ...     print(
+            ...         f"Position updated: {pos.get('contractId')} size: {pos.get('size')}"
+            ...     )
+            >>> position_manager.add_callback("position_update", on_position_update)
+            >>> def on_position_closed(data):
+            ...     pos = data.get("data", {})
+            ...     print(f"Position closed: {pos.get('contractId')}")
+            >>> position_manager.add_callback("position_closed", on_position_closed)
+        """
         self.position_callbacks[event_type].append(callback)
 
     # ================================================================================
@@ -723,7 +749,15 @@ class PositionManager:
         self.logger.info(f"📢 Position alert added for {contract_id}")
 
     def remove_position_alert(self, contract_id: str):
-        """Remove position alert for a contract."""
+        """
+        Remove position alert for a specific contract.
+
+        Args:
+            contract_id: Contract ID to remove alert for
+
+        Example:
+            >>> position_manager.remove_position_alert("MGC")
+        """
         with self.position_lock:
             if contract_id in self.position_alerts:
                 del self.position_alerts[contract_id]
@@ -735,7 +769,21 @@ class PositionManager:
         current_position: Position,
         old_position: Position | None,
     ):
-        """Check if position alerts should be triggered."""
+        """
+        Check if position alerts should be triggered and handle alert notifications.
+
+        This method is called automatically when positions are updated to evaluate
+        whether any configured alerts should be triggered.
+
+        Args:
+            contract_id: Contract ID of the position being checked
+            current_position: Current position state
+            old_position: Previous position state (None if new position)
+
+        Note:
+            Currently checks for position size changes. P&L-based alerts require
+            current market prices to be provided separately.
+        """
         alert = self.position_alerts.get(contract_id)
         if not alert or alert["triggered"]:
             return
@@ -778,10 +826,21 @@ class PositionManager:
 
     def start_monitoring(self, refresh_interval: int = 30):
         """
-        Start automated position monitoring.
+        Start automated position monitoring for real-time updates and alerts.
+
+        Enables continuous monitoring of positions with automatic alert checking.
+        In real-time mode (with ProjectXRealtimeClient), uses live WebSocket feeds.
+        In polling mode, periodically refreshes position data from the API.
 
         Args:
-            refresh_interval: Seconds between position updates (polling mode only)
+            refresh_interval: Seconds between position updates in polling mode (default: 30)
+                Ignored when real-time client is available
+
+        Example:
+            >>> # Start monitoring with real-time updates
+            >>> position_manager.start_monitoring()
+            >>> # Start monitoring with custom polling interval
+            >>> position_manager.start_monitoring(refresh_interval=60)
         """
         if self._monitoring_active:
             self.logger.warning("⚠️ Position monitoring already active")
@@ -802,7 +861,14 @@ class PositionManager:
             self.logger.info("📊 Position monitoring started (real-time mode)")
 
     def stop_monitoring(self):
-        """Stop automated position monitoring."""
+        """
+        Stop automated position monitoring and clean up monitoring resources.
+
+        Cancels any active monitoring tasks and stops position update notifications.
+
+        Example:
+            >>> position_manager.stop_monitoring()
+        """
         self._monitoring_active = False
         if hasattr(self, "_monitoring_task") and self._monitoring_task:
             self._monitoring_task.cancel()
@@ -1171,10 +1237,30 @@ class PositionManager:
 
     def get_position_statistics(self) -> dict[str, Any]:
         """
-        Get comprehensive position management statistics.
+        Get comprehensive position management statistics and health information.
+
+        Provides detailed statistics about position tracking, monitoring status,
+        performance metrics, and system health for debugging and monitoring.
 
         Returns:
-            Dict with statistics and health information
+            Dict with complete statistics including:
+                - statistics: Core tracking metrics (positions tracked, P&L, etc.)
+                - realtime_enabled: Whether real-time updates are active
+                - order_sync_enabled: Whether order synchronization is active
+                - monitoring_active: Whether automated monitoring is running
+                - tracked_positions: Number of positions currently tracked
+                - active_alerts: Number of active position alerts
+                - callbacks_registered: Number of callbacks per event type
+                - risk_settings: Current risk management settings
+                - health_status: Overall system health status
+
+        Example:
+            >>> stats = position_manager.get_position_statistics()
+            >>> print(f"Tracking {stats['tracked_positions']} positions")
+            >>> print(f"Real-time enabled: {stats['realtime_enabled']}")
+            >>> print(f"Active alerts: {stats['active_alerts']}")
+            >>> if stats["health_status"] != "active":
+            ...     print("Warning: Position manager not fully active")
         """
         with self.position_lock:
             return {
@@ -1198,14 +1284,29 @@ class PositionManager:
 
     def get_position_history(self, contract_id: str, limit: int = 100) -> list[dict]:
         """
-        Get historical position data for a contract.
+        Get historical position data for a specific contract.
+
+        Retrieves the history of position changes including size changes,
+        timestamps, and position snapshots for analysis and debugging.
 
         Args:
             contract_id: Contract ID to get history for
-            limit: Maximum number of history entries
+            limit: Maximum number of history entries to return (default: 100)
 
         Returns:
-            List of historical position data
+            List[dict]: Historical position data entries, each containing:
+                - timestamp: When the position change occurred
+                - position: Position data snapshot at that time
+                - size_change: Change in position size from previous state
+
+        Example:
+            >>> history = position_manager.get_position_history("MGC", limit=50)
+            >>> for entry in history[-5:]:  # Last 5 changes
+            ...     print(f"{entry['timestamp']}: Size change {entry['size_change']}")
+            ...     pos = entry["position"]
+            ...     print(
+            ...         f"  New size: {pos.get('size', 0)} @ ${pos.get('averagePrice', 0):.2f}"
+            ...     )
         """
         with self.position_lock:
             history = self.position_history.get(contract_id, [])
@@ -1213,10 +1314,32 @@ class PositionManager:
 
     def export_portfolio_report(self) -> dict[str, Any]:
         """
-        Generate a comprehensive portfolio report.
+        Generate a comprehensive portfolio report with complete analysis.
+
+        Creates a detailed report suitable for saving to file, sending via email,
+        or displaying in dashboards. Includes positions, P&L, risk metrics,
+        and system statistics.
 
         Returns:
-            Dict with complete portfolio analysis
+            Dict with complete portfolio analysis including:
+                - report_timestamp: When the report was generated
+                - portfolio_summary: High-level portfolio metrics
+                - positions: Detailed position information with P&L
+                - risk_analysis: Portfolio risk metrics and warnings
+                - statistics: System performance and tracking statistics
+                - alerts: Active and triggered alert counts
+
+        Example:
+            >>> report = position_manager.export_portfolio_report()
+            >>> print(f"Portfolio Report - {report['report_timestamp']}")
+            >>> summary = report["portfolio_summary"]
+            >>> print(f"Total Positions: {summary['total_positions']}")
+            >>> print(f"Total P&L: ${summary['total_pnl']:.2f}")
+            >>> print(f"Portfolio Risk: {summary['portfolio_risk']:.2%}")
+            >>> # Save report to file
+            >>> import json
+            >>> with open("portfolio_report.json", "w") as f:
+            ...     json.dump(report, f, indent=2, default=str)
         """
         positions = self.get_all_positions()
         pnl_data = self.get_portfolio_pnl()
@@ -1246,10 +1369,31 @@ class PositionManager:
 
     def get_realtime_validation_status(self) -> dict[str, Any]:
         """
-        Get validation status for real-time position feed integration.
+        Get validation status for real-time position feed integration and compliance.
+
+        Provides detailed information about real-time integration status,
+        payload validation settings, and ProjectX API compliance for debugging
+        and system validation.
 
         Returns:
-            Dict with validation metrics and status information
+            Dict with comprehensive validation status including:
+                - realtime_enabled: Whether real-time updates are active
+                - tracked_positions_count: Number of positions being tracked
+                - position_callbacks_registered: Number of position update callbacks
+                - payload_validation: Settings for validating ProjectX position payloads
+                - projectx_compliance: Compliance status with ProjectX API format
+                - statistics: Current tracking statistics
+
+        Example:
+            >>> status = position_manager.get_realtime_validation_status()
+            >>> print(f"Real-time enabled: {status['realtime_enabled']}")
+            >>> print(f"Tracking {status['tracked_positions_count']} positions")
+            >>> compliance = status["projectx_compliance"]
+            >>> for check, result in compliance.items():
+            ...     print(f"{check}: {result}")
+            >>> # Check if validation is working correctly
+            >>> if "✅" not in str(status["projectx_compliance"].values()):
+            ...     print("Warning: ProjectX compliance issues detected")
         """
         return {
             "realtime_enabled": self._realtime_enabled,
@@ -1281,7 +1425,17 @@ class PositionManager:
         }
 
     def cleanup(self):
-        """Clean up resources and connections."""
+        """
+        Clean up resources and connections when shutting down.
+
+        Properly shuts down monitoring, clears tracked data, and releases
+        resources to prevent memory leaks when the PositionManager is no
+        longer needed.
+
+        Example:
+            >>> # Proper shutdown
+            >>> position_manager.cleanup()
+        """
         self.stop_monitoring()
 
         with self.position_lock:

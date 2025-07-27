@@ -74,11 +74,24 @@ class OrderBook:
 
     def __init__(self, instrument: str, timezone: str = "America/Chicago"):
         """
-        Initialize the orderbook manager.
+        Initialize the advanced orderbook manager for real-time market depth analysis.
+
+        Creates a thread-safe orderbook with Level 2 market depth tracking,
+        trade flow analysis, and advanced analytics for institutional trading.
+        Uses Polars DataFrames for high-performance data operations.
 
         Args:
-            instrument: Trading instrument (e.g., "MGC", "MNQ")
-            timezone: Timezone for timestamp handling
+            instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+            timezone: Timezone for timestamp handling (default: "America/Chicago")
+                Supports any pytz timezone string
+
+        Example:
+            >>> # Create orderbook for gold futures
+            >>> orderbook = OrderBook("MGC")
+            >>> # Create orderbook with custom timezone
+            >>> orderbook = OrderBook("ES", timezone="America/New_York")
+            >>> # Initialize with real-time data
+            >>> success = orderbook.initialize(realtime_client)
         """
         self.instrument = instrument
         self.timezone = pytz.timezone(timezone)
@@ -409,10 +422,32 @@ class OrderBook:
 
     def get_memory_stats(self) -> dict:
         """
-        Get current memory usage statistics.
+        Get comprehensive memory usage statistics for the orderbook.
+
+        Provides detailed information about current memory usage,
+        data structure sizes, and cleanup statistics for monitoring
+        and optimization purposes.
 
         Returns:
-            Dictionary with memory statistics
+            Dict with memory and performance statistics:
+                - recent_trades_count: Number of trades stored in memory
+                - orderbook_bids_count, orderbook_asks_count: Depth levels stored
+                - total_memory_entries: Combined count of all data entries
+                - max_trades, max_depth_entries: Configured memory limits
+                - total_trades, trades_cleaned: Lifetime processing statistics
+                - last_cleanup: Timestamp of last memory cleanup
+
+        Example:
+            >>> stats = orderbook.get_memory_stats()
+            >>> print(f"Memory usage: {stats['total_memory_entries']} entries")
+            >>> print(f"Trades: {stats['recent_trades_count']}/{stats['max_trades']}")
+            >>> print(
+            ...     f"Depth: {stats['orderbook_bids_count']} bids, {stats['orderbook_asks_count']} asks"
+            ... )
+            >>> # Check if cleanup occurred recently
+            >>> import time
+            >>> if time.time() - stats["last_cleanup"] > 300:  # 5 minutes
+            ...     print("Memory cleanup may be needed")
         """
         with self.orderbook_lock:
             return {
@@ -928,13 +963,31 @@ class OrderBook:
 
     def get_orderbook_bids(self, levels: int = 10) -> pl.DataFrame:
         """
-        Get the current bid side of the orderbook.
+        Get the current bid side of the orderbook with specified depth.
+
+        Retrieves bid levels sorted by price from highest to lowest,
+        providing market depth information for buy-side liquidity analysis.
 
         Args:
             levels: Number of price levels to return (default: 10)
+                Maximum depth available depends on market data feed
 
         Returns:
-            pl.DataFrame: Bid levels sorted by price (highest to lowest)
+            pl.DataFrame: Bid levels with columns:
+                - price: Bid price level
+                - volume: Total volume at that price level
+                - timestamp: Last update timestamp for that level
+                - type: ProjectX DomType (2=Bid, 4=BestBid, 9=NewBestBid)
+
+        Example:
+            >>> bids = orderbook.get_orderbook_bids(5)
+            >>> if not bids.is_empty():
+            ...     best_bid = bids.row(0, named=True)["price"]
+            ...     best_bid_volume = bids.row(0, named=True)["volume"]
+            ...     print(f"Best bid: ${best_bid:.2f} x {best_bid_volume}")
+            ...     # Analyze depth
+            ...     total_volume = bids["volume"].sum()
+            ...     print(f"Total bid volume (5 levels): {total_volume}")
         """
         try:
             with self.orderbook_lock:
@@ -965,13 +1018,31 @@ class OrderBook:
 
     def get_orderbook_asks(self, levels: int = 10) -> pl.DataFrame:
         """
-        Get the current ask side of the orderbook.
+        Get the current ask side of the orderbook with specified depth.
+
+        Retrieves ask levels sorted by price from lowest to highest,
+        providing market depth information for sell-side liquidity analysis.
 
         Args:
             levels: Number of price levels to return (default: 10)
+                Maximum depth available depends on market data feed
 
         Returns:
-            pl.DataFrame: Ask levels sorted by price (lowest to highest)
+            pl.DataFrame: Ask levels with columns:
+                - price: Ask price level
+                - volume: Total volume at that price level
+                - timestamp: Last update timestamp for that level
+                - type: ProjectX DomType (1=Ask, 3=BestAsk, 10=NewBestAsk)
+
+        Example:
+            >>> asks = orderbook.get_orderbook_asks(5)
+            >>> if not asks.is_empty():
+            ...     best_ask = asks.row(0, named=True)["price"]
+            ...     best_ask_volume = asks.row(0, named=True)["volume"]
+            ...     print(f"Best ask: ${best_ask:.2f} x {best_ask_volume}")
+            ...     # Analyze depth
+            ...     total_volume = asks["volume"].sum()
+            ...     print(f"Total ask volume (5 levels): {total_volume}")
         """
         try:
             with self.orderbook_lock:
@@ -1002,13 +1073,41 @@ class OrderBook:
 
     def get_orderbook_snapshot(self, levels: int = 10) -> dict[str, Any]:
         """
-        Get a complete orderbook snapshot with both bids and asks.
+        Get a complete orderbook snapshot with both bids and asks plus market metadata.
+
+        Provides a comprehensive view of current market depth including
+        best prices, spreads, total volume, and market structure information
+        for both sides of the orderbook.
 
         Args:
             levels: Number of price levels to return for each side (default: 10)
+                Higher values provide deeper market visibility
 
         Returns:
-            dict: {"bids": DataFrame, "asks": DataFrame, "metadata": dict}
+            Dict with complete market depth information:
+                - bids: pl.DataFrame with bid levels (highest to lowest price)
+                - asks: pl.DataFrame with ask levels (lowest to highest price)
+                - metadata: Dict with market metrics:
+                    - best_bid, best_ask: Current best prices
+                    - spread: Bid-ask spread
+                    - mid_price: Midpoint price
+                    - total_bid_volume, total_ask_volume: Aggregate volume
+                    - last_update: Timestamp of last orderbook update
+                    - levels_count: Number of levels available per side
+
+        Example:
+            >>> snapshot = orderbook.get_orderbook_snapshot(10)
+            >>> metadata = snapshot["metadata"]
+            >>> print(f"Spread: ${metadata['spread']:.2f}")
+            >>> print(f"Mid price: ${metadata['mid_price']:.2f}")
+            >>> # Analyze market imbalance
+            >>> bid_vol = metadata["total_bid_volume"]
+            >>> ask_vol = metadata["total_ask_volume"]
+            >>> imbalance = (bid_vol - ask_vol) / (bid_vol + ask_vol)
+            >>> print(f"Order imbalance: {imbalance:.2%}")
+            >>> # Access raw data
+            >>> bids_df = snapshot["bids"]
+            >>> asks_df = snapshot["asks"]
         """
         try:
             with self.orderbook_lock:
@@ -1082,10 +1181,29 @@ class OrderBook:
 
     def get_best_bid_ask(self) -> dict[str, float | None]:
         """
-        Get the current best bid and ask prices.
+        Get the current best bid and ask prices with spread and midpoint calculations.
+
+        Provides the most recent best bid and ask prices from the top of book,
+        along with derived metrics for spread analysis and fair value estimation.
 
         Returns:
-            dict: {"bid": float, "ask": float, "spread": float, "mid": float}
+            Dict with current market prices:
+                - bid: Best bid price (highest buy price) or None
+                - ask: Best ask price (lowest sell price) or None
+                - spread: Bid-ask spread (ask - bid) or None
+                - mid: Midpoint price ((bid + ask) / 2) or None
+
+        Example:
+            >>> prices = orderbook.get_best_bid_ask()
+            >>> if prices["bid"] and prices["ask"]:
+            ...     print(f"Market: {prices['bid']:.2f} x {prices['ask']:.2f}")
+            ...     print(f"Spread: ${prices['spread']:.2f}")
+            ...     print(f"Fair value: ${prices['mid']:.2f}")
+            ...     # Check if market is tight
+            ...     if prices["spread"] < 0.50:
+            ...         print("Tight market - good liquidity")
+            >>> else:
+            ...     print("No current market data available")
         """
         try:
             with self.orderbook_lock:
@@ -1120,13 +1238,42 @@ class OrderBook:
 
     def get_recent_trades(self, count: int = 100) -> pl.DataFrame:
         """
-        Get recent trade executions (Type 5 data).
+        Get recent trade executions with comprehensive market context.
+
+        Retrieves the most recent trade executions (ProjectX Type 5 data)
+        with inferred trade direction and market context at the time of
+        each trade for comprehensive trade flow analysis.
 
         Args:
-            count: Number of recent trades to return
+            count: Number of recent trades to return (default: 100)
+                Trades are returned in chronological order (oldest first)
 
         Returns:
-            pl.DataFrame: Recent trades with price, volume, timestamp, side, and spread metadata
+            pl.DataFrame: Recent trades with enriched market data:
+                - price: Trade execution price
+                - volume: Trade size in contracts
+                - timestamp: Execution timestamp
+                - side: Inferred trade direction ("buy" or "sell")
+                - spread_at_trade: Bid-ask spread when trade occurred
+                - mid_price_at_trade: Midpoint price when trade occurred
+                - best_bid_at_trade: Best bid when trade occurred
+                - best_ask_at_trade: Best ask when trade occurred
+
+        Example:
+            >>> trades = orderbook.get_recent_trades(50)
+            >>> if not trades.is_empty():
+            ...     # Analyze recent trade flow
+            ...     buy_volume = trades.filter(pl.col("side") == "buy")["volume"].sum()
+            ...     sell_volume = trades.filter(pl.col("side") == "sell")[
+            ...         "volume"
+            ...     ].sum()
+            ...     print(f"Buy volume: {buy_volume}, Sell volume: {sell_volume}")
+            ...     # Check trade sizes
+            ...     avg_trade_size = trades["volume"].mean()
+            ...     print(f"Average trade size: {avg_trade_size:.1f} contracts")
+            ...     # Recent price action
+            ...     latest_price = trades["price"].tail(1).item()
+            ...     print(f"Last trade: ${latest_price:.2f}")
         """
         try:
             with self.orderbook_lock:
@@ -1174,6 +1321,17 @@ class OrderBook:
     def clear_recent_trades(self) -> None:
         """
         Clear the recent trades history for fresh monitoring periods.
+
+        Removes all stored trade execution data to start fresh trade flow
+        analysis. Useful when starting new monitoring sessions or after
+        market breaks.
+
+        Example:
+            >>> # Clear trades at market open
+            >>> orderbook.clear_recent_trades()
+            >>> # Start fresh analysis for new session
+            >>> # ... collect new trade data ...
+            >>> fresh_trades = orderbook.get_recent_trades()
         """
         try:
             with self.orderbook_lock:
@@ -1395,6 +1553,9 @@ class OrderBook:
                 # Get top levels from each side
                 bids = self.get_orderbook_bids(levels)
                 asks = self.get_orderbook_asks(levels)
+
+                avg_ask_volume = pl.DataFrame()
+                avg_bid_volume = pl.DataFrame()
 
                 # Filter for significant volume levels
                 significant_bids = bids.filter(pl.col("volume") >= min_volume)
@@ -2470,17 +2631,46 @@ class OrderBook:
 
     def add_callback(self, event_type: str, callback: Callable):
         """
-        Add a callback for specific orderbook events.
+        Register a callback function for specific orderbook events.
+
+        Allows you to listen for orderbook updates, trade processing,
+        and other market events to build custom monitoring and
+        analysis systems.
 
         Args:
-            event_type: Type of event ('market_depth', 'trade_execution', etc.)
-            callback: Callback function to execute
+            event_type: Type of event to listen for:
+                - "market_depth_processed": Orderbook depth updated
+                - "trade_processed": New trade execution processed
+                - "orderbook_reset": Orderbook cleared/reset
+                - "integrity_warning": Data integrity issue detected
+            callback: Function to call when event occurs
+                Should accept one argument: the event data dict
+
+        Example:
+            >>> def on_depth_update(data):
+            ...     print(f"Depth updated for {data['contract_id']}")
+            ...     print(f"Update #{data['update_count']}")
+            >>> orderbook.add_callback("market_depth_processed", on_depth_update)
+            >>> def on_trade(data):
+            ...     trade = data["trade_data"]
+            ...     print(f"Trade: {trade.get('volume')} @ ${trade.get('price'):.2f}")
+            >>> orderbook.add_callback("trade_processed", on_trade)
         """
         self.callbacks[event_type].append(callback)
         self.logger.debug(f"Added orderbook callback for {event_type}")
 
     def remove_callback(self, event_type: str, callback: Callable):
-        """Remove a callback for specific events."""
+        """
+        Remove a specific callback function from event notifications.
+
+        Args:
+            event_type: Event type the callback was registered for
+            callback: The exact callback function to remove
+
+        Example:
+            >>> # Remove previously registered callback
+            >>> orderbook.remove_callback("market_depth_processed", on_depth_update)
+        """
         if callback in self.callbacks[event_type]:
             self.callbacks[event_type].remove(callback)
             self.logger.debug(f"Removed orderbook callback for {event_type}")
