@@ -46,7 +46,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from statistics import mean, stdev
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import polars as pl
 
@@ -215,15 +215,15 @@ class OrderBook:
 
     def _setup_realtime_callbacks(self):
         """Set up callbacks for real-time market data processing."""
-        if not hasattr(self, 'realtime_client') or not self.realtime_client:
+        if not hasattr(self, "realtime_client") or not self.realtime_client:
             return
 
         # Register for market depth events (primary orderbook data)
         self.realtime_client.add_callback("market_depth", self._on_market_depth_update)
-        
+
         # Register for market trade events (for trade flow analysis)
         self.realtime_client.add_callback("market_trade", self._on_market_trade_update)
-        
+
         # Register for quote updates (for best bid/ask tracking)
         self.realtime_client.add_callback("quote_update", self._on_quote_update)
 
@@ -236,17 +236,20 @@ class OrderBook:
             contract_id = data.get("contract_id", "")
             if not self._symbol_matches_instrument(contract_id):
                 return
-                
+
             # Process the market depth data
             self.process_market_depth(data)
-            
+
             # Trigger any registered callbacks
-            self._trigger_callbacks("market_depth_processed", {
-                "contract_id": contract_id,
-                "update_count": self.level2_update_count,
-                "timestamp": datetime.now(self.timezone)
-            })
-            
+            self._trigger_callbacks(
+                "market_depth_processed",
+                {
+                    "contract_id": contract_id,
+                    "update_count": self.level2_update_count,
+                    "timestamp": datetime.now(self.timezone),
+                },
+            )
+
         except Exception as e:
             self.logger.error(f"Error processing market depth update: {e}")
 
@@ -257,12 +260,12 @@ class OrderBook:
             contract_id = data.get("contract_id", "")
             if not self._symbol_matches_instrument(contract_id):
                 return
-                
+
             # Extract trade data
             trade_data = data.get("data", {})
             if not trade_data:
                 return
-                
+
             # Update recent trades for analysis
             with self.orderbook_lock:
                 current_time = datetime.now(self.timezone)
@@ -271,25 +274,28 @@ class OrderBook:
                     "price": trade_data.get("price", 0.0),
                     "volume": trade_data.get("volume", 0),
                     "type": trade_data.get("type", 0),  # TradeLogType enum
-                    "contract_id": contract_id
+                    "contract_id": contract_id,
                 }
-                
+
                 # Add to recent trades DataFrame if it has the right structure
                 if not self.recent_trades.is_empty():
                     new_trade_df = pl.DataFrame([trade_entry])
                     self.recent_trades = pl.concat([self.recent_trades, new_trade_df])
-                    
+
                     # Keep only recent trades (last 1000)
                     if len(self.recent_trades) > 1000:
                         self.recent_trades = self.recent_trades.tail(1000)
-            
+
             # Trigger callbacks
-            self._trigger_callbacks("trade_processed", {
-                "contract_id": contract_id,
-                "trade_data": trade_data,
-                "timestamp": current_time
-            })
-            
+            self._trigger_callbacks(
+                "trade_processed",
+                {
+                    "contract_id": contract_id,
+                    "trade_data": trade_data,
+                    "timestamp": current_time,
+                },
+            )
+
         except Exception as e:
             self.logger.error(f"Error processing market trade update: {e}")
 
@@ -300,32 +306,35 @@ class OrderBook:
             contract_id = data.get("contract_id", "")
             if not self._symbol_matches_instrument(contract_id):
                 return
-                
+
             # Extract quote data
             quote_data = data.get("data", {})
             if not quote_data:
                 return
-                
+
             # Trigger callbacks for quote processing
-            self._trigger_callbacks("quote_processed", {
-                "contract_id": contract_id,
-                "quote_data": quote_data,
-                "timestamp": datetime.now(self.timezone)
-            })
-            
+            self._trigger_callbacks(
+                "quote_processed",
+                {
+                    "contract_id": contract_id,
+                    "quote_data": quote_data,
+                    "timestamp": datetime.now(self.timezone),
+                },
+            )
+
         except Exception as e:
             self.logger.error(f"Error processing quote update: {e}")
 
     def _symbol_matches_instrument(self, contract_id: str) -> bool:
         """
         Check if a contract_id matches this orderbook's instrument.
-        
+
         Uses the same symbol matching logic as other managers to filter
         for relevant market data updates.
         """
         if not contract_id or not self.instrument:
             return False
-            
+
         # Extract base symbol from contract ID (e.g., "F.US.MGC" from "F.US.MGC.H25")
         try:
             if "." in contract_id:

@@ -22,11 +22,13 @@ def main():
     logger.info("Starting ProjectX basic usage example")
 
     # Check environment variables
-    api_key = os.getenv('PROJECT_X_API_KEY')
-    username = os.getenv('PROJECT_X_USERNAME')
+    api_key = os.getenv("PROJECT_X_API_KEY")
+    username = os.getenv("PROJECT_X_USERNAME")
 
     if not api_key or not username:
-        print("❌ Error: Please set PROJECT_X_API_KEY and PROJECT_X_USERNAME environment variables")
+        print(
+            "❌ Error: Please set PROJECT_X_API_KEY and PROJECT_X_USERNAME environment variables"
+        )
         print("Example:")
         print("  export PROJECT_X_API_KEY='your_api_key'")
         print("  export PROJECT_X_USERNAME='your_username'")
@@ -56,8 +58,10 @@ def main():
 
         if instruments:
             for i, inst in enumerate(instruments[:3]):  # Show first 3
-                print(f"  {i+1}. {inst.name}: {inst.description}")
-                print(f"     Tick Size: ${inst.tickSize}, Tick Value: ${inst.tickValue}")
+                print(f"  {i + 1}. {inst.name}: {inst.description}")
+                print(
+                    f"     Tick Size: ${inst.tickSize}, Tick Value: ${inst.tickValue}"
+                )
 
         # Get historical data
         print("\n📈 Getting historical data for MGC...")
@@ -69,9 +73,9 @@ def main():
             recent_data = data.tail(5)
             print("\nRecent 15-minute bars:")
             for row in recent_data.iter_rows(named=True):
-                timestamp = row['timestamp']
-                close = row['close']
-                volume = row['volume']
+                timestamp = row["timestamp"]
+                close = row["close"]
+                volume = row["volume"]
                 print(f"  {timestamp}: Close=${close:.2f}, Volume={volume}")
         else:
             print("❌ No historical data available")
@@ -83,7 +87,9 @@ def main():
             print(f"✅ Found {len(positions)} open positions:")
             for pos in positions:
                 direction = "LONG" if pos.type == 1 else "SHORT"
-                print(f"  {direction} {pos.size} {pos.contractId} @ ${pos.averagePrice:.2f}")
+                print(
+                    f"  {direction} {pos.size} {pos.contractId} @ ${pos.averagePrice:.2f}"
+                )
         else:
             print("📝 No open positions")
 

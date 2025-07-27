@@ -522,11 +522,11 @@ def create_orderbook(
         instrument=instrument,
         timezone=config.timezone,
     )
-    
+
     # Initialize with real-time capabilities if provided
     if realtime_client is not None:
         orderbook.initialize(realtime_client)
-    
+
     return orderbook
 
 
