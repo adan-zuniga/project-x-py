@@ -480,6 +480,7 @@ def create_data_manager(
 def create_orderbook(
     instrument: str,
     config: ProjectXConfig | None = None,
+    realtime_client: ProjectXRealtimeClient | None = None,
 ) -> "OrderBook":
     """
     Create a ProjectX OrderBook for advanced market depth analysis.
@@ -492,16 +493,15 @@ def create_orderbook(
     Args:
         instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
         config: Configuration object with timezone settings (uses defaults if None)
+        realtime_client: Optional realtime client for automatic market data integration
 
     Returns:
         OrderBook: Configured orderbook instance ready for market depth processing
 
     Example:
-        >>> # Create orderbook for market depth analysis
-        >>> orderbook = create_orderbook("MGC")
-        >>> # Connect to real-time client for depth updates
-        >>> realtime_client.add_callback("market_depth", orderbook.process_market_depth)
-        >>> # Access market depth analytics
+        >>> # Create orderbook with automatic real-time integration
+        >>> orderbook = create_orderbook("MGC", realtime_client=realtime_client)
+        >>> # OrderBook will automatically receive market depth updates
         >>> snapshot = orderbook.get_orderbook_snapshot()
         >>> spread = orderbook.get_bid_ask_spread()
         >>> imbalance = orderbook.get_order_imbalance()
@@ -509,14 +509,25 @@ def create_orderbook(
         >>> # Volume analysis
         >>> volume_profile = orderbook.get_volume_profile()
         >>> liquidity_analysis = orderbook.analyze_liquidity_distribution()
+        >>>
+        >>> # Alternative: Manual mode without real-time client
+        >>> orderbook = create_orderbook("MGC")
+        >>> # Manually process market data
+        >>> orderbook.process_market_depth(depth_data)
     """
     if config is None:
         config = load_default_config()
 
-    return OrderBook(
+    orderbook = OrderBook(
         instrument=instrument,
         timezone=config.timezone,
     )
+    
+    # Initialize with real-time capabilities if provided
+    if realtime_client is not None:
+        orderbook.initialize(realtime_client)
+    
+    return orderbook
 
 
 def create_order_manager(
@@ -632,10 +643,7 @@ def create_trading_suite(
         >>> # Initialize components
         >>> suite["data_manager"].initialize(initial_days=30)
         >>> suite["data_manager"].start_realtime_feed()
-        >>> # Add market depth callback
-        >>> suite["realtime_client"].add_callback(
-        ...     "market_depth", suite["orderbook"].process_market_depth
-        ... )
+        >>> # OrderBook automatically receives market depth updates (no manual setup needed)
         >>> # Place orders
         >>> bracket = suite["order_manager"].place_bracket_order(
         ...     "MGC", 0, 1, 2045.0, 2040.0, 2055.0
@@ -670,11 +678,12 @@ def create_trading_suite(
         timezone=config.timezone,
     )
 
-    # Create separate orderbook for market depth analysis
+    # Create orderbook for market depth analysis with automatic real-time integration
     orderbook = OrderBook(
         instrument=instrument,
         timezone=config.timezone,
     )
+    orderbook.initialize(realtime_client=realtime_client)
 
     # Create order manager for comprehensive order operations
     order_manager = OrderManager(project_x)
