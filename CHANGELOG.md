@@ -5,6 +5,18 @@ All notable changes to the ProjectX Python client will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-27
+
+### Added
+- **📊 Enhanced Project Structure**: Updated documentation to accurately reflect current codebase
+- **🔧 Documentation Accuracy**: Aligned README.md and CHANGELOG.md with actual project state
+- **📚 Example File Organization**: Updated example file names to match actual structure
+
+### Fixed
+- **📝 Version Consistency**: Corrected version references throughout documentation
+- **📂 Example File References**: Updated README to reference actual example files
+- **📅 Date Corrections**: Fixed future date references in documentation
+
 ## [1.0.12] - 2025-01-30
 
 ### Added

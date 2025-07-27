@@ -18,7 +18,7 @@ It provides the infrastructure to help developers create their own trading appli
 that integrate with the ProjectX platform.
 
 Author: TexasCoding
-Date: June 2025
+Date: January 2025
 """
 
 from typing import Any, Optional
