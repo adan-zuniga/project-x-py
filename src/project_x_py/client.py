@@ -21,6 +21,7 @@ import logging
 import os  # Added for os.getenv
 import time
 from datetime import timedelta
+from typing import Any
 
 import polars as pl
 import pytz
@@ -556,23 +557,32 @@ class ProjectX:
 
         response.raise_for_status()
 
-    def get_instrument(self, symbol: str) -> Instrument | None:
+    def get_instrument(self, symbol: str, live: bool = False) -> Instrument | None:
         """
-        Search for the first instrument matching a symbol with caching.
+        Search for the best matching instrument for a symbol with intelligent contract selection.
+
+        The method implements smart matching to handle ProjectX's fuzzy search results:
+        1. Exact symbolId suffix match (e.g., "ENQ" matches "F.US.ENQ")
+        2. Exact name match (e.g., "NQU5" matches contract name "NQU5")
+        3. Prefers active contracts over inactive ones
+        4. Falls back to first active contract if no exact matches
 
         Args:
-            symbol: Symbol to search for (e.g., "MGC", "MNQ")
+            symbol: Symbol to search for (e.g., "ENQ", "MNQ", "NQU5")
+            live: Whether to search for live instruments (default: False)
 
         Returns:
-            Instrument: First matching instrument with contract details
+            Instrument: Best matching instrument with contract details
             None: If no instruments are found
 
         Raises:
             ProjectXInstrumentError: If instrument search fails
 
         Example:
-            >>> instrument = project_x.get_instrument("MGC")
-            >>> print(f"Contract: {instrument.name} - {instrument.description}")
+            >>> # Exact symbolId match
+            >>> instrument = project_x.get_instrument("ENQ")  # Gets F.US.ENQ, not MNQ
+            >>> # Exact name match
+            >>> instrument = project_x.get_instrument("NQU5")  # Gets specific contract
         """
         # Check cache first
         if symbol in self.instrument_cache:
@@ -582,7 +592,7 @@ class ProjectX:
         self._ensure_authenticated()
 
         url = f"{self.base_url}/Contract/search"
-        payload = {"searchText": symbol, "live": False}
+        payload = {"searchText": symbol, "live": live}
 
         try:
             self.api_call_count += 1
@@ -600,9 +610,18 @@ class ProjectX:
                 self.logger.error(f"No contracts found for symbol: {symbol}")
                 return None
 
-            instrument = Instrument(**contracts[0])
+            # Smart contract selection
+            selected_contract = self._select_best_contract(contracts, symbol)
+            if not selected_contract:
+                self.logger.error(f"No suitable contract found for symbol: {symbol}")
+                return None
+
+            instrument = Instrument(**selected_contract)
             # Cache the result
             self.instrument_cache[symbol] = instrument
+            self.logger.debug(
+                f"Selected contract {instrument.id} for symbol '{symbol}'"
+            )
             return instrument
 
         except requests.RequestException as e:
@@ -611,13 +630,74 @@ class ProjectX:
             self.logger.error(f"Invalid contract response: {e}")
             raise ProjectXDataError(f"Invalid contract response: {e}") from e
 
-    def search_instruments(self, symbol: str) -> list[Instrument]:
+    def _select_best_contract(
+        self, contracts: list[dict], search_symbol: str
+    ) -> dict | None:
+        """
+        Select the best matching contract from ProjectX search results.
+
+        Selection priority:
+        1. Exact symbolId suffix match + active contract
+        2. Exact name match + active contract
+        3. Exact symbolId suffix match (any status)
+        4. Exact name match (any status)
+        5. First active contract
+        6. First contract (fallback)
+
+        Args:
+            contracts: List of contract dictionaries from ProjectX API
+            search_symbol: The symbol being searched for
+
+        Returns:
+            dict: Best matching contract, or None if no contracts
+
+        Example:
+            Search "ENQ" should match symbolId "F.US.ENQ", not "F.US.MNQ"
+        """
+        if not contracts:
+            return None
+
+        search_upper = search_symbol.upper()
+        active_contracts = [c for c in contracts if c.get("activeContract", False)]
+
+        # 1. Exact symbolId suffix match + active
+        for contract in active_contracts:
+            symbol_id = contract.get("symbolId", "")
+            if symbol_id and symbol_id.upper().endswith(f".{search_upper}"):
+                return contract
+
+        # 2. Exact name match + active
+        for contract in active_contracts:
+            name = contract.get("name", "")
+            if name.upper() == search_upper:
+                return contract
+
+        # 3. Exact symbolId suffix match (any status)
+        for contract in contracts:
+            symbol_id = contract.get("symbolId", "")
+            if symbol_id and symbol_id.upper().endswith(f".{search_upper}"):
+                return contract
+
+        # 4. Exact name match (any status)
+        for contract in contracts:
+            name = contract.get("name", "")
+            if name.upper() == search_upper:
+                return contract
+
+        # 5. First active contract
+        if active_contracts:
+            return active_contracts[0]
+
+        # 6. Fallback to first contract
+        return contracts[0]
+
+    def search_instruments(self, symbol: str, live: bool = False) -> list[Instrument]:
         """
         Search for all instruments matching a symbol.
 
         Args:
             symbol: Symbol to search for (e.g., "MGC", "MNQ")
-
+            live: Whether to search for live instruments (default: False)
         Returns:
             List[Instrument]: List of all matching instruments
 
@@ -632,7 +712,7 @@ class ProjectX:
         self._ensure_authenticated()
 
         url = f"{self.base_url}/Contract/search"
-        payload = {"searchText": symbol, "live": False}
+        payload = {"searchText": symbol, "live": live}
 
         try:
             self.api_call_count += 1
@@ -1326,3 +1406,111 @@ class ProjectX:
                 "requests_per_minute": self.requests_per_minute,
             },
         }
+
+    def test_contract_selection(self) -> dict[str, Any]:
+        """
+        Test the contract selection algorithm with various scenarios.
+
+        Returns:
+            dict: Test results with validation status and recommendations
+        """
+        test_results = {
+            "validation": "passed",
+            "performance_metrics": {},
+            "recommendations": [],
+            "test_cases": {},
+        }
+
+        # Mock contract data similar to ProjectX NQ search example
+        mock_contracts = [
+            {
+                "id": "CON.F.US.ENQ.U25",
+                "name": "NQU5",
+                "description": "E-mini NASDAQ-100: September 2025",
+                "symbolId": "F.US.ENQ",
+                "activeContract": True,
+                "tickSize": 0.25,
+                "tickValue": 5.0,
+            },
+            {
+                "id": "CON.F.US.MNQ.U25",
+                "name": "MNQU5",
+                "description": "Micro E-mini Nasdaq-100: September 2025",
+                "symbolId": "F.US.MNQ",
+                "activeContract": True,
+                "tickSize": 0.25,
+                "tickValue": 0.5,
+            },
+            {
+                "id": "CON.F.US.NQG.Q25",
+                "name": "QGQ5",
+                "description": "E-Mini Natural Gas: August 2025",
+                "symbolId": "F.US.NQG",
+                "activeContract": True,
+                "tickSize": 0.005,
+                "tickValue": 12.5,
+            },
+        ]
+
+        try:
+            # Test 1: Exact symbolId suffix match
+            result1 = self._select_best_contract(mock_contracts, "ENQ")
+            expected1 = "F.US.ENQ"
+            actual1 = result1.get("symbolId") if result1 else None
+            test_results["test_cases"]["exact_symbolId_match"] = {
+                "passed": actual1 == expected1,
+                "expected": expected1,
+                "actual": actual1,
+            }
+
+            # Test 2: Different symbolId match
+            result2 = self._select_best_contract(mock_contracts, "MNQ")
+            expected2 = "F.US.MNQ"
+            actual2 = result2.get("symbolId") if result2 else None
+            test_results["test_cases"]["different_symbolId_match"] = {
+                "passed": actual2 == expected2,
+                "expected": expected2,
+                "actual": actual2,
+            }
+
+            # Test 3: Exact name match
+            result3 = self._select_best_contract(mock_contracts, "NQU5")
+            expected3 = "NQU5"
+            actual3 = result3.get("name") if result3 else None
+            test_results["test_cases"]["exact_name_match"] = {
+                "passed": actual3 == expected3,
+                "expected": expected3,
+                "actual": actual3,
+            }
+
+            # Test 4: Fallback behavior (no exact match)
+            result4 = self._select_best_contract(mock_contracts, "UNKNOWN")
+            test_results["test_cases"]["fallback_behavior"] = {
+                "passed": result4 is not None and result4.get("activeContract", False),
+                "description": "Should return first active contract when no exact match",
+            }
+
+            # Check overall validation
+            all_passed = all(
+                test.get("passed", False)
+                for test in test_results["test_cases"].values()
+            )
+
+            if not all_passed:
+                test_results["validation"] = "failed"
+                test_results["recommendations"].append(
+                    "Contract selection algorithm needs refinement"
+                )
+            else:
+                test_results["recommendations"].append(
+                    "Smart contract selection working correctly"
+                )
+
+        except Exception as e:
+            test_results["validation"] = "error"
+            test_results["error"] = str(e)
+            test_results["recommendations"].append(
+                f"Contract selection test failed: {e}"
+            )
+
+        return test_results
