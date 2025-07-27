@@ -1,16 +1,30 @@
 """
-ProjectX API Client
+ProjectX Python SDK - Core Client Module
 
 Author: TexasCoding
 Date: June 2025
 
-This module contains the main ProjectX client class for trading operations.
-It provides a comprehensive interface for interacting with the ProjectX API,
-including authentication, account management, market data retrieval, and order
-management.
+This module contains the main ProjectX client class for the ProjectX Python SDK.
+It provides a comprehensive interface for interacting with the ProjectX Trading Platform
+Gateway API, enabling developers to build sophisticated trading applications.
 
-The client handles authentication, error management, and provides both
-low-level API access and high-level convenience methods.
+The client handles authentication, account management, market data retrieval, and basic
+trading operations. It provides both low-level API access and high-level convenience
+methods for building trading strategies and applications.
+
+Key Features:
+- Multi-account authentication and management
+- Intelligent instrument search with smart contract selection
+- Historical market data retrieval with caching
+- Position tracking and trade history
+- Error handling and connection management
+- Rate limiting and retry mechanisms
+
+For advanced trading operations, use the specialized managers:
+- OrderManager: Comprehensive order lifecycle management
+- PositionManager: Portfolio analytics and risk management  
+- ProjectXRealtimeDataManager: Real-time multi-timeframe OHLCV data
+- OrderBook: Level 2 market depth and microstructure analysis
 
 """
 
@@ -50,23 +64,30 @@ from .models import (
 
 class ProjectX:
     """
-    A comprehensive Python client for the ProjectX Gateway API.
+    Core ProjectX client for the ProjectX Python SDK.
 
-    This class provides access to core trading functionality including:
-    - Market data retrieval
-    - Account management with multi-account support
-    - Instrument search and contract details
-    - Position management
-    - Authentication and session management
+    This class provides the foundation for building trading applications by offering
+    comprehensive access to the ProjectX Trading Platform Gateway API. It handles
+    core functionality including:
 
-    For order management operations, use the OrderManager class.
-    For real-time market data, use ProjectXRealtimeDataManager and OrderBook.
+    - Multi-account authentication and session management
+    - Intelligent instrument search with smart contract selection
+    - Historical market data retrieval with caching
+    - Position tracking and trade history analysis
+    - Account management and information retrieval
 
-    The client handles authentication, error management, and provides both
-    low-level API access and high-level convenience methods.
+    For advanced trading operations, this client integrates with specialized managers:
+    - OrderManager: Complete order lifecycle management
+    - PositionManager: Portfolio analytics and risk management
+    - ProjectXRealtimeDataManager: Real-time multi-timeframe data
+    - OrderBook: Level 2 market depth analysis
+
+    The client implements enterprise-grade features including connection pooling,
+    automatic retry mechanisms, rate limiting, and intelligent caching for optimal
+    performance when building trading applications.
 
     Attributes:
-        config (ProjectXConfig): Configuration settings
+        config (ProjectXConfig): Configuration settings for API endpoints and behavior
         api_key (str): API key for authentication
         username (str): Username for authentication
         account_name (str | None): Optional account name for multi-account selection
@@ -76,24 +97,41 @@ class ProjectX:
         account_info (Account): Selected account information
 
     Example:
-        >>> # Using environment variables (recommended)
-        >>> project_x = ProjectX.from_env()
-        >>> # Using explicit credentials
-        >>> project_x = ProjectX(username="your_username", api_key="your_api_key")
-        >>> # Selecting specific account by name
-        >>> project_x = ProjectX.from_env(account_name="Main Trading Account")
-        >>> # List available accounts
-        >>> accounts = project_x.list_accounts()
+        >>> # Basic SDK usage with environment variables (recommended)
+        >>> from project_x_py import ProjectX
+        >>> client = ProjectX.from_env()
+        >>> 
+        >>> # Multi-account setup - list and select specific account
+        >>> accounts = client.list_accounts()
         >>> for account in accounts:
         ...     print(f"Account: {account['name']} (ID: {account['id']})")
-        >>> # Get market data
-        >>> instruments = project_x.search_instruments("MGC")
-        >>> data = project_x.get_data("MGC", days=5, interval=15)
-        >>> positions = project_x.search_open_positions()
-        >>> # For order management, use OrderManager
+        >>> 
+        >>> # Select specific account by name
+        >>> client = ProjectX.from_env(account_name="Main Trading Account")
+        >>> 
+        >>> # Core market data operations
+        >>> instruments = client.search_instruments("MGC")
+        >>> gold_contract = client.get_instrument("MGC")
+        >>> historical_data = client.get_data("MGC", days=5, interval=15)
+        >>> 
+        >>> # Position and trade analysis
+        >>> positions = client.search_open_positions()
+        >>> trades = client.search_trades(limit=50)
+        >>> 
+        >>> # For order management, use the OrderManager
         >>> from project_x_py import create_order_manager
-        >>> order_manager = create_order_manager(project_x)
+        >>> order_manager = create_order_manager(client)
+        >>> order_manager.initialize()
         >>> response = order_manager.place_market_order("MGC", 0, 1)
+        >>> 
+        >>> # For real-time data, use the data manager
+        >>> from project_x_py import create_trading_suite
+        >>> suite = create_trading_suite(
+        ...     instrument="MGC",
+        ...     project_x=client,
+        ...     jwt_token=client.get_session_token(),
+        ...     account_id=client.get_account_info().id
+        ... )
     """
 
     def __init__(
@@ -104,17 +142,31 @@ class ProjectX:
         account_name: str | None = None,
     ):
         """
-        Initialize the ProjectX client.
+        Initialize the ProjectX client for building trading applications.
 
         Args:
-            username: Username for TopStepX account
-            api_key: API key for TopStepX authentication
-            config: Optional configuration object (uses defaults if None)
-            account_name: Optional account name to select specific account (uses first if None)
+            username: Username for ProjectX account authentication
+            api_key: API key for ProjectX authentication
+            config: Optional configuration object with endpoints and settings (uses defaults if None)
+            account_name: Optional account name to select specific account (uses first available if None)
 
         Raises:
             ValueError: If required credentials are missing
             ProjectXError: If configuration is invalid
+
+        Example:
+            >>> # Using explicit credentials
+            >>> client = ProjectX(
+            ...     username="your_username",
+            ...     api_key="your_api_key"
+            ... )
+            >>> 
+            >>> # With specific account selection
+            >>> client = ProjectX(
+            ...     username="your_username",
+            ...     api_key="your_api_key",
+            ...     account_name="Main Trading Account"
+            ... )
         """
         if not username or not api_key:
             raise ValueError("Both username and api_key are required")
@@ -172,33 +224,45 @@ class ProjectX:
         cls, config: ProjectXConfig | None = None, account_name: str | None = None
     ) -> "ProjectX":
         """
-        Create ProjectX client using environment variables.
+        Create ProjectX client using environment variables (recommended approach).
+
+        This is the preferred method for initializing the client as it keeps
+        sensitive credentials out of your source code.
 
         Environment Variables Required:
-            PROJECT_X_API_KEY: API key for TopStepX authentication
-            PROJECT_X_USERNAME: Username for TopStepX account
+            PROJECT_X_API_KEY: API key for ProjectX authentication
+            PROJECT_X_USERNAME: Username for ProjectX account
 
         Optional Environment Variables:
             PROJECT_X_ACCOUNT_NAME: Account name to select specific account
 
         Args:
-            config: Optional configuration object
+            config: Optional configuration object with endpoints and settings
             account_name: Optional account name (overrides environment variable)
 
         Returns:
-            ProjectX client instance
+            ProjectX: Configured client instance ready for building trading applications
 
         Raises:
             ValueError: If required environment variables are not set
 
         Example:
+            >>> # Set environment variables first
             >>> import os
             >>> os.environ["PROJECT_X_API_KEY"] = "your_api_key_here"
             >>> os.environ["PROJECT_X_USERNAME"] = "your_username_here"
-            >>> os.environ["PROJECT_X_ACCOUNT_NAME"] = (
-            ...     "Main Trading Account"  # Optional
+            >>> os.environ["PROJECT_X_ACCOUNT_NAME"] = "Main Trading Account"  # Optional
+            >>> 
+            >>> # Create client (recommended approach)
+            >>> from project_x_py import ProjectX
+            >>> client = ProjectX.from_env()
+            >>> 
+            >>> # With custom configuration
+            >>> from project_x_py import create_custom_config
+            >>> custom_config = create_custom_config(
+            ...     api_url="https://custom.api.endpoint.com"
             ... )
-            >>> project_x = ProjectX.from_env()
+            >>> client = ProjectX.from_env(config=custom_config)
         """
         config_manager = ConfigManager()
         auth_config = config_manager.get_auth_config()
@@ -580,10 +644,18 @@ class ProjectX:
             ProjectXInstrumentError: If instrument search fails
 
         Example:
-            >>> # Exact symbolId match
-            >>> instrument = project_x.get_instrument("ENQ")  # Gets F.US.ENQ, not MNQ
-            >>> # Exact name match
-            >>> instrument = project_x.get_instrument("NQU5")  # Gets specific contract
+            >>> # Exact symbolId match - gets F.US.ENQ, not MNQ
+            >>> instrument = client.get_instrument("ENQ")
+            >>> print(f"Contract: {instrument.name} ({instrument.symbolId})")
+            >>> 
+            >>> # Exact name match - gets specific contract
+            >>> instrument = client.get_instrument("NQU5")
+            >>> print(f"Description: {instrument.description}")
+            >>> 
+            >>> # Smart selection prioritizes active contracts
+            >>> instrument = client.get_instrument("MGC")
+            >>> if instrument:
+            ...     print(f"Selected: {instrument.id}")
         """
         # Check cache first
         if symbol in self.instrument_cache:
@@ -696,19 +768,29 @@ class ProjectX:
         """
         Search for all instruments matching a symbol.
 
+        Returns all contracts that match the search criteria, useful for exploring
+        available instruments or finding related contracts.
+
         Args:
-            symbol: Symbol to search for (e.g., "MGC", "MNQ")
+            symbol: Symbol to search for (e.g., "MGC", "MNQ", "NQ")
             live: Whether to search for live instruments (default: False)
+
         Returns:
-            List[Instrument]: List of all matching instruments
+            List[Instrument]: List of all matching instruments with contract details
 
         Raises:
             ProjectXInstrumentError: If instrument search fails
 
         Example:
-            >>> instruments = project_x.search_instruments("NQ")
+            >>> # Search for all NQ-related contracts
+            >>> instruments = client.search_instruments("NQ")
             >>> for inst in instruments:
             ...     print(f"{inst.name}: {inst.description}")
+            ...     print(f"  Symbol ID: {inst.symbolId}, Active: {inst.activeContract}")
+            >>> 
+            >>> # Search for gold contracts
+            >>> gold_instruments = client.search_instruments("MGC")
+            >>> print(f"Found {len(gold_instruments)} gold contracts")
         """
         self._ensure_authenticated()
 
@@ -745,31 +827,43 @@ class ProjectX:
         partial: bool = True,
     ) -> pl.DataFrame | None:
         """
-        Retrieve historical bar data for an instrument.
+        Retrieve historical OHLCV bar data for an instrument.
+
+        This method fetches historical market data with intelligent caching and 
+        timezone handling. The data is returned as a Polars DataFrame optimized
+        for financial analysis and technical indicator calculations.
 
         Args:
-            instrument: Symbol of the instrument (e.g., "MGC", "MNQ")
-            days: Number of days of historical data. Defaults to 8.
-            interval: Interval in minutes between bars. Defaults to 5.
-            unit: Unit of time for the interval. Defaults to 2 (minutes).
-                  1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month.
-            limit: Number of bars to retrieve. Defaults to calculated value.
-            partial: Include partial bars. Defaults to True.
+            instrument: Symbol of the instrument (e.g., "MGC", "MNQ", "ES")
+            days: Number of days of historical data (default: 8)
+            interval: Interval between bars in the specified unit (default: 5)
+            unit: Time unit for the interval (default: 2 for minutes)
+                  1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month
+            limit: Maximum number of bars to retrieve (auto-calculated if None)
+            partial: Include incomplete/partial bars (default: True)
 
         Returns:
-            pl.DataFrame: DataFrame with OHLCV data indexed by timestamp
-                Columns: open, high, low, close, volume
-                Index: timestamp (timezone-aware, US Central)
-            None: If no data is available
+            pl.DataFrame: DataFrame with OHLCV data and timezone-aware timestamps
+                Columns: timestamp, open, high, low, close, volume
+                Timezone: Converted to your configured timezone (default: US/Central)
+            None: If no data is available for the specified instrument
 
         Raises:
-            ProjectXInstrumentError: If instrument not found
-            ProjectXDataError: If data retrieval fails
+            ProjectXInstrumentError: If instrument not found or invalid
+            ProjectXDataError: If data retrieval fails or invalid response
 
         Example:
-            >>> data = project_x.get_data("MGC", days=5, interval=15)
+            >>> # Get 5 days of 15-minute gold data
+            >>> data = client.get_data("MGC", days=5, interval=15)
             >>> print(f"Retrieved {len(data)} bars")
+            >>> print(f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
             >>> print(data.tail())
+            >>> 
+            >>> # Get 1 day of 5-second ES data for high-frequency analysis
+            >>> hf_data = client.get_data("ES", days=1, interval=5, unit=1)
+            >>> 
+            >>> # Get daily bars for longer-term analysis
+            >>> daily_data = client.get_data("MGC", days=30, interval=1, unit=4)
         """
         self._ensure_authenticated()
 
@@ -866,21 +960,37 @@ class ProjectX:
     # Position Management Methods
     def search_open_positions(self, account_id: int | None = None) -> list[Position]:
         """
-        Search for currently open positions.
+        Search for currently open positions in the specified account.
+
+        Retrieves all open positions with current size, average price, and P&L information.
+        Useful for portfolio monitoring and risk management in trading applications.
 
         Args:
-            account_id: Account ID to search. Uses default account if None.
+            account_id: Account ID to search (uses default account if None)
 
         Returns:
-            List[Position]: List of open positions with size and average price
+            List[Position]: List of open positions with detailed information including:
+                - contractId: Instrument contract identifier
+                - size: Current position size (positive=long, negative=short)
+                - averagePrice: Average entry price
+                - unrealizedPnl: Current unrealized profit/loss
 
         Raises:
-            ProjectXError: If position search fails
+            ProjectXError: If position search fails or no account information available
 
         Example:
-            >>> positions = project_x.search_open_positions()
+            >>> # Get all open positions
+            >>> positions = client.search_open_positions()
             >>> for pos in positions:
-            ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice}")
+            ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice:.2f}")
+            ...     if hasattr(pos, 'unrealizedPnl'):
+            ...         print(f"  P&L: ${pos.unrealizedPnl:.2f}")
+            >>> 
+            >>> # Check if any positions are open
+            >>> if positions:
+            ...     print(f"Currently holding {len(positions)} positions")
+            ... else:
+            ...     print("No open positions")
         """
         self._ensure_authenticated()
 
@@ -928,26 +1038,46 @@ class ProjectX:
         limit: int = 100,
     ) -> list[Trade]:
         """
-        Search trade execution history.
+        Search trade execution history for analysis and reporting.
+
+        Retrieves executed trades within the specified date range, useful for
+        performance analysis, tax reporting, and strategy evaluation.
 
         Args:
             start_date: Start date for trade search (default: 30 days ago)
             end_date: End date for trade search (default: now)
-            contract_id: Optional contract ID filter
-            account_id: Account ID to search. Uses default account if None.
-            limit: Maximum number of trades to return
+            contract_id: Optional contract ID filter for specific instrument
+            account_id: Account ID to search (uses default account if None)
+            limit: Maximum number of trades to return (default: 100)
 
         Returns:
-            List[dict]: List of executed trades with details
+            List[Trade]: List of executed trades with detailed information including:
+                - contractId: Instrument that was traded
+                - size: Trade size (positive=buy, negative=sell)
+                - price: Execution price
+                - timestamp: Execution time
+                - commission: Trading fees
+
+        Raises:
+            ProjectXError: If trade search fails or no account information available
 
         Example:
             >>> from datetime import datetime, timedelta
+            >>> 
+            >>> # Get last 7 days of trades
             >>> start = datetime.now() - timedelta(days=7)
-            >>> trades = project_x.search_trades(start_date=start)
+            >>> trades = client.search_trades(start_date=start)
             >>> for trade in trades:
-            ...     print(
-            ...         f"Trade: {trade['contractId']} - {trade['size']} @ ${trade['price']}"
-            ...     )
+            ...     print(f"Trade: {trade.contractId} - {trade.size} @ ${trade.price:.2f}")
+            ...     print(f"  Time: {trade.timestamp}")
+            >>> 
+            >>> # Get trades for specific instrument
+            >>> mgc_trades = client.search_trades(contract_id="MGC", limit=50)
+            >>> print(f"Found {len(mgc_trades)} MGC trades")
+            >>> 
+            >>> # Calculate total trading volume
+            >>> total_volume = sum(abs(trade.size) for trade in trades)
+            >>> print(f"Total volume traded: {total_volume}")
         """
         self._ensure_authenticated()
 
