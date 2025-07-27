@@ -627,6 +627,10 @@ class PositionManager:
         return {
             "position_count": len(positions),
             "positions": position_breakdown,
+            "total_pnl": 0.0,  # Default value when no current prices available
+            "total_unrealized_pnl": 0.0,
+            "total_realized_pnl": 0.0,
+            "net_pnl": 0.0,
             "last_updated": datetime.now(),
             "note": "For P&L calculations, use calculate_portfolio_pnl() with current market prices",
         }

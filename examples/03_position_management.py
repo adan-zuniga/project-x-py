@@ -269,6 +269,72 @@ def main():
 
         setup_position_alerts(position_manager, contract_id)
 
+        # Open a small test position to demonstrate position management features
+        print("\n" + "=" * 50)
+        print("📈 OPENING TEST POSITION")
+        print("=" * 50)
+
+        if order_manager:
+            try:
+                print("Opening a small 1-contract LONG position for demonstration...")
+
+                # Get current market price for order placement
+                current_price = get_current_market_price(client)
+
+                # Place a small market buy order (1 contract)
+                test_order = order_manager.place_order(
+                    contract_id=contract_id,
+                    side=0,  # Bid (buy)
+                    order_type=2,  # Market order
+                    size=1,  # Just 1 contract for safety
+                    custom_tag=f"test_pos_{int(time.time())}",
+                )
+
+                if test_order.success:
+                    print(f"✅ Test position order placed: {test_order.orderId}")
+                    print("   Waiting for order to fill and position to appear...")
+
+                    # Wait for order to fill and position to appear
+                    wait_time = 0
+                    max_wait = 30  # Maximum 30 seconds
+
+                    while wait_time < max_wait:
+                        time.sleep(2)
+                        wait_time += 2
+
+                        # Check if we have a position now
+                        test_positions = position_manager.get_all_positions()
+                        if test_positions:
+                            print(
+                                f"✅ Position opened successfully after {wait_time}s!"
+                            )
+                            for pos in test_positions:
+                                direction = "LONG" if pos.type == 1 else "SHORT"
+                                print(
+                                    f"   📊 {pos.contractId}: {direction} {pos.size} contracts @ ${pos.averagePrice:.2f}"
+                                )
+                            break
+                        else:
+                            print(f"   ⏳ Waiting for position... ({wait_time}s)")
+
+                    if wait_time >= max_wait:
+                        print("   ⚠️  Position didn't appear within 30 seconds")
+                        print(
+                            "   This may be normal if market is closed or order is still pending"
+                        )
+
+                else:
+                    print(f"❌ Test position order failed: {test_order.errorMessage}")
+                    print(
+                        "   Continuing with example using existing positions (if any)"
+                    )
+
+            except Exception as e:
+                print(f"❌ Error opening test position: {e}")
+                print("   Continuing with example using existing positions (if any)")
+        else:
+            print("⚠️  No order manager available, skipping position opening")
+
         # If we have existing positions, demonstrate detailed analysis
         positions = position_manager.get_all_positions()
         if positions:
@@ -476,8 +542,105 @@ def main():
         print(f"❌ Error: {e}")
         return False
     finally:
-        # Cleanup
-        if "position_manager" in locals():
+        # Enhanced cleanup: Close all positions and cleanup
+        if "position_manager" in locals() and "order_manager" in locals():
+            try:
+                print("\n🧹 Enhanced cleanup: Closing all positions and orders...")
+
+                # Get all open positions
+                positions = position_manager.get_all_positions()
+                if positions:
+                    print(f"   Found {len(positions)} open positions to close")
+
+                    for pos in positions:
+                        try:
+                            # Determine order side (opposite of position)
+                            if pos.type == 1:  # Long position
+                                side = 1  # Ask (sell)
+                                print(
+                                    f"   📉 Closing LONG position: {pos.contractId} ({pos.size} contracts)"
+                                )
+                            else:  # Short position
+                                side = 0  # Bid (buy)
+                                print(
+                                    f"   📈 Closing SHORT position: {pos.contractId} ({pos.size} contracts)"
+                                )
+
+                            # Place market order to close position
+                            if order_manager:
+                                close_order = order_manager.place_order(
+                                    contract_id=pos.contractId,
+                                    side=side,
+                                    order_type=2,  # Market order
+                                    size=abs(pos.size),
+                                    custom_tag=f"close_pos_{int(time.time())}",
+                                )
+
+                                if close_order.success:
+                                    print(
+                                        f"   ✅ Close order placed: {close_order.orderId}"
+                                    )
+                                else:
+                                    print(
+                                        f"   ❌ Failed to place close order: {close_order.errorMessage}"
+                                    )
+
+                        except Exception as e:
+                            print(f"   ❌ Error closing position {pos.contractId}: {e}")
+
+                else:
+                    print("   ✅ No open positions to close")
+
+                # Cancel any remaining open orders
+                if order_manager:
+                    try:
+                        all_orders = order_manager.search_open_orders()
+                        if all_orders:
+                            print(f"   Found {len(all_orders)} open orders to cancel")
+                            for order in all_orders:
+                                try:
+                                    cancel_result = order_manager.cancel_order(order.id)
+                                    if cancel_result:
+                                        print(f"   ✅ Cancelled order: {order.id}")
+                                    else:
+                                        print(
+                                            f"   ❌ Failed to cancel order {order.id}"
+                                        )
+                                except Exception as e:
+                                    print(
+                                        f"   ❌ Error cancelling order {order.id}: {e}"
+                                    )
+                        else:
+                            print("   ✅ No open orders to cancel")
+                    except Exception as e:
+                        print(f"   ⚠️  Error checking orders: {e}")
+
+                # Wait a moment for orders to process
+                time.sleep(2)
+
+                # Final position check
+                final_positions = position_manager.get_all_positions()
+                if final_positions:
+                    print(
+                        f"   ⚠️  {len(final_positions)} positions still open after cleanup"
+                    )
+                else:
+                    print("   ✅ All positions successfully closed")
+
+                # Cleanup managers
+                position_manager.cleanup()
+                print("   🧹 Position manager cleaned up")
+
+            except Exception as e:
+                print(f"   ⚠️  Enhanced cleanup error: {e}")
+                # Fallback to basic cleanup
+                try:
+                    position_manager.cleanup()
+                    print("   🧹 Basic position manager cleanup completed")
+                except Exception as cleanup_e:
+                    print(f"   ❌ Cleanup failed: {cleanup_e}")
+
+        elif "position_manager" in locals():
             try:
                 position_manager.cleanup()
                 print("🧹 Position manager cleaned up")
