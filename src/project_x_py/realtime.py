@@ -4,7 +4,7 @@ ProjectX Realtime Client for ProjectX Gateway API
 This module provides a Python client for the ProjectX real-time API, which provides
 access to the ProjectX trading platform real-time events via SignalR WebSocket connections.
 
-Author: TexasCoding  
+Author: TexasCoding
 Date: June 2025
 """
 
@@ -52,10 +52,9 @@ class ProjectXRealtimeClient:
     Example:
         >>> # Create client with ProjectX Gateway URLs
         >>> client = ProjectXRealtimeClient(jwt_token, account_id)
-        >>> 
         >>> # Register managers for event handling
         >>> client.add_callback("position_update", position_manager.handle_update)
-        >>> client.add_callback("order_update", order_manager.handle_update) 
+        >>> client.add_callback("order_update", order_manager.handle_update)
         >>> client.add_callback("quote_update", data_manager.handle_quote)
         >>>
         >>> # Connect and subscribe
@@ -84,14 +83,14 @@ class ProjectXRealtimeClient:
     ):
         """
         Initialize ProjectX real-time client with configurable SignalR connections.
-        
+
         Args:
             jwt_token: JWT authentication token
             account_id: ProjectX account ID
             user_hub_url: Optional user hub URL (overrides config)
             market_hub_url: Optional market hub URL (overrides config)
             config: Optional ProjectXConfig with default URLs
-            
+
         Note:
             If no URLs are provided, defaults to ProjectX Gateway demo endpoints.
             For TopStepX, pass TopStepX URLs or use ProjectXConfig with TopStepX URLs.
@@ -122,7 +121,7 @@ class ProjectXRealtimeClient:
             self.base_market_url = config.market_hub_url
         elif user_hub_url and market_hub_url:
             # Use provided URLs
-            self.base_user_url = user_hub_url  
+            self.base_user_url = user_hub_url
             self.base_market_url = market_hub_url
         else:
             # Default to TopStepX endpoints
@@ -176,7 +175,7 @@ class ProjectXRealtimeClient:
                 )
                 .with_automatic_reconnect(
                     {
-                        "type": "interval", 
+                        "type": "interval",
                         "keep_alive_interval": 10,
                         "intervals": [1, 3, 5, 5, 5, 5],
                     }
@@ -184,7 +183,7 @@ class ProjectXRealtimeClient:
                 .build()
             )
 
-            # Build market hub connection  
+            # Build market hub connection
             self.market_connection = (
                 HubConnectionBuilder()
                 .with_url(self.market_hub_url)
@@ -194,7 +193,7 @@ class ProjectXRealtimeClient:
                 .with_automatic_reconnect(
                     {
                         "type": "interval",
-                        "keep_alive_interval": 10, 
+                        "keep_alive_interval": 10,
                         "intervals": [1, 3, 5, 5, 5, 5],
                     }
                 )
@@ -204,20 +203,26 @@ class ProjectXRealtimeClient:
             # Set up connection event handlers
             self.user_connection.on_open(lambda: self._on_user_hub_open())
             self.user_connection.on_close(lambda: self._on_user_hub_close())
-            self.user_connection.on_error(lambda data: self._on_connection_error("user", data))
+            self.user_connection.on_error(
+                lambda data: self._on_connection_error("user", data)
+            )
 
             self.market_connection.on_open(lambda: self._on_market_hub_open())
             self.market_connection.on_close(lambda: self._on_market_hub_close())
-            self.market_connection.on_error(lambda data: self._on_connection_error("market", data))
+            self.market_connection.on_error(
+                lambda data: self._on_connection_error("market", data)
+            )
 
             # Set up ProjectX Gateway event handlers (per official documentation)
             # User Hub Events
             self.user_connection.on("GatewayUserAccount", self._forward_account_update)
-            self.user_connection.on("GatewayUserPosition", self._forward_position_update)
+            self.user_connection.on(
+                "GatewayUserPosition", self._forward_position_update
+            )
             self.user_connection.on("GatewayUserOrder", self._forward_order_update)
             self.user_connection.on("GatewayUserTrade", self._forward_trade_execution)
 
-            # Market Hub Events  
+            # Market Hub Events
             self.market_connection.on("GatewayQuote", self._forward_quote_update)
             self.market_connection.on("GatewayTrade", self._forward_market_trade)
             self.market_connection.on("GatewayDepth", self._forward_market_depth)
@@ -295,25 +300,33 @@ class ProjectXRealtimeClient:
         """Handle user hub connection opening."""
         self.user_connected = True
         self.logger.info("✅ User hub connected")
-        self._trigger_callbacks("connection_status", {"hub": "user", "status": "connected"})
+        self._trigger_callbacks(
+            "connection_status", {"hub": "user", "status": "connected"}
+        )
 
     def _on_user_hub_close(self):
         """Handle user hub connection closing."""
         self.user_connected = False
         self.logger.warning("❌ User hub disconnected")
-        self._trigger_callbacks("connection_status", {"hub": "user", "status": "disconnected"})
+        self._trigger_callbacks(
+            "connection_status", {"hub": "user", "status": "disconnected"}
+        )
 
     def _on_market_hub_open(self):
         """Handle market hub connection opening."""
         self.market_connected = True
         self.logger.info("✅ Market hub connected")
-        self._trigger_callbacks("connection_status", {"hub": "market", "status": "connected"})
+        self._trigger_callbacks(
+            "connection_status", {"hub": "market", "status": "connected"}
+        )
 
     def _on_market_hub_close(self):
         """Handle market hub connection closing."""
         self.market_connected = False
         self.logger.warning("❌ Market hub disconnected")
-        self._trigger_callbacks("connection_status", {"hub": "market", "status": "disconnected"})
+        self._trigger_callbacks(
+            "connection_status", {"hub": "market", "status": "disconnected"}
+        )
 
     def _on_connection_error(self, hub_type: str, data):
         """Handle connection errors."""
@@ -323,7 +336,9 @@ class ProjectXRealtimeClient:
         if "unauthorized" in str(data).lower() or "401" in str(data):
             self.logger.warning("⚠️ Authentication error - token may be expired")
 
-        self._trigger_callbacks("connection_status", {"hub": hub_type, "status": "error", "data": data})
+        self._trigger_callbacks(
+            "connection_status", {"hub": hub_type, "status": "error", "data": data}
+        )
 
     # Pure event forwarding handlers (no caching or business logic)
     def _forward_account_update(self, data):
@@ -354,19 +369,25 @@ class ProjectXRealtimeClient:
         """Forward ProjectX GatewayQuote events to managers."""
         self._update_stats()
         self.logger.debug(f"📨 Quote update forwarded: {contract_id}")
-        self._trigger_callbacks("quote_update", {"contract_id": contract_id, "data": data})
+        self._trigger_callbacks(
+            "quote_update", {"contract_id": contract_id, "data": data}
+        )
 
     def _forward_market_trade(self, contract_id, data):
         """Forward ProjectX GatewayTrade events to managers."""
         self._update_stats()
         self.logger.debug(f"📨 Market trade forwarded: {contract_id}")
-        self._trigger_callbacks("market_trade", {"contract_id": contract_id, "data": data})
+        self._trigger_callbacks(
+            "market_trade", {"contract_id": contract_id, "data": data}
+        )
 
     def _forward_market_depth(self, contract_id, data):
         """Forward ProjectX GatewayDepth events to managers."""
         self._update_stats()
         self.logger.debug(f"📨 Market depth forwarded: {contract_id}")
-        self._trigger_callbacks("market_depth", {"contract_id": contract_id, "data": data})
+        self._trigger_callbacks(
+            "market_depth", {"contract_id": contract_id, "data": data}
+        )
 
     def _update_stats(self):
         """Update basic statistics."""
@@ -381,7 +402,9 @@ class ProjectXRealtimeClient:
             return False
 
         try:
-            self.logger.info(f"📡 Subscribing to user updates for account {self.account_id}")
+            self.logger.info(
+                f"📡 Subscribing to user updates for account {self.account_id}"
+            )
 
             with self.rate_limiter:
                 self.user_connection.send("SubscribeAccounts", [])
@@ -406,18 +429,24 @@ class ProjectXRealtimeClient:
 
         try:
             self.logger.info(f"📡 Subscribing to market data: {contract_ids}")
-            
+
             # Track for reconnection
             self._subscribed_contracts = contract_ids.copy()
 
             # Subscribe using ProjectX Gateway methods
             for contract_id in contract_ids:
                 with self.rate_limiter:
-                    self.market_connection.send("SubscribeContractQuotes", [contract_id])
+                    self.market_connection.send(
+                        "SubscribeContractQuotes", [contract_id]
+                    )
                 with self.rate_limiter:
-                    self.market_connection.send("SubscribeContractTrades", [contract_id])
+                    self.market_connection.send(
+                        "SubscribeContractTrades", [contract_id]
+                    )
                 with self.rate_limiter:
-                    self.market_connection.send("SubscribeContractMarketDepth", [contract_id])
+                    self.market_connection.send(
+                        "SubscribeContractMarketDepth", [contract_id]
+                    )
 
             return True
 

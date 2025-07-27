@@ -259,10 +259,10 @@ class BracketOrderResponse:
 class ProjectXConfig:
     """
     Configuration settings for the ProjectX client.
-    
-    Default URLs are set for TopStepX endpoints. For custom ProjectX endpoints, 
+
+    Default URLs are set for TopStepX endpoints. For custom ProjectX endpoints,
     update the URLs accordingly using create_custom_config() or direct assignment.
-    
+
     TopStepX (Default):
     - user_hub_url: "https://rtc.topstepx.com/hubs/user"
     - market_hub_url: "https://rtc.topstepx.com/hubs/market"

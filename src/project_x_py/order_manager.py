@@ -291,7 +291,7 @@ class OrderManager:
             # Get current and previous order status from internal cache
             current_status = order_data.get("status", 0)
             old_status = self.order_status_cache.get(order_id, 0)
-            
+
             # Update internal order tracking
             with self.order_lock:
                 self.tracked_orders[order_id] = order_data.copy()
@@ -348,10 +348,10 @@ class OrderManager:
     def get_tracked_order_status(self, order_id: str) -> dict[str, Any] | None:
         """
         Get cached order status from realtime tracking.
-        
+
         Args:
             order_id: Order ID to get status for
-            
+
         Returns:
             dict: Order data if tracked, None otherwise
         """
@@ -361,22 +361,22 @@ class OrderManager:
     def is_order_filled(self, order_id: str | int) -> bool:
         """
         Check if an order has been filled using cached data with API fallback.
-        
+
         Args:
             order_id: Order ID to check (str or int)
-            
+
         Returns:
             bool: True if order is filled
         """
         order_id_str = str(order_id)
-        
+
         # Try cached data first (realtime optimization)
         if self._realtime_enabled:
             with self.order_lock:
                 status = self.order_status_cache.get(order_id_str)
                 if status is not None:
                     return status == 2  # 2 = Filled
-        
+
         # Fallback to API check
         order = self.get_order_by_id(int(order_id))
         return order is not None and order.status == 2  # 2 = Filled
@@ -1203,7 +1203,7 @@ class OrderManager:
             Order: Order object if found, None otherwise
         """
         order_id_str = str(order_id)
-        
+
         # Try cached data first (realtime optimization)
         if self._realtime_enabled:
             order_data = self.get_tracked_order_status(order_id_str)

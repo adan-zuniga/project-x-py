@@ -16,13 +16,10 @@ import os
 import sys
 
 # Add the src directory to Python path for development
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from project_x_py import (
-    ProjectX,
-    ProjectXRealtimeClient,
     create_custom_config,
-    create_trading_suite,
     load_default_config,
     load_topstepx_config,
 )
@@ -52,7 +49,7 @@ def demo_configuration_options():
         market_hub_url="https://custom.example.com/hubs/market",
         api_url="https://custom.example.com/api",
         timeout_seconds=60,
-        retry_attempts=5
+        retry_attempts=5,
     )
     print(f"   User Hub: {custom_config.user_hub_url}")
     print(f"   Market Hub: {custom_config.market_hub_url}")
@@ -93,10 +90,10 @@ def demo_realtime_client_configuration():
 
 def demo_trading_suite_configuration():
     """Demonstrate trading suite configuration for different platforms."""
-    
+
     print("\n📊 Trading Suite Configuration Examples")
     print("=" * 60)
-    
+
     # Note: This is just for demonstration - would need valid credentials
     print("\n💡 Code Example: TopStepX Trading Suite")
     print("-" * 45)
@@ -116,7 +113,7 @@ suite = create_trading_suite(
     config=config  # TopStepX endpoints
 )
 """)
-    
+
     print("\n💡 Code Example: ProjectX Gateway Trading Suite")
     print("-" * 50)
     print("""
@@ -139,10 +136,10 @@ suite = create_trading_suite(
 
 def demo_environment_configuration():
     """Demonstrate environment-based configuration."""
-    
+
     print("\n🌍 Environment-Based Configuration")
     print("=" * 60)
-    
+
     print("""
 The configuration system supports environment variables for easy deployment:
 
@@ -174,7 +171,7 @@ def main():
         demo_realtime_client_configuration()
         demo_trading_suite_configuration()
         demo_environment_configuration()
-        
+
         print("\n" + "=" * 60)
         print("✅ Platform Configuration Demo Complete!")
         print("\nKey Takeaways:")
@@ -183,13 +180,13 @@ def main():
         print("- Use create_custom_config() for custom endpoints")
         print("- Environment variables override default settings")
         print("- Manual URL parameters override config settings")
-        
+
     except Exception as e:
         print(f"❌ Demo failed: {e}")
         return 1
-    
+
     return 0
 
 
 if __name__ == "__main__":
-    exit(main()) 
+    exit(main())
