@@ -27,8 +27,6 @@ from decimal import Decimal
 
 from project_x_py import (
     ProjectX,
-    create_order_manager,
-    create_position_manager,
     create_trading_suite,
     setup_logging,
 )
@@ -237,13 +235,13 @@ class MultiTimeframeStrategy:
             mnq_positions = [p for p in positions if "MNQ" in p.contractId]
 
             if mnq_positions:
-                print(f"   📊 Already have MNQ position, skipping signal")
+                print("   📊 Already have MNQ position, skipping signal")
                 return False
 
             # Get current market price
             current_price = self.data_manager.get_current_price()
             if not current_price:
-                print(f"   ❌ No current price available")
+                print("   ❌ No current price available")
                 return False
 
             current_price = Decimal(str(current_price))
@@ -272,7 +270,7 @@ class MultiTimeframeStrategy:
             # Get contract ID
             instrument = self.client.get_instrument("MNQ")
             if not instrument:
-                print(f"   ❌ Could not get MNQ instrument")
+                print("   ❌ Could not get MNQ instrument")
                 return False
 
             contract_id = instrument.id
@@ -299,7 +297,7 @@ class MultiTimeframeStrategy:
             )
 
             if bracket_response.success:
-                print(f"   ✅ Bracket order placed successfully!")
+                print("   ✅ Bracket order placed successfully!")
                 print(f"      Entry Order: {bracket_response.entry_order_id}")
                 print(f"      Stop Order: {bracket_response.stop_order_id}")
                 print(f"      Target Order: {bracket_response.target_order_id}")
@@ -322,7 +320,7 @@ def display_strategy_analysis(strategy):
     """Display current strategy analysis."""
     signal_data = strategy.generate_signal()
 
-    print(f"\n📊 Multi-Timeframe Analysis:")
+    print("\n📊 Multi-Timeframe Analysis:")
     print(
         f"   Signal: {signal_data['signal']} (Confidence: {signal_data['confidence']}%)"
     )
@@ -493,7 +491,7 @@ def main():
                     and signal_data["confidence"] >= 75
                 ):
                     signals_generated += 1
-                    print(f"\n🚨 HIGH CONFIDENCE SIGNAL DETECTED!")
+                    print("\n🚨 HIGH CONFIDENCE SIGNAL DETECTED!")
                     print(f"   Signal: {signal_data['signal']}")
                     print(f"   Confidence: {signal_data['confidence']}%")
 
@@ -503,17 +501,17 @@ def main():
                     ):
                         if strategy.execute_signal(signal_data):
                             orders_placed += 1
-                            print(f"   ✅ Signal executed successfully")
+                            print("   ✅ Signal executed successfully")
                         else:
-                            print(f"   ❌ Signal execution failed")
+                            print("   ❌ Signal execution failed")
                     else:
-                        print(f"   ℹ️  Signal execution skipped by user")
+                        print("     ℹ️  Signal execution skipped by user")
 
                 # Show current positions and orders
                 positions = position_manager.get_all_positions()
                 orders = order_manager.search_open_orders()
 
-                print(f"\n📊 Current Status:")
+                print("\n📊 Current Status:")
                 print(f"   Open Positions: {len(positions)}")
                 print(f"   Open Orders: {len(orders)}")
 
@@ -538,14 +536,14 @@ def main():
                         time.sleep(remaining_time)
 
         except KeyboardInterrupt:
-            print(f"\n⏹️ Strategy monitoring stopped by user")
+            print("\n⏹️ Strategy monitoring stopped by user")
 
         # Final analysis and statistics
         print("\n" + "=" * 50)
         print("📊 STRATEGY PERFORMANCE SUMMARY")
         print("=" * 50)
 
-        print(f"Strategy Statistics:")
+        print("Strategy Statistics:")
         print(f"   Monitoring Cycles: {monitoring_cycles}")
         print(f"   Signals Generated: {signals_generated}")
         print(f"   Orders Placed: {orders_placed}")
@@ -554,12 +552,12 @@ def main():
         final_positions = position_manager.get_all_positions()
         final_orders = order_manager.search_open_orders()
 
-        print(f"\nFinal Portfolio State:")
+        print("\nFinal Portfolio State:")
         print(f"   Open Positions: {len(final_positions)}")
         print(f"   Open Orders: {len(final_orders)}")
 
         if final_positions:
-            print(f"   Position Details:")
+            print("   Position Details:")
             for pos in final_positions:
                 direction = "LONG" if pos.type == 1 else "SHORT"
                 pnl_info = position_manager.get_position_pnl(pos.contractId)
@@ -569,13 +567,13 @@ def main():
                 )
 
         # Show final signal analysis
-        print(f"\n🧠 Final Strategy Analysis:")
+        print("\n🧠 Final Strategy Analysis:")
         final_signal = display_strategy_analysis(strategy)
 
         # Risk metrics
         try:
             risk_metrics = position_manager.get_risk_metrics()
-            print(f"\n⚖️ Risk Metrics:")
+            print("\n⚖️ Risk Metrics:")
             print(f"   Total Exposure: ${risk_metrics['total_exposure']:.2f}")
             print(
                 f"   Largest Position Risk: {risk_metrics['largest_position_risk']:.2%}"

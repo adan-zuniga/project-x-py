@@ -4078,6 +4078,105 @@ class OrderBook:
                 "error": str(e),
             }
 
+    def cleanup(self) -> None:
+        """
+        Clean up resources and connections when shutting down.
+
+        Properly shuts down orderbook monitoring, clears cached data, and releases
+        resources to prevent memory leaks when the OrderBook is no longer needed.
+
+        This method clears:
+        - All orderbook bid/ask data
+        - Recent trades history
+        - Order type statistics
+        - Event callbacks
+        - Memory stats tracking
+
+        Example:
+            >>> orderbook = OrderBook("MNQ")
+            >>> # ... use orderbook ...
+            >>> orderbook.cleanup()  # Clean shutdown
+        """
+        with self.orderbook_lock:
+            # Clear all orderbook data
+            self.orderbook_bids = pl.DataFrame(
+                {"price": [], "volume": [], "timestamp": [], "type": []},
+                schema={
+                    "price": pl.Float64,
+                    "volume": pl.Int64,
+                    "timestamp": pl.Datetime,
+                    "type": pl.Utf8,
+                },
+            )
+            self.orderbook_asks = pl.DataFrame(
+                {"price": [], "volume": [], "timestamp": [], "type": []},
+                schema={
+                    "price": pl.Float64,
+                    "volume": pl.Int64,
+                    "timestamp": pl.Datetime,
+                    "type": pl.Utf8,
+                },
+            )
+
+            # Clear trade data
+            self.recent_trades = pl.DataFrame(
+                {
+                    "price": [],
+                    "volume": [],
+                    "timestamp": [],
+                    "side": [],
+                    "spread_at_trade": [],
+                    "mid_price_at_trade": [],
+                    "best_bid_at_trade": [],
+                    "best_ask_at_trade": [],
+                },
+                schema={
+                    "price": pl.Float64,
+                    "volume": pl.Int64,
+                    "timestamp": pl.Datetime,
+                    "side": pl.Utf8,
+                    "spread_at_trade": pl.Float64,
+                    "mid_price_at_trade": pl.Float64,
+                    "best_bid_at_trade": pl.Float64,
+                    "best_ask_at_trade": pl.Float64,
+                },
+            )
+
+            # Clear callbacks
+            self.callbacks.clear()
+
+            # Reset statistics
+            self.order_type_stats = {
+                "type_1_count": 0,
+                "type_2_count": 0,
+                "type_3_count": 0,
+                "type_4_count": 0,
+                "type_5_count": 0,
+                "type_6_count": 0,
+                "type_7_count": 0,
+                "type_8_count": 0,
+                "type_9_count": 0,
+                "type_10_count": 0,
+                "type_11_count": 0,
+                "other_types": 0,
+                "skipped_updates": 0,
+                "integrity_fixes": 0,
+            }
+
+            # Reset memory stats
+            self.memory_stats = {
+                "total_trades": 0,
+                "trades_cleaned": 0,
+                "last_cleanup": time.time(),
+            }
+
+            # Reset metadata
+            self.last_orderbook_update = None
+            self.last_level2_data = None
+            self.level2_update_count = 0
+
+        self.logger.info("✅ OrderBook cleanup completed")
+
     def get_volume_profile_enhancement_status(self) -> dict[str, Any]:
         """
         Get status information about volume profile time filtering enhancement.

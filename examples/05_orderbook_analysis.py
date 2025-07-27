@@ -36,14 +36,14 @@ def display_best_prices(orderbook):
     """Display current best bid/ask prices."""
     best_prices = orderbook.get_best_bid_ask()
 
-    print(f"📊 Best Bid/Ask:")
+    print("📊 Best Bid/Ask:")
     if best_prices["bid"] and best_prices["ask"]:
         print(f"   Bid: ${best_prices['bid']:.2f}")
         print(f"   Ask: ${best_prices['ask']:.2f}")
         print(f"   Spread: ${best_prices['spread']:.2f}")
         print(f"   Mid: ${best_prices['mid']:.2f}")
     else:
-        print(f"   No bid/ask data available")
+        print("   No bid/ask data available")
 
 
 def display_orderbook_levels(orderbook, levels=5):
@@ -86,7 +86,7 @@ def display_market_depth(orderbook):
     try:
         depth = orderbook.get_orderbook_depth(price_range=50.0)  # 50 point range
 
-        print(f"\n🔍 Market Depth Analysis (±50 points):")
+        print("\n🔍 Market Depth Analysis (±50 points):")
         print(
             f"   Bid Volume: {depth['bid_volume']:,} contracts ({depth['bid_levels']} levels)"
         )
@@ -94,7 +94,7 @@ def display_market_depth(orderbook):
             f"   Ask Volume: {depth['ask_volume']:,} contracts ({depth['ask_levels']} levels)"
         )
 
-        if "mid_price" in depth and depth["mid_price"]:
+        if depth.get("mid_price"):
             print(f"   Mid Price: ${depth['mid_price']:.2f}")
 
         # Calculate and display imbalance
@@ -106,11 +106,11 @@ def display_market_depth(orderbook):
 
             # Interpret imbalance
             if bid_ratio > 60:
-                print(f"   📈 Strong buying pressure detected")
+                print("   📈 Strong buying pressure detected")
             elif ask_ratio > 60:
-                print(f"   📉 Strong selling pressure detected")
+                print("   📉 Strong selling pressure detected")
             else:
-                print(f"   ⚖️  Balanced market")
+                print("   ⚖️  Balanced market")
 
     except Exception as e:
         print(f"   ❌ Market depth error: {e}")
@@ -122,7 +122,7 @@ def display_trade_flow(orderbook):
         # Get trade summary for last 5 minutes
         trade_summary = orderbook.get_trade_flow_summary(minutes=5)
 
-        print(f"\n💹 Trade Flow Analysis (5 minutes):")
+        print("\n💹 Trade Flow Analysis (5 minutes):")
         print(f"   Total Volume: {trade_summary['total_volume']:,} contracts")
         print(f"   Total Trades: {trade_summary['trade_count']}")
         print(
@@ -141,11 +141,11 @@ def display_trade_flow(orderbook):
 
             # Interpret ratio
             if trade_summary["buy_sell_ratio"] > 1.5:
-                print(f"   📈 Strong buying activity")
+                print("   📈 Strong buying activity")
             elif trade_summary["buy_sell_ratio"] < 0.67:
-                print(f"   📉 Strong selling activity")
+                print("   📉 Strong selling activity")
             else:
-                print(f"   ⚖️  Balanced trading activity")
+                print("   ⚖️  Balanced trading activity")
 
     except Exception as e:
         print(f"   ❌ Trade flow error: {e}")
@@ -156,7 +156,7 @@ def display_order_statistics(orderbook):
     try:
         order_stats = orderbook.get_order_type_statistics()
 
-        print(f"\n📊 Order Type Statistics:")
+        print("\n📊 Order Type Statistics:")
         print(f"   Type 1 (Ask Orders): {order_stats['type_1_count']:,}")
         print(f"   Type 2 (Bid Orders): {order_stats['type_2_count']:,}")
         print(f"   Type 5 (Trades): {order_stats['type_5_count']:,}")
@@ -208,7 +208,7 @@ def display_memory_stats(orderbook):
     try:
         stats = orderbook.get_memory_stats()
 
-        print(f"\n💾 Memory Statistics:")
+        print("\n💾 Memory Statistics:")
         print(f"   Total Trades: {stats['total_trades']:,}")
         print(f"   Total Depth Entries: {stats['total_depth_entries']:,}")
         print(f"   Bid Levels: {stats['bid_levels']:,}")
@@ -216,7 +216,7 @@ def display_memory_stats(orderbook):
         print(f"   Memory Usage: {stats['memory_usage_mb']:.2f} MB")
 
         if stats.get("cleanup_triggered", False):
-            print(f"   🧹 Memory cleanup active")
+            print("   🧹 Memory cleanup active")
 
     except Exception as e:
         print(f"   ❌ Memory stats error: {e}")
@@ -224,7 +224,7 @@ def display_memory_stats(orderbook):
 
 def setup_orderbook_callbacks(orderbook):
     """Setup callbacks for orderbook events."""
-    print(f"\n🔔 Setting up orderbook callbacks...")
+    print("\n🔔 Setting up orderbook callbacks...")
 
     # Price update callback
     def on_price_update(data):
@@ -257,7 +257,7 @@ def setup_orderbook_callbacks(orderbook):
         orderbook.add_callback("price_update", on_price_update)
         orderbook.add_callback("depth_change", on_depth_change)
         orderbook.add_callback("trade", on_trade)
-        print(f"   ✅ Orderbook callbacks registered")
+        print("   ✅ Orderbook callbacks registered")
     except Exception as e:
         print(f"   ❌ Callback setup error: {e}")
 
@@ -270,8 +270,8 @@ def monitor_orderbook_feed(orderbook, duration_seconds=60):
     start_time = time.time()
     update_count = 0
 
-    print(f"Monitoring MNQ Level 2 orderbook...")
-    print(f"Press Ctrl+C to stop early")
+    print("Monitoring MNQ Level 2 orderbook...")
+    print("Press Ctrl+C to stop early")
 
     try:
         while time.time() - start_time < duration_seconds:
@@ -288,7 +288,7 @@ def monitor_orderbook_feed(orderbook, duration_seconds=60):
                 display_market_depth(orderbook)
 
                 # Show recent activity
-                print(f"\n📈 Recent Activity:")
+                print("\n📈 Recent Activity:")
                 display_recent_trades(orderbook, count=5)
 
                 update_count += 1
@@ -296,9 +296,9 @@ def monitor_orderbook_feed(orderbook, duration_seconds=60):
             time.sleep(1)
 
     except KeyboardInterrupt:
-        print(f"\n⏹️ Monitoring stopped by user")
+        print("\n⏹️ Monitoring stopped by user")
 
-    print(f"\n📊 Monitoring Summary:")
+    print("\n📊 Monitoring Summary:")
     print(f"   Duration: {time.time() - start_time:.1f} seconds")
     print(f"   Update Cycles: {update_count}")
 
@@ -329,7 +329,7 @@ def main():
             orderbook = create_orderbook(
                 instrument="MNQ", realtime_client=realtime_client
             )
-            print(f"✅ Level 2 orderbook created for MNQ")
+            print("✅ Level 2 orderbook created for MNQ")
         except Exception as e:
             print(f"❌ Failed to create orderbook: {e}")
             return False
@@ -404,7 +404,7 @@ def main():
             snapshot = orderbook.get_orderbook_snapshot(levels=20)
             metadata = snapshot["metadata"]
 
-            print(f"📸 Orderbook Snapshot:")
+            print("📸 Orderbook Snapshot:")
             print(f"   Best Bid: ${metadata.get('best_bid', 0):.2f}")
             print(f"   Best Ask: ${metadata.get('best_ask', 0):.2f}")
             print(f"   Spread: ${metadata.get('spread', 0):.2f}")
@@ -419,7 +419,7 @@ def main():
             bids_df = snapshot["bids"]
             asks_df = snapshot["asks"]
 
-            print(f"\n📊 Data Structure (Polars DataFrames):")
+            print("\n📊 Data Structure (Polars DataFrames):")
             print(f"   Bids DataFrame: {len(bids_df)} rows")
             if not bids_df.is_empty():
                 print("   Bid Columns:", bids_df.columns)

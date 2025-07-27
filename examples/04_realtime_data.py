@@ -33,13 +33,13 @@ from project_x_py import (
 
 def display_current_prices(data_manager):
     """Display current prices across all timeframes."""
-    print(f"\n📊 Current Prices:")
+    print("\n📊 Current Prices:")
 
     current_price = data_manager.get_current_price()
     if current_price:
         print(f"   Current Price: ${current_price:.2f}")
     else:
-        print(f"   Current Price: Not available")
+        print("   Current Price: Not available")
 
     # Get multi-timeframe data
     mtf_data = data_manager.get_mtf_data(bars=1)  # Just latest bar from each timeframe
@@ -62,7 +62,7 @@ def display_memory_stats(data_manager):
     """Display memory usage statistics."""
     try:
         stats = data_manager.get_memory_stats()
-        print(f"\n💾 Memory Statistics:")
+        print("\n💾 Memory Statistics:")
         print(f"   Total Bars: {stats['total_bars']:,}")
         print(f"   Ticks Processed: {stats['ticks_processed']:,}")
         print(f"   Bars Cleaned: {stats['bars_cleaned']:,}")
@@ -71,7 +71,7 @@ def display_memory_stats(data_manager):
         # Show per-timeframe breakdown
         breakdown = stats.get("timeframe_breakdown", {})
         if breakdown:
-            print(f"   Timeframe Breakdown:")
+            print("   Timeframe Breakdown:")
             for tf, count in breakdown.items():
                 print(f"     {tf}: {count:,} bars")
 
@@ -83,7 +83,7 @@ def display_system_statistics(data_manager):
     """Display comprehensive system statistics."""
     try:
         stats = data_manager.get_statistics()
-        print(f"\n📈 System Statistics:")
+        print("\n📈 System Statistics:")
         print(f"   System Running: {stats['is_running']}")
         print(f"   Instrument: {stats['instrument']}")
         print(f"   Contract ID: {stats['contract_id']}")
@@ -94,7 +94,7 @@ def display_system_statistics(data_manager):
         # Show timeframe statistics
         tf_stats = stats.get("timeframes", {})
         if tf_stats:
-            print(f"   Timeframe Data:")
+            print("   Timeframe Data:")
             for tf, tf_info in tf_stats.items():
                 bars = tf_info.get("bars", 0)
                 latest_price = tf_info.get("latest_price", 0)
@@ -107,7 +107,7 @@ def display_system_statistics(data_manager):
 
 def setup_realtime_callbacks(data_manager):
     """Setup callbacks for real-time data events."""
-    print(f"\n🔔 Setting up real-time callbacks...")
+    print("\n🔔 Setting up real-time callbacks...")
 
     # Data update callback
     def on_data_update(data):
@@ -142,14 +142,14 @@ def setup_realtime_callbacks(data_manager):
         data_manager.add_callback("data_update", on_data_update)
         data_manager.add_callback("new_bar", on_new_bar)
         data_manager.add_callback("connection_status", on_connection_status)
-        print(f"   ✅ Callbacks registered successfully")
+        print("   ✅ Callbacks registered successfully")
     except Exception as e:
         print(f"   ❌ Callback setup error: {e}")
 
 
 def demonstrate_historical_analysis(data_manager):
     """Demonstrate historical data analysis capabilities."""
-    print(f"\n📚 Historical Data Analysis:")
+    print("\n📚 Historical Data Analysis:")
 
     # Get data for different timeframes
     timeframes_to_analyze = ["1min", "5min", "15min"]
@@ -203,8 +203,8 @@ def monitor_realtime_feed(data_manager, duration_seconds=60):
     price_updates = 0
     bar_updates = 0
 
-    print(f"Monitoring MNQ real-time data feed...")
-    print(f"Press Ctrl+C to stop early")
+    print("Monitoring MNQ real-time data feed...")
+    print("Press Ctrl+C to stop early")
 
     try:
         while time.time() - start_time < duration_seconds:
@@ -230,10 +230,10 @@ def monitor_realtime_feed(data_manager, duration_seconds=60):
                 try:
                     health = data_manager.health_check()
                     if health.get("status") == "healthy":
-                        print(f"   ✅ System Health: Good")
+                        print("   ✅ System Health: Good")
                     else:
                         issues = health.get("issues", [])
-                        print(f"   ⚠️  System Health: Issues detected")
+                        print("   ⚠️  System Health: Issues detected")
                         for issue in issues:
                             print(f"     • {issue}")
                 except Exception as e:
@@ -251,9 +251,9 @@ def monitor_realtime_feed(data_manager, duration_seconds=60):
                     bar_updates += 1
 
     except KeyboardInterrupt:
-        print(f"\n⏹️ Monitoring stopped by user")
+        print("\n⏹️ Monitoring stopped by user")
 
-    print(f"\n📊 Monitoring Summary:")
+    print("\n📊 Monitoring Summary:")
     print(f"   Duration: {time.time() - start_time:.1f} seconds")
     print(f"   Price Updates: {price_updates}")
     print(f"   Bar Updates: {bar_updates}")
@@ -292,7 +292,7 @@ def main():
                 realtime_client=realtime_client,
                 timeframes=timeframes,
             )
-            print(f"✅ Real-time data manager created for MNQ")
+            print("✅ Real-time data manager created for MNQ")
             print(f"   Timeframes: {', '.join(timeframes)}")
         except Exception as e:
             print(f"❌ Failed to create data manager: {e}")
@@ -416,7 +416,7 @@ def main():
 
         try:
             stats = data_manager.get_statistics()
-            print(f"\nFinal System State:")
+            print("\nFinal System State:")
             print(f"   Is Running: {stats['is_running']}")
             print(f"   Total Timeframes: {len(stats.get('timeframes', {}))}")
             print(

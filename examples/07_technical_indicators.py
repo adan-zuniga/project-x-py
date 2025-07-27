@@ -22,8 +22,6 @@ Date: July 2025
 
 import time
 
-import polars as pl
-
 from project_x_py import (
     ProjectX,
     create_data_manager,
@@ -44,7 +42,7 @@ from project_x_py.indicators import (
 
 def demonstrate_trend_indicators(data):
     """Demonstrate trend-following indicators."""
-    print(f"\n📈 TREND INDICATORS")
+    print("\n📈 TREND INDICATORS")
     print("=" * 40)
 
     if data is None or data.is_empty() or len(data) < 50:
@@ -53,7 +51,7 @@ def demonstrate_trend_indicators(data):
 
     try:
         # Simple Moving Averages
-        print(f"📊 Moving Averages:")
+        print("📊 Moving Averages:")
 
         # Calculate SMAs using the pipe method
         data_with_sma = (
@@ -77,14 +75,14 @@ def demonstrate_trend_indicators(data):
 
             # Trend analysis
             if sma_10 > sma_20 > sma_50:
-                print(f"   📈 Strong Uptrend (SMA alignment)")
+                print("   📈 Strong Uptrend (SMA alignment)")
             elif sma_10 < sma_20 < sma_50:
-                print(f"   📉 Strong Downtrend (SMA alignment)")
+                print("   📉 Strong Downtrend (SMA alignment)")
             else:
-                print(f"   ➡️  Mixed trend signals")
+                print("   ➡️  Mixed trend signals")
 
         # Exponential Moving Averages
-        print(f"\n📊 Exponential Moving Averages:")
+        print("\n📊 Exponential Moving Averages:")
 
         data_with_ema = data.pipe(EMA, period=12, column="close").pipe(
             EMA, period=26, column="close"
@@ -99,12 +97,12 @@ def demonstrate_trend_indicators(data):
             print(f"   EMA(26): ${ema_26:.2f}")
 
             if ema_12 > ema_26:
-                print(f"   📈 Bullish EMA crossover")
+                print("   📈 Bullish EMA crossover")
             else:
-                print(f"   📉 Bearish EMA crossover")
+                print("   📉 Bearish EMA crossover")
 
         # MACD
-        print(f"\n📊 MACD (Moving Average Convergence Divergence):")
+        print("\n📊 MACD (Moving Average Convergence Divergence):")
 
         data_with_macd = data.pipe(
             MACD, fast_period=12, slow_period=26, signal_period=9
@@ -121,11 +119,11 @@ def demonstrate_trend_indicators(data):
             print(f"   Histogram: {histogram:.3f}")
 
             if macd_line > signal_line and histogram > 0:
-                print(f"   📈 Bullish MACD signal")
+                print("   📈 Bullish MACD signal")
             elif macd_line < signal_line and histogram < 0:
-                print(f"   📉 Bearish MACD signal")
+                print("   📉 Bearish MACD signal")
             else:
-                print(f"   ➡️  Neutral MACD signal")
+                print("   ➡️  Neutral MACD signal")
 
     except Exception as e:
         print(f"   ❌ Trend indicators error: {e}")
@@ -133,7 +131,7 @@ def demonstrate_trend_indicators(data):
 
 def demonstrate_momentum_indicators(data):
     """Demonstrate momentum oscillators."""
-    print(f"\n⚡ MOMENTUM INDICATORS")
+    print("\n⚡ MOMENTUM INDICATORS")
     print("=" * 40)
 
     if data is None or data.is_empty() or len(data) < 30:
@@ -142,7 +140,7 @@ def demonstrate_momentum_indicators(data):
 
     try:
         # RSI (Relative Strength Index)
-        print(f"📊 RSI (Relative Strength Index):")
+        print("📊 RSI (Relative Strength Index):")
 
         data_with_rsi = data.pipe(RSI, period=14)
 
@@ -153,16 +151,16 @@ def demonstrate_momentum_indicators(data):
             print(f"   RSI(14): {rsi:.2f}")
 
             if rsi > 70:
-                print(f"   🔴 Overbought condition (RSI > 70)")
+                print("   🔴 Overbought condition (RSI > 70)")
             elif rsi < 30:
-                print(f"   🟢 Oversold condition (RSI < 30)")
+                print("   🟢 Oversold condition (RSI < 30)")
             elif rsi > 50:
-                print(f"   📈 Bullish momentum (RSI > 50)")
+                print("   📈 Bullish momentum (RSI > 50)")
             else:
-                print(f"   📉 Bearish momentum (RSI < 50)")
+                print("   📉 Bearish momentum (RSI < 50)")
 
         # Stochastic Oscillator
-        print(f"\n📊 Stochastic Oscillator:")
+        print("\n📊 Stochastic Oscillator:")
 
         data_with_stoch = data.pipe(STOCH, k_period=14, d_period=3)
 
@@ -175,13 +173,13 @@ def demonstrate_momentum_indicators(data):
             print(f"   %D: {stoch_d:.2f}")
 
             if stoch_k > 80 and stoch_d > 80:
-                print(f"   🔴 Overbought condition (>80)")
+                print("   🔴 Overbought condition (>80)")
             elif stoch_k < 20 and stoch_d < 20:
-                print(f"   🟢 Oversold condition (<20)")
+                print("   🟢 Oversold condition (<20)")
             elif stoch_k > stoch_d:
-                print(f"   📈 Bullish stochastic crossover")
+                print("   📈 Bullish stochastic crossover")
             else:
-                print(f"   📉 Bearish stochastic crossover")
+                print("   📉 Bearish stochastic crossover")
 
     except Exception as e:
         print(f"   ❌ Momentum indicators error: {e}")
@@ -189,7 +187,7 @@ def demonstrate_momentum_indicators(data):
 
 def demonstrate_volatility_indicators(data):
     """Demonstrate volatility indicators."""
-    print(f"\n📊 VOLATILITY INDICATORS")
+    print("\n📊 VOLATILITY INDICATORS")
     print("=" * 40)
 
     if data is None or data.is_empty() or len(data) < 30:
@@ -198,7 +196,7 @@ def demonstrate_volatility_indicators(data):
 
     try:
         # Bollinger Bands
-        print(f"📊 Bollinger Bands:")
+        print("📊 Bollinger Bands:")
 
         data_with_bb = data.pipe(BBANDS, period=20, std_dev=2)
 
@@ -221,16 +219,16 @@ def demonstrate_volatility_indicators(data):
             print(f"   Price Position: {price_position:.1f}% of band width")
 
             if price >= bb_upper:
-                print(f"   🔴 Price at upper band (potential sell signal)")
+                print("   🔴 Price at upper band (potential sell signal)")
             elif price <= bb_lower:
-                print(f"   🟢 Price at lower band (potential buy signal)")
+                print("   🟢 Price at lower band (potential buy signal)")
             elif price > bb_middle:
-                print(f"   📈 Price above middle band")
+                print("   📈 Price above middle band")
             else:
-                print(f"   📉 Price below middle band")
+                print("   📉 Price below middle band")
 
         # Average True Range (ATR)
-        print(f"\n📊 Average True Range (ATR):")
+        print("\n📊 Average True Range (ATR):")
 
         data_with_atr = data.pipe(ATR, period=14)
 
@@ -244,11 +242,11 @@ def demonstrate_volatility_indicators(data):
 
             # Volatility interpretation
             if atr > price * 0.02:  # ATR > 2% of price
-                print(f"   🔥 High volatility environment")
+                print("   🔥 High volatility environment")
             elif atr < price * 0.01:  # ATR < 1% of price
-                print(f"   😴 Low volatility environment")
+                print("   😴 Low volatility environment")
             else:
-                print(f"   ➡️  Normal volatility environment")
+                print("   ➡️  Normal volatility environment")
 
     except Exception as e:
         print(f"   ❌ Volatility indicators error: {e}")
@@ -256,7 +254,7 @@ def demonstrate_volatility_indicators(data):
 
 def demonstrate_volume_indicators(data):
     """Demonstrate volume-based indicators."""
-    print(f"\n📦 VOLUME INDICATORS")
+    print("\n📦 VOLUME INDICATORS")
     print("=" * 40)
 
     if data is None or data.is_empty() or len(data) < 30:
@@ -265,7 +263,7 @@ def demonstrate_volume_indicators(data):
 
     try:
         # On-Balance Volume (OBV)
-        print(f"📊 On-Balance Volume (OBV):")
+        print("📊 On-Balance Volume (OBV):")
 
         data_with_obv = data.pipe(OBV)
 
@@ -279,14 +277,14 @@ def demonstrate_volume_indicators(data):
         print(f"   Current OBV: {current_obv:,.0f}")
 
         if current_obv > previous_obv:
-            print(f"   📈 OBV trending up (buying pressure)")
+            print("   📈 OBV trending up (buying pressure)")
         elif current_obv < previous_obv:
-            print(f"   📉 OBV trending down (selling pressure)")
+            print("   📉 OBV trending down (selling pressure)")
         else:
-            print(f"   ➡️  OBV flat (balanced volume)")
+            print("   ➡️  OBV flat (balanced volume)")
 
         # Volume SMA
-        print(f"\n📊 Volume Moving Average:")
+        print("\n📊 Volume Moving Average:")
 
         data_with_vol_sma = data.pipe(SMA, period=20, column="volume")
 
@@ -313,7 +311,7 @@ def demonstrate_volume_indicators(data):
 
 def demonstrate_multi_timeframe_indicators(data_manager):
     """Demonstrate indicators across multiple timeframes."""
-    print(f"\n🕐 MULTI-TIMEFRAME INDICATOR ANALYSIS")
+    print("\n🕐 MULTI-TIMEFRAME INDICATOR ANALYSIS")
     print("=" * 50)
 
     timeframes = ["5min", "15min", "1hr"]
@@ -374,7 +372,7 @@ def demonstrate_multi_timeframe_indicators(data_manager):
 
 def create_comprehensive_analysis(data):
     """Create a comprehensive technical analysis summary."""
-    print(f"\n🎯 COMPREHENSIVE TECHNICAL ANALYSIS")
+    print("\n🎯 COMPREHENSIVE TECHNICAL ANALYSIS")
     print("=" * 50)
 
     if data is None or data.is_empty() or len(data) < 50:
@@ -403,27 +401,27 @@ def create_comprehensive_analysis(data):
         for row in latest.iter_rows(named=True):
             price = row["close"]
 
-            print(f"📊 Technical Analysis Summary:")
+            print("📊 Technical Analysis Summary:")
             print(f"   Current Price: ${price:.2f}")
 
             # Trend Analysis
             sma_20 = row.get("sma_20", 0)
             ema_12 = row.get("ema_12", 0)
 
-            print(f"\n🔍 Trend Indicators:")
+            print("\n🔍 Trend Indicators:")
             if price > sma_20:
-                print(f"   ✅ Price above SMA(20): Bullish")
+                print("   ✅ Price above SMA(20): Bullish")
                 bullish_signals += 1
             else:
-                print(f"   ❌ Price below SMA(20): Bearish")
+                print("   ❌ Price below SMA(20): Bearish")
                 bearish_signals += 1
             total_signals += 1
 
             if price > ema_12:
-                print(f"   ✅ Price above EMA(12): Bullish")
+                print("   ✅ Price above EMA(12): Bullish")
                 bullish_signals += 1
             else:
-                print(f"   ❌ Price below EMA(12): Bearish")
+                print("   ❌ Price below EMA(12): Bearish")
                 bearish_signals += 1
             total_signals += 1
 
@@ -432,17 +430,17 @@ def create_comprehensive_analysis(data):
             macd_signal = row.get("macd_signal", 0)
 
             if macd > macd_signal:
-                print(f"   ✅ MACD above signal: Bullish")
+                print("   ✅ MACD above signal: Bullish")
                 bullish_signals += 1
             else:
-                print(f"   ❌ MACD below signal: Bearish")
+                print("   ❌ MACD below signal: Bearish")
                 bearish_signals += 1
             total_signals += 1
 
             # Momentum Analysis
             rsi = row.get("rsi", 0)
 
-            print(f"\n⚡ Momentum Indicators:")
+            print("\n⚡ Momentum Indicators:")
             if 30 < rsi < 70:
                 if rsi > 50:
                     print(f"   ✅ RSI ({rsi:.1f}): Bullish momentum")
@@ -461,20 +459,20 @@ def create_comprehensive_analysis(data):
             bb_upper = row.get("bb_upper", 0)
             bb_lower = row.get("bb_lower", 0)
 
-            print(f"\n📊 Volatility Analysis:")
+            print("\n📊 Volatility Analysis:")
             if bb_lower < price < bb_upper:
-                print(f"   ℹ️  Price within Bollinger Bands: Normal")
+                print("   ℹ️  Price within Bollinger Bands: Normal")
             elif price >= bb_upper:
-                print(f"   ⚠️  Price at upper BB: Potential reversal")
+                print("   ⚠️  Price at upper BB: Potential reversal")
             else:
-                print(f"   ⚠️  Price at lower BB: Potential reversal")
+                print("   ⚠️  Price at lower BB: Potential reversal")
 
             atr = row.get("atr", 0)
             volatility_pct = (atr / price) * 100
             print(f"   ATR: ${atr:.2f} ({volatility_pct:.2f}% of price)")
 
         # Overall Assessment
-        print(f"\n🎯 OVERALL ASSESSMENT:")
+        print("\n🎯 OVERALL ASSESSMENT:")
         print(f"   Bullish Signals: {bullish_signals}/{total_signals}")
         print(f"   Bearish Signals: {bearish_signals}/{total_signals}")
 
@@ -485,7 +483,7 @@ def create_comprehensive_analysis(data):
             strength = (bearish_signals / total_signals) * 100
             print(f"   📉 BEARISH BIAS ({strength:.0f}% strength)")
         else:
-            print(f"   ➡️  NEUTRAL (conflicting signals)")
+            print("   ➡️  NEUTRAL (conflicting signals)")
 
     except Exception as e:
         print(f"   ❌ Comprehensive analysis error: {e}")
@@ -511,7 +509,7 @@ def monitor_indicator_updates(data_manager, duration_seconds=60):
                 # Get latest 1-minute data
                 data = data_manager.get_data("1min", bars=30)
 
-                if data and not data.is_empty():
+                if data is not None and not data.is_empty():
                     # Quick indicator update
                     data_with_indicators = data.pipe(
                         SMA, period=10, column="close"
@@ -529,18 +527,18 @@ def monitor_indicator_updates(data_manager, duration_seconds=60):
 
                         # Quick trend assessment
                         if price > sma_10 and rsi > 50:
-                            print(f"   📈 Short-term bullish")
+                            print("   📈 Short-term bullish")
                         elif price < sma_10 and rsi < 50:
-                            print(f"   📉 Short-term bearish")
+                            print("   📉 Short-term bearish")
                         else:
-                            print(f"   ➡️  Mixed signals")
+                            print("   ➡️  Mixed signals")
                 else:
-                    print(f"   ❌ No data available")
+                    print("   ❌ No data available")
 
             time.sleep(1)
 
     except KeyboardInterrupt:
-        print(f"\n⏹️ Monitoring stopped by user")
+        print("\n⏹️ Monitoring stopped by user")
 
 
 def main():
@@ -572,7 +570,7 @@ def main():
                 realtime_client=realtime_client,
                 timeframes=["1min", "5min", "15min", "1hr"],
             )
-            print(f"✅ Data manager created for MNQ")
+            print("✅ Data manager created for MNQ")
         except Exception as e:
             print(f"❌ Failed to create data manager: {e}")
             return False
@@ -627,7 +625,7 @@ def main():
         print("=" * 60)
 
         final_data = data_manager.get_data("15min", bars=50)
-        if final_data and not final_data.is_empty():
+        if final_data is not None and not final_data.is_empty():
             create_comprehensive_analysis(final_data)
         else:
             print("❌ No final data available")
