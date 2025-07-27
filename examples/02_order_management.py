@@ -49,8 +49,11 @@ def show_order_status(order_manager, order_id: int, description: str):
     """Show detailed order status information."""
     print(f"\n📋 {description} Status:")
 
-    # Check if order is tracked
-    order_data = order_manager.get_tracked_order_status(order_id)
+    # Check if order is tracked in real-time cache (with built-in wait)
+    order_data = order_manager.get_tracked_order_status(
+        str(order_id), wait_for_cache=True
+    )
+
     if order_data:
         status_map = {1: "Open", 2: "Filled", 3: "Cancelled", 4: "Partially Filled"}
         status = status_map.get(
@@ -58,7 +61,7 @@ def show_order_status(order_manager, order_id: int, description: str):
         )
 
         print(f"   Order ID: {order_id}")
-        print(f"   Status: {status}")
+        print(f"   Status: {status} (from real-time cache)")
         print(f"   Side: {'BUY' if order_data.get('side') == 0 else 'SELL'}")
         print(f"   Size: {order_data.get('size', 0)}")
         print(f"   Fill Volume: {order_data.get('fillVolume', 0)}")
@@ -70,7 +73,18 @@ def show_order_status(order_manager, order_id: int, description: str):
         if order_data.get("filledPrice"):
             print(f"   Filled Price: ${order_data['filledPrice']:.2f}")
     else:
-        print(f"   Order {order_id} not found in tracking cache")
+        # Fall back to API check for status
+        print(f"   Order {order_id} not in real-time cache, checking API...")
+        api_order = order_manager.get_order_by_id(order_id)
+        if api_order:
+            status_map = {1: "Open", 2: "Filled", 3: "Cancelled", 4: "Partially Filled"}
+            status = status_map.get(api_order.status, f"Unknown ({api_order.status})")
+            print(f"   Status: {status} (from API)")
+            print(f"   Side: {'BUY' if api_order.side == 0 else 'SELL'}")
+            print(f"   Size: {api_order.size}")
+            print(f"   Fill Volume: {api_order.fillVolume}")
+        else:
+            print(f"   Order {order_id} not found in API either")
 
     # Check if filled
     is_filled = order_manager.is_order_filled(order_id)
@@ -327,6 +341,7 @@ def main():
                 for i in range(6):  # 30 seconds, check every 5 seconds
                     print(f"\n⏰ Check {i + 1}/6...")
 
+                    # Check for filled orders and positions
                     filled_orders = []
                     for order_id in demo_orders:
                         if order_manager.is_order_filled(order_id):
@@ -341,14 +356,41 @@ def main():
                     else:
                         print("📋 No orders filled yet")
 
+                    # Check current positions (to detect fills that weren't caught)
+                    current_positions = client.search_open_positions()
+                    if current_positions:
+                        print(f"📊 Open positions: {len(current_positions)}")
+                        for pos in current_positions:
+                            side = "LONG" if pos.type == 1 else "SHORT"
+                            print(
+                                f"   {pos.contractId}: {side} {pos.size} @ ${pos.averagePrice:.2f}"
+                            )
+
                     # Show current open orders
                     open_orders = order_manager.search_open_orders(
                         contract_id=contract_id
                     )
                     print(f"📊 Open orders: {len(open_orders)}")
+                    if open_orders:
+                        for order in open_orders:
+                            side = "BUY" if order.side == 0 else "SELL"
+                            order_type = {1: "LIMIT", 2: "MARKET", 4: "STOP"}.get(
+                                order.type, f"TYPE_{order.type}"
+                            )
+                            status = {1: "OPEN", 2: "FILLED", 3: "CANCELLED"}.get(
+                                order.status, f"STATUS_{order.status}"
+                            )
+                            price = ""
+                            if hasattr(order, "limitPrice") and order.limitPrice:
+                                price = f" @ ${order.limitPrice:.2f}"
+                            elif hasattr(order, "stopPrice") and order.stopPrice:
+                                price = f" @ ${order.stopPrice:.2f}"
+                            print(
+                                f"   Order #{order.id}: {side} {order.size} {order_type}{price} - {status}"
+                            )
 
                     if i < 5:  # Don't sleep on last iteration
-                        time.sleep(5)
+                        time.sleep(20)
 
             # Show final order statistics
             print("\n" + "=" * 50)
@@ -365,31 +407,61 @@ def main():
             print(f"   Real-time Enabled: {stats['realtime_enabled']}")
 
         finally:
-            # Cleanup: Cancel remaining demo orders
-            if demo_orders:
-                print("\n" + "=" * 50)
-                print("🧹 CLEANUP - CANCELLING ORDERS")
-                print("=" * 50)
+            # Enhanced cleanup: Cancel ALL orders and close ALL positions
+            print("\n" + "=" * 50)
+            print("🧹 ENHANCED CLEANUP - ORDERS & POSITIONS")
+            print("=" * 50)
 
-                print("Cancelling all demo orders for safety...")
+            try:
+                # First, get ALL open orders (not just demo orders)
+                all_orders = order_manager.search_open_orders()
+                print(f"Found {len(all_orders)} total open orders")
+
+                # Cancel all orders
                 cancelled_count = 0
-
-                for order_id in demo_orders:
+                for order in all_orders:
                     try:
-                        # Check if order is still open before trying to cancel
-                        order_data = order_manager.get_tracked_order_status(order_id)
-                        if order_data and order_data.get("status") == 1:  # Open
-                            if order_manager.cancel_order(order_id):
-                                print(f"✅ Cancelled order #{order_id}")
-                                cancelled_count += 1
-                            else:
-                                print(f"❌ Failed to cancel order #{order_id}")
+                        if order_manager.cancel_order(order.id):
+                            print(f"✅ Cancelled order #{order.id}")
+                            cancelled_count += 1
                         else:
-                            print(f"i  Order #{order_id} already closed/filled")
+                            print(f"❌ Failed to cancel order #{order.id}")
                     except Exception as e:
-                        print(f"❌ Error cancelling order #{order_id}: {e}")
+                        print(f"❌ Error cancelling order #{order.id}: {e}")
 
-                print(f"\n📊 Cleanup completed: {cancelled_count} orders cancelled")
+                # Check for positions and close them
+                positions = client.search_open_positions()
+                print(f"Found {len(positions)} open positions")
+
+                closed_count = 0
+                for position in positions:
+                    try:
+                        side_text = "LONG" if position.type == 1 else "SHORT"
+                        print(
+                            f"Closing {side_text} position: {position.contractId} ({position.size} contracts)"
+                        )
+
+                        response = order_manager.close_position(
+                            position.contractId, method="market"
+                        )
+
+                        if response and response.success:
+                            print(
+                                f"✅ Closed position {position.contractId} (Order #{response.orderId})"
+                            )
+                            closed_count += 1
+                        else:
+                            print(f"❌ Failed to close position {position.contractId}")
+                    except Exception as e:
+                        print(f"❌ Error closing position {position.contractId}: {e}")
+
+                print("\n📊 Cleanup completed:")
+                print(f"   Orders cancelled: {cancelled_count}")
+                print(f"   Positions closed: {closed_count}")
+
+            except Exception as e:
+                print(f"❌ Cleanup error: {e}")
+                print("⚠️  Manual cleanup may be required")
 
         # Final status check
         print("\n" + "=" * 50)
