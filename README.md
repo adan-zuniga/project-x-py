@@ -22,7 +22,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 
 ## 📊 SDK Status
 
-**Current Version**: v1.0.14 (Enhanced with Complete TA-Lib Overlap Indicators)
+**Current Version**: v1.1.0 (Enhanced with Complete TA-Lib Overlap Indicators)
 
 ✅ **Production Ready SDK Components**:
 - Complete ProjectX Gateway API integration with connection pooling
@@ -607,7 +607,7 @@ We welcome contributions! Please follow these guidelines:
 
 ## 📝 Changelog
 
-### Version 1.0.14 (Latest)
+### Version 1.1.0 (Latest)
 **🔄 Order-Position Synchronization & Enhanced Testing**
 - ✅ **Order-Position Sync**: Automatic synchronization between orders and positions
 - ✅ **Position Order Tracking**: Orders automatically tracked and associated with positions  
