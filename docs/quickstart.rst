@@ -1,7 +1,7 @@
 Quick Start Guide
 =================
 
-Get up and running with project-x-py in minutes.
+Get up and running with the ProjectX Python SDK in minutes to start building your trading applications.
 
 Prerequisites
 -------------

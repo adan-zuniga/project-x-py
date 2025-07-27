@@ -198,8 +198,8 @@ html_logo = "_static/logo.png"
 html_favicon = "_static/favicon.ico"
 
 # SEO
-html_title = f"{project} {version} documentation"
-html_short_title = f"{project} docs"
+html_title = f"ProjectX Python SDK {version} documentation"
+html_short_title = f"ProjectX Python SDK docs"
 
 # GitHub integration
 html_context = {

@@ -1,22 +1,35 @@
-# ProjectX Python Client
+# ProjectX Python SDK
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Performance](https://img.shields.io/badge/performance-optimized-brightgreen.svg)](#performance-optimizations)
 
-A **high-performance Python client** for the TopStepX ProjectX Gateway API, designed for institutional traders and quantitative analysts. This library provides comprehensive access to futures trading operations, historical market data, real-time streaming, technical analysis, and advanced market microstructure tools with enterprise-grade performance optimizations.
+A **high-performance Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive access to futures trading operations, historical market data, real-time streaming, technical analysis, and advanced market microstructure tools with enterprise-grade performance optimizations.
 
-## 📊 Project Status
+> **Note**: This is a **client library/SDK**, not a trading strategy. It provides the tools and infrastructure to help developers create their own trading strategies that integrate with the ProjectX platform.
+
+## 🎯 What is ProjectX?
+
+[ProjectX](https://www.projectx.com/) is a cutting-edge web-based futures trading platform that provides:
+- **TradingView Charts**: Advanced charting with hundreds of indicators
+- **Risk Controls**: Auto-liquidation, profit targets, daily loss limits
+- **Unfiltered Market Data**: Real-time depth of market data with millisecond updates
+- **REST API**: Comprehensive API for custom integrations
+- **Mobile & Web Trading**: Native browser-based trading platform
+
+This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
+
+## 📊 SDK Status
 
 **Current Version**: v1.0.14 (Enhanced with Complete TA-Lib Overlap Indicators)
 
-✅ **Production Ready Features**:
-- Complete futures trading API integration with connection pooling
-- Historical and real-time market data with intelligent caching
-- Advanced technical indicators (55+) with computation caching
-- Institutional-grade orderbook analysis with memory management
-- Portfolio and risk management tools
+✅ **Production Ready SDK Components**:
+- Complete ProjectX Gateway API integration with connection pooling
+- Historical and real-time market data APIs with intelligent caching
+- 55+ technical indicators with computation caching (Full TA-Lib compatibility)
+- Institutional-grade orderbook analysis tools with memory management
+- Portfolio and risk management APIs
 - **NEW**: 50-70% performance improvements through optimization
 - **NEW**: 60% memory usage reduction with sliding windows
 - **NEW**: Sub-second response times for cached operations
@@ -32,11 +45,11 @@ A **high-performance Python client** for the TopStepX ProjectX Gateway API, desi
 
 ## 🏗️ Architecture Overview
 
-### Component Architecture
-The library follows a **dependency injection pattern** with specialized managers:
+### SDK Component Architecture
+The SDK follows a **dependency injection pattern** with specialized managers that developers can use to build trading applications:
 
 ```
-ProjectX Client (Core API)
+ProjectX SDK (Core API Client)
 ├── OrderManager (Order lifecycle management)
 ├── PositionManager (Portfolio & risk management)
 ├── RealtimeDataManager (Multi-timeframe OHLCV)
@@ -52,28 +65,28 @@ ProjectX Client (Core API)
 - **Memory Management**: Automatic cleanup with configurable limits
 - **Performance Monitoring**: Built-in metrics and health monitoring
 
-## 🚀 Key Features
+## 🚀 SDK Features
 
-### Core Trading
+### Core Trading APIs
 - **Account Management**: Multi-account support with authentication caching
 - **Order Operations**: Market, limit, stop, bracket orders with auto-retry
 - **Position Tracking**: Real-time P&L with portfolio analytics
 - **Trade History**: Comprehensive execution analysis
 
-### Market Data & Analysis
+### Market Data & Analysis Tools
 - **Historical OHLCV**: Multi-timeframe data with intelligent caching
 - **Real-time Streaming**: WebSocket feeds with shared connections
 - **Tick-level Data**: High-frequency market data
-- **Technical Indicators**: 40+ indicators with computation caching (Full TA-Lib compatibility)
+- **Technical Indicators**: 55+ indicators with computation caching (Full TA-Lib compatibility)
 
-### Advanced Market Microstructure
+### Advanced Market Microstructure Analysis
 - **Level 2 Orderbook**: Real-time market depth processing
 - **Iceberg Detection**: Statistical analysis of hidden orders
 - **Volume Profile**: Point of Control and Value Area calculations
 - **Market Imbalance**: Real-time flow analysis and alerts
 - **Support/Resistance**: Algorithmic level identification
 
-### Performance & Reliability
+### Performance & Reliability Infrastructure
 - **Connection Pooling**: HTTP session management with retries
 - **Intelligent Caching**: Instrument and computation result caching
 - **Memory Management**: Sliding windows with automatic cleanup
@@ -416,17 +429,17 @@ The `examples/` directory contains comprehensive demonstrations:
 - **`time_window_demo.py`** - Time-based analysis
 - **`developer_utilities_demo.py`** - Development and debugging tools
 
-### Production Trading System
+### Example Trading Application Built with the SDK
 ```python
 import asyncio
 from project_x_py import create_trading_suite, ProjectX
 
 async def main():
-    # Initialize core client
+    # Initialize ProjectX SDK client
     client = ProjectX.from_env()
     account = client.get_account_info()
     
-    # Create complete trading infrastructure
+    # Create trading infrastructure using SDK components
     suite = create_trading_suite(
         instrument="MGC",
         project_x=client,

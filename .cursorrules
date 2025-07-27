@@ -1,7 +1,9 @@
-# ProjectX Trading System - Cursor AI Rules
+# ProjectX Python SDK - Cursor AI Rules
 
 ## Project Overview
-This is a Python trading system that integrates with ProjectX Gateway API for real-time market data, order management, and market analysis. The system uses Polars for data processing and emphasizes performance, accuracy, and real-time capabilities.
+This is a Python SDK/client library for the ProjectX Trading Platform (https://www.projectx.com/) Gateway API. It provides developers with tools to build sophisticated trading strategies and applications by offering comprehensive access to real-time market data, order management, and market analysis. The SDK uses Polars for data processing and emphasizes performance, accuracy, and real-time capabilities.
+
+**Important**: This is NOT a trading strategy itself - it's a development toolkit that enables the creation of trading strategies that integrate with the ProjectX platform.
 
 ## ProjectX API Integration Rules
 
