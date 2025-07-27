@@ -1,13 +1,21 @@
 """
-ProjectX API Client for TopStepX Futures Trading
+ProjectX Python SDK for Trading Applications
 
-A comprehensive Python client for the ProjectX Gateway API, providing access to:
-- Market data retrieval
-- Account management
+A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing developers 
+with tools to build sophisticated trading strategies and applications. This library offers 
+comprehensive access to:
+
+- Market data retrieval and real-time streaming
+- Account management and authentication  
 - Order placement, modification, and cancellation
-- Position management
-- Trade history and analysis
-- Real-time data streams
+- Position management and portfolio analytics
+- Trade history and execution analysis
+- Advanced technical indicators and market analysis
+- Level 2 orderbook depth and market microstructure
+
+**Important**: This is a development toolkit/SDK, not a trading strategy itself. 
+It provides the infrastructure to help developers create their own trading applications 
+that integrate with the ProjectX platform.
 
 Author: TexasCoding
 Date: June 2025
@@ -192,20 +200,20 @@ def get_version() -> str:
 
 def quick_start() -> dict:
     """
-    Get quick start information for the ProjectX package.
+    Get quick start information for the ProjectX Python SDK.
 
     Returns:
-        Dict with setup instructions and examples
+        Dict with setup instructions and examples for building trading applications
     """
     return {
         "version": __version__,
         "setup_instructions": [
             "1. Set environment variables:",
-            "   export PROJECT_X_API_KEY='your_api_key'",
             "   export PROJECT_X_USERNAME='your_username'",
+            "   export PROJECT_X_API_KEY='your_api_key'",
             "   export PROJECT_X_ACCOUNT_ID='your_account_id'",
             "",
-            "2. Basic usage:",
+            "2. Basic SDK usage:",
             "   from project_x_py import ProjectX",
             "   client = ProjectX.from_env()",
             "   instruments = client.search_instruments('MGC')",
@@ -217,18 +225,22 @@ def quick_start() -> dict:
             "get_data": "data = client.get_data('MGC', days=5, interval=15)",
             "place_order": "response = client.place_market_order('CONTRACT_ID', 0, 1)",
             "get_positions": "positions = client.search_open_positions()",
+            "create_trading_suite": "suite = create_trading_suite('MGC', client, jwt_token, account_id)",
         },
-        "documentation": "https://github.com/your-repo/project-x-py",
-        "support": "Create an issue at https://github.com/your-repo/project-x-py/issues",
+        "documentation": "https://github.com/TexasCoding/project-x-py",
+        "support": "Create an issue at https://github.com/TexasCoding/project-x-py/issues",
     }
 
 
 def check_setup() -> dict:
     """
-    Check if the ProjectX package is properly set up.
+    Check if the ProjectX Python SDK is properly configured for development.
+
+    Validates environment variables, configuration files, and dependencies
+    needed to build trading applications with the SDK.
 
     Returns:
-        Dict with setup status and recommendations
+        Dict with setup status and recommendations for SDK configuration
     """
     try:
         from .config import check_environment
@@ -277,10 +289,14 @@ def check_setup() -> dict:
 
 def diagnose_issues() -> dict:
     """
-    Diagnose common setup issues and provide recommendations.
+    Diagnose common SDK setup issues and provide troubleshooting recommendations.
+
+    Performs comprehensive checks of dependencies, network connectivity, configuration,
+    and environment setup to help developers resolve common issues when building
+    trading applications with the ProjectX Python SDK.
 
     Returns:
-        Dict with diagnostics and fixes
+        Dict with diagnostics results and specific fixes for identified issues
     """
     diagnostics = check_setup()
     diagnostics["issues"] = []
@@ -326,24 +342,36 @@ def create_client(
     account_name: str | None = None,
 ) -> ProjectX:
     """
-    Create a ProjectX client with flexible initialization.
+    Create a ProjectX client with flexible initialization options.
+
+    This convenience function provides multiple ways to initialize a ProjectX client:
+    - Using environment variables (recommended for security)
+    - Using explicit credentials
+    - Using custom configuration
+    - Selecting specific account by name
 
     Args:
-        username: Username (uses env var if None)
-        api_key: API key (uses env var if None)
-        config: Configuration object (uses defaults if None)
+        username: ProjectX username (uses PROJECT_X_USERNAME env var if None)
+        api_key: ProjectX API key (uses PROJECT_X_API_KEY env var if None)
+        config: Configuration object with endpoints and settings (uses defaults if None)
         account_name: Optional account name to select specific account
 
     Returns:
-        ProjectX client instance
+        ProjectX: Configured client instance ready for API operations
 
     Example:
-        >>> # Using environment variables
+        >>> # Using environment variables (recommended)
         >>> client = create_client()
+        >>> 
         >>> # Using explicit credentials
         >>> client = create_client("username", "api_key")
+        >>> 
         >>> # Using specific account
         >>> client = create_client(account_name="Main Trading Account")
+        >>> 
+        >>> # Using custom configuration
+        >>> config = create_custom_config(api_url="https://custom.api.com")
+        >>> client = create_client(config=config)
     """
     if username is None or api_key is None:
         return ProjectX.from_env(config=config, account_name=account_name)
@@ -357,15 +385,33 @@ def create_realtime_client(
     jwt_token: str, account_id: str, config: ProjectXConfig | None = None
 ) -> ProjectXRealtimeClient:
     """
-    Create a ProjectX real-time client.
+    Create a ProjectX real-time client for WebSocket connections.
+
+    This function creates a real-time client that connects to ProjectX WebSocket hubs
+    for live market data, order updates, and position changes. The client handles
+    both user-specific data (orders, positions, accounts) and market data (quotes, trades, depth).
 
     Args:
-        jwt_token: JWT authentication token
-        account_id: Account ID for subscriptions
-        config: Configuration object (uses defaults if None)
+        jwt_token: JWT authentication token from ProjectX client session
+        account_id: Account ID for user-specific subscriptions
+        config: Configuration object with hub URLs (uses default TopStepX if None)
 
     Returns:
-        ProjectXRealtimeClient instance
+        ProjectXRealtimeClient: Configured real-time client ready for WebSocket connections
+
+    Example:
+        >>> # Get JWT token from main client
+        >>> client = ProjectX.from_env()
+        >>> jwt_token = client.get_session_token()
+        >>> account = client.get_account_info()
+        >>> 
+        >>> # Create real-time client
+        >>> realtime_client = create_realtime_client(jwt_token, account.id)
+        >>> 
+        >>> # Connect and subscribe
+        >>> realtime_client.connect()
+        >>> realtime_client.subscribe_user_updates()
+        >>> realtime_client.subscribe_market_data("MGC")
     """
     if config is None:
         config = load_default_config()
@@ -388,15 +434,41 @@ def create_data_manager(
     """
     Create a ProjectX real-time OHLCV data manager with dependency injection.
 
+    This function creates a data manager that combines historical OHLCV data from the API
+    with real-time updates via WebSocket to maintain live, multi-timeframe candlestick data.
+    Perfect for building trading algorithms that need both historical context and real-time updates.
+
     Args:
-        instrument: Trading instrument symbol
-        project_x: ProjectX client instance
-        realtime_client: ProjectXRealtimeClient instance for real-time data
-        timeframes: List of timeframes to track (default: ["5min"])
-        config: Configuration object (uses defaults if None)
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+        project_x: ProjectX client instance for historical data and API access
+        realtime_client: ProjectXRealtimeClient instance for real-time market data feeds
+        timeframes: List of timeframes to track (default: ["5min"]). 
+                   Common: ["5sec", "1min", "5min", "15min", "1hour", "1day"]
+        config: Configuration object with timezone settings (uses defaults if None)
 
     Returns:
-        ProjectXRealtimeDataManager instance
+        ProjectXRealtimeDataManager: Configured data manager ready for initialization
+
+    Example:
+        >>> # Setup clients
+        >>> client = ProjectX.from_env()
+        >>> realtime_client = create_realtime_client(jwt_token, account_id)
+        >>> 
+        >>> # Create data manager for multiple timeframes
+        >>> data_manager = create_data_manager(
+        ...     instrument="MGC",
+        ...     project_x=client,
+        ...     realtime_client=realtime_client,
+        ...     timeframes=["5sec", "1min", "5min", "15min"]
+        ... )
+        >>> 
+        >>> # Initialize with historical data and start real-time feed
+        >>> data_manager.initialize(initial_days=30)
+        >>> data_manager.start_realtime_feed()
+        >>> 
+        >>> # Access multi-timeframe data
+        >>> current_5min = data_manager.get_data("5min")
+        >>> current_1min = data_manager.get_data("1min")
     """
     if timeframes is None:
         timeframes = ["5min"]
@@ -420,12 +492,34 @@ def create_orderbook(
     """
     Create a ProjectX OrderBook for advanced market depth analysis.
 
+    This function creates an orderbook instance for Level 2 market depth analysis,
+    iceberg order detection, and advanced market microstructure analytics. The orderbook
+    processes real-time market depth data to provide insights into market structure,
+    liquidity, and hidden order activity.
+
     Args:
-        instrument: Trading instrument symbol
-        config: Configuration object (uses defaults if None)
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+        config: Configuration object with timezone settings (uses defaults if None)
 
     Returns:
-        OrderBook instance
+        OrderBook: Configured orderbook instance ready for market depth processing
+
+    Example:
+        >>> # Create orderbook for market depth analysis
+        >>> orderbook = create_orderbook("MGC")
+        >>> 
+        >>> # Connect to real-time client for depth updates
+        >>> realtime_client.add_callback("market_depth", orderbook.process_market_depth)
+        >>> 
+        >>> # Access market depth analytics
+        >>> snapshot = orderbook.get_orderbook_snapshot()
+        >>> spread = orderbook.get_bid_ask_spread()
+        >>> imbalance = orderbook.get_order_imbalance()
+        >>> iceberg_signals = orderbook.detect_iceberg_orders()
+        >>> 
+        >>> # Volume analysis
+        >>> volume_profile = orderbook.get_volume_profile()
+        >>> liquidity_analysis = orderbook.analyze_liquidity_distribution()
     """
     if config is None:
         config = load_default_config()
@@ -508,26 +602,37 @@ def create_trading_suite(
     config: ProjectXConfig | None = None,
 ) -> dict[str, Any]:
     """
-    Create a complete trading suite with optimized architecture.
+    Create a complete trading application toolkit with optimized architecture.
 
-    This factory function sets up:
-    - Single ProjectXRealtimeClient for WebSocket connection
-    - ProjectXRealtimeDataManager for OHLCV data
-    - OrderBook for market depth analysis
-    - OrderManager for comprehensive order operations
-    - PositionManager for position tracking and risk management
-    - Proper dependency injection and connection sharing
+    This factory function provides developers with a comprehensive suite of connected
+    components for building sophisticated trading applications. It sets up:
+    
+    - Single ProjectXRealtimeClient for efficient WebSocket connections
+    - ProjectXRealtimeDataManager for multi-timeframe OHLCV data management
+    - OrderBook for advanced market depth analysis and microstructure insights
+    - OrderManager for comprehensive order lifecycle management
+    - PositionManager for position tracking, risk management, and portfolio analytics
+    - Proper dependency injection and optimized connection sharing
+
+    Perfect for developers building algorithmic trading systems, market analysis tools,
+    or automated trading strategies that need real-time data and order management.
 
     Args:
-        instrument: Trading instrument symbol
-        project_x: ProjectX client instance
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+        project_x: ProjectX client instance for API access
         jwt_token: JWT token for WebSocket authentication
-        account_id: Account ID for real-time subscriptions
+        account_id: Account ID for real-time subscriptions and trading operations
         timeframes: List of timeframes to track (default: ["5min"])
-        config: Configuration object (uses defaults if None)
+        config: Configuration object with endpoints and settings (uses defaults if None)
 
     Returns:
-        dict: {"realtime_client": client, "data_manager": manager, "orderbook": orderbook, "order_manager": order_manager, "position_manager": position_manager}
+        dict: Complete trading toolkit with keys:
+              - "realtime_client": ProjectXRealtimeClient for WebSocket connections
+              - "data_manager": ProjectXRealtimeDataManager for OHLCV data
+              - "orderbook": OrderBook for market depth analysis  
+              - "order_manager": OrderManager for order operations
+              - "position_manager": PositionManager for position tracking
+              - "config": ProjectXConfig used for initialization
 
     Example:
         >>> suite = create_trading_suite(
