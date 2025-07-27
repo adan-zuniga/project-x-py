@@ -26,7 +26,6 @@ from .config import (
     ConfigManager,
     create_custom_config,
     load_default_config,
-    load_projectx_gateway_config,
     load_topstepx_config,
 )
 
@@ -179,7 +178,6 @@ __all__ = [
     "get_market_session_info",
     "is_market_hours",
     "load_default_config",
-    "load_projectx_gateway_config",
     "load_topstepx_config",
     "round_to_tick_size",
     "setup_logging",

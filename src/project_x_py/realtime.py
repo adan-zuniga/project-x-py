@@ -104,9 +104,9 @@ class ProjectXRealtimeClient:
             default_user_url = config.user_hub_url
             default_market_url = config.market_hub_url
         else:
-            # Default to ProjectX Gateway demo endpoints
-            default_user_url = "https://gateway-rtc-demo.s2f.projectx.com/hubs/user"
-            default_market_url = "https://gateway-rtc-demo.s2f.projectx.com/hubs/market"
+            # Default to TopStepX endpoints
+            default_user_url = "https://rtc.topstepx.com/hubs/user"
+            default_market_url = "https://rtc.topstepx.com/hubs/market"
 
         final_user_url = user_hub_url or default_user_url
         final_market_url = market_hub_url or default_market_url
@@ -115,9 +115,19 @@ class ProjectXRealtimeClient:
         self.user_hub_url = f"{final_user_url}?access_token={jwt_token}"
         self.market_hub_url = f"{final_market_url}?access_token={jwt_token}"
 
-        # Store base URLs for token refresh
-        self.base_user_url = final_user_url
-        self.base_market_url = final_market_url
+        # Set up base URLs for token refresh
+        if config:
+            # Use config URLs if provided
+            self.base_user_url = config.user_hub_url
+            self.base_market_url = config.market_hub_url
+        elif user_hub_url and market_hub_url:
+            # Use provided URLs
+            self.base_user_url = user_hub_url  
+            self.base_market_url = market_hub_url
+        else:
+            # Default to TopStepX endpoints
+            self.base_user_url = "https://rtc.topstepx.com/hubs/user"
+            self.base_market_url = "https://rtc.topstepx.com/hubs/market"
 
         # SignalR connection objects
         self.user_connection = None

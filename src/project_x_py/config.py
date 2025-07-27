@@ -231,19 +231,6 @@ def load_default_config() -> ProjectXConfig:
     return manager.load_config()
 
 
-def load_projectx_gateway_config() -> ProjectXConfig:
-    """
-    Load configuration for ProjectX Gateway demo endpoints.
-    
-    Returns:
-        ProjectXConfig: Configuration with ProjectX Gateway URLs
-    """
-    config = load_default_config()
-    config.user_hub_url = "https://gateway-rtc-demo.s2f.projectx.com/hubs/user"
-    config.market_hub_url = "https://gateway-rtc-demo.s2f.projectx.com/hubs/market"
-    return config
-
-
 def load_topstepx_config() -> ProjectXConfig:
     """
     Load configuration for TopStepX endpoints (uses default config).

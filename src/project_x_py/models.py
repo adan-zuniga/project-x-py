@@ -260,12 +260,8 @@ class ProjectXConfig:
     """
     Configuration settings for the ProjectX client.
     
-    Default URLs are set for TopStepX endpoints. For ProjectX Gateway, 
-    update the URLs accordingly:
-    
-    ProjectX Gateway (Demo):
-    - user_hub_url: "https://gateway-rtc-demo.s2f.projectx.com/hubs/user"
-    - market_hub_url: "https://gateway-rtc-demo.s2f.projectx.com/hubs/market"
+    Default URLs are set for TopStepX endpoints. For custom ProjectX endpoints, 
+    update the URLs accordingly using create_custom_config() or direct assignment.
     
     TopStepX (Default):
     - user_hub_url: "https://rtc.topstepx.com/hubs/user"

@@ -24,98 +24,71 @@ from project_x_py import (
     create_custom_config,
     create_trading_suite,
     load_default_config,
-    load_projectx_gateway_config,
     load_topstepx_config,
 )
 
 
 def demo_configuration_options():
     """Demonstrate different configuration options for platform endpoints."""
-    
-    print("🔧 ProjectX Python SDK - Platform Configuration Demo")
-    print("=" * 60)
-    
+    print("🔧 ProjectX Python SDK - Platform Configuration Options\n")
+
     # 1. Default Configuration (TopStepX)
-    print("\n1️⃣ Default Configuration (TopStepX)")
-    print("-" * 40)
+    print("1️⃣ Default Configuration (TopStepX):")
     default_config = load_default_config()
-    print(f"User Hub URL: {default_config.user_hub_url}")
-    print(f"Market Hub URL: {default_config.market_hub_url}")
-    print(f"API URL: {default_config.api_url}")
-    
-    # 2. ProjectX Gateway Configuration
-    print("\n2️⃣ ProjectX Gateway Configuration")
-    print("-" * 40)
-    gateway_config = load_projectx_gateway_config()
-    print(f"User Hub URL: {gateway_config.user_hub_url}")
-    print(f"Market Hub URL: {gateway_config.market_hub_url}")
-    print(f"API URL: {gateway_config.api_url}")
-    
-    # 3. TopStepX Configuration (explicit)
-    print("\n3️⃣ TopStepX Configuration (explicit)")
-    print("-" * 40)
+    print(f"   User Hub: {default_config.user_hub_url}")
+    print(f"   Market Hub: {default_config.market_hub_url}")
+    print(f"   API URL: {default_config.api_url}")
+
+    # 2. TopStepX Configuration (explicit)
+    print("\n2️⃣ TopStepX Configuration (explicit):")
     topstep_config = load_topstepx_config()
-    print(f"User Hub URL: {topstep_config.user_hub_url}")
-    print(f"Market Hub URL: {topstep_config.market_hub_url}")
-    print(f"API URL: {topstep_config.api_url}")
-    
-    # 4. Custom Configuration
-    print("\n4️⃣ Custom Configuration")
-    print("-" * 40)
+    print(f"   User Hub: {topstep_config.user_hub_url}")
+    print(f"   Market Hub: {topstep_config.market_hub_url}")
+
+    # 3. Custom Configuration
+    print("\n3️⃣ Custom Configuration:")
     custom_config = create_custom_config(
-        user_hub_url="https://my-custom-platform.com/hubs/user",
-        market_hub_url="https://my-custom-platform.com/hubs/market",
-        api_url="https://my-custom-platform.com/api",
+        user_hub_url="https://custom.example.com/hubs/user",
+        market_hub_url="https://custom.example.com/hubs/market",
+        api_url="https://custom.example.com/api",
         timeout_seconds=60,
-        requests_per_minute=120
+        retry_attempts=5
     )
-    print(f"User Hub URL: {custom_config.user_hub_url}")
-    print(f"Market Hub URL: {custom_config.market_hub_url}")
-    print(f"API URL: {custom_config.api_url}")
-    print(f"Timeout: {custom_config.timeout_seconds}s")
-    print(f"Rate Limit: {custom_config.requests_per_minute} req/min")
+    print(f"   User Hub: {custom_config.user_hub_url}")
+    print(f"   Market Hub: {custom_config.market_hub_url}")
+    print(f"   API URL: {custom_config.api_url}")
+    print(f"   Timeout: {custom_config.timeout_seconds}s")
+    print(f"   Retries: {custom_config.retry_attempts}")
 
 
 def demo_realtime_client_configuration():
-    """Demonstrate realtime client configuration for different platforms."""
-    
-    print("\n🌐 Realtime Client Configuration Examples")
-    print("=" * 60)
-    
-    # Mock JWT token and account ID for demo
-    jwt_token = "demo_jwt_token_12345"
-    account_id = "12345"
-    
-    # 1. Using TopStepX configuration
-    print("\n1️⃣ TopStepX Realtime Client")
-    print("-" * 30)
-    topstep_config = load_topstepx_config()
-    client1 = ProjectXRealtimeClient(jwt_token, account_id, config=topstep_config)
-    print(f"Configured for: {client1.base_user_url}")
-    
-    # 2. Using ProjectX Gateway configuration
-    print("\n2️⃣ ProjectX Gateway Realtime Client")
-    print("-" * 35)
-    gateway_config = load_projectx_gateway_config()
-    client2 = ProjectXRealtimeClient(jwt_token, account_id, config=gateway_config)
-    print(f"Configured for: {client2.base_user_url}")
-    
-    # 3. Manual URL override
-    print("\n3️⃣ Manual URL Override")
-    print("-" * 25)
-    client3 = ProjectXRealtimeClient(
-        jwt_token, 
-        account_id,
-        user_hub_url="https://custom-rtc.example.com/hubs/user",
-        market_hub_url="https://custom-rtc.example.com/hubs/market"
-    )
-    print(f"Configured for: {client3.base_user_url}")
-    
-    # 4. Default (no config - uses ProjectX Gateway)
-    print("\n4️⃣ Default Configuration")
-    print("-" * 25)
-    client4 = ProjectXRealtimeClient(jwt_token, account_id)
-    print(f"Configured for: {client4.base_user_url}")
+    """Show how to configure realtime client with different endpoints."""
+    print("\n🌐 Realtime Client Configuration Examples\n")
+
+    # 1. Using default config (TopStepX)
+    print("1️⃣ Default Configuration:")
+    print("   client = ProjectXRealtimeClient(token, account_id)")
+    print("   # Uses TopStepX endpoints by default")
+
+    # 2. Using explicit config
+    print("\n2️⃣ Using Config Object:")
+    print("   config = load_topstepx_config()")
+    print("   client = ProjectXRealtimeClient(token, account_id, config=config)")
+
+    # 3. Using custom URLs
+    print("\n3️⃣ Custom URLs:")
+    print("   client = ProjectXRealtimeClient(")
+    print("       token, account_id,")
+    print("       user_hub_url='https://your-domain.com/hubs/user',")
+    print("       market_hub_url='https://your-domain.com/hubs/market'")
+    print("   )")
+
+    # 4. Environment variables
+    print("\n4️⃣ Environment Variables:")
+    print("   # Set in shell:")
+    print("   export PROJECTX_USER_HUB_URL=https://your-domain.com/hubs/user")
+    print("   export PROJECTX_MARKET_HUB_URL=https://your-domain.com/hubs/market")
+    print("   # Then use load_default_config() to pick them up automatically")
 
 
 def demo_trading_suite_configuration():
