@@ -22,7 +22,7 @@ Key Features:
 
 For advanced trading operations, use the specialized managers:
 - OrderManager: Comprehensive order lifecycle management
-- PositionManager: Portfolio analytics and risk management  
+- PositionManager: Portfolio analytics and risk management
 - ProjectXRealtimeDataManager: Real-time multi-timeframe OHLCV data
 - OrderBook: Level 2 market depth and microstructure analysis
 
@@ -100,37 +100,31 @@ class ProjectX:
         >>> # Basic SDK usage with environment variables (recommended)
         >>> from project_x_py import ProjectX
         >>> client = ProjectX.from_env()
-        >>> 
         >>> # Multi-account setup - list and select specific account
         >>> accounts = client.list_accounts()
         >>> for account in accounts:
         ...     print(f"Account: {account['name']} (ID: {account['id']})")
-        >>> 
         >>> # Select specific account by name
         >>> client = ProjectX.from_env(account_name="Main Trading Account")
-        >>> 
         >>> # Core market data operations
         >>> instruments = client.search_instruments("MGC")
         >>> gold_contract = client.get_instrument("MGC")
         >>> historical_data = client.get_data("MGC", days=5, interval=15)
-        >>> 
         >>> # Position and trade analysis
         >>> positions = client.search_open_positions()
         >>> trades = client.search_trades(limit=50)
-        >>> 
         >>> # For order management, use the OrderManager
         >>> from project_x_py import create_order_manager
         >>> order_manager = create_order_manager(client)
         >>> order_manager.initialize()
         >>> response = order_manager.place_market_order("MGC", 0, 1)
-        >>> 
         >>> # For real-time data, use the data manager
         >>> from project_x_py import create_trading_suite
         >>> suite = create_trading_suite(
         ...     instrument="MGC",
         ...     project_x=client,
         ...     jwt_token=client.get_session_token(),
-        ...     account_id=client.get_account_info().id
+        ...     account_id=client.get_account_info().id,
         ... )
     """
 
@@ -156,16 +150,12 @@ class ProjectX:
 
         Example:
             >>> # Using explicit credentials
-            >>> client = ProjectX(
-            ...     username="your_username",
-            ...     api_key="your_api_key"
-            ... )
-            >>> 
+            >>> client = ProjectX(username="your_username", api_key="your_api_key")
             >>> # With specific account selection
             >>> client = ProjectX(
             ...     username="your_username",
             ...     api_key="your_api_key",
-            ...     account_name="Main Trading Account"
+            ...     account_name="Main Trading Account",
             ... )
         """
         if not username or not api_key:
@@ -251,12 +241,12 @@ class ProjectX:
             >>> import os
             >>> os.environ["PROJECT_X_API_KEY"] = "your_api_key_here"
             >>> os.environ["PROJECT_X_USERNAME"] = "your_username_here"
-            >>> os.environ["PROJECT_X_ACCOUNT_NAME"] = "Main Trading Account"  # Optional
-            >>> 
+            >>> os.environ["PROJECT_X_ACCOUNT_NAME"] = (
+            ...     "Main Trading Account"  # Optional
+            ... )
             >>> # Create client (recommended approach)
             >>> from project_x_py import ProjectX
             >>> client = ProjectX.from_env()
-            >>> 
             >>> # With custom configuration
             >>> from project_x_py import create_custom_config
             >>> custom_config = create_custom_config(
@@ -647,11 +637,9 @@ class ProjectX:
             >>> # Exact symbolId match - gets F.US.ENQ, not MNQ
             >>> instrument = client.get_instrument("ENQ")
             >>> print(f"Contract: {instrument.name} ({instrument.symbolId})")
-            >>> 
             >>> # Exact name match - gets specific contract
             >>> instrument = client.get_instrument("NQU5")
             >>> print(f"Description: {instrument.description}")
-            >>> 
             >>> # Smart selection prioritizes active contracts
             >>> instrument = client.get_instrument("MGC")
             >>> if instrument:
@@ -786,8 +774,9 @@ class ProjectX:
             >>> instruments = client.search_instruments("NQ")
             >>> for inst in instruments:
             ...     print(f"{inst.name}: {inst.description}")
-            ...     print(f"  Symbol ID: {inst.symbolId}, Active: {inst.activeContract}")
-            >>> 
+            ...     print(
+            ...         f"  Symbol ID: {inst.symbolId}, Active: {inst.activeContract}"
+            ...     )
             >>> # Search for gold contracts
             >>> gold_instruments = client.search_instruments("MGC")
             >>> print(f"Found {len(gold_instruments)} gold contracts")
@@ -829,7 +818,7 @@ class ProjectX:
         """
         Retrieve historical OHLCV bar data for an instrument.
 
-        This method fetches historical market data with intelligent caching and 
+        This method fetches historical market data with intelligent caching and
         timezone handling. The data is returned as a Polars DataFrame optimized
         for financial analysis and technical indicator calculations.
 
@@ -856,12 +845,12 @@ class ProjectX:
             >>> # Get 5 days of 15-minute gold data
             >>> data = client.get_data("MGC", days=5, interval=15)
             >>> print(f"Retrieved {len(data)} bars")
-            >>> print(f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}")
+            >>> print(
+            ...     f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}"
+            ... )
             >>> print(data.tail())
-            >>> 
             >>> # Get 1 day of 5-second ES data for high-frequency analysis
             >>> hf_data = client.get_data("ES", days=1, interval=5, unit=1)
-            >>> 
             >>> # Get daily bars for longer-term analysis
             >>> daily_data = client.get_data("MGC", days=30, interval=1, unit=4)
         """
@@ -983,9 +972,8 @@ class ProjectX:
             >>> positions = client.search_open_positions()
             >>> for pos in positions:
             ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice:.2f}")
-            ...     if hasattr(pos, 'unrealizedPnl'):
+            ...     if hasattr(pos, "unrealizedPnl"):
             ...         print(f"  P&L: ${pos.unrealizedPnl:.2f}")
-            >>> 
             >>> # Check if any positions are open
             >>> if positions:
             ...     print(f"Currently holding {len(positions)} positions")
@@ -1063,18 +1051,17 @@ class ProjectX:
 
         Example:
             >>> from datetime import datetime, timedelta
-            >>> 
             >>> # Get last 7 days of trades
             >>> start = datetime.now() - timedelta(days=7)
             >>> trades = client.search_trades(start_date=start)
             >>> for trade in trades:
-            ...     print(f"Trade: {trade.contractId} - {trade.size} @ ${trade.price:.2f}")
+            ...     print(
+            ...         f"Trade: {trade.contractId} - {trade.size} @ ${trade.price:.2f}"
+            ...     )
             ...     print(f"  Time: {trade.timestamp}")
-            >>> 
             >>> # Get trades for specific instrument
             >>> mgc_trades = client.search_trades(contract_id="MGC", limit=50)
             >>> print(f"Found {len(mgc_trades)} MGC trades")
-            >>> 
             >>> # Calculate total trading volume
             >>> total_volume = sum(abs(trade.size) for trade in trades)
             >>> print(f"Total volume traded: {total_volume}")
