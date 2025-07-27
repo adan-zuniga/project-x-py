@@ -22,7 +22,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 
 ## 📊 SDK Status
 
-**Current Version**: v1.1.0 (Documentation Accuracy & Enhanced Project Structure)
+**Current Version**: v1.1.1 (Documentation Accuracy & Enhanced Project Structure)
 
 ✅ **Production Ready SDK Components**:
 - Complete ProjectX Gateway API integration with connection pooling
@@ -605,7 +605,7 @@ We welcome contributions! Please follow these guidelines:
 
 ## 📝 Changelog
 
-### Version 1.1.0 (Latest)
+### Version 1.1.1 (Latest)
 **📊 Documentation Accuracy & Enhanced Project Structure**
 - ✅ **Documentation Alignment**: Updated all documentation to match actual codebase
 - ✅ **Version Consistency**: Corrected version references throughout project

@@ -23,7 +23,7 @@ Date: January 2025
 
 from typing import Any, Optional
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __author__ = "TexasCoding"
 
 # Core client classes

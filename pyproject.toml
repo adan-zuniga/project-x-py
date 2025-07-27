@@ -1,11 +1,11 @@
 [project]
 name = "project-x-py"
-version = "1.1.0"
-description = "Professional Python client for TopStepX ProjectX Gateway API - futures trading, real-time data, and market analysis"
+version = "1.1.1"
+description = "High-performance Python SDK for futures trading with real-time WebSocket data, technical indicators, order management, and market depth analysis"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "Jeff West", email = "jeff10278@me.com" }]
-maintainers = [{ name = "Jeff West", email = "jeff10278@me.com" }]
+authors = [{ name = "TexasCoding", email = "jeff10278@me.com" }]
+maintainers = [{ name = "TexasCoding", email = "jeff10278@me.com" }]
 keywords = [
     "trading",
     "futures",
@@ -76,7 +76,7 @@ all = ["project-x-py[realtime,dev,test,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/TexasCoding/project-x-py"
-Documentation = "https://project-x-py.readthedocs.io"
+Documentation = "https://project-x-py.readthedocs.io/en/latest/"
 Repository = "https://github.com/TexasCoding/project-x-py.git"
 "Bug Tracker" = "https://github.com/TexasCoding/project-x-py/issues"
 Changelog = "https://github.com/TexasCoding/project-x-py/blob/main/CHANGELOG.md"
