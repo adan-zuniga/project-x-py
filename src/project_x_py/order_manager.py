@@ -117,6 +117,10 @@ class OrderManager:
         self.realtime_client: ProjectXRealtimeClient | None = None
         self._realtime_enabled = False
 
+        # Internal order state tracking (for realtime optimization)
+        self.tracked_orders: dict[str, dict[str, Any]] = {}  # order_id -> order_data
+        self.order_status_cache: dict[str, int] = {}  # order_id -> last_known_status
+
         # Order callbacks (tracking is centralized in realtime client)
         self.order_callbacks: dict[str, list] = defaultdict(list)
 
@@ -284,16 +288,14 @@ class OrderManager:
             if not order_id:
                 return
 
-            # Get current and previous order status from realtime client
+            # Get current and previous order status from internal cache
             current_status = order_data.get("status", 0)
-            old_order = {}
-            if self.realtime_client:
-                old_order = (
-                    self.realtime_client.get_tracked_order_status(order_id) or {}
-                )
-            old_status = (
-                old_order.get("status", 0) if isinstance(old_order, dict) else 0
-            )
+            old_status = self.order_status_cache.get(order_id, 0)
+            
+            # Update internal order tracking
+            with self.order_lock:
+                self.tracked_orders[order_id] = order_data.copy()
+                self.order_status_cache[order_id] = current_status
 
             # Detect status changes and trigger appropriate callbacks using ProjectX OrderStatus enum
             if current_status != old_status:
@@ -338,6 +340,53 @@ class OrderManager:
     def add_callback(self, event_type: str, callback):
         """Add a callback for order events."""
         self.order_callbacks[event_type].append(callback)
+
+    # ================================================================================
+    # REALTIME ORDER TRACKING METHODS (for optimization)
+    # ================================================================================
+
+    def get_tracked_order_status(self, order_id: str) -> dict[str, Any] | None:
+        """
+        Get cached order status from realtime tracking.
+        
+        Args:
+            order_id: Order ID to get status for
+            
+        Returns:
+            dict: Order data if tracked, None otherwise
+        """
+        with self.order_lock:
+            return self.tracked_orders.get(order_id)
+
+    def is_order_filled(self, order_id: str | int) -> bool:
+        """
+        Check if an order has been filled using cached data with API fallback.
+        
+        Args:
+            order_id: Order ID to check (str or int)
+            
+        Returns:
+            bool: True if order is filled
+        """
+        order_id_str = str(order_id)
+        
+        # Try cached data first (realtime optimization)
+        if self._realtime_enabled:
+            with self.order_lock:
+                status = self.order_status_cache.get(order_id_str)
+                if status is not None:
+                    return status == 2  # 2 = Filled
+        
+        # Fallback to API check
+        order = self.get_order_by_id(int(order_id))
+        return order is not None and order.status == 2  # 2 = Filled
+
+    def clear_order_tracking(self):
+        """Clear internal order tracking cache."""
+        with self.order_lock:
+            self.tracked_orders.clear()
+            self.order_status_cache.clear()
+            self.logger.debug("📊 Cleared order tracking cache")
 
     # ================================================================================
     # CORE ORDER PLACEMENT METHODS
@@ -1144,7 +1193,7 @@ class OrderManager:
         self, order_id: int, account_id: int | None = None
     ) -> Order | None:
         """
-        Get a specific order by ID.
+        Get a specific order by ID using cached data with API fallback.
 
         Args:
             order_id: ID of the order to retrieve
@@ -1153,9 +1202,11 @@ class OrderManager:
         Returns:
             Order: Order object if found, None otherwise
         """
-        # Try real-time data first if available
-        if self._realtime_enabled and self.realtime_client:
-            order_data = self.realtime_client.get_tracked_order_status(str(order_id))
+        order_id_str = str(order_id)
+        
+        # Try cached data first (realtime optimization)
+        if self._realtime_enabled:
+            order_data = self.get_tracked_order_status(order_id_str)
             if order_data:
                 try:
                     return Order(**order_data)
@@ -1169,23 +1220,6 @@ class OrderManager:
                 return order
 
         return None
-
-    def is_order_filled(self, order_id: int) -> bool:
-        """
-        Check if an order has been filled.
-
-        Args:
-            order_id: ID of the order to check
-
-        Returns:
-            bool: True if order is filled
-        """
-        if self._realtime_enabled and self.realtime_client:
-            return self.realtime_client.is_order_filled(str(order_id))
-
-        # Fallback to API check
-        order = self.get_order_by_id(order_id)
-        return order is not None and order.status == 2  # 2 = Filled
 
     # ================================================================================
     # POSITION-BASED ORDER METHODS
@@ -1663,9 +1697,8 @@ class OrderManager:
             Dict with statistics and health information
         """
         with self.order_lock:
-            tracked_orders_count = 0
-            if self.realtime_client:
-                tracked_orders_count = len(self.realtime_client.tracked_orders)
+            # Use internal order tracking
+            tracked_orders_count = len(self.tracked_orders)
 
             # Count position-order relationships
             total_position_orders = 0
@@ -1710,11 +1743,9 @@ class OrderManager:
         Returns:
             Dict with validation metrics and status information
         """
-        tracked_orders_count = 0
-        if self.realtime_client:
-            tracked_orders_count = len(
-                getattr(self.realtime_client, "tracked_orders", {})
-            )
+        # Use internal order tracking
+        with self.order_lock:
+            tracked_orders_count = len(self.tracked_orders)
 
         return {
             "realtime_enabled": self._realtime_enabled,
@@ -1771,5 +1802,8 @@ class OrderManager:
             self.order_callbacks.clear()
             self.position_orders.clear()
             self.order_to_position.clear()
+            # Clear realtime tracking cache
+            self.tracked_orders.clear()
+            self.order_status_cache.clear()
 
         self.logger.info("✅ OrderManager cleanup completed")
