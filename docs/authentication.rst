@@ -1,7 +1,7 @@
 Authentication
 ==============
 
-This guide covers how to set up authentication for the ProjectX API.
+This guide covers how to set up authentication for the ProjectX API using the Python SDK.
 
 API Credentials
 ---------------

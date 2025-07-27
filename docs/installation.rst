@@ -1,7 +1,7 @@
 Installation
 ============
 
-This guide covers how to install project-x-py and its dependencies.
+This guide covers how to install the ProjectX Python SDK and its dependencies.
 
 Requirements
 ------------

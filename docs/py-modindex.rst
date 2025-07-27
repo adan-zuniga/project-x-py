@@ -1,13 +1,13 @@
 Python Module Index
 ===================
 
-This page lists all Python modules in project-x-py.
+This page lists all Python modules in the ProjectX Python SDK.
 
 Main Modules
 ------------
 
 :mod:`project_x_py`
-   Main package containing the ProjectX client and core functionality.
+   Main SDK package containing the ProjectX client and core functionality for building trading applications.
 
 :mod:`project_x_py.client`
    Core client implementation for connecting to the ProjectX Gateway API.

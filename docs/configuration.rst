@@ -1,7 +1,7 @@
 Configuration
 =============
 
-Learn how to configure project-x-py for your specific needs.
+Learn how to configure the ProjectX Python SDK for your trading application development needs.
 
 Overview
 --------

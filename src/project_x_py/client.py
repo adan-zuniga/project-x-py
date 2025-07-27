@@ -1,16 +1,30 @@
 """
-ProjectX API Client
+ProjectX Python SDK - Core Client Module
 
 Author: TexasCoding
 Date: June 2025
 
-This module contains the main ProjectX client class for trading operations.
-It provides a comprehensive interface for interacting with the ProjectX API,
-including authentication, account management, market data retrieval, and order
-management.
+This module contains the main ProjectX client class for the ProjectX Python SDK.
+It provides a comprehensive interface for interacting with the ProjectX Trading Platform
+Gateway API, enabling developers to build sophisticated trading applications.
 
-The client handles authentication, error management, and provides both
-low-level API access and high-level convenience methods.
+The client handles authentication, account management, market data retrieval, and basic
+trading operations. It provides both low-level API access and high-level convenience
+methods for building trading strategies and applications.
+
+Key Features:
+- Multi-account authentication and management
+- Intelligent instrument search with smart contract selection
+- Historical market data retrieval with caching
+- Position tracking and trade history
+- Error handling and connection management
+- Rate limiting and retry mechanisms
+
+For advanced trading operations, use the specialized managers:
+- OrderManager: Comprehensive order lifecycle management
+- PositionManager: Portfolio analytics and risk management
+- ProjectXRealtimeDataManager: Real-time multi-timeframe OHLCV data
+- OrderBook: Level 2 market depth and microstructure analysis
 
 """
 
@@ -21,6 +35,7 @@ import logging
 import os  # Added for os.getenv
 import time
 from datetime import timedelta
+from typing import Any
 
 import polars as pl
 import pytz
@@ -43,28 +58,36 @@ from .models import (
     Instrument,
     Position,
     ProjectXConfig,
+    Trade,
 )
 
 
 class ProjectX:
     """
-    A comprehensive Python client for the ProjectX Gateway API.
+    Core ProjectX client for the ProjectX Python SDK.
 
-    This class provides access to core trading functionality including:
-    - Market data retrieval
-    - Account management with multi-account support
-    - Instrument search and contract details
-    - Position management
-    - Authentication and session management
+    This class provides the foundation for building trading applications by offering
+    comprehensive access to the ProjectX Trading Platform Gateway API. It handles
+    core functionality including:
 
-    For order management operations, use the OrderManager class.
-    For real-time market data, use ProjectXRealtimeDataManager and OrderBook.
+    - Multi-account authentication and session management
+    - Intelligent instrument search with smart contract selection
+    - Historical market data retrieval with caching
+    - Position tracking and trade history analysis
+    - Account management and information retrieval
 
-    The client handles authentication, error management, and provides both
-    low-level API access and high-level convenience methods.
+    For advanced trading operations, this client integrates with specialized managers:
+    - OrderManager: Complete order lifecycle management
+    - PositionManager: Portfolio analytics and risk management
+    - ProjectXRealtimeDataManager: Real-time multi-timeframe data
+    - OrderBook: Level 2 market depth analysis
+
+    The client implements enterprise-grade features including connection pooling,
+    automatic retry mechanisms, rate limiting, and intelligent caching for optimal
+    performance when building trading applications.
 
     Attributes:
-        config (ProjectXConfig): Configuration settings
+        config (ProjectXConfig): Configuration settings for API endpoints and behavior
         api_key (str): API key for authentication
         username (str): Username for authentication
         account_name (str | None): Optional account name for multi-account selection
@@ -74,24 +97,35 @@ class ProjectX:
         account_info (Account): Selected account information
 
     Example:
-        >>> # Using environment variables (recommended)
-        >>> project_x = ProjectX.from_env()
-        >>> # Using explicit credentials
-        >>> project_x = ProjectX(username="your_username", api_key="your_api_key")
-        >>> # Selecting specific account by name
-        >>> project_x = ProjectX.from_env(account_name="Main Trading Account")
-        >>> # List available accounts
-        >>> accounts = project_x.list_accounts()
+        >>> # Basic SDK usage with environment variables (recommended)
+        >>> from project_x_py import ProjectX
+        >>> client = ProjectX.from_env()
+        >>> # Multi-account setup - list and select specific account
+        >>> accounts = client.list_accounts()
         >>> for account in accounts:
         ...     print(f"Account: {account['name']} (ID: {account['id']})")
-        >>> # Get market data
-        >>> instruments = project_x.search_instruments("MGC")
-        >>> data = project_x.get_data("MGC", days=5, interval=15)
-        >>> positions = project_x.search_open_positions()
-        >>> # For order management, use OrderManager
+        >>> # Select specific account by name
+        >>> client = ProjectX.from_env(account_name="Main Trading Account")
+        >>> # Core market data operations
+        >>> instruments = client.search_instruments("MGC")
+        >>> gold_contract = client.get_instrument("MGC")
+        >>> historical_data = client.get_data("MGC", days=5, interval=15)
+        >>> # Position and trade analysis
+        >>> positions = client.search_open_positions()
+        >>> trades = client.search_trades(limit=50)
+        >>> # For order management, use the OrderManager
         >>> from project_x_py import create_order_manager
-        >>> order_manager = create_order_manager(project_x)
+        >>> order_manager = create_order_manager(client)
+        >>> order_manager.initialize()
         >>> response = order_manager.place_market_order("MGC", 0, 1)
+        >>> # For real-time data, use the data manager
+        >>> from project_x_py import create_trading_suite
+        >>> suite = create_trading_suite(
+        ...     instrument="MGC",
+        ...     project_x=client,
+        ...     jwt_token=client.get_session_token(),
+        ...     account_id=client.get_account_info().id,
+        ... )
     """
 
     def __init__(
@@ -102,17 +136,27 @@ class ProjectX:
         account_name: str | None = None,
     ):
         """
-        Initialize the ProjectX client.
+        Initialize the ProjectX client for building trading applications.
 
         Args:
-            username: Username for TopStepX account
-            api_key: API key for TopStepX authentication
-            config: Optional configuration object (uses defaults if None)
-            account_name: Optional account name to select specific account (uses first if None)
+            username: Username for ProjectX account authentication
+            api_key: API key for ProjectX authentication
+            config: Optional configuration object with endpoints and settings (uses defaults if None)
+            account_name: Optional account name to select specific account (uses first available if None)
 
         Raises:
             ValueError: If required credentials are missing
             ProjectXError: If configuration is invalid
+
+        Example:
+            >>> # Using explicit credentials
+            >>> client = ProjectX(username="your_username", api_key="your_api_key")
+            >>> # With specific account selection
+            >>> client = ProjectX(
+            ...     username="your_username",
+            ...     api_key="your_api_key",
+            ...     account_name="Main Trading Account",
+            ... )
         """
         if not username or not api_key:
             raise ValueError("Both username and api_key are required")
@@ -170,33 +214,45 @@ class ProjectX:
         cls, config: ProjectXConfig | None = None, account_name: str | None = None
     ) -> "ProjectX":
         """
-        Create ProjectX client using environment variables.
+        Create ProjectX client using environment variables (recommended approach).
+
+        This is the preferred method for initializing the client as it keeps
+        sensitive credentials out of your source code.
 
         Environment Variables Required:
-            PROJECT_X_API_KEY: API key for TopStepX authentication
-            PROJECT_X_USERNAME: Username for TopStepX account
+            PROJECT_X_API_KEY: API key for ProjectX authentication
+            PROJECT_X_USERNAME: Username for ProjectX account
 
         Optional Environment Variables:
             PROJECT_X_ACCOUNT_NAME: Account name to select specific account
 
         Args:
-            config: Optional configuration object
+            config: Optional configuration object with endpoints and settings
             account_name: Optional account name (overrides environment variable)
 
         Returns:
-            ProjectX client instance
+            ProjectX: Configured client instance ready for building trading applications
 
         Raises:
             ValueError: If required environment variables are not set
 
         Example:
+            >>> # Set environment variables first
             >>> import os
             >>> os.environ["PROJECT_X_API_KEY"] = "your_api_key_here"
             >>> os.environ["PROJECT_X_USERNAME"] = "your_username_here"
             >>> os.environ["PROJECT_X_ACCOUNT_NAME"] = (
             ...     "Main Trading Account"  # Optional
             ... )
-            >>> project_x = ProjectX.from_env()
+            >>> # Create client (recommended approach)
+            >>> from project_x_py import ProjectX
+            >>> client = ProjectX.from_env()
+            >>> # With custom configuration
+            >>> from project_x_py import create_custom_config
+            >>> custom_config = create_custom_config(
+            ...     api_url="https://custom.api.endpoint.com"
+            ... )
+            >>> client = ProjectX.from_env(config=custom_config)
         """
         config_manager = ConfigManager()
         auth_config = config_manager.get_auth_config()
@@ -556,23 +612,38 @@ class ProjectX:
 
         response.raise_for_status()
 
-    def get_instrument(self, symbol: str) -> Instrument | None:
+    def get_instrument(self, symbol: str, live: bool = False) -> Instrument | None:
         """
-        Search for the first instrument matching a symbol with caching.
+        Search for the best matching instrument for a symbol with intelligent contract selection.
+
+        The method implements smart matching to handle ProjectX's fuzzy search results:
+        1. Exact symbolId suffix match (e.g., "ENQ" matches "F.US.ENQ")
+        2. Exact name match (e.g., "NQU5" matches contract name "NQU5")
+        3. Prefers active contracts over inactive ones
+        4. Falls back to first active contract if no exact matches
 
         Args:
-            symbol: Symbol to search for (e.g., "MGC", "MNQ")
+            symbol: Symbol to search for (e.g., "ENQ", "MNQ", "NQU5")
+            live: Whether to search for live instruments (default: False)
 
         Returns:
-            Instrument: First matching instrument with contract details
+            Instrument: Best matching instrument with contract details
             None: If no instruments are found
 
         Raises:
             ProjectXInstrumentError: If instrument search fails
 
         Example:
-            >>> instrument = project_x.get_instrument("MGC")
-            >>> print(f"Contract: {instrument.name} - {instrument.description}")
+            >>> # Exact symbolId match - gets F.US.ENQ, not MNQ
+            >>> instrument = client.get_instrument("ENQ")
+            >>> print(f"Contract: {instrument.name} ({instrument.symbolId})")
+            >>> # Exact name match - gets specific contract
+            >>> instrument = client.get_instrument("NQU5")
+            >>> print(f"Description: {instrument.description}")
+            >>> # Smart selection prioritizes active contracts
+            >>> instrument = client.get_instrument("MGC")
+            >>> if instrument:
+            ...     print(f"Selected: {instrument.id}")
         """
         # Check cache first
         if symbol in self.instrument_cache:
@@ -582,7 +653,7 @@ class ProjectX:
         self._ensure_authenticated()
 
         url = f"{self.base_url}/Contract/search"
-        payload = {"searchText": symbol, "live": False}
+        payload = {"searchText": symbol, "live": live}
 
         try:
             self.api_call_count += 1
@@ -600,9 +671,18 @@ class ProjectX:
                 self.logger.error(f"No contracts found for symbol: {symbol}")
                 return None
 
-            instrument = Instrument(**contracts[0])
+            # Smart contract selection
+            selected_contract = self._select_best_contract(contracts, symbol)
+            if not selected_contract:
+                self.logger.error(f"No suitable contract found for symbol: {symbol}")
+                return None
+
+            instrument = Instrument(**selected_contract)
             # Cache the result
             self.instrument_cache[symbol] = instrument
+            self.logger.debug(
+                f"Selected contract {instrument.id} for symbol '{symbol}'"
+            )
             return instrument
 
         except requests.RequestException as e:
@@ -611,28 +691,100 @@ class ProjectX:
             self.logger.error(f"Invalid contract response: {e}")
             raise ProjectXDataError(f"Invalid contract response: {e}") from e
 
-    def search_instruments(self, symbol: str) -> list[Instrument]:
+    def _select_best_contract(
+        self, contracts: list[dict], search_symbol: str
+    ) -> dict | None:
+        """
+        Select the best matching contract from ProjectX search results.
+
+        Selection priority:
+        1. Exact symbolId suffix match + active contract
+        2. Exact name match + active contract
+        3. Exact symbolId suffix match (any status)
+        4. Exact name match (any status)
+        5. First active contract
+        6. First contract (fallback)
+
+        Args:
+            contracts: List of contract dictionaries from ProjectX API
+            search_symbol: The symbol being searched for
+
+        Returns:
+            dict: Best matching contract, or None if no contracts
+
+        Example:
+            Search "ENQ" should match symbolId "F.US.ENQ", not "F.US.MNQ"
+        """
+        if not contracts:
+            return None
+
+        search_upper = search_symbol.upper()
+        active_contracts = [c for c in contracts if c.get("activeContract", False)]
+
+        # 1. Exact symbolId suffix match + active
+        for contract in active_contracts:
+            symbol_id = contract.get("symbolId", "")
+            if symbol_id and symbol_id.upper().endswith(f".{search_upper}"):
+                return contract
+
+        # 2. Exact name match + active
+        for contract in active_contracts:
+            name = contract.get("name", "")
+            if name.upper() == search_upper:
+                return contract
+
+        # 3. Exact symbolId suffix match (any status)
+        for contract in contracts:
+            symbol_id = contract.get("symbolId", "")
+            if symbol_id and symbol_id.upper().endswith(f".{search_upper}"):
+                return contract
+
+        # 4. Exact name match (any status)
+        for contract in contracts:
+            name = contract.get("name", "")
+            if name.upper() == search_upper:
+                return contract
+
+        # 5. First active contract
+        if active_contracts:
+            return active_contracts[0]
+
+        # 6. Fallback to first contract
+        return contracts[0]
+
+    def search_instruments(self, symbol: str, live: bool = False) -> list[Instrument]:
         """
         Search for all instruments matching a symbol.
 
+        Returns all contracts that match the search criteria, useful for exploring
+        available instruments or finding related contracts.
+
         Args:
-            symbol: Symbol to search for (e.g., "MGC", "MNQ")
+            symbol: Symbol to search for (e.g., "MGC", "MNQ", "NQ")
+            live: Whether to search for live instruments (default: False)
 
         Returns:
-            List[Instrument]: List of all matching instruments
+            List[Instrument]: List of all matching instruments with contract details
 
         Raises:
             ProjectXInstrumentError: If instrument search fails
 
         Example:
-            >>> instruments = project_x.search_instruments("NQ")
+            >>> # Search for all NQ-related contracts
+            >>> instruments = client.search_instruments("NQ")
             >>> for inst in instruments:
             ...     print(f"{inst.name}: {inst.description}")
+            ...     print(
+            ...         f"  Symbol ID: {inst.symbolId}, Active: {inst.activeContract}"
+            ...     )
+            >>> # Search for gold contracts
+            >>> gold_instruments = client.search_instruments("MGC")
+            >>> print(f"Found {len(gold_instruments)} gold contracts")
         """
         self._ensure_authenticated()
 
         url = f"{self.base_url}/Contract/search"
-        payload = {"searchText": symbol, "live": False}
+        payload = {"searchText": symbol, "live": live}
 
         try:
             self.api_call_count += 1
@@ -664,31 +816,43 @@ class ProjectX:
         partial: bool = True,
     ) -> pl.DataFrame | None:
         """
-        Retrieve historical bar data for an instrument.
+        Retrieve historical OHLCV bar data for an instrument.
+
+        This method fetches historical market data with intelligent caching and
+        timezone handling. The data is returned as a Polars DataFrame optimized
+        for financial analysis and technical indicator calculations.
 
         Args:
-            instrument: Symbol of the instrument (e.g., "MGC", "MNQ")
-            days: Number of days of historical data. Defaults to 8.
-            interval: Interval in minutes between bars. Defaults to 5.
-            unit: Unit of time for the interval. Defaults to 2 (minutes).
-                  1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month.
-            limit: Number of bars to retrieve. Defaults to calculated value.
-            partial: Include partial bars. Defaults to True.
+            instrument: Symbol of the instrument (e.g., "MGC", "MNQ", "ES")
+            days: Number of days of historical data (default: 8)
+            interval: Interval between bars in the specified unit (default: 5)
+            unit: Time unit for the interval (default: 2 for minutes)
+                  1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month
+            limit: Maximum number of bars to retrieve (auto-calculated if None)
+            partial: Include incomplete/partial bars (default: True)
 
         Returns:
-            pl.DataFrame: DataFrame with OHLCV data indexed by timestamp
-                Columns: open, high, low, close, volume
-                Index: timestamp (timezone-aware, US Central)
-            None: If no data is available
+            pl.DataFrame: DataFrame with OHLCV data and timezone-aware timestamps
+                Columns: timestamp, open, high, low, close, volume
+                Timezone: Converted to your configured timezone (default: US/Central)
+            None: If no data is available for the specified instrument
 
         Raises:
-            ProjectXInstrumentError: If instrument not found
-            ProjectXDataError: If data retrieval fails
+            ProjectXInstrumentError: If instrument not found or invalid
+            ProjectXDataError: If data retrieval fails or invalid response
 
         Example:
-            >>> data = project_x.get_data("MGC", days=5, interval=15)
+            >>> # Get 5 days of 15-minute gold data
+            >>> data = client.get_data("MGC", days=5, interval=15)
             >>> print(f"Retrieved {len(data)} bars")
+            >>> print(
+            ...     f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}"
+            ... )
             >>> print(data.tail())
+            >>> # Get 1 day of 5-second ES data for high-frequency analysis
+            >>> hf_data = client.get_data("ES", days=1, interval=5, unit=1)
+            >>> # Get daily bars for longer-term analysis
+            >>> daily_data = client.get_data("MGC", days=30, interval=1, unit=4)
         """
         self._ensure_authenticated()
 
@@ -785,21 +949,36 @@ class ProjectX:
     # Position Management Methods
     def search_open_positions(self, account_id: int | None = None) -> list[Position]:
         """
-        Search for currently open positions.
+        Search for currently open positions in the specified account.
+
+        Retrieves all open positions with current size, average price, and P&L information.
+        Useful for portfolio monitoring and risk management in trading applications.
 
         Args:
-            account_id: Account ID to search. Uses default account if None.
+            account_id: Account ID to search (uses default account if None)
 
         Returns:
-            List[Position]: List of open positions with size and average price
+            List[Position]: List of open positions with detailed information including:
+                - contractId: Instrument contract identifier
+                - size: Current position size (positive=long, negative=short)
+                - averagePrice: Average entry price
+                - unrealizedPnl: Current unrealized profit/loss
 
         Raises:
-            ProjectXError: If position search fails
+            ProjectXError: If position search fails or no account information available
 
         Example:
-            >>> positions = project_x.search_open_positions()
+            >>> # Get all open positions
+            >>> positions = client.search_open_positions()
             >>> for pos in positions:
-            ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice}")
+            ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice:.2f}")
+            ...     if hasattr(pos, "unrealizedPnl"):
+            ...         print(f"  P&L: ${pos.unrealizedPnl:.2f}")
+            >>> # Check if any positions are open
+            >>> if positions:
+            ...     print(f"Currently holding {len(positions)} positions")
+            ... else:
+            ...     print("No open positions")
         """
         self._ensure_authenticated()
 
@@ -845,28 +1024,47 @@ class ProjectX:
         contract_id: str | None = None,
         account_id: int | None = None,
         limit: int = 100,
-    ) -> list[dict]:
+    ) -> list[Trade]:
         """
-        Search trade execution history.
+        Search trade execution history for analysis and reporting.
+
+        Retrieves executed trades within the specified date range, useful for
+        performance analysis, tax reporting, and strategy evaluation.
 
         Args:
             start_date: Start date for trade search (default: 30 days ago)
             end_date: End date for trade search (default: now)
-            contract_id: Optional contract ID filter
-            account_id: Account ID to search. Uses default account if None.
-            limit: Maximum number of trades to return
+            contract_id: Optional contract ID filter for specific instrument
+            account_id: Account ID to search (uses default account if None)
+            limit: Maximum number of trades to return (default: 100)
 
         Returns:
-            List[dict]: List of executed trades with details
+            List[Trade]: List of executed trades with detailed information including:
+                - contractId: Instrument that was traded
+                - size: Trade size (positive=buy, negative=sell)
+                - price: Execution price
+                - timestamp: Execution time
+                - commission: Trading fees
+
+        Raises:
+            ProjectXError: If trade search fails or no account information available
 
         Example:
             >>> from datetime import datetime, timedelta
+            >>> # Get last 7 days of trades
             >>> start = datetime.now() - timedelta(days=7)
-            >>> trades = project_x.search_trades(start_date=start)
+            >>> trades = client.search_trades(start_date=start)
             >>> for trade in trades:
             ...     print(
-            ...         f"Trade: {trade['contractId']} - {trade['size']} @ ${trade['price']}"
+            ...         f"Trade: {trade.contractId} - {trade.size} @ ${trade.price:.2f}"
             ...     )
+            ...     print(f"  Time: {trade.timestamp}")
+            >>> # Get trades for specific instrument
+            >>> mgc_trades = client.search_trades(contract_id="MGC", limit=50)
+            >>> print(f"Found {len(mgc_trades)} MGC trades")
+            >>> # Calculate total trading volume
+            >>> total_volume = sum(abs(trade.size) for trade in trades)
+            >>> print(f"Total volume traded: {total_volume}")
         """
         self._ensure_authenticated()
 
@@ -905,406 +1103,14 @@ class ProjectX:
                 self.logger.error(f"Trade search failed: {error_msg}")
                 raise ProjectXDataError(f"Trade search failed: {error_msg}")
 
-            return data.get("trades", [])
+            trades = data.get("trades", [])
+            return [Trade(**trade) for trade in trades]
 
         except requests.RequestException as e:
             raise ProjectXConnectionError(f"Trade search request failed: {e}") from e
         except (KeyError, json.JSONDecodeError, TypeError) as e:
             self.logger.error(f"Invalid trade search response: {e}")
             raise ProjectXDataError(f"Invalid trade search response: {e}") from e
-
-    def search_position_history(
-        self,
-        start_date: datetime.datetime | None = None,
-        end_date: datetime.datetime | None = None,
-        contract_id: str | None = None,
-        account_id: int | None = None,
-        include_closed: bool = True,
-        limit: int = 100,
-    ) -> list[dict]:
-        """
-        Search position history including closed positions.
-
-        Args:
-            start_date: Start date for position search (default: 30 days ago)
-            end_date: End date for position search (default: now)
-            contract_id: Optional contract ID filter
-            account_id: Account ID to search. Uses default account if None.
-            include_closed: Whether to include closed positions
-            limit: Maximum number of positions to return
-
-        Returns:
-            List[dict]: List of position history with details
-
-        Example:
-            >>> positions = project_x.search_position_history(include_closed=True)
-            >>> for pos in positions:
-            ...     if pos.get("status") == "closed":
-            ...         print(
-            ...             f"Closed: {pos['contractId']} - P&L: ${pos.get('realizedPnl', 0)}"
-            ...         )
-        """
-        self._ensure_authenticated()
-
-        if account_id is None:
-            if not self.account_info:
-                self.get_account_info()
-            if not self.account_info:
-                raise ProjectXError("No account information available")
-            account_id = self.account_info.id
-
-        # Default date range if not provided
-        if start_date is None:
-            start_date = datetime.datetime.now(self.timezone) - timedelta(days=30)
-        if end_date is None:
-            end_date = datetime.datetime.now(self.timezone)
-
-        url = f"{self.base_url}/Position/search"
-        payload = {
-            "accountId": account_id,
-            "startTime": start_date.isoformat(),
-            "endTime": end_date.isoformat(),
-            "includeClosed": include_closed,
-            "limit": limit,
-        }
-
-        if contract_id:
-            payload["contractId"] = contract_id
-
-        try:
-            self.api_call_count += 1
-            response = self.session.post(url, headers=self.headers, json=payload)
-            self._handle_response_errors(response)
-
-            data = response.json()
-            if not data.get("success", False):
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.error(f"Position history search failed: {error_msg}")
-                raise ProjectXDataError(f"Position history search failed: {error_msg}")
-
-            return data.get("positions", [])
-
-        except requests.RequestException as e:
-            raise ProjectXConnectionError(
-                f"Position history request failed: {e}"
-            ) from e
-        except (KeyError, json.JSONDecodeError, TypeError) as e:
-            self.logger.error(f"Invalid position history response: {e}")
-            raise ProjectXDataError(f"Invalid position history response: {e}") from e
-
-    def get_account_performance(
-        self,
-        start_date: datetime.datetime | None = None,
-        end_date: datetime.datetime | None = None,
-        account_id: int | None = None,
-    ) -> dict:
-        """
-        Get account performance metrics.
-
-        Args:
-            start_date: Start date for performance calculation (default: 30 days ago)
-            end_date: End date for performance calculation (default: now)
-            account_id: Account ID. Uses default account if None.
-
-        Returns:
-            dict: Performance metrics including P&L, win rate, etc.
-
-        Example:
-            >>> perf = project_x.get_account_performance()
-            >>> print(f"Total P&L: ${perf.get('totalPnl', 0):.2f}")
-            >>> print(f"Win Rate: {perf.get('winRate', 0) * 100:.1f}%")
-        """
-        self._ensure_authenticated()
-
-        if account_id is None:
-            if not self.account_info:
-                self.get_account_info()
-            if not self.account_info:
-                raise ProjectXError("No account information available")
-            account_id = self.account_info.id
-
-        # Default date range if not provided
-        if start_date is None:
-            start_date = datetime.datetime.now(self.timezone) - timedelta(days=30)
-        if end_date is None:
-            end_date = datetime.datetime.now(self.timezone)
-
-        url = f"{self.base_url}/Account/performance"
-        payload = {
-            "accountId": account_id,
-            "startTime": start_date.isoformat(),
-            "endTime": end_date.isoformat(),
-        }
-
-        try:
-            self.api_call_count += 1
-            response = self.session.post(url, headers=self.headers, json=payload)
-            self._handle_response_errors(response)
-
-            data = response.json()
-            if not data.get("success", False):
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.error(f"Performance retrieval failed: {error_msg}")
-                # Return empty performance data instead of failing
-                return {
-                    "totalPnl": 0.0,
-                    "winRate": 0.0,
-                    "totalTrades": 0,
-                    "avgWin": 0.0,
-                    "avgLoss": 0.0,
-                    "profitFactor": 0.0,
-                    "maxDrawdown": 0.0,
-                }
-
-            return data.get("performance", {})
-
-        except requests.RequestException as e:
-            self.logger.warning(f"Performance request failed: {e}")
-            return {"error": str(e)}
-        except (KeyError, json.JSONDecodeError, TypeError) as e:
-            self.logger.warning(f"Invalid performance response: {e}")
-            return {"error": str(e)}
-
-    def get_account_settings(self, account_id: int | None = None) -> dict:
-        """
-        Get account settings and configuration.
-
-        Args:
-            account_id: Account ID. Uses default account if None.
-
-        Returns:
-            dict: Account settings and configuration
-
-        Example:
-            >>> settings = project_x.get_account_settings()
-            >>> print(f"Risk Limit: ${settings.get('riskLimit', 0)}")
-            >>> print(f"Max Position Size: {settings.get('maxPositionSize', 0)}")
-        """
-        self._ensure_authenticated()
-
-        if account_id is None:
-            if not self.account_info:
-                self.get_account_info()
-            if not self.account_info:
-                raise ProjectXError("No account information available")
-            account_id = self.account_info.id
-
-        url = f"{self.base_url}/Account/settings"
-        payload = {"accountId": account_id}
-
-        try:
-            self.api_call_count += 1
-            response = self.session.post(url, headers=self.headers, json=payload)
-            self._handle_response_errors(response)
-
-            data = response.json()
-            if not data.get("success", False):
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.warning(f"Settings retrieval failed: {error_msg}")
-                return {"error": error_msg}
-
-            return data.get("settings", {})
-
-        except requests.RequestException as e:
-            self.logger.warning(f"Settings request failed: {e}")
-            return {"error": str(e)}
-        except (KeyError, json.JSONDecodeError, TypeError) as e:
-            self.logger.warning(f"Invalid settings response: {e}")
-            return {"error": str(e)}
-
-    def get_risk_metrics(self, account_id: int | None = None) -> dict:
-        """
-        Get risk management metrics and limits.
-
-        Args:
-            account_id: Account ID. Uses default account if None.
-
-        Returns:
-            dict: Risk metrics including limits and current exposure
-
-        Example:
-            >>> risk = project_x.get_risk_metrics()
-            >>> print(f"Current Risk: ${risk.get('currentRisk', 0):.2f}")
-            >>> print(f"Risk Limit: ${risk.get('riskLimit', 0):.2f}")
-        """
-        self._ensure_authenticated()
-
-        if account_id is None:
-            if not self.account_info:
-                self.get_account_info()
-            if not self.account_info:
-                raise ProjectXError("No account information available")
-            account_id = self.account_info.id
-
-        url = f"{self.base_url}/Risk/metrics"
-        payload = {"accountId": account_id}
-
-        try:
-            self.api_call_count += 1
-            response = self.session.post(url, headers=self.headers, json=payload)
-            self._handle_response_errors(response)
-
-            data = response.json()
-            if not data.get("success", False):
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.warning(f"Risk metrics retrieval failed: {error_msg}")
-                return {"error": error_msg}
-
-            return data.get("risk", {})
-
-        except requests.RequestException as e:
-            self.logger.warning(f"Risk metrics request failed: {e}")
-            return {"error": str(e)}
-        except (KeyError, json.JSONDecodeError, TypeError) as e:
-            self.logger.warning(f"Invalid risk metrics response: {e}")
-            return {"error": str(e)}
-
-    def get_account_statements(
-        self,
-        start_date: datetime.datetime | None = None,
-        end_date: datetime.datetime | None = None,
-        account_id: int | None = None,
-        statement_type: str = "daily",
-    ) -> list[dict]:
-        """
-        Get account statements for a date range.
-
-        Args:
-            start_date: Start date for statements (default: 30 days ago)
-            end_date: End date for statements (default: now)
-            account_id: Account ID. Uses default account if None.
-            statement_type: Type of statement ("daily", "monthly", "trade")
-
-        Returns:
-            List[dict]: List of account statements
-
-        Example:
-            >>> statements = project_x.get_account_statements()
-            >>> for stmt in statements:
-            ...     print(f"Date: {stmt['date']} - Balance: ${stmt.get('balance', 0)}")
-        """
-        self._ensure_authenticated()
-
-        if account_id is None:
-            if not self.account_info:
-                self.get_account_info()
-            if not self.account_info:
-                raise ProjectXError("No account information available")
-            account_id = self.account_info.id
-
-        # Default date range if not provided
-        if start_date is None:
-            start_date = datetime.datetime.now(self.timezone) - timedelta(days=30)
-        if end_date is None:
-            end_date = datetime.datetime.now(self.timezone)
-
-        url = f"{self.base_url}/Account/statements"
-        payload = {
-            "accountId": account_id,
-            "startTime": start_date.isoformat(),
-            "endTime": end_date.isoformat(),
-            "type": statement_type,
-        }
-
-        try:
-            self.api_call_count += 1
-            response = self.session.post(url, headers=self.headers, json=payload)
-            self._handle_response_errors(response)
-
-            data = response.json()
-            if not data.get("success", False):
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.warning(f"Statements retrieval failed: {error_msg}")
-                return []
-
-            return data.get("statements", [])
-
-        except requests.RequestException as e:
-            self.logger.warning(f"Statements request failed: {e}")
-            return []
-        except (KeyError, json.JSONDecodeError, TypeError) as e:
-            self.logger.warning(f"Invalid statements response: {e}")
-            return []
-
-    def get_tick_data(
-        self,
-        instrument: str,
-        start_time: datetime.datetime | None = None,
-        end_time: datetime.datetime | None = None,
-        limit: int = 1000,
-    ) -> pl.DataFrame | None:
-        """
-        Retrieve tick-level market data for an instrument.
-
-        Args:
-            instrument: Symbol of the instrument (e.g., "MGC", "MNQ")
-            start_time: Start time for tick data (default: 1 hour ago)
-            end_time: End time for tick data (default: now)
-            limit: Maximum number of ticks to retrieve
-
-        Returns:
-            pl.DataFrame: DataFrame with tick data (timestamp, price, volume, side)
-            None: If no data is available
-
-        Example:
-            >>> ticks = project_x.get_tick_data("MGC", limit=500)
-            >>> print(f"Retrieved {len(ticks)} ticks")
-        """
-        self._ensure_authenticated()
-
-        # Get instrument details
-        instrument_obj = self.get_instrument(instrument)
-        if not instrument_obj:
-            raise ProjectXInstrumentError(f"Instrument '{instrument}' not found")
-
-        # Default time range if not provided
-        if start_time is None:
-            start_time = datetime.datetime.now(self.timezone) - timedelta(hours=1)
-        if end_time is None:
-            end_time = datetime.datetime.now(self.timezone)
-
-        url = f"{self.base_url}/History/retrieveTicks"
-        payload = {
-            "contractId": instrument_obj.id,
-            "startTime": start_time.isoformat(),
-            "endTime": end_time.isoformat(),
-            "limit": limit,
-        }
-
-        try:
-            self.api_call_count += 1
-            response = self.session.post(url, headers=self.headers, json=payload)
-            self._handle_response_errors(response)
-
-            data = response.json()
-            if not data.get("success", False):
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.warning(f"Tick data retrieval failed: {error_msg}")
-                return None
-
-            ticks = data.get("ticks", [])
-            if not ticks:
-                return None
-
-            # Create DataFrame with polars
-            df = pl.from_dicts(ticks).sort("timestamp")
-
-            # Convert timestamp to datetime and handle timezone properly
-            df = df.with_columns(
-                pl.col("timestamp")
-                .str.to_datetime()
-                .dt.replace_time_zone("UTC")
-                .dt.convert_time_zone(str(self.timezone.zone))
-            )
-
-            return df
-
-        except requests.RequestException as e:
-            self.logger.warning(f"Tick data request failed: {e}")
-            return None
-        except (KeyError, json.JSONDecodeError, ValueError) as e:
-            self.logger.warning(f"Invalid tick data response: {e}")
-            return None
 
     # Additional convenience methods can be added here as needed
     def get_health_status(self) -> dict:
@@ -1326,3 +1132,111 @@ class ProjectX:
                 "requests_per_minute": self.requests_per_minute,
             },
         }
+
+    def test_contract_selection(self) -> dict[str, Any]:
+        """
+        Test the contract selection algorithm with various scenarios.
+
+        Returns:
+            dict: Test results with validation status and recommendations
+        """
+        test_results = {
+            "validation": "passed",
+            "performance_metrics": {},
+            "recommendations": [],
+            "test_cases": {},
+        }
+
+        # Mock contract data similar to ProjectX NQ search example
+        mock_contracts = [
+            {
+                "id": "CON.F.US.ENQ.U25",
+                "name": "NQU5",
+                "description": "E-mini NASDAQ-100: September 2025",
+                "symbolId": "F.US.ENQ",
+                "activeContract": True,
+                "tickSize": 0.25,
+                "tickValue": 5.0,
+            },
+            {
+                "id": "CON.F.US.MNQ.U25",
+                "name": "MNQU5",
+                "description": "Micro E-mini Nasdaq-100: September 2025",
+                "symbolId": "F.US.MNQ",
+                "activeContract": True,
+                "tickSize": 0.25,
+                "tickValue": 0.5,
+            },
+            {
+                "id": "CON.F.US.NQG.Q25",
+                "name": "QGQ5",
+                "description": "E-Mini Natural Gas: August 2025",
+                "symbolId": "F.US.NQG",
+                "activeContract": True,
+                "tickSize": 0.005,
+                "tickValue": 12.5,
+            },
+        ]
+
+        try:
+            # Test 1: Exact symbolId suffix match
+            result1 = self._select_best_contract(mock_contracts, "ENQ")
+            expected1 = "F.US.ENQ"
+            actual1 = result1.get("symbolId") if result1 else None
+            test_results["test_cases"]["exact_symbolId_match"] = {
+                "passed": actual1 == expected1,
+                "expected": expected1,
+                "actual": actual1,
+            }
+
+            # Test 2: Different symbolId match
+            result2 = self._select_best_contract(mock_contracts, "MNQ")
+            expected2 = "F.US.MNQ"
+            actual2 = result2.get("symbolId") if result2 else None
+            test_results["test_cases"]["different_symbolId_match"] = {
+                "passed": actual2 == expected2,
+                "expected": expected2,
+                "actual": actual2,
+            }
+
+            # Test 3: Exact name match
+            result3 = self._select_best_contract(mock_contracts, "NQU5")
+            expected3 = "NQU5"
+            actual3 = result3.get("name") if result3 else None
+            test_results["test_cases"]["exact_name_match"] = {
+                "passed": actual3 == expected3,
+                "expected": expected3,
+                "actual": actual3,
+            }
+
+            # Test 4: Fallback behavior (no exact match)
+            result4 = self._select_best_contract(mock_contracts, "UNKNOWN")
+            test_results["test_cases"]["fallback_behavior"] = {
+                "passed": result4 is not None and result4.get("activeContract", False),
+                "description": "Should return first active contract when no exact match",
+            }
+
+            # Check overall validation
+            all_passed = all(
+                test.get("passed", False)
+                for test in test_results["test_cases"].values()
+            )
+
+            if not all_passed:
+                test_results["validation"] = "failed"
+                test_results["recommendations"].append(
+                    "Contract selection algorithm needs refinement"
+                )
+            else:
+                test_results["recommendations"].append(
+                    "Smart contract selection working correctly"
+                )
+
+        except Exception as e:
+            test_results["validation"] = "error"
+            test_results["error"] = str(e)
+            test_results["recommendations"].append(
+                f"Contract selection test failed: {e}"
+            )
+
+        return test_results

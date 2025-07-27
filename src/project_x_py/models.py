@@ -75,20 +75,23 @@ class Order:
         id (int): Unique order identifier
         accountId (int): Account that placed the order
         contractId (str): Contract being traded
+        symbolId (Optional[str]): Symbol ID corresponding to the contract
         creationTimestamp (str): When the order was created (ISO format)
         updateTimestamp (Optional[str]): When the order was last updated
-        status (int): Order status code:
-            0=Unknown, 1=Pending, 2=Filled, 3=Cancelled, 4=Rejected
-        type (int): Order type:
-            1=Limit, 2=Market, 4=Stop, 5=TrailingStop, 6=JoinBid, 7=JoinAsk
-        side (int): Order side: 0=Buy, 1=Sell
+        status (int): Order status code (OrderStatus enum):
+            0=None, 1=Open, 2=Filled, 3=Cancelled, 4=Expired, 5=Rejected, 6=Pending
+        type (int): Order type (OrderType enum):
+            0=Unknown, 1=Limit, 2=Market, 3=StopLimit, 4=Stop, 5=TrailingStop, 6=JoinBid, 7=JoinAsk
+        side (int): Order side (OrderSide enum): 0=Bid, 1=Ask
         size (int): Number of contracts
         fillVolume (Optional[int]): Number of contracts filled (partial fills)
         limitPrice (Optional[float]): Limit price (for limit orders)
         stopPrice (Optional[float]): Stop price (for stop orders)
+        filledPrice (Optional[float]): The price at which the order was filled, if any
+        customTag (Optional[str]): Custom tag associated with the order, if any
 
     Example:
-        >>> side_str = "Buy" if order.side == 0 else "Sell"
+        >>> side_str = "Bid" if order.side == 0 else "Ask"
         >>> print(f"Order {order.id}: {side_str} {order.size} {order.contractId}")
     """
 
@@ -101,9 +104,12 @@ class Order:
     type: int
     side: int
     size: int
+    symbolId: str | None = None
     fillVolume: int | None = None
     limitPrice: float | None = None
     stopPrice: float | None = None
+    filledPrice: float | None = None
+    customTag: str | None = None
 
 
 @dataclass
@@ -254,11 +260,18 @@ class ProjectXConfig:
     """
     Configuration settings for the ProjectX client.
 
+    Default URLs are set for TopStepX endpoints. For custom ProjectX endpoints,
+    update the URLs accordingly using create_custom_config() or direct assignment.
+
+    TopStepX (Default):
+    - user_hub_url: "https://rtc.topstepx.com/hubs/user"
+    - market_hub_url: "https://rtc.topstepx.com/hubs/market"
+
     Attributes:
         api_url (str): Base URL for the API endpoints
         realtime_url (str): URL for real-time WebSocket connections
-        user_hub_url (str): URL for user hub WebSocket
-        market_hub_url (str): URL for market hub WebSocket
+        user_hub_url (str): URL for user hub WebSocket (accounts, positions, orders)
+        market_hub_url (str): URL for market hub WebSocket (quotes, trades, depth)
         timezone (str): Timezone for timestamp handling
         timeout_seconds (int): Request timeout in seconds
         retry_attempts (int): Number of retry attempts for failed requests

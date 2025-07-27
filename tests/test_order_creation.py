@@ -1,18 +1,20 @@
 """Test order creation and submission functionality."""
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-import polars as pl
+
 from datetime import datetime, timezone
 from decimal import Decimal
+from unittest.mock import MagicMock, Mock, patch
+
+import polars as pl
+import pytest
 
 from project_x_py import ProjectX
-from project_x_py.order_manager import OrderManager
-from project_x_py.models import Order, Position, Instrument, OrderPlaceResponse, Account
 from project_x_py.exceptions import (
-    ProjectXError,
     ProjectXConnectionError,
-    ProjectXOrderError
+    ProjectXError,
+    ProjectXOrderError,
 )
+from project_x_py.models import Account, Instrument, Order, OrderPlaceResponse, Position
+from project_x_py.order_manager import OrderManager
 
 
 class TestOrderCreation:
@@ -33,14 +35,14 @@ class TestOrderCreation:
         client._authenticated = True
         client._ensure_authenticated = Mock()
         client._handle_response_errors = Mock()
-        
+
         # Mock account info
         account_info = Mock(spec=Account)
         account_info.id = 1001
         account_info.balance = 100000.0
         client.account_info = account_info
         client.get_account_info = Mock(return_value=account_info)
-        
+
         return client
 
     @pytest.fixture
@@ -59,39 +61,39 @@ class TestOrderCreation:
             description="Micro Gold Futures",
             tickSize=0.1,
             tickValue=10.0,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock successful order response
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12345,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Create market order
             response = order_manager.place_market_order(
                 contract_id="MGC",
                 side=0,  # Buy
-                size=1
+                size=1,
             )
-            
+
             # Verify order creation response
             assert response is not None
             assert response.orderId == 12345
             assert response.success is True
             assert response.errorCode == 0
-            
+
             # Verify API call
             mock_post.assert_called_once()
             call_args = mock_post.call_args
             assert "/Order/place" in call_args[0][0]
-            
+
             # Check request payload
             json_payload = call_args[1]["json"]
             assert json_payload["contractId"] == "MGC"
@@ -108,34 +110,34 @@ class TestOrderCreation:
             description="E-mini S&P 500 Futures",
             tickSize=0.25,
             tickValue=12.50,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock successful order response
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12346,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Create limit order
             response = order_manager.place_limit_order(
                 contract_id="ES",
                 side=1,  # Sell
                 size=2,
-                limit_price=4500.50
+                limit_price=4500.50,
             )
-            
+
             # Verify order creation response
             assert response is not None
             assert response.orderId == 12346
             assert response.success is True
-            
+
             # Verify API call
             mock_post.assert_called_once()
             json_payload = mock_post.call_args[1]["json"]
@@ -154,34 +156,34 @@ class TestOrderCreation:
             description="Crude Oil Futures",
             tickSize=0.01,
             tickValue=10.0,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock successful order response
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12347,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Create stop order
             response = order_manager.place_stop_order(
                 contract_id="CL",
                 side=0,  # Buy
                 size=1,
-                stop_price=75.50
+                stop_price=75.50,
             )
-            
+
             # Verify response
             assert response is not None
             assert response.orderId == 12347
             assert response.success is True
-            
+
             # Verify API call
             json_payload = mock_post.call_args[1]["json"]
             assert json_payload["type"] == 4  # Stop order
@@ -196,34 +198,34 @@ class TestOrderCreation:
             description="Gold Futures",
             tickSize=0.1,
             tickValue=10.0,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock successful order response
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12348,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Create trailing stop order
             response = order_manager.place_trailing_stop_order(
                 contract_id="GC",
                 side=1,  # Sell
                 size=1,
-                trail_price=5.0
+                trail_price=5.0,
             )
-            
+
             # Verify response
             assert response is not None
             assert response.orderId == 12348
             assert response.success is True
-            
+
             # Verify API call
             json_payload = mock_post.call_args[1]["json"]
             assert json_payload["type"] == 5  # Trailing stop order
@@ -238,35 +240,41 @@ class TestOrderCreation:
             description="E-mini Nasdaq-100 Futures",
             tickSize=0.25,
             tickValue=5.0,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock order submissions for bracket order
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             # Mock responses for entry, stop, and target orders
             mock_responses = [
-                Mock(json=lambda: {
-                    "success": True,
-                    "orderId": 12349,
-                    "errorCode": 0,
-                    "errorMessage": None
-                }),  # Entry order
-                Mock(json=lambda: {
-                    "success": True,
-                    "orderId": 12350,
-                    "errorCode": 0,
-                    "errorMessage": None
-                }),  # Stop loss order
-                Mock(json=lambda: {
-                    "success": True,
-                    "orderId": 12351,
-                    "errorCode": 0,
-                    "errorMessage": None
-                })   # Take profit order
+                Mock(
+                    json=lambda: {
+                        "success": True,
+                        "orderId": 12349,
+                        "errorCode": 0,
+                        "errorMessage": None,
+                    }
+                ),  # Entry order
+                Mock(
+                    json=lambda: {
+                        "success": True,
+                        "orderId": 12350,
+                        "errorCode": 0,
+                        "errorMessage": None,
+                    }
+                ),  # Stop loss order
+                Mock(
+                    json=lambda: {
+                        "success": True,
+                        "orderId": 12351,
+                        "errorCode": 0,
+                        "errorMessage": None,
+                    }
+                ),  # Take profit order
             ]
             mock_post.side_effect = mock_responses
-            
+
             # Create bracket order
             result = order_manager.place_bracket_order(
                 contract_id="NQ",
@@ -274,9 +282,9 @@ class TestOrderCreation:
                 size=1,
                 entry_price=15250.0,
                 stop_loss_price=15000.0,
-                take_profit_price=15500.0
+                take_profit_price=15500.0,
             )
-            
+
             # Verify bracket order creation
             assert result.success is True
             assert result.entry_order_id == 12349
@@ -285,7 +293,7 @@ class TestOrderCreation:
             assert result.entry_price == 15250.0
             assert result.stop_loss_price == 15000.0
             assert result.take_profit_price == 15500.0
-            
+
             # Verify three API calls were made
             assert mock_post.call_count == 3
 
@@ -298,28 +306,28 @@ class TestOrderCreation:
             description="E-mini S&P 500 Futures",
             tickSize=0.25,
             tickValue=12.50,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12352,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Place order with price that needs alignment
             order_manager.place_limit_order(
                 contract_id="ES",
                 side=0,
                 size=1,
-                limit_price=4500.37  # Should be aligned to 4500.25 or 4500.50
+                limit_price=4500.37,  # Should be aligned to 4500.25 or 4500.50
             )
-            
+
             # Check that price was aligned to tick size
             json_payload = mock_post.call_args[1]["json"]
             limit_price = json_payload["limitPrice"]
@@ -334,28 +342,24 @@ class TestOrderCreation:
             description="E-mini S&P 500 Futures",
             tickSize=0.25,
             tickValue=12.50,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock order submission failure
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": False,
                 "orderId": 0,
                 "errorCode": 1,
-                "errorMessage": "Market is closed"
+                "errorMessage": "Market is closed",
             }
             mock_post.return_value = mock_response
-            
+
             # Attempt to submit order
             with pytest.raises(ProjectXOrderError, match="Market is closed"):
-                order_manager.place_market_order(
-                    contract_id="ES",
-                    side=0,
-                    size=1
-                )
+                order_manager.place_market_order(contract_id="ES", side=0, size=1)
 
     def test_order_timeout_handling(self, order_manager, mock_client):
         """Test handling order submission timeout."""
@@ -366,38 +370,33 @@ class TestOrderCreation:
             description="E-mini S&P 500 Futures",
             tickSize=0.25,
             tickValue=12.50,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
+
         # Mock timeout
         import requests
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_post.side_effect = requests.RequestException("Request timeout")
-            
+
             # Attempt to submit order
             with pytest.raises(ProjectXConnectionError):
-                order_manager.place_market_order(
-                    contract_id="ES",
-                    side=0,
-                    size=1
-                )
+                order_manager.place_market_order(contract_id="ES", side=0, size=1)
 
     def test_cancel_order(self, order_manager, mock_client):
         """Test order cancellation."""
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
-            mock_response.json.return_value = {
-                "success": True
-            }
+            mock_response.json.return_value = {"success": True}
             mock_post.return_value = mock_response
-            
+
             # Cancel order
             result = order_manager.cancel_order(order_id=12345)
-            
+
             # Verify cancellation
             assert result is True
-            
+
             # Verify API call
             mock_post.assert_called_once()
             assert "/Order/cancel" in mock_post.call_args[0][0]
@@ -414,22 +413,22 @@ class TestOrderCreation:
             creationTimestamp=datetime.now(timezone.utc).isoformat(),
             updateTimestamp=None,
             status=1,  # Pending
-            type=1,    # Limit
-            side=0,    # Buy
+            type=1,  # Limit
+            side=0,  # Buy
             size=1,
             fillVolume=None,
             limitPrice=4500.0,
-            stopPrice=None
+            stopPrice=None,
         )
-        
-        with patch.object(order_manager, 'get_order_by_id', return_value=existing_order):
-            with patch('project_x_py.order_manager.requests.post') as mock_post:
+
+        with patch.object(
+            order_manager, "get_order_by_id", return_value=existing_order
+        ):
+            with patch("project_x_py.order_manager.requests.post") as mock_post:
                 mock_response = Mock()
-                mock_response.json.return_value = {
-                    "success": True
-                }
+                mock_response.json.return_value = {"success": True}
                 mock_post.return_value = mock_response
-                
+
                 # Mock instrument for price alignment
                 instrument = Instrument(
                     id="ES",
@@ -437,20 +436,18 @@ class TestOrderCreation:
                     description="E-mini S&P 500 Futures",
                     tickSize=0.25,
                     tickValue=12.50,
-                    activeContract=True
+                    activeContract=True,
                 )
                 mock_client.get_instrument = Mock(return_value=instrument)
-                
+
                 # Modify order
                 result = order_manager.modify_order(
-                    order_id=12345,
-                    limit_price=4502.0,
-                    size=2
+                    order_id=12345, limit_price=4502.0, size=2
                 )
-                
+
                 # Verify modification
                 assert result is True
-                
+
                 # Verify API call
                 json_payload = mock_post.call_args[1]["json"]
                 assert json_payload["orderId"] == 12345
@@ -459,7 +456,7 @@ class TestOrderCreation:
 
     def test_search_open_orders(self, order_manager, mock_client):
         """Test searching for open orders."""
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
@@ -476,7 +473,7 @@ class TestOrderCreation:
                         "size": 1,
                         "fillVolume": None,
                         "limitPrice": 4500.0,
-                        "stopPrice": None
+                        "stopPrice": None,
                     },
                     {
                         "id": 12346,
@@ -490,15 +487,15 @@ class TestOrderCreation:
                         "size": 2,
                         "fillVolume": None,
                         "limitPrice": None,
-                        "stopPrice": None
-                    }
-                ]
+                        "stopPrice": None,
+                    },
+                ],
             }
             mock_post.return_value = mock_response
-            
+
             # Search for open orders
             orders = order_manager.search_open_orders()
-            
+
             # Verify results
             assert len(orders) == 2
             assert orders[0].id == 12345
@@ -516,28 +513,28 @@ class TestOrderCreation:
             creationTimestamp=datetime.now(timezone.utc).isoformat(),
             type=1,  # Long
             size=2,
-            averagePrice=4500.0
+            averagePrice=4500.0,
         )
-        
+
         mock_client.search_open_positions = Mock(return_value=[position])
-        
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12347,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Close position at market
             response = order_manager.close_position("ES", method="market")
-            
+
             # Verify close order
             assert response is not None
             assert response.orderId == 12347
-            
+
             # Verify order parameters
             json_payload = mock_post.call_args[1]["json"]
             assert json_payload["contractId"] == "ES"
@@ -555,11 +552,11 @@ class TestOrderCreation:
             creationTimestamp=datetime.now(timezone.utc).isoformat(),
             type=1,  # Long
             size=1,
-            averagePrice=4500.0
+            averagePrice=4500.0,
         )
-        
+
         mock_client.search_open_positions = Mock(return_value=[position])
-        
+
         # Mock instrument for price alignment
         instrument = Instrument(
             id="ES",
@@ -567,27 +564,27 @@ class TestOrderCreation:
             description="E-mini S&P 500 Futures",
             tickSize=0.25,
             tickValue=12.50,
-            activeContract=True
+            activeContract=True,
         )
         mock_client.get_instrument = Mock(return_value=instrument)
-        
-        with patch('project_x_py.order_manager.requests.post') as mock_post:
+
+        with patch("project_x_py.order_manager.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.json.return_value = {
                 "success": True,
                 "orderId": 12348,
                 "errorCode": 0,
-                "errorMessage": None
+                "errorMessage": None,
             }
             mock_post.return_value = mock_response
-            
+
             # Add stop loss
             response = order_manager.add_stop_loss("ES", stop_price=4490.0)
-            
+
             # Verify stop loss order
             assert response is not None
             assert response.orderId == 12348
-            
+
             # Verify order parameters
             json_payload = mock_post.call_args[1]["json"]
             assert json_payload["contractId"] == "ES"

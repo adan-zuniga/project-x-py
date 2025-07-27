@@ -1,7 +1,7 @@
 Quick Start Guide
 =================
 
-Get up and running with project-x-py in minutes.
+Get up and running with the ProjectX Python SDK in minutes to start building your trading applications.
 
 Prerequisites
 -------------
@@ -232,7 +232,7 @@ Next Steps
 
 Now that you have the basics working:
 
-1. **Technical Analysis**: Explore the :doc:`comprehensive indicators library <api/indicators>` (25+ TA-Lib compatible indicators)
+1. **Technical Analysis**: Explore the :doc:`comprehensive indicators library <api/indicators>` (55+ TA-Lib compatible indicators)
 2. **Learn the API**: Explore the :doc:`API reference <api/client>`
 3. **Study Examples**: Check out :doc:`detailed examples <examples/basic_usage>`
 4. **Configure Advanced Features**: See :doc:`configuration options <configuration>`

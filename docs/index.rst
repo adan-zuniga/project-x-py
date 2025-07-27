@@ -17,7 +17,10 @@ project-x-py Documentation
    :target: https://project-x-py.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-**project-x-py** is a professional Python client for the TopStepX ProjectX Gateway API, providing comprehensive access to futures trading, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
+**project-x-py** is a professional Python SDK for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
+
+.. note::
+   **Important**: This is a **client library/SDK**, not a trading strategy. It provides the tools and infrastructure to help developers create their own trading strategies that integrate with the ProjectX platform.
 
 Quick Start
 -----------
