@@ -695,7 +695,9 @@ def create_trading_suite(
 
     # Create position manager for position tracking and risk management
     position_manager = PositionManager(project_x)
-    position_manager.initialize(realtime_client=realtime_client)
+    position_manager.initialize(
+        realtime_client=realtime_client, order_manager=order_manager
+    )
 
     return {
         "realtime_client": realtime_client,
