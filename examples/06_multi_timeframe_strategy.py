@@ -22,6 +22,8 @@ Author: TexasCoding
 Date: July 2025
 """
 
+import signal
+import sys
 import time
 from decimal import Decimal
 
@@ -344,23 +346,106 @@ def display_strategy_analysis(strategy):
     return signal_data
 
 
+# Global variables for cleanup
+_cleanup_managers = {}
+_cleanup_initiated = False
+
+def _emergency_cleanup(signum=None, frame=None):
+    """Emergency cleanup function called on signal interruption."""
+    global _cleanup_initiated
+    if _cleanup_initiated:
+        print("\n🚨 Already cleaning up, please wait...")
+        return
+    
+    _cleanup_initiated = True
+    
+    if signum:
+        signal_name = signal.Signals(signum).name
+        print(f"\n🚨 Received {signal_name} signal - initiating emergency cleanup!")
+    else:
+        print("\n🚨 Initiating emergency cleanup!")
+    
+    if _cleanup_managers:
+        print("⚠️  Emergency position and order cleanup in progress...")
+        
+        try:
+            order_manager = _cleanup_managers.get("order_manager")
+            position_manager = _cleanup_managers.get("position_manager")
+            data_manager = _cleanup_managers.get("data_manager")
+            
+            if order_manager and position_manager:
+                # Get current state
+                positions = position_manager.get_all_positions()
+                orders = order_manager.search_open_orders()
+                
+                if positions or orders:
+                    print(f"🚫 Emergency: Cancelling {len(orders)} orders and closing {len(positions)} positions...")
+                    
+                    # Cancel all orders immediately
+                    for order in orders:
+                        try:
+                            order_manager.cancel_order(order.id)
+                            print(f"   ✅ Cancelled order {order.id}")
+                        except:
+                            print(f"   ❌ Failed to cancel order {order.id}")
+                    
+                    # Close all positions with market orders
+                    for pos in positions:
+                        try:
+                            close_side = 1 if pos.type == 1 else 0
+                            close_response = order_manager.place_market_order(
+                                contract_id=pos.contractId,
+                                side=close_side,
+                                size=pos.size
+                            )
+                            if close_response.success:
+                                print(f"   ✅ Emergency close order: {close_response.order_id}")
+                        except:
+                            print(f"   ❌ Failed to close position {pos.contractId}")
+                    
+                    print("⏳ Waiting 3 seconds for emergency orders to process...")
+                    time.sleep(3)
+                else:
+                    print("✅ No positions or orders to clean up")
+                    
+            # Stop data feed
+            if data_manager:
+                try:
+                    data_manager.stop_realtime_feed()
+                    print("🧹 Real-time feed stopped")
+                except:
+                    pass
+                    
+        except Exception as e:
+            print(f"❌ Emergency cleanup error: {e}")
+    
+    print("🚨 Emergency cleanup completed - check your trading platform!")
+    sys.exit(1)
+
 def wait_for_user_confirmation(message: str) -> bool:
     """Wait for user confirmation before proceeding."""
     print(f"\n⚠️  {message}")
     try:
         response = input("Continue? (y/N): ").strip().lower()
         return response == "y"
-    except EOFError:
-        # Handle EOF when input is piped (default to no for safety)
-        print("N (EOF detected - defaulting to No for safety)")
+    except (EOFError, KeyboardInterrupt):
+        # Handle EOF when input is piped or Ctrl+C during input
+        print("\nN (Interrupted - defaulting to No for safety)")
         return False
 
 
 def main():
     """Demonstrate multi-timeframe trading strategy."""
+    global _cleanup_managers
+    
+    # Register signal handlers for emergency cleanup
+    signal.signal(signal.SIGINT, _emergency_cleanup)   # Ctrl+C
+    signal.signal(signal.SIGTERM, _emergency_cleanup)  # Termination signal
+    
     logger = setup_logging(level="INFO")
     print("🚀 Multi-Timeframe Trading Strategy Example")
     print("=" * 60)
+    print("📋 Emergency cleanup registered (Ctrl+C will close positions/orders)")
 
     # Safety warning
     print("⚠️  WARNING: This strategy can place REAL ORDERS!")
@@ -406,9 +491,15 @@ def main():
             data_manager = trading_suite["data_manager"]
             order_manager = trading_suite["order_manager"]
             position_manager = trading_suite["position_manager"]
+            
+            # Store managers for emergency cleanup
+            _cleanup_managers["data_manager"] = data_manager
+            _cleanup_managers["order_manager"] = order_manager
+            _cleanup_managers["position_manager"] = position_manager
 
             print("✅ Trading suite created successfully")
             print(f"   Timeframes: {', '.join(timeframes)}")
+            print("🛡️  Emergency cleanup protection activated")
 
         except Exception as e:
             print(f"❌ Failed to create trading suite: {e}")
@@ -538,6 +629,7 @@ def main():
 
         except KeyboardInterrupt:
             print("\n⏹️ Strategy monitoring stopped by user")
+            # Signal handler will take care of cleanup
 
         # Final analysis and statistics
         print("\n" + "=" * 50)
@@ -600,19 +692,121 @@ def main():
 
     except KeyboardInterrupt:
         print("\n⏹️ Example interrupted by user")
+        # Signal handler will handle emergency cleanup
         return False
     except Exception as e:
         logger.error(f"❌ Multi-timeframe strategy example failed: {e}")
         print(f"❌ Error: {e}")
         return False
     finally:
-        # Cleanup
+        # Comprehensive cleanup - close positions and cancel orders
+        cleanup_performed = False
+        
+        if "order_manager" in locals() and "position_manager" in locals():
+            try:
+                print("\n" + "=" * 50)
+                print("🧹 STRATEGY CLEANUP")
+                print("=" * 50)
+                
+                # Get current positions and orders
+                final_positions = position_manager.get_all_positions()
+                final_orders = order_manager.search_open_orders()
+                
+                if final_positions or final_orders:
+                    print(f"⚠️  Found {len(final_positions)} open positions and {len(final_orders)} open orders")
+                    print("   For safety, all positions and orders should be closed when exiting.")
+                    
+                    # Ask for user confirmation to close everything
+                    if wait_for_user_confirmation("Close all positions and cancel all orders?"):
+                        cleanup_performed = True
+                        
+                        # Cancel all open orders first
+                        if final_orders:
+                            print(f"\n🚫 Cancelling {len(final_orders)} open orders...")
+                            cancelled_count = 0
+                            for order in final_orders:
+                                try:
+                                    if order_manager.cancel_order(order.id):
+                                        cancelled_count += 1
+                                        print(f"   ✅ Cancelled order {order.id}")
+                                    else:
+                                        print(f"   ❌ Failed to cancel order {order.id}")
+                                except Exception as e:
+                                    print(f"   ❌ Error cancelling order {order.id}: {e}")
+                            
+                            print(f"   📊 Successfully cancelled {cancelled_count}/{len(final_orders)} orders")
+                        
+                        # Close all open positions
+                        if final_positions:
+                            print(f"\n📤 Closing {len(final_positions)} open positions...")
+                            closed_count = 0
+                            
+                            for pos in final_positions:
+                                try:
+                                    direction = "LONG" if pos.type == 1 else "SHORT"
+                                    print(f"   🎯 Closing {direction} {pos.size} {pos.contractId} @ ${pos.averagePrice:.2f}")
+                                    
+                                    # Get current market price for market order
+                                    current_price = data_manager.get_current_price() if "data_manager" in locals() else None
+                                    
+                                    # Close position with market order (opposite side)
+                                    close_side = 1 if pos.type == 1 else 0  # Opposite of position type
+                                    
+                                    close_response = order_manager.place_market_order(
+                                        contract_id=pos.contractId,
+                                        side=close_side,
+                                        size=pos.size
+                                    )
+                                    
+                                    if close_response.success:
+                                        closed_count += 1
+                                        print(f"   ✅ Close order placed: {close_response.order_id}")
+                                    else:
+                                        print(f"   ❌ Failed to place close order: {close_response.error_message}")
+                                        
+                                except Exception as e:
+                                    print(f"   ❌ Error closing position {pos.contractId}: {e}")
+                            
+                            print(f"   📊 Successfully placed {closed_count}/{len(final_positions)} close orders")
+                            
+                            # Give orders time to fill
+                            if closed_count > 0:
+                                print("   ⏳ Waiting 5 seconds for orders to fill...")
+                                time.sleep(5)
+                                
+                                # Check final status
+                                remaining_positions = position_manager.get_all_positions()
+                                if remaining_positions:
+                                    print(f"   ⚠️  {len(remaining_positions)} positions still open - monitor manually")
+                                else:
+                                    print("   ✅ All positions successfully closed")
+                    else:
+                        print("   ℹ️  Cleanup skipped by user - positions and orders remain open")
+                        print("   ⚠️  IMPORTANT: Monitor your positions manually!")
+                else:
+                    print("✅ No open positions or orders to clean up")
+                    cleanup_performed = True
+                    
+            except Exception as e:
+                print(f"❌ Error during cleanup: {e}")
+        
+        # Stop real-time feed
         if "data_manager" in locals():
             try:
                 data_manager.stop_realtime_feed()
-                print("🧹 Real-time feed stopped")
+                print("\n🧹 Real-time feed stopped")
             except Exception as e:
-                print(f"⚠️  Cleanup warning: {e}")
+                print(f"⚠️  Feed stop warning: {e}")
+        
+        # Final safety message
+        if not cleanup_performed:
+            print("\n" + "⚠️ " * 20)
+            print("🚨 IMPORTANT SAFETY NOTICE:")
+            print("   - Open positions and orders were NOT automatically closed")
+            print("   - Please check your trading platform immediately")
+            print("   - Manually close any unwanted positions or orders")
+            print("   - Monitor your account for any unexpected activity")
+            print("⚠️ " * 20)
 
 
 if __name__ == "__main__":
