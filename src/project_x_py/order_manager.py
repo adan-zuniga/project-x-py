@@ -30,6 +30,7 @@ Architecture:
 
 import json
 import logging
+import time
 from collections import defaultdict
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -158,6 +159,21 @@ class OrderManager:
             if realtime_client:
                 self.realtime_client = realtime_client
                 self._setup_realtime_callbacks()
+
+                # Connect and subscribe to user updates for order tracking
+                if not realtime_client.user_connected:
+                    if realtime_client.connect():
+                        self.logger.info("🔌 Real-time client connected")
+                    else:
+                        self.logger.warning("⚠️ Real-time client connection failed")
+                        return False
+
+                # Subscribe to user updates to receive order events
+                if realtime_client.subscribe_user_updates():
+                    self.logger.info("📡 Subscribed to user order updates")
+                else:
+                    self.logger.warning("⚠️ Failed to subscribe to user updates")
+
                 self._realtime_enabled = True
                 self.logger.info(
                     "✅ OrderManager initialized with real-time capabilities"
@@ -187,18 +203,31 @@ class OrderManager:
         """Handle real-time order updates and detect fills/cancellations."""
         try:
             with self.order_lock:
-                # According to ProjectX docs, the payload is the order data directly
-                # Handle both single order and list of orders
+                # Handle ProjectX Gateway payload format: {'action': X, 'data': order_data}
                 if isinstance(data, list):
-                    for order_data in data:
-                        self._process_order_data(order_data)
+                    for item in data:
+                        self._extract_and_process_order_data(item)
                 elif isinstance(data, dict):
-                    self._process_order_data(data)
+                    self._extract_and_process_order_data(data)
 
             # Note: No duplicate callback triggering - realtime client handles this
 
         except Exception as e:
             self.logger.error(f"Error processing order update: {e}")
+
+    def _extract_and_process_order_data(self, payload):
+        """Extract order data from ProjectX Gateway payload format."""
+        try:
+            # Handle ProjectX Gateway format: {'action': X, 'data': {...}}
+            if isinstance(payload, dict) and "data" in payload:
+                order_data = payload["data"]
+                self._process_order_data(order_data)
+            else:
+                # Direct order data (fallback)
+                self._process_order_data(payload)
+        except Exception as e:
+            self.logger.error(f"Error extracting order data from payload: {e}")
+            self.logger.debug(f"Payload that caused error: {payload}")
 
     def _validate_order_payload(self, order_data: dict) -> bool:
         """
@@ -372,7 +401,9 @@ class OrderManager:
     # REALTIME ORDER TRACKING METHODS (for optimization)
     # ================================================================================
 
-    def get_tracked_order_status(self, order_id: str) -> dict[str, Any] | None:
+    def get_tracked_order_status(
+        self, order_id: str, wait_for_cache: bool = False
+    ) -> dict[str, Any] | None:
         """
         Get cached order status from real-time tracking for faster access.
 
@@ -381,6 +412,7 @@ class OrderManager:
 
         Args:
             order_id: Order ID to get status for (as string)
+            wait_for_cache: If True, briefly wait for real-time cache to populate
 
         Returns:
             dict: Complete order data if tracked in cache, None if not found
@@ -398,6 +430,17 @@ class OrderManager:
             >>> else:
             ...     print("Order not found in cache")
         """
+        if wait_for_cache and self._realtime_enabled:
+            # Brief wait for real-time cache to populate
+            for attempt in range(3):
+                with self.order_lock:
+                    order_data = self.tracked_orders.get(order_id)
+                    if order_data:
+                        return order_data
+
+                if attempt < 2:  # Don't sleep on last attempt
+                    time.sleep(0.3)  # Brief wait for real-time update
+
         with self.order_lock:
             return self.tracked_orders.get(order_id)
 
@@ -424,12 +467,16 @@ class OrderManager:
         """
         order_id_str = str(order_id)
 
-        # Try cached data first (realtime optimization)
+        # Try cached data first with brief retry for real-time updates
         if self._realtime_enabled:
-            with self.order_lock:
-                status = self.order_status_cache.get(order_id_str)
-                if status is not None:
-                    return status == 2  # 2 = Filled
+            for attempt in range(3):  # Try 3 times with small delays
+                with self.order_lock:
+                    status = self.order_status_cache.get(order_id_str)
+                    if status is not None:
+                        return status == 2  # 2 = Filled
+
+                if attempt < 2:  # Don't sleep on last attempt
+                    time.sleep(0.2)  # Brief wait for real-time update
 
         # Fallback to API check
         order = self.get_order_by_id(int(order_id))
@@ -641,9 +688,12 @@ class OrderManager:
             "limitPrice": aligned_limit_price,
             "stopPrice": aligned_stop_price,
             "trailPrice": aligned_trail_price,
-            "customTag": custom_tag,
             "linkedOrderId": linked_order_id,
         }
+
+        # Only include customTag if it's provided and not None/empty
+        if custom_tag:
+            payload["customTag"] = custom_tag
 
         # 🔍 DEBUG: Log order parameters to diagnose placement issues
         self.logger.debug(f"🔍 Order Placement Request: {payload}")
@@ -821,6 +871,11 @@ class OrderManager:
             aligned_entry, aligned_stop, aligned_target = self._prepare_bracket_prices(
                 entry_price, stop_loss_price, take_profit_price, contract_id, side
             )
+
+            # Generate unique custom tag if none provided to avoid "already in use" errors
+            if custom_tag is None:
+                timestamp = int(time.time() * 1000)  # milliseconds for uniqueness
+                custom_tag = f"bracket_{timestamp}"
 
             entry_response = self._place_entry_order(
                 contract_id,

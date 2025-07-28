@@ -472,3 +472,56 @@ def calculate_adx(
         close_column=close_column,
         period=period,
     )
+
+
+class STDDEV(VolatilityIndicator):
+    def __init__(self):
+        super().__init__(
+            name="STDDEV",
+            description="Standard Deviation - measures the amount of variation or dispersion of prices",
+        )
+
+    def calculate(
+        self,
+        data: pl.DataFrame,
+        column: str = "close",
+        period: int = 5,
+        ddof: int = 1,
+    ) -> pl.DataFrame:
+        """Calculate Standard Deviation.
+
+        Args:
+            data: DataFrame with price data
+            column: Column to calculate STDDEV on
+            period: Lookback period
+            ddof: Degrees of freedom (1 for sample, 0 for population)
+
+        Returns:
+            DataFrame with STDDEV column added
+
+        Example:
+            >>> stddev = STDDEV()
+            >>> data_with_stddev = stddev.calculate(ohlcv_data, period=20)
+        """
+        required_cols = [column]
+        self.validate_data(data, required_cols)
+        self.validate_period(period, min_period=2)
+        self.validate_data_length(data, period)
+
+        result = data.with_columns(
+            pl.col(column)
+            .rolling_std(window_size=period, ddof=ddof)
+            .alias(f"stddev_{period}")
+        )
+
+        return result
+
+
+def calculate_stddev(
+    data: pl.DataFrame,
+    column: str = "close",
+    period: int = 5,
+    ddof: int = 1,
+) -> pl.DataFrame:
+    """Calculate STDDEV (convenience function)."""
+    return STDDEV().calculate(data, column=column, period=period, ddof=ddof)

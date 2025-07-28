@@ -22,13 +22,13 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 
 ## 📊 SDK Status
 
-**Current Version**: v1.1.1 (Documentation Accuracy & Enhanced Project Structure)
+**Current Version**: v1.1.2 (Documentation Accuracy & Enhanced Project Structure)
 
 ✅ **Production Ready SDK Components**:
 - Complete ProjectX Gateway API integration with connection pooling
 - Historical and real-time market data APIs with intelligent caching
 - 55+ technical indicators with computation caching (Full TA-Lib compatibility)
-- Institutional-grade orderbook analysis tools with memory management
+- Institutional-grade orderbook analysis tools with memory management and dynamic tick size detection
 - Portfolio and risk management APIs
 - **NEW**: 50-70% performance improvements through optimization
 - **NEW**: 60% memory usage reduction with sliding windows
@@ -296,10 +296,11 @@ for order in orders:
 
 ### Level 2 Market Depth Analysis
 ```python
-from project_x_py import create_orderbook
+from project_x_py import create_orderbook, ProjectX
 
-# Create orderbook with memory management
-orderbook = create_orderbook("MGC")
+# Create orderbook with dynamic tick size detection
+client = ProjectX.from_env()
+orderbook = create_orderbook("MGC", project_x=client)  # Uses real instrument metadata
 
 # Process market depth data (automatically from WebSocket)
 depth_snapshot = orderbook.get_orderbook_snapshot()
@@ -605,7 +606,7 @@ We welcome contributions! Please follow these guidelines:
 
 ## 📝 Changelog
 
-### Version 1.1.1 (Latest)
+### Version 1.1.2 (Latest)
 **📊 Documentation Accuracy & Enhanced Project Structure**
 - ✅ **Documentation Alignment**: Updated all documentation to match actual codebase
 - ✅ **Version Consistency**: Corrected version references throughout project

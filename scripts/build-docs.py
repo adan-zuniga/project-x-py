@@ -24,7 +24,6 @@ Examples:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 import webbrowser
@@ -157,7 +156,7 @@ def serve_docs(docs_dir):
 def open_in_browser(html_file):
     """Open documentation in default browser."""
     if html_file.exists():
-        print(f"🌐 Opening documentation in browser...")
+        print("🌐 Opening documentation in browser...")
         webbrowser.open(f"file://{html_file.absolute()}")
     else:
         print("❌ HTML file not found - build may have failed")
@@ -201,7 +200,7 @@ def main():
         print(f"❌ Documentation directory not found: {docs_dir}")
         sys.exit(1)
 
-    print(f"🏗️  Building documentation for project-x-py")
+    print("🏗️  Building documentation for project-x-py")
     print(f"   Project root: {project_root}")
     print(f"   Docs directory: {docs_dir}")
     print()

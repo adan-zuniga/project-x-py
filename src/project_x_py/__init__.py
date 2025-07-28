@@ -23,7 +23,7 @@ Date: January 2025
 
 from typing import Any, Optional
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 __author__ = "TexasCoding"
 
 # Core client classes
@@ -481,6 +481,7 @@ def create_orderbook(
     instrument: str,
     config: ProjectXConfig | None = None,
     realtime_client: ProjectXRealtimeClient | None = None,
+    project_x: "ProjectX | None" = None,
 ) -> "OrderBook":
     """
     Create a ProjectX OrderBook for advanced market depth analysis.
@@ -494,6 +495,7 @@ def create_orderbook(
         instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
         config: Configuration object with timezone settings (uses defaults if None)
         realtime_client: Optional realtime client for automatic market data integration
+        project_x: Optional ProjectX client for instrument metadata (enables dynamic tick size)
 
     Returns:
         OrderBook: Configured orderbook instance ready for market depth processing
@@ -521,6 +523,7 @@ def create_orderbook(
     orderbook = OrderBook(
         instrument=instrument,
         timezone=config.timezone,
+        client=project_x,
     )
 
     # Initialize with real-time capabilities if provided
@@ -682,6 +685,7 @@ def create_trading_suite(
     orderbook = OrderBook(
         instrument=instrument,
         timezone=config.timezone,
+        client=project_x,
     )
     orderbook.initialize(realtime_client=realtime_client)
 

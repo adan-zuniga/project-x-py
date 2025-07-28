@@ -341,53 +341,161 @@ class ProjectXRealtimeClient:
         )
 
     # Pure event forwarding handlers (no caching or business logic)
-    def _forward_account_update(self, data):
+    def _forward_account_update(self, *args):
         """Forward ProjectX GatewayUserAccount events to managers."""
-        self._update_stats()
-        self.logger.debug("📨 Account update forwarded")
-        self._trigger_callbacks("account_update", data)
+        try:
+            self._update_stats()
+            # User events typically have single data payload
+            data = args[0] if args else {}
+            self.logger.debug("📨 Account update forwarded")
+            self._trigger_callbacks("account_update", data)
+        except Exception as e:
+            self.logger.error(f"Error in _forward_account_update: {e}")
+            self.logger.debug(f"Args received: {args}")
 
-    def _forward_position_update(self, data):
+    def _forward_position_update(self, *args):
         """Forward ProjectX GatewayUserPosition events to managers."""
-        self._update_stats()
-        self.logger.debug("📨 Position update forwarded")
-        self._trigger_callbacks("position_update", data)
+        try:
+            self._update_stats()
+            # User events typically have single data payload
+            data = args[0] if args else {}
+            self.logger.debug("📨 Position update forwarded")
+            self._trigger_callbacks("position_update", data)
+        except Exception as e:
+            self.logger.error(f"Error in _forward_position_update: {e}")
+            self.logger.debug(f"Args received: {args}")
 
-    def _forward_order_update(self, data):
+    def _forward_order_update(self, *args):
         """Forward ProjectX GatewayUserOrder events to managers."""
-        self._update_stats()
-        self.logger.debug("📨 Order update forwarded")
-        self._trigger_callbacks("order_update", data)
+        try:
+            self._update_stats()
+            # User events typically have single data payload
+            data = args[0] if args else {}
+            self.logger.debug("📨 Order update forwarded")
+            self._trigger_callbacks("order_update", data)
+        except Exception as e:
+            self.logger.error(f"Error in _forward_order_update: {e}")
+            self.logger.debug(f"Args received: {args}")
 
-    def _forward_trade_execution(self, data):
+    def _forward_trade_execution(self, *args):
         """Forward ProjectX GatewayUserTrade events to managers."""
-        self._update_stats()
-        self.logger.debug("📨 Trade execution forwarded")
-        self._trigger_callbacks("trade_execution", data)
+        try:
+            self._update_stats()
+            # User events typically have single data payload
+            data = args[0] if args else {}
+            self.logger.debug("📨 Trade execution forwarded")
+            self._trigger_callbacks("trade_execution", data)
+        except Exception as e:
+            self.logger.error(f"Error in _forward_trade_execution: {e}")
+            self.logger.debug(f"Args received: {args}")
 
-    def _forward_quote_update(self, contract_id, data):
+    def _forward_quote_update(self, *args):
         """Forward ProjectX GatewayQuote events to managers."""
-        self._update_stats()
-        self.logger.debug(f"📨 Quote update forwarded: {contract_id}")
-        self._trigger_callbacks(
-            "quote_update", {"contract_id": contract_id, "data": data}
-        )
+        try:
+            self._update_stats()
 
-    def _forward_market_trade(self, contract_id, data):
+            # Handle different SignalR callback signatures
+            if len(args) == 1:
+                # Single argument - the data payload
+                raw_data = args[0]
+                if isinstance(raw_data, list) and len(raw_data) >= 2:
+                    # SignalR format: [contract_id, actual_data_dict]
+                    contract_id = raw_data[0]
+                    data = raw_data[1]
+                elif isinstance(raw_data, dict):
+                    contract_id = raw_data.get("symbol", "unknown")
+                    data = raw_data
+                else:
+                    contract_id = "unknown"
+                    data = raw_data
+            elif len(args) == 2:
+                # Two arguments - contract_id and data
+                contract_id, data = args
+            else:
+                self.logger.warning(
+                    f"Unexpected _forward_quote_update args: {len(args)} - {args}"
+                )
+                return
+
+            self.logger.debug(f"📨 Quote update forwarded: {contract_id}")
+            self._trigger_callbacks(
+                "quote_update", {"contract_id": contract_id, "data": data}
+            )
+        except Exception as e:
+            self.logger.error(f"Error in _forward_quote_update: {e}")
+            self.logger.debug(f"Args received: {args}")
+
+    def _forward_market_trade(self, *args):
         """Forward ProjectX GatewayTrade events to managers."""
-        self._update_stats()
-        self.logger.debug(f"📨 Market trade forwarded: {contract_id}")
-        self._trigger_callbacks(
-            "market_trade", {"contract_id": contract_id, "data": data}
-        )
+        try:
+            self._update_stats()
 
-    def _forward_market_depth(self, contract_id, data):
+            # Handle different SignalR callback signatures
+            if len(args) == 1:
+                # Single argument - the data payload
+                raw_data = args[0]
+                if isinstance(raw_data, list) and len(raw_data) >= 2:
+                    # SignalR format: [contract_id, actual_data_dict]
+                    contract_id = raw_data[0]
+                    data = raw_data[1]
+                elif isinstance(raw_data, dict):
+                    contract_id = raw_data.get("symbolId", "unknown")
+                    data = raw_data
+                else:
+                    contract_id = "unknown"
+                    data = raw_data
+            elif len(args) == 2:
+                # Two arguments - contract_id and data
+                contract_id, data = args
+            else:
+                self.logger.warning(
+                    f"Unexpected _forward_market_trade args: {len(args)} - {args}"
+                )
+                return
+
+            self.logger.debug(f"📨 Market trade forwarded: {contract_id}")
+            self._trigger_callbacks(
+                "market_trade", {"contract_id": contract_id, "data": data}
+            )
+        except Exception as e:
+            self.logger.error(f"Error in _forward_market_trade: {e}")
+            self.logger.debug(f"Args received: {args}")
+
+    def _forward_market_depth(self, *args):
         """Forward ProjectX GatewayDepth events to managers."""
-        self._update_stats()
-        self.logger.debug(f"📨 Market depth forwarded: {contract_id}")
-        self._trigger_callbacks(
-            "market_depth", {"contract_id": contract_id, "data": data}
-        )
+        try:
+            self._update_stats()
+
+            # Handle different SignalR callback signatures
+            if len(args) == 1:
+                # Single argument - the data payload
+                raw_data = args[0]
+                if isinstance(raw_data, list) and len(raw_data) >= 2:
+                    # SignalR format: [contract_id, actual_data_dict]
+                    contract_id = raw_data[0]
+                    data = raw_data[1]
+                elif isinstance(raw_data, dict):
+                    contract_id = raw_data.get("contractId", "unknown")
+                    data = raw_data
+                else:
+                    contract_id = "unknown"
+                    data = raw_data
+            elif len(args) == 2:
+                # Two arguments - contract_id and data
+                contract_id, data = args
+            else:
+                self.logger.warning(
+                    f"Unexpected _forward_market_depth args: {len(args)} - {args}"
+                )
+                return
+
+            self.logger.debug(f"📨 Market depth forwarded: {contract_id}")
+            self._trigger_callbacks(
+                "market_depth", {"contract_id": contract_id, "data": data}
+            )
+        except Exception as e:
+            self.logger.error(f"Error in _forward_market_depth: {e}")
+            self.logger.debug(f"Args received: {args}")
 
     def _update_stats(self):
         """Update basic statistics."""

@@ -1,18 +1,12 @@
 """Test order status tracking functionality."""
 
-import time
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, Mock, patch
+from datetime import UTC, datetime
+from unittest.mock import Mock, patch
 
 import pytest
 
 from project_x_py import ProjectX
-from project_x_py.exceptions import (
-    ProjectXConnectionError,
-    ProjectXError,
-    ProjectXOrderError,
-)
-from project_x_py.models import Account, Instrument, Order, OrderPlaceResponse, Position
+from project_x_py.models import Account, Order
 from project_x_py.order_manager import OrderManager
 
 
@@ -58,7 +52,7 @@ class TestOrderStatusTracking:
             "id": 12345,
             "accountId": 1001,
             "contractId": "ES",
-            "creationTimestamp": datetime.now(timezone.utc).isoformat(),
+            "creationTimestamp": datetime.now(UTC).isoformat(),
             "updateTimestamp": None,
             "status": 1,  # Pending
             "type": 1,  # Limit
@@ -100,8 +94,8 @@ class TestOrderStatusTracking:
             id=12345,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=2,  # Filled
             type=1,  # Limit
             side=0,  # Buy
@@ -125,7 +119,7 @@ class TestOrderStatusTracking:
             id=12345,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
             updateTimestamp=None,
             status=1,  # Pending
             type=1,  # Limit
@@ -154,7 +148,7 @@ class TestOrderStatusTracking:
                         "id": 12345,
                         "accountId": 1001,
                         "contractId": "ES",
-                        "creationTimestamp": datetime.now(timezone.utc).isoformat(),
+                        "creationTimestamp": datetime.now(UTC).isoformat(),
                         "updateTimestamp": None,
                         "status": 1,
                         "type": 1,
@@ -168,7 +162,7 @@ class TestOrderStatusTracking:
                         "id": 12346,
                         "accountId": 1001,
                         "contractId": "NQ",
-                        "creationTimestamp": datetime.now(timezone.utc).isoformat(),
+                        "creationTimestamp": datetime.now(UTC).isoformat(),
                         "updateTimestamp": None,
                         "status": 1,
                         "type": 2,
@@ -202,7 +196,7 @@ class TestOrderStatusTracking:
                         "id": 12345,
                         "accountId": 1001,
                         "contractId": "ES",
-                        "creationTimestamp": datetime.now(timezone.utc).isoformat(),
+                        "creationTimestamp": datetime.now(UTC).isoformat(),
                         "updateTimestamp": None,
                         "status": 1,
                         "type": 1,
@@ -236,7 +230,7 @@ class TestOrderStatusTracking:
             id=order_id,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
             updateTimestamp=None,
             status=1,  # Pending
             type=1,  # Limit
@@ -252,8 +246,8 @@ class TestOrderStatusTracking:
             id=order_id,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=1,  # Still pending
             type=1,  # Limit
             side=0,  # Buy
@@ -268,8 +262,8 @@ class TestOrderStatusTracking:
             id=order_id,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=2,  # Filled
             type=1,  # Limit
             side=0,  # Buy
@@ -303,8 +297,8 @@ class TestOrderStatusTracking:
             id=12345,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=4,  # Rejected
             type=1,  # Limit
             side=0,  # Buy
@@ -329,8 +323,8 @@ class TestOrderStatusTracking:
             id=12345,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=3,  # Cancelled
             type=1,  # Limit
             side=0,  # Buy
@@ -373,8 +367,8 @@ class TestOrderStatusTracking:
             "id": 12345,
             "accountId": 1001,
             "contractId": "ES",
-            "creationTimestamp": datetime.now(timezone.utc).isoformat(),
-            "updateTimestamp": datetime.now(timezone.utc).isoformat(),
+            "creationTimestamp": datetime.now(UTC).isoformat(),
+            "updateTimestamp": datetime.now(UTC).isoformat(),
             "status": 2,  # Filled
             "type": 1,
             "side": 0,

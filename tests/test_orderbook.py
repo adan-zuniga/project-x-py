@@ -3,14 +3,8 @@ Test suite for OrderBook functionality
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
 
-import polars as pl
-import pytest
-
-from project_x_py.exceptions import ProjectXError
 from project_x_py.orderbook import OrderBook
-from project_x_py.realtime import ProjectXRealtimeClient
 
 
 class TestOrderBook:

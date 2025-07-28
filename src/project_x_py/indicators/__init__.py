@@ -117,8 +117,10 @@ from .overlap import (
 from .volatility import (
     ATR as ATRIndicator,
     NATR as NATRIndicator,
+    STDDEV as STDDEVIndicator,
     TRANGE as TRANGEIndicator,
     calculate_atr,
+    calculate_stddev,
 )
 
 # Volume Indicators
@@ -132,7 +134,7 @@ from .volume import (
 )
 
 # Version info
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 __author__ = "TexasCoding"
 
 
@@ -653,6 +655,11 @@ def TRANGE(data, high_column="high", low_column="low", close_column="close"):
     )
 
 
+def STDDEV(data, column="close", period=5, ddof=1):
+    """Standard Deviation (TA-Lib style)."""
+    return calculate_stddev(data, column=column, period=period, ddof=ddof)
+
+
 # Volume Indicators
 def OBV(data, close_column="close", volume_column="volume"):
     """On-Balance Volume (TA-Lib style)."""
@@ -771,7 +778,7 @@ def get_indicator_groups():
             "TRIX",
             "ULTOSC",
         ],
-        "volatility": ["ATR", "NATR", "TRANGE"],
+        "volatility": ["ATR", "NATR", "TRANGE", "STDDEV"],
         "volume": ["OBV", "VWAP", "AD", "ADOSC"],
     }
 
@@ -841,6 +848,7 @@ def get_indicator_info(indicator_name):
         "ATR": "Average True Range - measures market volatility by analyzing the range of price movements",
         "NATR": "Normalized Average True Range - ATR as percentage of closing price",
         "TRANGE": "True Range - measures the actual range of price movement for a single period",
+        "STDDEV": "Standard Deviation - measures the dispersion of prices from the mean",
         # Volume Indicators
         "OBV": "On-Balance Volume - cumulative indicator relating volume to price change",
         "VWAP": "Volume Weighted Average Price - average price weighted by volume",
@@ -931,4 +939,6 @@ __all__ = [
     "get_indicator_groups",
     "get_indicator_info",
     "safe_division",
+    "STDDEV",
+    "calculate_stddev",
 ]

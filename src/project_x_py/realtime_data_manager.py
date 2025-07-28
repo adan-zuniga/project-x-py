@@ -29,6 +29,7 @@ Architecture:
 import asyncio
 import contextlib
 import gc
+import json
 import logging
 import threading
 import time
@@ -215,8 +216,16 @@ class ProjectXRealtimeDataManager:
             "5min": {"interval": 5, "unit": 2, "name": "5min"},
             "15min": {"interval": 15, "unit": 2, "name": "15min"},
             "30min": {"interval": 30, "unit": 2, "name": "30min"},
-            "1hr": {"interval": 60, "unit": 3, "name": "1hr"},
-            "4hr": {"interval": 240, "unit": 3, "name": "4hr"},
+            "1hr": {
+                "interval": 60,
+                "unit": 2,
+                "name": "1hr",
+            },  # 60 minutes in unit 2 (minutes)
+            "4hr": {
+                "interval": 240,
+                "unit": 2,
+                "name": "4hr",
+            },  # 240 minutes in unit 2 (minutes)
             "1day": {"interval": 1, "unit": 4, "name": "1day"},
             "1week": {"interval": 1, "unit": 5, "name": "1week"},
             "1month": {"interval": 1, "unit": 6, "name": "1month"},
@@ -496,10 +505,16 @@ class ProjectXRealtimeDataManager:
                         f"✅ Loaded {len(data)} bars of {interval}-{unit_name} OHLCV data"
                     )
                 else:
-                    self.logger.error(
-                        f"❌ Failed to load {interval}-{unit_name} historical data"
+                    self.logger.warning(
+                        f"❌ Failed to load {interval}-{unit_name} historical data - skipping this timeframe"
                     )
-                    return False
+                    # Continue with other timeframes instead of failing completely
+                    continue
+
+            # Check if we have at least one timeframe loaded
+            if not self.data:
+                self.logger.error("❌ No timeframes loaded successfully")
+                return False
 
             # Get contract ID for real-time subscriptions
             instrument_obj = self.project_x.get_instrument(self.instrument)
@@ -510,7 +525,11 @@ class ProjectXRealtimeDataManager:
                 self.logger.error(f"❌ Failed to get contract ID for {self.instrument}")
                 return False
 
+            loaded_timeframes = list(self.data.keys())
             self.logger.info("✅ Real-time OHLCV data manager initialization complete")
+            self.logger.info(
+                f"✅ Successfully loaded timeframes: {', '.join(loaded_timeframes)}"
+            )
             return True
 
         except Exception as e:
@@ -574,12 +593,16 @@ class ProjectXRealtimeDataManager:
 
             # The realtime client should already be connected and subscribed
             # We just need to ensure our contract is in the subscription list
-            success = self.realtime_client.subscribe_market_data([self.contract_id])
-            if not success:
-                self.logger.warning(
-                    f"⚠️ Failed to subscribe to market data for {self.contract_id} (may already be subscribed)"
-                )
-                # Don't return False here as the subscription might already exist
+            try:
+                success = self.realtime_client.subscribe_market_data([self.contract_id])
+                if not success:
+                    self.logger.warning(
+                        f"⚠️ Failed to subscribe to market data for {self.contract_id} (may already be subscribed or connection not ready)"
+                    )
+                    # Don't return False here as the subscription might already exist or connection might establish later
+            except Exception as e:
+                self.logger.warning(f"⚠️ Error subscribing to market data: {e}")
+                # Continue anyway as the connection might establish later
 
             self.is_running = True
             self.logger.info("✅ Real-time OHLCV data feed started successfully")
@@ -627,7 +650,7 @@ class ProjectXRealtimeDataManager:
         except Exception as e:
             self.logger.error(f"❌ Error stopping real-time feed: {e}")
 
-    def _on_quote_update(self, data: dict):
+    def _on_quote_update(self, callback_data: dict):
         """
         Handle real-time quote updates for OHLCV data processing.
 
@@ -652,11 +675,26 @@ class ProjectXRealtimeDataManager:
             data: Quote update data containing price information
         """
         try:
-            # According to ProjectX docs, the payload IS the quote data directly
-            quote_data = data
+            # Extract the actual quote data from the callback structure
+            data = (
+                callback_data.get("data", {}) if isinstance(callback_data, dict) else {}
+            )
+            contract_id = (
+                callback_data.get("contract_id", "unknown")
+                if isinstance(callback_data, dict)
+                else "unknown"
+            )
 
-            # Validate payload format
-            if not self._validate_quote_payload(quote_data):
+            # Debug log to see what we're actually receiving
+            self.logger.debug(
+                f"Quote callback - callback_data type: {type(callback_data)}, data type: {type(data)}"
+            )
+            self.logger.debug(f"Quote callback - data content: {str(data)[:200]}...")
+
+            # According to ProjectX docs, the payload IS the quote data directly
+            # Parse and validate payload format, handling strings, lists and dicts
+            quote_data = self._parse_and_validate_quote_payload(data)
+            if quote_data is None:
                 return
 
             # Check if this quote is for our tracked instrument
@@ -708,9 +746,9 @@ class ProjectXRealtimeDataManager:
 
         except Exception as e:
             self.logger.error(f"Error processing quote update for OHLCV: {e}")
-            self.logger.debug(f"Quote data that caused error: {data}")
+            self.logger.debug(f"Callback data that caused error: {callback_data}")
 
-    def _on_market_trade(self, data: dict) -> None:
+    def _on_market_trade(self, callback_data: dict) -> None:
         """
         Process market trade data for OHLCV updates.
 
@@ -727,11 +765,26 @@ class ProjectXRealtimeDataManager:
             data: Market trade data
         """
         try:
-            # According to ProjectX docs, the payload IS the trade data directly
-            trade_data = data
+            # Extract the actual trade data from the callback structure
+            data = (
+                callback_data.get("data", {}) if isinstance(callback_data, dict) else {}
+            )
+            contract_id = (
+                callback_data.get("contract_id", "unknown")
+                if isinstance(callback_data, dict)
+                else "unknown"
+            )
 
-            # Validate payload format
-            if not self._validate_trade_payload(trade_data):
+            # Debug log to see what we're actually receiving
+            self.logger.debug(
+                f"Trade callback - callback_data type: {type(callback_data)}, data type: {type(data)}"
+            )
+            self.logger.debug(f"Trade callback - data content: {str(data)[:200]}...")
+
+            # According to ProjectX docs, the payload IS the trade data directly
+            # Parse and validate payload format, handling strings, lists and dicts
+            trade_data = self._parse_and_validate_trade_payload(data)
+            if trade_data is None:
                 return
 
             # Check if this trade is for our tracked instrument
@@ -765,7 +818,7 @@ class ProjectXRealtimeDataManager:
 
         except Exception as e:
             self.logger.error(f"❌ Error processing market trade for OHLCV: {e}")
-            self.logger.debug(f"Trade data that caused error: {data}")
+            self.logger.debug(f"Callback data that caused error: {callback_data}")
 
     def _update_timeframe_data(
         self, tf_key: str, timestamp: datetime, price: float, volume: int
@@ -1378,12 +1431,23 @@ class ProjectXRealtimeDataManager:
                 return False
 
             # Check realtime client connection
-            if not self.realtime_client or not self.realtime_client.is_connected():
-                self.logger.warning("Health check: Realtime client not connected")
+            if not self.realtime_client:
+                self.logger.warning("Health check: No realtime client available")
                 return False
 
-            # Check if we have recent data
-            current_time = datetime.now()
+            try:
+                is_connected = self.realtime_client.is_connected()
+                if not is_connected:
+                    self.logger.warning("Health check: Realtime client not connected")
+                    return False
+            except Exception as e:
+                self.logger.warning(
+                    f"Health check: Error checking connection status: {e}"
+                )
+                return False
+
+            # Check if we have recent data - use timezone-aware datetime
+            current_time = datetime.now(self.timezone)
 
             with self.data_lock:
                 for tf_key, data in self.data.items():
@@ -1394,11 +1458,15 @@ class ProjectXRealtimeDataManager:
                         return False
 
                     latest_time = data.select(pl.col("timestamp")).tail(1).item()
-                    # Convert to datetime for comparison if needed
+                    # Convert to timezone-aware datetime for comparison
                     if hasattr(latest_time, "to_pydatetime"):
                         latest_time = latest_time.to_pydatetime()
                     elif hasattr(latest_time, "tz_localize"):
-                        latest_time = latest_time.tz_localize(None)
+                        latest_time = latest_time.tz_localize(self.timezone)
+
+                    # Ensure latest_time is timezone-aware
+                    if latest_time.tzinfo is None:
+                        latest_time = self.timezone.localize(latest_time)
 
                     time_diff = (current_time - latest_time).total_seconds()
 
@@ -1524,8 +1592,8 @@ class ProjectXRealtimeDataManager:
                 self.data.clear()
                 self.last_bar_times.clear()
 
-            # Reload historical data
-            success = self.initialize()
+            # Reload historical data (use 1 day for refresh to be conservative)
+            success = self.initialize(initial_days=1)
 
             # Restart real-time feed if it was running
             if was_running and success:
@@ -1542,7 +1610,62 @@ class ProjectXRealtimeDataManager:
             self.logger.error(f"❌ Error during OHLCV data refresh: {e}")
             return False
 
-    def _validate_quote_payload(self, quote_data: dict) -> bool:
+    def _parse_and_validate_quote_payload(self, quote_data):
+        """Parse and validate quote payload, returning the parsed data or None if invalid."""
+        # Handle string payloads - parse JSON if it's a string
+        if isinstance(quote_data, str):
+            try:
+                self.logger.debug(
+                    f"Attempting to parse quote JSON string: {quote_data[:200]}..."
+                )
+                quote_data = json.loads(quote_data)
+                self.logger.debug(
+                    f"Successfully parsed JSON string payload: {type(quote_data)}"
+                )
+            except (json.JSONDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse quote payload JSON: {e}")
+                self.logger.warning(f"Quote payload content: {quote_data[:500]}...")
+                return None
+
+        # Handle list payloads - SignalR sends [contract_id, data_dict]
+        if isinstance(quote_data, list):
+            if not quote_data:
+                self.logger.warning("Quote payload is an empty list")
+                return None
+            if len(quote_data) >= 2:
+                # SignalR format: [contract_id, actual_data_dict]
+                quote_data = quote_data[1]
+                self.logger.debug(
+                    f"Using second item from SignalR quote list: {type(quote_data)}"
+                )
+            else:
+                # Fallback: use first item if only one element
+                quote_data = quote_data[0]
+                self.logger.debug(
+                    f"Using first item from quote list: {type(quote_data)}"
+                )
+
+        if not isinstance(quote_data, dict):
+            self.logger.warning(
+                f"Quote payload is not a dict after processing: {type(quote_data)}"
+            )
+            self.logger.debug(f"Quote payload content: {quote_data}")
+            return None
+
+        # More flexible validation - only require symbol and timestamp
+        # Different quote types have different data (some may not have all price fields)
+        required_fields = {"symbol", "timestamp"}
+        missing_fields = required_fields - set(quote_data.keys())
+        if missing_fields:
+            self.logger.warning(
+                f"Quote payload missing required fields: {missing_fields}"
+            )
+            self.logger.debug(f"Available fields: {list(quote_data.keys())}")
+            return None
+
+        return quote_data
+
+    def _validate_quote_payload(self, quote_data) -> bool:
         """
         Validate that quote payload matches ProjectX GatewayQuote format.
 
@@ -1567,22 +1690,108 @@ class ProjectXRealtimeDataManager:
         Returns:
             bool: True if payload format is valid
         """
-        required_fields = {"symbol", "lastPrice", "bestBid", "bestAsk", "timestamp"}
+        # Handle string payloads - parse JSON if it's a string
+        if isinstance(quote_data, str):
+            try:
+                quote_data = json.loads(quote_data)
+                self.logger.debug(f"Parsed JSON string payload: {type(quote_data)}")
+            except (json.JSONDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse quote payload JSON: {e}")
+                self.logger.debug(f"Quote payload content: {quote_data}")
+                return False
+
+        # Handle list payloads - take the first item if it's a list
+        if isinstance(quote_data, list):
+            if not quote_data:
+                self.logger.warning("Quote payload is an empty list")
+                return False
+            # Use the first item in the list
+            quote_data = quote_data[0]
+            self.logger.debug(f"Using first item from quote list: {type(quote_data)}")
 
         if not isinstance(quote_data, dict):
-            self.logger.warning(f"Quote payload is not a dict: {type(quote_data)}")
+            self.logger.warning(
+                f"Quote payload is not a dict after processing: {type(quote_data)}"
+            )
+            self.logger.debug(f"Quote payload content: {quote_data}")
             return False
 
+        required_fields = {"symbol", "lastPrice", "bestBid", "bestAsk", "timestamp"}
         missing_fields = required_fields - set(quote_data.keys())
         if missing_fields:
             self.logger.warning(
                 f"Quote payload missing required fields: {missing_fields}"
             )
+            self.logger.debug(f"Available fields: {list(quote_data.keys())}")
             return False
 
         return True
 
-    def _validate_trade_payload(self, trade_data: dict) -> bool:
+    def _parse_and_validate_trade_payload(self, trade_data):
+        """Parse and validate trade payload, returning the parsed data or None if invalid."""
+        # Handle string payloads - parse JSON if it's a string
+        if isinstance(trade_data, str):
+            try:
+                self.logger.debug(
+                    f"Attempting to parse trade JSON string: {trade_data[:200]}..."
+                )
+                trade_data = json.loads(trade_data)
+                self.logger.debug(
+                    f"Successfully parsed JSON string payload: {type(trade_data)}"
+                )
+            except (json.JSONDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse trade payload JSON: {e}")
+                self.logger.warning(f"Trade payload content: {trade_data[:500]}...")
+                return None
+
+        # Handle list payloads - SignalR sends [contract_id, data_dict]
+        if isinstance(trade_data, list):
+            if not trade_data:
+                self.logger.warning("Trade payload is an empty list")
+                return None
+            if len(trade_data) >= 2:
+                # SignalR format: [contract_id, actual_data_dict]
+                trade_data = trade_data[1]
+                self.logger.debug(
+                    f"Using second item from SignalR trade list: {type(trade_data)}"
+                )
+            else:
+                # Fallback: use first item if only one element
+                trade_data = trade_data[0]
+                self.logger.debug(
+                    f"Using first item from trade list: {type(trade_data)}"
+                )
+
+        # Handle nested list case: trade data might be wrapped in another list
+        if (
+            isinstance(trade_data, list)
+            and trade_data
+            and isinstance(trade_data[0], dict)
+        ):
+            trade_data = trade_data[0]
+            self.logger.debug(
+                f"Using first item from nested trade list: {type(trade_data)}"
+            )
+
+        if not isinstance(trade_data, dict):
+            self.logger.warning(
+                f"Trade payload is not a dict after processing: {type(trade_data)}"
+            )
+            self.logger.debug(f"Trade payload content: {trade_data}")
+            return None
+
+        required_fields = {"symbolId", "price", "timestamp", "volume"}
+        missing_fields = required_fields - set(trade_data.keys())
+        if missing_fields:
+            self.logger.warning(
+                f"Trade payload missing required fields: {missing_fields}"
+            )
+            self.logger.debug(f"Available fields: {list(trade_data.keys())}")
+            return None
+
+        return trade_data
+
+    def _validate_trade_payload(self, trade_data) -> bool:
         """
         Validate that trade payload matches ProjectX GatewayTrade format.
 
@@ -1599,17 +1808,39 @@ class ProjectXRealtimeDataManager:
         Returns:
             bool: True if payload format is valid
         """
-        required_fields = {"symbolId", "price", "timestamp", "volume"}
+        # Handle string payloads - parse JSON if it's a string
+        if isinstance(trade_data, str):
+            try:
+                trade_data = json.loads(trade_data)
+                self.logger.debug(f"Parsed JSON string payload: {type(trade_data)}")
+            except (json.JSONDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse trade payload JSON: {e}")
+                self.logger.debug(f"Trade payload content: {trade_data}")
+                return False
+
+        # Handle list payloads - take the first item if it's a list
+        if isinstance(trade_data, list):
+            if not trade_data:
+                self.logger.warning("Trade payload is an empty list")
+                return False
+            # Use the first item in the list
+            trade_data = trade_data[0]
+            self.logger.debug(f"Using first item from trade list: {type(trade_data)}")
 
         if not isinstance(trade_data, dict):
-            self.logger.warning(f"Trade payload is not a dict: {type(trade_data)}")
+            self.logger.warning(
+                f"Trade payload is not a dict after processing: {type(trade_data)}"
+            )
+            self.logger.debug(f"Trade payload content: {trade_data}")
             return False
 
+        required_fields = {"symbolId", "price", "timestamp", "volume"}
         missing_fields = required_fields - set(trade_data.keys())
         if missing_fields:
             self.logger.warning(
                 f"Trade payload missing required fields: {missing_fields}"
             )
+            self.logger.debug(f"Available fields: {list(trade_data.keys())}")
             return False
 
         # Validate TradeLogType enum (Buy=0, Sell=1)

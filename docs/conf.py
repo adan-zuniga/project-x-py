@@ -3,7 +3,6 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
 import sys
 from pathlib import Path
 
@@ -24,8 +23,8 @@ sys.path.insert(0, str(src_dir))
 project = "project-x-py"
 copyright = "2025, Jeff West"
 author = "Jeff West"
-release = "1.1.1"
-version = "1.1.1"
+release = "1.1.2"
+version = "1.1.2"
 
 # -- General configuration ---------------------------------------------------
 
@@ -199,7 +198,7 @@ html_favicon = "_static/favicon.ico"
 
 # SEO
 html_title = f"ProjectX Python SDK {version} documentation"
-html_short_title = f"ProjectX Python SDK docs"
+html_short_title = "ProjectX Python SDK docs"
 
 # GitHub integration
 html_context = {

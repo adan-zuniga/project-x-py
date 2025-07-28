@@ -3,13 +3,9 @@ Test suite for Position Manager tracking functionality
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, Mock, patch
-
-import polars as pl
-import pytest
+from unittest.mock import Mock
 
 from project_x_py import ProjectX
-from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Fill, Position
 from project_x_py.position_manager import PositionManager
 
