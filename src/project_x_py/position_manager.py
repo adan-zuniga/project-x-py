@@ -274,23 +274,28 @@ class PositionManager:
         - type=1 means "Long", type=2 means "Short"
         """
         try:
-            # According to ProjectX docs, the payload IS the position data directly
-            # No need to extract from "data" field
+            # Handle wrapped position data from real-time updates
+            # Real-time updates come as: {"action": 1, "data": {position_data}}
+            # But direct API calls might provide raw position data
+            actual_position_data = position_data
+            if "action" in position_data and "data" in position_data:
+                actual_position_data = position_data["data"]
+                self.logger.debug(f"Extracted position data from wrapper: action={position_data.get('action')}")
 
             # Validate payload format
-            if not self._validate_position_payload(position_data):
-                self.logger.error(f"Invalid position payload format: {position_data}")
+            if not self._validate_position_payload(actual_position_data):
+                self.logger.error(f"Invalid position payload format: {actual_position_data}")
                 return
 
-            contract_id = position_data.get("contractId")
+            contract_id = actual_position_data.get("contractId")
             if not contract_id:
-                self.logger.error(f"No contract ID found in {position_data}")
+                self.logger.error(f"No contract ID found in {actual_position_data}")
                 return
 
             # Check if this is a position closure
             # Position is closed when size == 0 (not when type == 0)
             # type=0 means "Undefined" according to PositionType enum, not closed
-            position_size = position_data.get("size", 0)
+            position_size = actual_position_data.get("size", 0)
             is_position_closed = position_size == 0
 
             # Get the old position before updating
@@ -309,11 +314,11 @@ class PositionManager:
                     self.order_manager.on_position_closed(contract_id)
 
                 # Trigger position_closed callbacks with the closure data
-                self._trigger_callbacks("position_closed", {"data": position_data})
+                self._trigger_callbacks("position_closed", {"data": actual_position_data})
             else:
                 # Position is open/updated - create or update position
                 # ProjectX payload structure matches our Position model fields
-                position = Position(**position_data)
+                position = Position(**actual_position_data)
                 self.tracked_positions[contract_id] = position
 
                 # Synchronize orders - update order sizes if position size changed
@@ -330,7 +335,7 @@ class PositionManager:
                 self.position_history[contract_id].append(
                     {
                         "timestamp": datetime.now(),
-                        "position": position_data.copy(),
+                        "position": actual_position_data.copy(),
                         "size_change": position_size - old_size,
                     }
                 )
