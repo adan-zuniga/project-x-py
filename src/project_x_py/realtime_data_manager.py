@@ -1214,7 +1214,22 @@ class ProjectXRealtimeDataManager:
             # If no fast timeframes available, use the fastest of any configured timeframes
             if not fastest_tf and self.timeframes:
                 # Order timeframes by frequency (fastest first)
-                timeframe_order = ["5sec", "15sec", "30sec", "1min", "5min", "15min", "30min", "1hr", "2hr", "4hr", "6hr", "8hr", "12hr", "1day"]
+                timeframe_order = [
+                    "5sec",
+                    "15sec",
+                    "30sec",
+                    "1min",
+                    "5min",
+                    "15min",
+                    "30min",
+                    "1hr",
+                    "2hr",
+                    "4hr",
+                    "6hr",
+                    "8hr",
+                    "12hr",
+                    "1day",
+                ]
                 for tf in timeframe_order:
                     if tf in self.timeframes:
                         fastest_tf = tf
