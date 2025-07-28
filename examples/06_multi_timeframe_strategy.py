@@ -653,11 +653,24 @@ def main():
             print("   Position Details:")
             for pos in final_positions:
                 direction = "LONG" if pos.type == 1 else "SHORT"
-                pnl_info = position_manager.get_position_pnl(pos.contractId)
-                pnl = pnl_info.get("unrealized_pnl", 0) if pnl_info else 0
-                print(
-                    f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: ${pnl:+.2f})"
-                )
+                
+                # Get current price for P&L calculation
+                try:
+                    current_price = data_manager.get_current_price()
+                    if current_price:
+                        pnl_info = position_manager.calculate_position_pnl(pos, current_price)
+                        pnl = pnl_info.get("unrealized_pnl", 0) if pnl_info else 0
+                        print(
+                            f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: ${pnl:+.2f})"
+                        )
+                    else:
+                        print(
+                            f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: N/A)"
+                        )
+                except Exception as e:
+                    print(
+                        f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: Error - {e})"
+                    )
 
         # Show final signal analysis
         print("\n🧠 Final Strategy Analysis:")
