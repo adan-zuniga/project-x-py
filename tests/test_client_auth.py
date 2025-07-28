@@ -5,12 +5,12 @@ Priority: Critical
 """
 
 import os
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from project_x_py import ProjectX, ProjectXConfig
-from project_x_py.exceptions import ProjectXAuthenticationError, ProjectXError
+from project_x_py.exceptions import ProjectXAuthenticationError
 
 
 class TestAuthentication:

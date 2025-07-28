@@ -2,12 +2,9 @@
 Test suite for PositionManager initialization
 """
 
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import Mock
 
 from project_x_py import ProjectX
-from project_x_py.exceptions import ProjectXError
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
 

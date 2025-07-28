@@ -2,10 +2,9 @@
 Test suite for Utility Functions
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import polars as pl
-import pytest
 
 from project_x_py.utils import (
     align_price_to_tick,
@@ -16,8 +15,6 @@ from project_x_py.utils import (
     calculate_position_value,
     calculate_rsi,
     calculate_sma,
-    calculate_stochastic,
-    calculate_tick_value_in_price,
     convert_to_chicago_time,
     create_time_range,
     extract_symbol_from_contract_id,

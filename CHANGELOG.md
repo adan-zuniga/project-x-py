@@ -5,6 +5,23 @@ All notable changes to the ProjectX Python client will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2025-01-28
+
+### Enhanced
+- **🚀 OrderBook Performance Optimization**: Significant performance improvements for cluster detection
+  - **Dynamic Tick Size Detection**: OrderBook now uses real instrument metadata from ProjectX client
+  - **Cached Instrument Data**: Tick size fetched once during initialization, eliminating repeated API calls
+  - **Improved Cluster Analysis**: More accurate price tolerance based on actual instrument tick sizes
+  - **Backward Compatibility**: Maintains fallback to hardcoded values when client unavailable
+- **🔧 Factory Function Updates**: Enhanced `create_orderbook()` to accept ProjectX client reference
+  - **Better Integration**: OrderBook now integrates seamlessly with ProjectX client architecture
+  - **Dependency Injection**: Proper client reference passing for instrument metadata access
+
+### Fixed
+- **⚡ API Call Reduction**: Eliminated redundant `get_instrument()` calls during cluster detection
+- **🎯 Price Tolerance Accuracy**: Fixed hardcoded tick size assumptions with dynamic instrument lookup
+- **📊 Consistent Analysis**: OrderBook methods now use consistent, accurate tick size throughout lifecycle
+
 ## [1.1.0] - 2025-01-27
 
 ### Added

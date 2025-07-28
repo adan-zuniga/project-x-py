@@ -11,8 +11,6 @@ import pytest
 
 from project_x_py import ProjectX
 from project_x_py.exceptions import (
-    ProjectXDataError,
-    ProjectXError,
     ProjectXInstrumentError,
 )
 from project_x_py.models import Account, Instrument, Position

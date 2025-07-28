@@ -1,18 +1,12 @@
 """Test order modification and cancellation functionality."""
 
-from datetime import datetime, timezone
-from decimal import Decimal
-from unittest.mock import Mock, call, patch
+from datetime import UTC, datetime
+from unittest.mock import Mock, patch
 
 import pytest
 
 from project_x_py import ProjectX
-from project_x_py.exceptions import (
-    ProjectXConnectionError,
-    ProjectXError,
-    ProjectXOrderError,
-)
-from project_x_py.models import Account, Instrument, Order, OrderPlaceResponse, Position
+from project_x_py.models import Account, Instrument, Order
 from project_x_py.order_manager import OrderManager
 
 
@@ -58,7 +52,7 @@ class TestOrderModification:
             id=12345,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
             updateTimestamp=None,
             status=1,  # Pending
             type=1,  # Limit
@@ -128,7 +122,7 @@ class TestOrderModification:
             id=12346,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
             updateTimestamp=None,
             status=1,  # Pending
             type=4,  # Stop
@@ -209,8 +203,8 @@ class TestOrderModification:
             id=12347,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=2,  # Filled
             type=1,  # Limit
             side=0,  # Buy
@@ -242,8 +236,8 @@ class TestOrderModification:
             id=12348,
             accountId=1001,
             contractId="ES",
-            creationTimestamp=datetime.now(timezone.utc).isoformat(),
-            updateTimestamp=datetime.now(timezone.utc).isoformat(),
+            creationTimestamp=datetime.now(UTC).isoformat(),
+            updateTimestamp=datetime.now(UTC).isoformat(),
             status=3,  # Cancelled
             type=1,  # Limit
             side=0,  # Buy
@@ -370,7 +364,7 @@ class TestOrderModification:
                 id=12345,
                 accountId=1001,
                 contractId="ES",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=1,
@@ -384,7 +378,7 @@ class TestOrderModification:
                 id=12346,
                 accountId=1001,
                 contractId="NQ",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=2,
@@ -398,7 +392,7 @@ class TestOrderModification:
                 id=12347,
                 accountId=1001,
                 contractId="ES",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=4,
@@ -448,7 +442,7 @@ class TestOrderModification:
                 id=12345,
                 accountId=1001,
                 contractId="ES",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=1,
@@ -462,7 +456,7 @@ class TestOrderModification:
                 id=12347,
                 accountId=1001,
                 contractId="ES",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=4,
@@ -502,7 +496,7 @@ class TestOrderModification:
                 id=12345,
                 accountId=1001,
                 contractId="ES",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=1,
@@ -516,7 +510,7 @@ class TestOrderModification:
                 id=12346,
                 accountId=1001,
                 contractId="NQ",
-                creationTimestamp=datetime.now(timezone.utc).isoformat(),
+                creationTimestamp=datetime.now(UTC).isoformat(),
                 updateTimestamp=None,
                 status=1,
                 type=2,

@@ -21,11 +21,11 @@ Quick Start
 
 .. code-block:: python
 
-   from project_x_py import ProjectX, OrderBook
+   from project_x_py import ProjectX, create_orderbook
    
-   # Create client and orderbook
+   # Create client and orderbook with dynamic tick size detection
    client = ProjectX.from_env()
-   orderbook = OrderBook("MGC")
+   orderbook = create_orderbook("MGC", project_x=client)  # Uses real instrument metadata
    
    # Get real-time market depth (requires real-time data subscription)
    snapshot = orderbook.get_orderbook_snapshot(levels=10)

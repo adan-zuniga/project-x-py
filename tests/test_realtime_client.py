@@ -4,11 +4,10 @@ Phase 1: Critical Core Testing - Real-time Client Connection
 Priority: Critical
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-from project_x_py.exceptions import ProjectXConnectionError
 from project_x_py.realtime import SIGNALR_AVAILABLE, ProjectXRealtimeClient
 
 # Skip tests if SignalR is not available

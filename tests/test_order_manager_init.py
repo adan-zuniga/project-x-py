@@ -9,7 +9,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from project_x_py import OrderManager, ProjectX, create_order_manager
-from project_x_py.exceptions import ProjectXError
 from project_x_py.realtime import ProjectXRealtimeClient
 
 

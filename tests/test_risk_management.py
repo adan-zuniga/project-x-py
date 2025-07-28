@@ -2,13 +2,13 @@
 Test suite for Risk Management features
 """
 
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from datetime import datetime
+from unittest.mock import Mock
 
 import pytest
 
 from project_x_py import ProjectX
-from project_x_py.exceptions import ProjectXOrderError, ProjectXRiskError
+from project_x_py.exceptions import ProjectXRiskError
 from project_x_py.models import Fill, Instrument, Order, Position
 from project_x_py.order_manager import OrderManager
 from project_x_py.position_manager import PositionManager

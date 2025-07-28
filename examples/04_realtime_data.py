@@ -229,13 +229,10 @@ def monitor_realtime_feed(data_manager, duration_seconds=60):
                 # Health check
                 try:
                     health = data_manager.health_check()
-                    if health.get("status") == "healthy":
+                    if health:
                         print("   ✅ System Health: Good")
                     else:
-                        issues = health.get("issues", [])
                         print("   ⚠️  System Health: Issues detected")
-                        for issue in issues:
-                            print(f"     • {issue}")
                 except Exception as e:
                     print(f"   ❌ Health check error: {e}")
 
@@ -265,6 +262,10 @@ def main():
     print("🚀 Real-time Data Streaming Example")
     print("=" * 60)
 
+    # Initialize variables for cleanup
+    data_manager = None
+    realtime_client = None
+
     try:
         # Initialize client
         print("🔑 Initializing ProjectX client...")
@@ -286,6 +287,16 @@ def main():
         try:
             jwt_token = client.get_session_token()
             realtime_client = create_realtime_client(jwt_token, str(account.id))
+
+            # Connect the realtime client
+            print("   Connecting to real-time WebSocket feeds...")
+            if realtime_client.connect():
+                print("   ✅ Real-time client connected successfully")
+            else:
+                print(
+                    "   ⚠️ Real-time client connection failed - continuing with limited functionality"
+                )
+
             data_manager = create_data_manager(
                 instrument="MNQ",
                 project_x=client,
@@ -451,13 +462,21 @@ def main():
         return False
     finally:
         # Cleanup
-        if "data_manager" in locals():
+        if data_manager is not None:
             try:
                 print("\n🧹 Stopping real-time feed...")
                 data_manager.stop_realtime_feed()
                 print("✅ Real-time feed stopped")
             except Exception as e:
                 print(f"⚠️  Stop feed warning: {e}")
+
+        if realtime_client is not None:
+            try:
+                print("🧹 Disconnecting real-time client...")
+                realtime_client.disconnect()
+                print("✅ Real-time client disconnected")
+            except Exception as e:
+                print(f"⚠️  Disconnect warning: {e}")
 
 
 if __name__ == "__main__":

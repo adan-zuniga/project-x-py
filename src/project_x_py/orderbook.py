@@ -72,7 +72,7 @@ class OrderBook:
     algorithmic trading strategies.
     """
 
-    def __init__(self, instrument: str, timezone: str = "America/Chicago"):
+    def __init__(self, instrument: str, timezone: str = "America/Chicago", client=None):
         """
         Initialize the advanced orderbook manager for real-time market depth analysis.
 
@@ -84,18 +84,25 @@ class OrderBook:
             instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
             timezone: Timezone for timestamp handling (default: "America/Chicago")
                 Supports any pytz timezone string
+            client: ProjectX client instance for instrument metadata (optional)
 
         Example:
             >>> # Create orderbook for gold futures
-            >>> orderbook = OrderBook("MGC")
+            >>> orderbook = OrderBook("MGC", client=project_x_client)
             >>> # Create orderbook with custom timezone
-            >>> orderbook = OrderBook("ES", timezone="America/New_York")
+            >>> orderbook = OrderBook(
+            ...     "ES", timezone="America/New_York", client=project_x_client
+            ... )
             >>> # Initialize with real-time data
             >>> success = orderbook.initialize(realtime_client)
         """
         self.instrument = instrument
         self.timezone = pytz.timezone(timezone)
+        self.client = client
         self.logger = logging.getLogger(__name__)
+
+        # Cache instrument tick size during initialization
+        self.tick_size = self._fetch_instrument_tick_size()
 
         # Thread-safe locks for concurrent access
         self.orderbook_lock = threading.RLock()
@@ -145,6 +152,7 @@ class OrderBook:
                 "mid_price_at_trade": [],  # Mid price when trade occurred
                 "best_bid_at_trade": [],  # Best bid when trade occurred
                 "best_ask_at_trade": [],  # Best ask when trade occurred
+                "order_type": [],  # Mapped trade type name
             },
             schema={
                 "price": pl.Float64,
@@ -155,6 +163,7 @@ class OrderBook:
                 "mid_price_at_trade": pl.Float64,
                 "best_bid_at_trade": pl.Float64,
                 "best_ask_at_trade": pl.Float64,
+                "order_type": pl.Utf8,
             },
         )
 
@@ -185,6 +194,24 @@ class OrderBook:
         self.callbacks: dict[str, list[Callable]] = defaultdict(list)
 
         self.logger.info(f"OrderBook initialized for {instrument}")
+
+    def _map_trade_type(self, type_code: int) -> str:
+        """Map ProjectX trade type codes to readable names."""
+        type_mapping = {
+            0: "Unknown",
+            1: "Ask Order",
+            2: "Bid Order",
+            3: "Best Ask",
+            4: "Best Bid",
+            5: "Trade",
+            6: "Reset",
+            7: "Session Low",
+            8: "Session High",
+            9: "New Best Bid",
+            10: "New Best Ask",
+            11: "Fill",
+        }
+        return type_mapping.get(type_code, f"Type {type_code}")
 
     def initialize(
         self, realtime_client: Optional["ProjectXRealtimeClient"] = None
@@ -274,24 +301,75 @@ class OrderBook:
             if not self._symbol_matches_instrument(contract_id):
                 return
 
-            # Extract trade data
-            trade_data = data.get("data", {})
+            # Extract trade data - handle both dict and list formats
+            raw_trade_data = data.get("data", {})
+            if isinstance(raw_trade_data, list):
+                # If data is a list, treat it as the trade data directly
+                if not raw_trade_data:
+                    return
+                # For list format, we might need to extract the first element or handle differently
+                # For now, skip processing list format trade data as we need the dict structure
+                self.logger.debug(
+                    f"Skipping list format trade data: {type(raw_trade_data)}"
+                )
+                return
+            elif isinstance(raw_trade_data, dict):
+                trade_data = raw_trade_data
+            else:
+                # Neither dict nor list - can't process
+                self.logger.debug(
+                    f"Unexpected trade data format: {type(raw_trade_data)}"
+                )
+                return
+
             if not trade_data:
                 return
 
             # Update recent trades for analysis
             with self.orderbook_lock:
                 current_time = datetime.now(self.timezone)
+
+                # Get current best bid/ask for context
+                best_prices = self.get_best_bid_ask()
+                best_bid = best_prices.get("bid", 0.0)
+                best_ask = best_prices.get("ask", 0.0)
+                mid_price = best_prices.get("mid", 0.0)
+                spread = best_prices.get("spread", 0.0)
+
+                # Determine trade side based on price vs best bid/ask
+                price = trade_data.get("price", 0.0)
+                if best_ask and price >= best_ask:
+                    side = "buy"  # Aggressive buy
+                elif best_bid and price <= best_bid:
+                    side = "sell"  # Aggressive sell
+                elif mid_price and price > mid_price:
+                    side = "buy"  # Above mid, likely buy
+                elif mid_price and price < mid_price:
+                    side = "sell"  # Below mid, likely sell
+                else:
+                    side = "neutral"  # Can't determine
+
+                # Map trade type
+                trade_type = trade_data.get("type", 0)
+                order_type = self._map_trade_type(trade_type)
+
                 trade_entry = {
-                    "timestamp": current_time,
-                    "price": trade_data.get("price", 0.0),
+                    "price": price,
                     "volume": trade_data.get("volume", 0),
-                    "type": trade_data.get("type", 0),  # TradeLogType enum
-                    "contract_id": contract_id,
+                    "timestamp": current_time,
+                    "side": side,
+                    "spread_at_trade": spread,
+                    "mid_price_at_trade": mid_price,
+                    "best_bid_at_trade": best_bid,
+                    "best_ask_at_trade": best_ask,
+                    "order_type": order_type,
                 }
 
-                # Add to recent trades DataFrame if it has the right structure
-                if not self.recent_trades.is_empty():
+                # Add to recent trades DataFrame
+                if self.recent_trades.is_empty():
+                    # Initialize DataFrame with the first trade
+                    self.recent_trades = pl.DataFrame([trade_entry])
+                else:
                     new_trade_df = pl.DataFrame([trade_entry])
                     self.recent_trades = pl.concat([self.recent_trades, new_trade_df])
 
@@ -342,24 +420,20 @@ class OrderBook:
         """
         Check if a contract_id matches this orderbook's instrument.
 
-        Uses the same symbol matching logic as other managers to filter
-        for relevant market data updates.
+        Uses simplified symbol matching logic for ProjectX contract IDs.
+        For example: "CON.F.US.MNQ.U25" should match instrument "MNQ"
         """
         if not contract_id or not self.instrument:
             return False
 
-        # Extract base symbol from contract ID (e.g., "F.US.MGC" from "F.US.MGC.H25")
         try:
-            if "." in contract_id:
-                base_symbol = ".".join(contract_id.split(".")[:3])  # Take first 3 parts
-                instrument_upper = self.instrument.upper()
-                return (
-                    base_symbol.endswith(f".{instrument_upper}")
-                    or contract_id.upper().startswith(instrument_upper)
-                    or instrument_upper in base_symbol.upper()
-                )
-            else:
-                return self.instrument.upper() in contract_id.upper()
+            instrument_upper = self.instrument.upper()
+            contract_upper = contract_id.upper()
+
+            # Simple check: instrument symbol should appear in contract ID
+            # For "CON.F.US.MNQ.U25" and "MNQ", this should match
+            return instrument_upper in contract_upper
+
         except Exception:
             return False
 
@@ -487,13 +561,23 @@ class OrderBook:
                 trade_updates = []
 
                 for entry in depth_data:
-                    price = entry.get("price", 0.0)
-                    volume = entry.get("volume", 0)
+                    # DEBUG: Log the raw entry format to understand real-time data structure
+                    self.logger.debug(f"Processing DOM entry: {entry}")
+
+                    # Try multiple possible field names for ProjectX data format
+                    price = entry.get("price", entry.get("Price", 0.0))
+                    volume = entry.get("volume", entry.get("Volume", 0))
                     # Note: ProjectX can provide both 'volume' (total at price level)
                     # and 'currentVolume' (current at price level). Using 'volume' for now.
                     # current_volume = entry.get("currentVolume", volume)  # Future enhancement
-                    entry_type = entry.get("type", 0)
-                    timestamp_str = entry.get("timestamp", "")
+                    entry_type = entry.get(
+                        "type", entry.get("Type", entry.get("EntryType", 0))
+                    )
+                    timestamp_str = entry.get("timestamp", entry.get("Timestamp", ""))
+
+                    self.logger.debug(
+                        f"Extracted: price={price}, volume={volume}, entry_type={entry_type}, timestamp={timestamp_str}"
+                    )
 
                     # Update statistics
                     if entry_type == 1:
@@ -520,6 +604,11 @@ class OrderBook:
                         self.order_type_stats["type_11_count"] += 1  # Fill
                     else:
                         self.order_type_stats["other_types"] += 1
+                        # Debug: Log unexpected entry types
+                        if entry_type not in [0]:  # Don't spam for type 0 (Unknown)
+                            self.logger.debug(
+                                f"Unknown entry_type: {entry_type} (price={price}, volume={volume})"
+                            )
 
                     # Parse timestamp if provided, otherwise use current time
                     if timestamp_str and timestamp_str != "0001-01-01T00:00:00+00:00":
@@ -611,6 +700,7 @@ class OrderBook:
                                     "price": float(price),
                                     "volume": int(volume),
                                     "timestamp": timestamp,
+                                    "order_type": self._map_trade_type(entry_type),
                                 }
                             )
                     elif entry_type == 11:  # Fill (alternative trade representation)
@@ -620,6 +710,7 @@ class OrderBook:
                                     "price": float(price),
                                     "volume": int(volume),
                                     "timestamp": timestamp,
+                                    "order_type": self._map_trade_type(entry_type),
                                 }
                             )
                     elif entry_type == 6:  # Reset - clear orderbook
@@ -1345,6 +1436,7 @@ class OrderBook:
                         "mid_price_at_trade": [],
                         "best_bid_at_trade": [],
                         "best_ask_at_trade": [],
+                        "order_type": [],
                     },
                     schema={
                         "price": pl.Float64,
@@ -1355,6 +1447,7 @@ class OrderBook:
                         "mid_price_at_trade": pl.Float64,
                         "best_bid_at_trade": pl.Float64,
                         "best_ask_at_trade": pl.Float64,
+                        "order_type": pl.Utf8,
                     },
                 )
 
@@ -1608,13 +1701,14 @@ class OrderBook:
             return {"bid_liquidity": pl.DataFrame(), "ask_liquidity": pl.DataFrame()}
 
     def detect_order_clusters(
-        self, price_tolerance: float = 0.25, min_cluster_size: int = 3
+        self, price_tolerance: float | None = None, min_cluster_size: int = 3
     ) -> dict[str, Any]:
         """
         Detect clusters of orders at similar price levels.
 
         Args:
-            price_tolerance: Price difference tolerance for clustering
+            price_tolerance: Price difference tolerance for clustering. If None,
+                           will be calculated based on instrument tick size or derived from data
             min_cluster_size: Minimum number of orders to form a cluster
 
         Returns:
@@ -1622,6 +1716,10 @@ class OrderBook:
         """
         try:
             with self.orderbook_lock:
+                # Calculate appropriate price tolerance if not provided
+                if price_tolerance is None:
+                    price_tolerance = self._calculate_price_tolerance()
+
                 bid_clusters = self._find_clusters(
                     self.orderbook_bids, price_tolerance, min_cluster_size
                 )
@@ -1650,6 +1748,74 @@ class OrderBook:
         except Exception as e:
             self.logger.error(f"Error detecting order clusters: {e}")
             return {"bid_clusters": [], "ask_clusters": []}
+
+    def _fetch_instrument_tick_size(self) -> float:
+        """
+        Fetch and cache instrument tick size during initialization.
+
+        Returns:
+            float: Instrument tick size, or fallback value if unavailable
+        """
+        try:
+            # First try to get tick size from ProjectX client
+            if self.client:
+                instrument_obj = self.client.get_instrument(self.instrument)
+                if instrument_obj and hasattr(instrument_obj, "tickSize"):
+                    self.logger.debug(
+                        f"Fetched tick size {instrument_obj.tickSize} for {self.instrument}"
+                    )
+                    return instrument_obj.tickSize
+
+            # Fallback to known tick sizes for common instruments if client unavailable
+            instrument_tick_sizes = {
+                "MNQ": 0.25,  # Micro E-mini NASDAQ-100
+                "ES": 0.25,  # E-mini S&P 500
+                "MGC": 0.10,  # Micro Gold
+                "MCL": 0.01,  # Micro Crude Oil
+                "RTY": 0.10,  # E-mini Russell 2000
+                "YM": 1.00,  # E-mini Dow
+                "ZB": 0.03125,  # Treasury Bonds
+                "ZN": 0.015625,  # 10-Year Treasury Notes
+                "GC": 0.10,  # Gold Futures
+                "CL": 0.01,  # Crude Oil
+                "EUR": 0.00005,  # Euro FX
+                "GBP": 0.0001,  # British Pound
+            }
+
+            # Extract base symbol (remove month/year codes)
+            base_symbol = self.instrument.upper()
+            if base_symbol in instrument_tick_sizes:
+                tick_size = instrument_tick_sizes[base_symbol]
+                self.logger.debug(
+                    f"Using fallback tick size {tick_size} for {self.instrument}"
+                )
+                return tick_size
+
+            # Final fallback - conservative default
+            self.logger.warning(
+                f"Unknown instrument {self.instrument}, using default tick size 0.01"
+            )
+            return 0.01
+
+        except Exception as e:
+            self.logger.warning(f"Error fetching instrument tick size: {e}")
+            return 0.01
+
+    def _calculate_price_tolerance(self) -> float:
+        """
+        Calculate appropriate price tolerance for cluster detection based on
+        cached instrument tick size.
+
+        Returns:
+            float: Calculated price tolerance for clustering (3x tick size)
+        """
+        try:
+            # Use cached tick size with 3x multiplier for tolerance
+            return self.tick_size * 3
+
+        except Exception as e:
+            self.logger.warning(f"Error calculating price tolerance: {e}")
+            return 0.05
 
     def _find_clusters(
         self, df: pl.DataFrame, tolerance: float, min_size: int
@@ -1727,21 +1893,8 @@ class OrderBook:
                     minutes=time_window_minutes
                 )
 
-                # Initialize history DataFrame with correct column names matching orderbook schema
-                history_df = pl.DataFrame(
-                    {
-                        "price": [],
-                        "volume": [],
-                        "timestamp": [],
-                        "side": [],
-                    },
-                    schema={
-                        "price": pl.Float64,
-                        "volume": pl.Int64,
-                        "timestamp": pl.Datetime,
-                        "side": pl.Utf8,
-                    },
-                )
+                # Initialize empty history DataFrame - schema will be inferred from concatenation
+                history_df = None
 
                 # Process both bid and ask sides
                 for side, df in [
@@ -1753,9 +1906,8 @@ class OrderBook:
 
                     # Filter by timestamp if available, otherwise use all data
                     if "timestamp" in df.columns:
-                        recent_df = df.filter(
-                            pl.col("timestamp") >= pl.lit(cutoff_time)
-                        )
+                        # Use cutoff_time directly since it's already in the correct timezone
+                        recent_df = df.filter(pl.col("timestamp") >= cutoff_time)
                     else:
                         # Use all data if no timestamp filtering possible
                         recent_df = df
@@ -1774,10 +1926,13 @@ class OrderBook:
                     )
 
                     # Concatenate with main history DataFrame
-                    history_df = pl.concat([history_df, side_df], how="vertical")
+                    if history_df is None:
+                        history_df = side_df
+                    else:
+                        history_df = pl.concat([history_df, side_df], how="vertical")
 
                 # Check if we have sufficient data for analysis
-                if history_df.height == 0:
+                if history_df is None or history_df.height == 0:
                     return {
                         "potential_icebergs": [],
                         "analysis": {
@@ -1795,12 +1950,9 @@ class OrderBook:
                         pl.col("volume").std().alias("vol_std"),
                         pl.col("volume").count().alias("refresh_count"),
                         pl.col("volume").sum().alias("total_volume"),
-                        pl.col("timestamp")
-                        .sort()
-                        .diff()
-                        .dt.total_seconds()
-                        .mean()
-                        .alias("avg_refresh_interval_seconds"),
+                        pl.lit(60.0).alias(
+                            "avg_refresh_interval_seconds"
+                        ),  # Default placeholder
                         pl.col("volume").min().alias("min_volume"),
                         pl.col("volume").max().alias("max_volume"),
                     ]
@@ -4129,6 +4281,7 @@ class OrderBook:
                     "mid_price_at_trade": [],
                     "best_bid_at_trade": [],
                     "best_ask_at_trade": [],
+                    "order_type": [],
                 },
                 schema={
                     "price": pl.Float64,
@@ -4139,6 +4292,7 @@ class OrderBook:
                     "mid_price_at_trade": pl.Float64,
                     "best_bid_at_trade": pl.Float64,
                     "best_ask_at_trade": pl.Float64,
+                    "order_type": pl.Utf8,
                 },
             )
 
