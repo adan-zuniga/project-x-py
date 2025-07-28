@@ -414,10 +414,11 @@ def main():
             print(f"❌ Failed to create trading suite: {e}")
             return False
 
-        # Initialize with historical data
+        # Initialize with historical data (need enough for 50-period SMA on 4hr timeframe)
         print("\n📚 Initializing with historical data...")
-        if data_manager.initialize(initial_days=10):
-            print("✅ Historical data loaded (10 days)")
+        # 50 periods * 4 hours = 200 hours ≈ 8.3 days, so load 15 days to be safe
+        if data_manager.initialize(initial_days=15):
+            print("✅ Historical data loaded (15 days)")
         else:
             print("❌ Failed to load historical data")
             return False
