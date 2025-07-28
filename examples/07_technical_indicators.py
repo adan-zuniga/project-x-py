@@ -146,7 +146,7 @@ def demonstrate_momentum_indicators(data):
 
         latest_rsi = data_with_rsi.tail(1)
         for row in latest_rsi.iter_rows(named=True):
-            rsi = row.get("rsi", 0)
+            rsi = row.get("rsi_14", 0)
 
             print(f"   RSI(14): {rsi:.2f}")
 
@@ -166,8 +166,8 @@ def demonstrate_momentum_indicators(data):
 
         latest_stoch = data_with_stoch.tail(1)
         for row in latest_stoch.iter_rows(named=True):
-            stoch_k = row.get("stoch_k", 0)
-            stoch_d = row.get("stoch_d", 0)
+            stoch_k = row.get("stoch_k_14", 0)
+            stoch_d = row.get("stoch_d_3", 0)
 
             print(f"   %K: {stoch_k:.2f}")
             print(f"   %D: {stoch_d:.2f}")
@@ -203,9 +203,9 @@ def demonstrate_volatility_indicators(data):
         latest_bb = data_with_bb.tail(1)
         for row in latest_bb.iter_rows(named=True):
             price = row["close"]
-            bb_upper = row.get("bb_upper", 0)
-            bb_middle = row.get("bb_middle", 0)
-            bb_lower = row.get("bb_lower", 0)
+            bb_upper = row.get("bb_upper_20", 0)
+            bb_middle = row.get("bb_middle_20", 0)
+            bb_lower = row.get("bb_lower_20", 0)
 
             print(f"   Current Price: ${price:.2f}")
             print(f"   Upper Band: ${bb_upper:.2f}")
@@ -213,10 +213,12 @@ def demonstrate_volatility_indicators(data):
             print(f"   Lower Band: ${bb_lower:.2f}")
 
             # Band position analysis
-            band_width = bb_upper - bb_lower
-            price_position = (price - bb_lower) / band_width * 100
-
-            print(f"   Price Position: {price_position:.1f}% of band width")
+            if bb_upper > bb_lower and bb_lower > 0:
+                band_width = bb_upper - bb_lower
+                price_position = (price - bb_lower) / band_width * 100
+                print(f"   Price Position: {price_position:.1f}% of band width")
+            else:
+                print("   Price Position: Cannot calculate (invalid band data)")
 
             if price >= bb_upper:
                 print("   🔴 Price at upper band (potential sell signal)")
@@ -234,7 +236,7 @@ def demonstrate_volatility_indicators(data):
 
         latest_atr = data_with_atr.tail(1)
         for row in latest_atr.iter_rows(named=True):
-            atr = row.get("atr", 0)
+            atr = row.get("atr_14", 0)
             price = row["close"]
 
             print(f"   ATR(14): ${atr:.2f}")
@@ -269,7 +271,7 @@ def demonstrate_volume_indicators(data):
 
         # Get last few values to see trend
         recent_obv = data_with_obv.tail(5)
-        obv_values = recent_obv.select("obv").to_list()
+        obv_values = recent_obv["obv"].to_list()
 
         current_obv = obv_values[-1] if obv_values else 0
         previous_obv = obv_values[-2] if len(obv_values) > 1 else 0
@@ -340,7 +342,7 @@ def demonstrate_multi_timeframe_indicators(data_manager):
             for row in latest.iter_rows(named=True):
                 price = row["close"]
                 sma_20 = row.get("sma_20", 0)
-                rsi = row.get("rsi", 0)
+                rsi = row.get("rsi_14", 0)
                 macd = row.get("macd", 0)
                 macd_signal = row.get("macd_signal", 0)
 
@@ -456,8 +458,8 @@ def create_comprehensive_analysis(data):
                     print(f"   ⚠️  RSI ({rsi:.1f}): Oversold")
 
             # Volatility Analysis
-            bb_upper = row.get("bb_upper", 0)
-            bb_lower = row.get("bb_lower", 0)
+            bb_upper = row.get("bb_upper_20", 0)
+            bb_lower = row.get("bb_lower_20", 0)
 
             print("\n📊 Volatility Analysis:")
             if bb_lower < price < bb_upper:
@@ -467,7 +469,7 @@ def create_comprehensive_analysis(data):
             else:
                 print("   ⚠️  Price at lower BB: Potential reversal")
 
-            atr = row.get("atr", 0)
+            atr = row.get("atr_14", 0)
             volatility_pct = (atr / price) * 100
             print(f"   ATR: ${atr:.2f} ({volatility_pct:.2f}% of price)")
 
@@ -519,7 +521,7 @@ def monitor_indicator_updates(data_manager, duration_seconds=60):
                     for row in latest.iter_rows(named=True):
                         price = row["close"]
                         sma_10 = row.get("sma_10", 0)
-                        rsi = row.get("rsi", 0)
+                        rsi = row.get("rsi_14", 0)
 
                         print(f"   Price: ${price:.2f}")
                         print(f"   SMA(10): ${sma_10:.2f}")
@@ -564,6 +566,16 @@ def main():
         try:
             jwt_token = client.get_session_token()
             realtime_client = create_realtime_client(jwt_token, str(account.id))
+
+            # Connect the realtime client to WebSocket hubs
+            print("   Connecting to real-time WebSocket feeds...")
+            if realtime_client.connect():
+                print("   ✅ Real-time client connected successfully")
+            else:
+                print(
+                    "   ⚠️ Real-time client connection failed - continuing with limited functionality"
+                )
+
             data_manager = create_data_manager(
                 instrument="MNQ",
                 project_x=client,
