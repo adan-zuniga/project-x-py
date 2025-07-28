@@ -440,7 +440,7 @@ def create_comprehensive_analysis(data):
             total_signals += 1
 
             # Momentum Analysis
-            rsi = row.get("rsi", 0)
+            rsi = row.get("rsi_14", 0)
 
             print("\n⚡ Momentum Indicators:")
             if 30 < rsi < 70:
