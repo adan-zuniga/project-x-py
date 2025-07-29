@@ -463,7 +463,7 @@ def create_comprehensive_analysis(data):
 
             print("\n📊 Volatility Analysis:")
             if bb_lower < price < bb_upper:
-                print("   ℹ️  Price within Bollinger Bands: Normal")
+                print("    Price within Bollinger Bands: Normal")
             elif price >= bb_upper:
                 print("   ⚠️  Price at upper BB: Potential reversal")
             else:

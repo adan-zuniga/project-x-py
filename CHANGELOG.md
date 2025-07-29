@@ -5,6 +5,42 @@ All notable changes to the ProjectX Python client will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## ⚠️ Development Phase Notice
+
+**IMPORTANT**: This project is under active development. During this phase:
+- Breaking changes may be introduced without deprecation warnings
+- Backward compatibility is not maintained
+- Old implementations are removed when improved
+- Clean, modern code architecture is prioritized
+
+## [1.1.3] - 2025-01-29
+
+### Fixed
+- **🔧 Contract Selection**: Fixed `_select_best_contract` method to properly handle futures contract naming patterns
+  - Extracts base symbols by removing month/year suffixes using regex (e.g., NQU5 → NQ, MGCH25 → MGC)
+  - Handles both single-digit (U5) and double-digit (H25) year codes correctly
+  - Prevents incorrect matches (searching "NQ" no longer returns "MNQ" contracts)
+  - Prioritizes exact base symbol matches over symbolId suffix matching
+
+### Added
+- **🎮 Interactive Instrument Demo**: New example script for testing instrument search functionality
+  - `examples/09_get_check_available_instruments.py` - Interactive command-line tool
+  - Shows the difference between `search_instruments()` (all matches) and `get_instrument()` (best match)
+  - Visual indicators for active contracts (★) and detailed contract information
+  - Includes common symbols table and help command
+  - Continuous search loop for testing multiple symbols
+
+### Enhanced
+- **🧪 Test Coverage**: Added comprehensive test suite for contract selection logic
+  - Tests for exact base symbol matching with various contract patterns
+  - Tests for handling different year code formats
+  - Tests for selection priority order (active vs inactive)
+  - Tests for edge cases (empty lists, no exact matches)
+- **📚 Documentation**: Updated README with development phase warnings
+  - Added prominent development status warning
+  - Noted that breaking changes may occur without backward compatibility
+  - Updated changelog format to highlight the development phase
+
 ## [1.1.2] - 2025-01-28
 
 ### Enhanced

@@ -20,9 +20,11 @@ A **high-performance Python SDK** for the [ProjectX Trading Platform](https://ww
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 📊 SDK Status
+## ⚠️ Development Status
 
-**Current Version**: v1.1.2 (Documentation Accuracy & Enhanced Project Structure)
+**IMPORTANT**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
+
+**Current Version**: v1.1.3 (Contract Selection & Interactive Demo)
 
 ✅ **Production Ready SDK Components**:
 - Complete ProjectX Gateway API integration with connection pooling
@@ -35,6 +37,8 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - **NEW**: Sub-second response times for cached operations
 - **NEW**: Complete TA-Lib overlap indicators (17 total) with full compatibility
 - **NEW**: Enhanced indicator discovery and documentation
+- **NEW**: Improved futures contract selection with proper suffix handling
+- **NEW**: Interactive instrument search demo for testing functionality
 
 🚀 **Performance Highlights**:
 - **Connection pooling** reduces API overhead by 50-70%
@@ -427,6 +431,7 @@ The `examples/` directory contains comprehensive demonstrations:
 - **`05_orderbook_analysis.py`** - Level 2 market depth analysis
 - **`06_multi_timeframe_strategy.py`** - Multi-timeframe trading strategies
 - **`07_technical_indicators.py`** - Complete technical analysis showcase
+- **`09_get_check_available_instruments.py`** - Interactive instrument search demo
 
 ### Example Trading Application Built with the SDK
 ```python
@@ -606,23 +611,31 @@ We welcome contributions! Please follow these guidelines:
 
 ## 📝 Changelog
 
-### Version 1.1.2 (Latest)
-**📊 Documentation Accuracy & Enhanced Project Structure**
-- ✅ **Documentation Alignment**: Updated all documentation to match actual codebase
-- ✅ **Version Consistency**: Corrected version references throughout project
-- ✅ **Example Organization**: Updated example file references to match actual structure
-- ✅ **Project Status Accuracy**: Aligned roadmap and feature status with reality
-- ✅ **Build on Previous**: Includes all features from v1.0.12:
-  - **Order-Position Sync**: Automatic synchronization between orders and positions
-  - **Position Order Tracking**: Orders automatically tracked and associated with positions  
-  - **Comprehensive Test Suite**: 230+ tests covering all major functionality
-  - **Enhanced Indicators**: 55+ indicators across all categories
+### Version 1.1.3 (Latest) - 2025-01-29
+**🔧 Contract Selection & Interactive Tools**
+
+**Breaking Changes:**
+- ⚠️ **Development Phase**: API changes may occur without deprecation warnings
+- ⚠️ **No Backward Compatibility**: Old implementations are removed when improved
+
+**Bug Fixes:**
+- ✅ **Fixed Contract Selection**: `get_instrument()` now correctly handles futures contract naming patterns
+  - Properly extracts base symbols by removing month/year suffixes (e.g., NQU5 → NQ, MGCH25 → MGC)
+  - Prevents incorrect matches (searching "NQ" no longer returns "MNQ" contracts)
+  - Handles both single-digit (U5) and double-digit (H25) year codes
 
 **New Features:**
-- **Bracket Order Integration**: Full lifecycle tracking for entry, stop, and target orders
-- **Position Close Handling**: Related orders automatically cancelled when positions close
-- **Integration Tests**: End-to-end workflow testing
-- **Risk Management Tests**: Comprehensive risk control validation
+- **Interactive Instrument Demo**: New example script for testing instrument search functionality
+  - `examples/09_get_check_available_instruments.py` - Interactive command-line tool
+  - Shows difference between `search_instruments()` and `get_instrument()` methods
+  - Visual indicators for active contracts and detailed contract information
+
+**Improvements:**
+- **Test Coverage**: Added comprehensive tests for contract selection logic
+- **Documentation**: Updated with development phase warnings and breaking change notices
+
+**Includes all features from v1.0.12:**
+- Order-Position Sync, Position Order Tracking, 230+ tests, 55+ indicators
 
 ### Version 1.0.2-1.0.11
 **🚀 Performance & Reliability**

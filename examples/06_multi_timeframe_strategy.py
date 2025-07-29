@@ -32,6 +32,10 @@ from project_x_py import (
     create_trading_suite,
     setup_logging,
 )
+from project_x_py.models import Order, Position
+from project_x_py.order_manager import OrderManager
+from project_x_py.position_manager import PositionManager
+from project_x_py.realtime_data_manager import ProjectXRealtimeDataManager
 
 
 class MultiTimeframeStrategy:
@@ -370,14 +374,18 @@ def _emergency_cleanup(signum=None, frame=None):
         print("⚠️  Emergency position and order cleanup in progress...")
 
         try:
-            order_manager = _cleanup_managers.get("order_manager")
-            position_manager = _cleanup_managers.get("position_manager")
-            data_manager = _cleanup_managers.get("data_manager")
+            order_manager: OrderManager | None = _cleanup_managers.get("order_manager")
+            position_manager: PositionManager | None = _cleanup_managers.get(
+                "position_manager"
+            )
+            data_manager: ProjectXRealtimeDataManager | None = _cleanup_managers.get(
+                "data_manager"
+            )
 
             if order_manager and position_manager:
                 # Get current state
-                positions = position_manager.get_all_positions()
-                orders = order_manager.search_open_orders()
+                positions: list[Position] = position_manager.get_all_positions()
+                orders: list[Order] = order_manager.search_open_orders()
 
                 if positions or orders:
                     print(
@@ -389,7 +397,7 @@ def _emergency_cleanup(signum=None, frame=None):
                         try:
                             order_manager.cancel_order(order.id)
                             print(f"   ✅ Cancelled order {order.id}")
-                        except:
+                        except Exception:
                             print(f"   ❌ Failed to cancel order {order.id}")
 
                     # Close all positions with market orders
@@ -405,8 +413,10 @@ def _emergency_cleanup(signum=None, frame=None):
                                 print(
                                     f"   ✅ Emergency close order: {close_response.order_id}"
                                 )
-                        except:
-                            print(f"   ❌ Failed to close position {pos.contractId}")
+                        except Exception as e:
+                            print(
+                                f"   ❌ Failed to close position {pos.contractId}: {e}"
+                            )
 
                     print("⏳ Waiting 3 seconds for emergency orders to process...")
                     time.sleep(3)
@@ -418,8 +428,8 @@ def _emergency_cleanup(signum=None, frame=None):
                 try:
                     data_manager.stop_realtime_feed()
                     print("🧹 Real-time feed stopped")
-                except:
-                    pass
+                except Exception as e:
+                    print(f"❌ Error stopping real-time feed: {e}")
 
         except Exception as e:
             print(f"❌ Emergency cleanup error: {e}")
@@ -494,9 +504,9 @@ def main():
                 timeframes=timeframes,
             )
 
-            data_manager = trading_suite["data_manager"]
-            order_manager = trading_suite["order_manager"]
-            position_manager = trading_suite["position_manager"]
+            data_manager: ProjectXRealtimeDataManager = trading_suite["data_manager"]
+            order_manager: OrderManager = trading_suite["order_manager"]
+            position_manager: PositionManager = trading_suite["position_manager"]
 
             # Store managers for emergency cleanup
             _cleanup_managers["data_manager"] = data_manager
@@ -603,11 +613,11 @@ def main():
                         else:
                             print("   ❌ Signal execution failed")
                     else:
-                        print("     ℹ️  Signal execution skipped by user")
+                        print("      Signal execution skipped by user")
 
                 # Show current positions and orders
-                positions = position_manager.get_all_positions()
-                orders = order_manager.search_open_orders()
+                positions: list[Position] = position_manager.get_all_positions()
+                orders: list[Order] = order_manager.search_open_orders()
 
                 print("\n📊 Current Status:")
                 print(f"   Open Positions: {len(positions)}")
@@ -804,11 +814,11 @@ def main():
                                     if close_response.success:
                                         closed_count += 1
                                         print(
-                                            f"   ✅ Close order placed: {close_response.order_id}"
+                                            f"   ✅ Close order placed: {close_response.orderId}"
                                         )
                                     else:
                                         print(
-                                            f"   ❌ Failed to place close order: {close_response.error_message}"
+                                            f"   ❌ Failed to place close order: {close_response.errorMessage}"
                                         )
 
                                 except Exception as e:
@@ -837,7 +847,7 @@ def main():
                                     print("   ✅ All positions successfully closed")
                     else:
                         print(
-                            "   ℹ️  Cleanup skipped by user - positions and orders remain open"
+                            "Cleanup skipped by user - positions and orders remain open"
                         )
                         print("   ⚠️  IMPORTANT: Monitor your positions manually!")
                 else:
