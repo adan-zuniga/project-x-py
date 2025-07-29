@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Development Phase Guidelines
+
+**IMPORTANT**: This project is in active development. When making changes:
+
+1. **No Backward Compatibility**: Do not maintain old implementations for compatibility
+2. **Clean Code Priority**: Always refactor to the cleanest, most modern approach
+3. **Remove Legacy Code**: Delete old logic when implementing improvements
+4. **Breaking Changes Allowed**: Make breaking changes freely to improve architecture
+5. **Modern Patterns**: Use the latest Python patterns and best practices
+6. **Simplify Aggressively**: Remove complexity rather than adding compatibility layers
+
+Example approach:
+- ❌ DON'T: Keep old method signatures with deprecation warnings
+- ✅ DO: Replace methods entirely with better implementations
+- ❌ DON'T: Add compatibility shims or adapters
+- ✅ DO: Update all callers to use new patterns
+
 ## Development Commands
 
 ### Package Management (UV)
@@ -161,3 +178,17 @@ data_manager.get_memory_stats()  # Real-time data memory
 - `max_bars_per_timeframe = 1000` (Real-time data per timeframe)
 - `tick_buffer_size = 1000` (Tick data buffer)
 - `cache_max_size = 100` (Indicator cache entries)
+
+## Recent Changes (v1.1.3)
+
+### Contract Selection Fix
+The `_select_best_contract` method now properly handles futures contract naming:
+- Uses regex to extract base symbols by removing month/year suffixes
+- Handles both single-digit (U5) and double-digit (H25) year codes
+- Pattern: `^(.+?)([FGHJKMNQUVXZ]\d{1,2})$` where letters are futures month codes
+
+### Interactive Demo
+Added `examples/09_get_check_available_instruments.py`:
+- Interactive command-line tool for testing instrument search
+- Shows difference between `search_instruments()` and `get_instrument()`
+- Includes visual indicators and continuous search loop
