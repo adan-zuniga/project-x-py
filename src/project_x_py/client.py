@@ -698,10 +698,10 @@ class ProjectX:
         Select the best matching contract from ProjectX search results.
 
         Selection priority:
-        1. Exact symbolId suffix match + active contract
-        2. Exact name match + active contract
-        3. Exact symbolId suffix match (any status)
-        4. Exact name match (any status)
+        1. Exact base symbol match (after removing futures suffix) + active contract
+        2. Exact symbolId suffix match + active contract
+        3. Exact base symbol match (any status)
+        4. Exact symbolId suffix match (any status)
         5. First active contract
         6. First contract (fallback)
 
@@ -713,36 +713,50 @@ class ProjectX:
             dict: Best matching contract, or None if no contracts
 
         Example:
-            Search "ENQ" should match symbolId "F.US.ENQ", not "F.US.MNQ"
+            Search "NQ" should match "NQU5" (base: NQ), not "MNQU5" (base: MNQ)
+            Search "MGC" should match "MGCH25" (base: MGC)
         """
         if not contracts:
             return None
 
+        import re
+
+        # Futures month codes
+        month_codes = "FGHJKMNQUVXZ"
+
+        def get_base_symbol(contract_name: str) -> str:
+            """Extract base symbol by removing futures month/year suffix"""
+            # Match pattern: base symbol + month code + 1-2 digit year
+            match = re.match(
+                rf"^(.+?)([{month_codes}]\d{{1,2}})$", contract_name.upper()
+            )
+            return match.group(1) if match else contract_name.upper()
+
         search_upper = search_symbol.upper()
         active_contracts = [c for c in contracts if c.get("activeContract", False)]
 
-        # 1. Exact symbolId suffix match + active
+        # 1. Exact base symbol match + active
+        for contract in active_contracts:
+            name = contract.get("name", "")
+            if get_base_symbol(name) == search_upper:
+                return contract
+
+        # 2. Exact symbolId suffix match + active
         for contract in active_contracts:
             symbol_id = contract.get("symbolId", "")
             if symbol_id and symbol_id.upper().endswith(f".{search_upper}"):
                 return contract
 
-        # 2. Exact name match + active
-        for contract in active_contracts:
+        # 3. Exact base symbol match (any status)
+        for contract in contracts:
             name = contract.get("name", "")
-            if name.upper() == search_upper:
+            if get_base_symbol(name) == search_upper:
                 return contract
 
-        # 3. Exact symbolId suffix match (any status)
+        # 4. Exact symbolId suffix match (any status)
         for contract in contracts:
             symbol_id = contract.get("symbolId", "")
             if symbol_id and symbol_id.upper().endswith(f".{search_upper}"):
-                return contract
-
-        # 4. Exact name match (any status)
-        for contract in contracts:
-            name = contract.get("name", "")
-            if name.upper() == search_upper:
                 return contract
 
         # 5. First active contract
