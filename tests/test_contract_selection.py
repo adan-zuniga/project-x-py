@@ -1,9 +1,5 @@
 """Test contract selection logic"""
 
-from unittest.mock import Mock
-
-import pytest
-
 from project_x_py.client import ProjectX
 
 

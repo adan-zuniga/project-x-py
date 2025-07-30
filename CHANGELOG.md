@@ -13,6 +13,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [1.1.4] - 2025-01-30
+
+### Fixed
+- **📊 OrderBook Volume Accumulation**: Fixed critical bug where market depth updates were accumulating volumes instead of replacing them
+  - Market depth updates now correctly replace volume at price levels rather than adding to them
+  - Resolved extremely high volume readings that were incorrect
+  - Fixed handling of DomType 3/4 (BestBid/BestAsk) vs regular bid/ask updates
+
+- **📈 OHLCV Volume Interpretation**: Fixed misinterpretation of GatewayQuote volume field
+  - GatewayQuote volume represents daily total, not individual trade volume
+  - OHLCV bars now correctly show volume=0 for quote-based updates
+  - Prevents unrealistic volume spikes (e.g., 29,000+ per 5-second bar)
+
+- **🔍 Trade Classification**: Improved trade side classification accuracy
+  - Now captures bid/ask prices BEFORE orderbook update for correct classification
+  - Uses historical spread data to properly classify trades as buy/sell
+  - Added null handling for edge cases
+
+### Enhanced
+- **🧊 Iceberg Detection**: Added price level refresh history tracking
+  - OrderBook now maintains history of volume updates at each price level
+  - Tracks up to 50 updates per price level over 30-minute windows
+  - Enhanced `detect_iceberg_orders` to use historical refresh patterns
+  - Added `get_price_level_history()` method for analysis
+
+- **📊 Market Structure Analysis**: Refactored key methods to use price level history
+  - `get_support_resistance_levels`: Now identifies persistent levels based on order refresh patterns
+  - `detect_order_clusters`: Finds price zones with concentrated historical activity
+  - `get_liquidity_levels`: Detects "sticky" liquidity that reappears after consumption
+  - All methods now provide institutional-grade analytics based on temporal patterns
+
+### Added
+- **🔧 Debug Scripts**: New diagnostic tools for market data analysis
+  - `working_market_depth_debug.py`: Comprehensive DOM type analysis
+  - `test_trade_classification.py`: Verify trade side classification
+  - `test_enhanced_iceberg.py`: Test iceberg detection with history
+  - `test_refactored_methods.py`: Verify all refactored analytics
+
+### Technical Details
+- Price level history stored as `dict[tuple[float, str], list[dict]]` with timestamp and volume
+- Support/resistance now uses composite strength score (40% refresh count, 30% volume, 20% rate, 10% consistency)
+- Order clusters detect "magnetic" price levels with persistent order placement
+- Liquidity detection finds market maker zones with high refresh rates
+
 ## [1.1.3] - 2025-01-29
 
 ### Fixed

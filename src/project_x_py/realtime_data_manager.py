@@ -679,11 +679,6 @@ class ProjectXRealtimeDataManager:
             data = (
                 callback_data.get("data", {}) if isinstance(callback_data, dict) else {}
             )
-            contract_id = (
-                callback_data.get("contract_id", "unknown")
-                if isinstance(callback_data, dict)
-                else "unknown"
-            )
 
             # Debug log to see what we're actually receiving
             self.logger.debug(
@@ -708,16 +703,17 @@ class ProjectXRealtimeDataManager:
             best_ask = quote_data.get("bestAsk")
             volume = quote_data.get("volume", 0)
 
-            # Determine if this is a trade update (has lastPrice and volume > 0) or quote update
-            is_trade_update = last_price is not None and volume > 0
+            # GatewayQuote provides price updates but volume is daily total
+            # For OHLCV bars, we only want actual trade volumes from GatewayTrade
+            # So we always set volume to 0 for quote updates
 
             # Calculate price for OHLCV tick processing
             price = None
 
-            if is_trade_update and last_price is not None:
-                # Use last traded price for trade updates
+            if last_price is not None:
+                # Use last traded price when available
                 price = float(last_price)
-                volume = int(volume)
+                volume = 0  # GatewayQuote volume is daily total, not trade volume
             elif best_bid is not None and best_ask is not None:
                 # Use mid price for quote updates
                 price = (float(best_bid) + float(best_ask)) / 2
@@ -738,7 +734,7 @@ class ProjectXRealtimeDataManager:
                     "timestamp": current_time,
                     "price": float(price),
                     "volume": volume,
-                    "type": "trade" if is_trade_update else "quote",
+                    "type": "quote",  # GatewayQuote is always a quote, not a trade
                     "source": "gateway_quote",
                 }
 
@@ -768,11 +764,6 @@ class ProjectXRealtimeDataManager:
             # Extract the actual trade data from the callback structure
             data = (
                 callback_data.get("data", {}) if isinstance(callback_data, dict) else {}
-            )
-            contract_id = (
-                callback_data.get("contract_id", "unknown")
-                if isinstance(callback_data, dict)
-                else "unknown"
             )
 
             # Debug log to see what we're actually receiving
