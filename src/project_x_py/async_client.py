@@ -54,7 +54,40 @@ from .models import (
     Instrument,
     Position,
     ProjectXConfig,
+    Trade,
 )
+
+
+class AsyncRateLimiter:
+    """Simple async rate limiter using sliding window."""
+
+    def __init__(self, max_requests: int, window_seconds: int):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests: list[float] = []
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        """Wait if necessary to stay within rate limits."""
+        async with self._lock:
+            now = time.time()
+            # Remove old requests outside the window
+            self.requests = [t for t in self.requests if t > now - self.window_seconds]
+
+            if len(self.requests) >= self.max_requests:
+                # Calculate wait time
+                oldest_request = self.requests[0]
+                wait_time = (oldest_request + self.window_seconds) - now
+                if wait_time > 0:
+                    await asyncio.sleep(wait_time)
+                    # Clean up again after waiting
+                    now = time.time()
+                    self.requests = [
+                        t for t in self.requests if t > now - self.window_seconds
+                    ]
+
+            # Record this request
+            self.requests.append(now)
 
 
 class AsyncProjectX:
@@ -156,6 +189,9 @@ class AsyncProjectX:
         # Performance monitoring
         self.api_call_count = 0
         self.cache_hit_count = 0
+
+        # Rate limiting - 100 requests per minute by default
+        self.rate_limiter = AsyncRateLimiter(max_requests=100, window_seconds=60)
 
         self.logger = logging.getLogger(__name__)
 
@@ -348,6 +384,9 @@ class AsyncProjectX:
         # Add authorization if we have a token
         if self.session_token and endpoint != "/auth/login":
             request_headers["Authorization"] = f"Bearer {self.session_token}"
+
+        # Apply rate limiting
+        await self.rate_limiter.acquire()
 
         self.api_call_count += 1
 
@@ -747,3 +786,272 @@ class AsyncProjectX:
                 else 0
             ),
         }
+
+    async def list_accounts(self) -> list[Account]:
+        """
+        List all available accounts for the authenticated user.
+
+        Returns:
+            List of Account objects
+
+        Raises:
+            ProjectXAuthenticationError: If not authenticated
+
+        Example:
+            >>> accounts = await client.list_accounts()
+            >>> for account in accounts:
+            >>>     print(f"{account.name}: ${account.balance:,.2f}")
+        """
+        await self._ensure_authenticated()
+
+        response = await self._make_request("GET", "/accounts")
+
+        if not response or not isinstance(response, list):
+            return []
+
+        return [Account(**acc) for acc in response]
+
+    async def search_instruments(
+        self, query: str, live: bool = False
+    ) -> list[Instrument]:
+        """
+        Search for instruments by symbol or name.
+
+        Args:
+            query: Search query (symbol or partial name)
+            live: If True, search only live/active instruments
+
+        Returns:
+            List of Instrument objects matching the query
+
+        Example:
+            >>> instruments = await client.search_instruments("gold")
+            >>> for inst in instruments:
+            >>>     print(f"{inst.name}: {inst.description}")
+        """
+        await self._ensure_authenticated()
+
+        params = {"query": query}
+        if live:
+            params["live"] = "true"
+
+        response = await self._make_request("GET", "/instruments/search", params=params)
+
+        if not response or not isinstance(response, list):
+            return []
+
+        return [Instrument(**inst) for inst in response]
+
+    async def get_bars(
+        self,
+        symbol: str,
+        days: int = 8,
+        interval: int = 5,
+        unit: int = 2,
+        limit: int | None = None,
+        partial: bool = True,
+    ) -> pl.DataFrame:
+        """
+        Retrieve historical OHLCV bar data for an instrument.
+
+        This method fetches historical market data with intelligent caching and
+        timezone handling. The data is returned as a Polars DataFrame optimized
+        for financial analysis and technical indicator calculations.
+
+        Args:
+            symbol: Symbol of the instrument (e.g., "MGC", "MNQ", "ES")
+            days: Number of days of historical data (default: 8)
+            interval: Interval between bars in the specified unit (default: 5)
+            unit: Time unit for the interval (default: 2 for minutes)
+                  1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month
+            limit: Maximum number of bars to retrieve (auto-calculated if None)
+            partial: Include incomplete/partial bars (default: True)
+
+        Returns:
+            pl.DataFrame: DataFrame with OHLCV data and timezone-aware timestamps
+                Columns: timestamp, open, high, low, close, volume
+                Timezone: Converted to your configured timezone (default: US/Central)
+
+        Raises:
+            ProjectXInstrumentError: If instrument not found or invalid
+            ProjectXDataError: If data retrieval fails or invalid response
+
+        Example:
+            >>> # Get 5 days of 15-minute gold data
+            >>> data = await client.get_bars("MGC", days=5, interval=15)
+            >>> print(f"Retrieved {len(data)} bars")
+            >>> print(
+            ...     f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}"
+            ... )
+        """
+        await self._ensure_authenticated()
+
+        # Check market data cache
+        cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
+        current_time = time.time()
+
+        if cache_key in self._market_data_cache:
+            cache_age = current_time - self._market_data_cache_time.get(cache_key, 0)
+            # Market data cache for 5 minutes
+            if cache_age < 300:
+                self.cache_hit_count += 1
+                return self._market_data_cache[cache_key]
+
+        # Lookup instrument
+        instrument = await self.get_instrument(symbol)
+
+        # Prepare parameters
+        params = {
+            "accountId": self.account_info.id,
+            "contractId": instrument.id,
+            "daysBack": days,
+            "interval": interval,
+            "unitOfTime": unit,
+            "partial": str(partial).lower(),
+        }
+
+        if limit is not None:
+            params["limit"] = limit
+
+        # Fetch data
+        response = await self._make_request("GET", "/market/bars", params=params)
+
+        if not response or not isinstance(response, list):
+            return pl.DataFrame()
+
+        # Convert to DataFrame
+        data = pl.DataFrame(response)
+
+        if data.is_empty():
+            return data
+
+        # Process timestamps and convert timezone
+        data = data.with_columns(
+            pl.col("timestamp").str.strptime(
+                pl.Datetime("ns", time_zone="UTC"),
+                format="%Y-%m-%dT%H:%M:%S%.f",
+                strict=False,
+            )
+        )
+
+        # Convert to configured timezone
+        if self.config.timezone != "UTC":
+            data = data.with_columns(
+                pl.col("timestamp").dt.convert_time_zone(self.config.timezone)
+            )
+
+        # Sort by timestamp
+        data = data.sort("timestamp")
+
+        # Cache the result
+        self._market_data_cache[cache_key] = data
+        self._market_data_cache_time[cache_key] = current_time
+
+        # Cleanup cache periodically
+        if current_time - self.last_cache_cleanup > 3600:
+            await self._cleanup_cache()
+
+        return data
+
+    async def search_open_positions(
+        self, account_id: int | None = None
+    ) -> list[Position]:
+        """
+        Search for open positions across accounts.
+
+        Args:
+            account_id: Optional account ID to filter positions
+
+        Returns:
+            List of Position objects
+
+        Example:
+            >>> positions = await client.search_open_positions()
+            >>> total_pnl = sum(pos.unrealized_pnl for pos in positions)
+            >>> print(f"Total P&L: ${total_pnl:,.2f}")
+        """
+        await self._ensure_authenticated()
+
+        params = {}
+        if account_id is not None:
+            params["accountId"] = account_id
+
+        response = await self._make_request("GET", "/positions/search", params=params)
+
+        if not response or not isinstance(response, list):
+            return []
+
+        return [Position(**pos) for pos in response]
+
+    async def search_trades(
+        self,
+        start_date: datetime.datetime | None = None,
+        end_date: datetime.datetime | None = None,
+        contract_id: str | None = None,
+        account_id: int | None = None,
+        limit: int = 100,
+    ) -> list[Trade]:
+        """
+        Search trade execution history for analysis and reporting.
+
+        Retrieves executed trades within the specified date range, useful for
+        performance analysis, tax reporting, and strategy evaluation.
+
+        Args:
+            start_date: Start date for trade search (default: 30 days ago)
+            end_date: End date for trade search (default: now)
+            contract_id: Optional contract ID filter for specific instrument
+            account_id: Account ID to search (uses default account if None)
+            limit: Maximum number of trades to return (default: 100)
+
+        Returns:
+            List[Trade]: List of executed trades with detailed information including:
+                - contractId: Instrument that was traded
+                - size: Trade size (positive=buy, negative=sell)
+                - price: Execution price
+                - timestamp: Execution time
+                - commission: Trading fees
+
+        Raises:
+            ProjectXError: If trade search fails or no account information available
+
+        Example:
+            >>> from datetime import datetime, timedelta
+            >>> # Get last 7 days of trades
+            >>> start = datetime.now() - timedelta(days=7)
+            >>> trades = await client.search_trades(start_date=start)
+            >>> for trade in trades:
+            >>>     print(
+            >>>         f"Trade: {trade.contractId} - {trade.size} @ ${trade.price:.2f}"
+            >>>     )
+        """
+        await self._ensure_authenticated()
+
+        if account_id is None:
+            if not self.account_info:
+                raise ProjectXError("No account information available")
+            account_id = self.account_info.id
+
+        # Default date range
+        if end_date is None:
+            end_date = datetime.datetime.now(pytz.UTC)
+        if start_date is None:
+            start_date = end_date - timedelta(days=30)
+
+        # Prepare parameters
+        params = {
+            "accountId": account_id,
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "limit": limit,
+        }
+
+        if contract_id:
+            params["contractId"] = contract_id
+
+        response = await self._make_request("GET", "/trades/search", params=params)
+
+        if not response or not isinstance(response, list):
+            return []
+
+        return [Trade(**trade) for trade in response]

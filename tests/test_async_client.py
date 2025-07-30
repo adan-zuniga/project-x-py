@@ -14,6 +14,7 @@ from project_x_py import (
     ProjectXConfig,
     ProjectXConnectionError,
 )
+from project_x_py.async_client import AsyncRateLimiter
 
 
 @pytest.fixture
@@ -266,3 +267,213 @@ async def test_health_status():
             assert status["api_calls"] == 10
             assert status["cache_hits"] == 3
             assert status["cache_hit_rate"] == 0.3
+
+
+@pytest.mark.asyncio
+async def test_list_accounts():
+    """Test listing accounts."""
+    client = AsyncProjectX(username="test", api_key="key")
+
+    mock_accounts = [
+        {
+            "id": 1,
+            "name": "Account 1",
+            "balance": 10000.0,
+            "canTrade": True,
+            "isVisible": True,
+            "simulated": True,
+        },
+        {
+            "id": 2,
+            "name": "Account 2",
+            "balance": 20000.0,
+            "canTrade": True,
+            "isVisible": True,
+            "simulated": False,
+        },
+    ]
+
+    with patch.object(client, "_make_request", new_callable=AsyncMock) as mock_request:
+        mock_request.return_value = mock_accounts
+
+        with patch.object(client, "_ensure_authenticated", new_callable=AsyncMock):
+            async with client:
+                accounts = await client.list_accounts()
+
+                assert len(accounts) == 2
+                assert accounts[0].name == "Account 1"
+                assert accounts[0].balance == 10000.0
+                assert accounts[1].name == "Account 2"
+                assert accounts[1].balance == 20000.0
+
+
+@pytest.mark.asyncio
+async def test_search_instruments():
+    """Test searching for instruments."""
+    client = AsyncProjectX(username="test", api_key="key")
+
+    mock_instruments = [
+        {
+            "id": "GC1",
+            "name": "GC",
+            "description": "Gold Futures",
+            "tickSize": 0.1,
+            "tickValue": 10.0,
+            "activeContract": True,
+        },
+        {
+            "id": "GC2",
+            "name": "GC",
+            "description": "Gold Futures",
+            "tickSize": 0.1,
+            "tickValue": 10.0,
+            "activeContract": False,
+        },
+    ]
+
+    with patch.object(client, "_make_request", new_callable=AsyncMock) as mock_request:
+        mock_request.return_value = mock_instruments
+
+        with patch.object(client, "_ensure_authenticated", new_callable=AsyncMock):
+            async with client:
+                # Test basic search
+                instruments = await client.search_instruments("gold")
+                assert len(instruments) == 2
+
+                # Test live filter
+                await client.search_instruments("gold", live=True)
+                mock_request.assert_called_with(
+                    "GET",
+                    "/instruments/search",
+                    params={"query": "gold", "live": "true"},
+                )
+
+
+@pytest.mark.asyncio
+async def test_get_bars():
+    """Test getting market data bars."""
+    client = AsyncProjectX(username="test", api_key="key")
+    client.account_info = MagicMock()
+    client.account_info.id = 123
+
+    mock_bars = [
+        {
+            "timestamp": "2024-01-01T00:00:00.000Z",
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+            "volume": 1000,
+        },
+        {
+            "timestamp": "2024-01-01T00:05:00.000Z",
+            "open": 100.5,
+            "high": 101.5,
+            "low": 100.0,
+            "close": 101.0,
+            "volume": 1500,
+        },
+    ]
+
+    mock_instrument = MagicMock()
+    mock_instrument.id = "NQ-123"
+
+    with patch.object(client, "_make_request", new_callable=AsyncMock) as mock_request:
+        mock_request.return_value = mock_bars
+
+        with patch.object(
+            client, "get_instrument", new_callable=AsyncMock
+        ) as mock_get_inst:
+            mock_get_inst.return_value = mock_instrument
+
+            with patch.object(client, "_ensure_authenticated", new_callable=AsyncMock):
+                async with client:
+                    data = await client.get_bars("NQ", days=1, interval=5)
+
+                    assert len(data) == 2
+                    assert data["open"][0] == 100.0
+                    assert data["close"][1] == 101.0
+
+                    # Check caching
+                    data2 = await client.get_bars("NQ", days=1, interval=5)
+                    assert client.cache_hit_count == 1  # Should hit cache
+
+
+@pytest.mark.asyncio
+async def test_search_trades():
+    """Test searching trade history."""
+    client = AsyncProjectX(username="test", api_key="key")
+    client.account_info = MagicMock()
+    client.account_info.id = 123
+
+    mock_trades = [
+        {
+            "id": 1,
+            "accountId": 123,
+            "contractId": "NQ-123",
+            "creationTimestamp": "2024-01-01T10:00:00Z",
+            "price": 15000.0,
+            "profitAndLoss": None,
+            "fees": 2.50,
+            "side": 0,
+            "size": 2,
+            "voided": False,
+            "orderId": 100,
+        },
+        {
+            "id": 2,
+            "accountId": 123,
+            "contractId": "ES-456",
+            "creationTimestamp": "2024-01-01T11:00:00Z",
+            "price": 4500.0,
+            "profitAndLoss": 150.0,
+            "fees": 2.50,
+            "side": 1,
+            "size": 1,
+            "voided": False,
+            "orderId": 101,
+        },
+    ]
+
+    with patch.object(client, "_make_request", new_callable=AsyncMock) as mock_request:
+        mock_request.return_value = mock_trades
+
+        with patch.object(client, "_ensure_authenticated", new_callable=AsyncMock):
+            async with client:
+                trades = await client.search_trades()
+
+                assert len(trades) == 2
+                assert trades[0].contractId == "NQ-123"
+                assert trades[0].size == 2
+                assert trades[0].side == 0  # Buy
+                assert trades[1].size == 1
+                assert trades[1].side == 1  # Sell
+
+
+@pytest.mark.asyncio
+async def test_rate_limiting():
+    """Test rate limiting functionality."""
+    import time
+
+    client = AsyncProjectX(username="test", api_key="key")
+    # Set aggressive rate limit for testing
+    client.rate_limiter = AsyncRateLimiter(max_requests=2, window_seconds=1)
+
+    async with client:
+        with patch.object(
+            client._client, "request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = AsyncMock(status_code=200, json=lambda: {})
+
+            start = time.time()
+
+            # Make 3 requests quickly - should trigger rate limit
+            await asyncio.gather(
+                client._make_request("GET", "/test1"),
+                client._make_request("GET", "/test2"),
+                client._make_request("GET", "/test3"),
+            )
+
+            elapsed = time.time() - start
+            # Should have waited at least 1 second for the third request
+            assert elapsed >= 1.0

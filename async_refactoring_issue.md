@@ -48,6 +48,15 @@ The current synchronous architecture has several limitations:
 - Created basic async methods: authenticate, get_positions, get_instrument, get_health_status
 - Full test suite for async client with 9 passing tests
 
+**Phase 2 (Core Client Migration) - COMPLETED on 2025-07-30**
+- Implemented async rate limiter with sliding window algorithm
+- Added account management: list_accounts, search_open_positions
+- Implemented market data retrieval: get_bars with timezone conversion
+- Added instrument search: search_instruments with live filter
+- Implemented trade history: search_trades with date range filtering
+- Enhanced caching for market data (5-minute TTL)
+- Comprehensive test suite expanded to 14 passing tests
+
 ### Phase 1: Foundation (Week 1-2) ✅ COMPLETED
 
 - [x] Add async dependencies to `pyproject.toml`:
@@ -58,13 +67,13 @@ The current synchronous architecture has several limitations:
 - [x] Implement async session management and connection pooling
 - [x] Design async error handling and retry logic
 
-### Phase 2: Core Client Migration (Week 2-3)
+### Phase 2: Core Client Migration (Week 2-3) ✅ COMPLETED
 
-- [ ] Convert authentication methods to async
-- [ ] Migrate account management endpoints
-- [ ] Convert market data methods (get_bars, get_instrument)
-- [ ] Implement async caching mechanisms
-- [ ] Add async rate limiting
+- [x] Convert authentication methods to async
+- [x] Migrate account management endpoints
+- [x] Convert market data methods (get_bars, get_instrument)
+- [x] Implement async caching mechanisms
+- [x] Add async rate limiting
 
 ### Phase 3: Manager Migration (Week 3-4)
 
