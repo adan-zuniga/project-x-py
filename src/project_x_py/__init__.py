@@ -23,10 +23,11 @@ Date: January 2025
 
 from typing import Any, Optional
 
-__version__ = "1.1.4"
+__version__ = "2.0.0"
 __author__ = "TexasCoding"
 
 # Core client classes
+from .async_client import AsyncProjectX
 from .client import ProjectX
 
 # Configuration management
@@ -132,6 +133,7 @@ __all__ = [
     "Position",
     "PositionManager",
     "ProjectX",
+    "AsyncProjectX",
     "ProjectXAuthenticationError",
     "ProjectXConfig",
     "ProjectXConnectionError",
