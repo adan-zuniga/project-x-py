@@ -193,6 +193,14 @@ class OrderBook:
         # Callbacks for orderbook events
         self.callbacks: dict[str, list[Callable]] = defaultdict(list)
 
+        # Price level refresh history for iceberg detection
+        # Key: (price, side), Value: list of volume updates with timestamps
+        self.price_level_history: dict[tuple[float, str], list[dict]] = defaultdict(
+            list
+        )
+        self.max_history_per_level = 50  # Keep last 50 updates per price level
+        self.price_history_window_minutes = 30  # Keep history for 30 minutes
+
         self.logger.info(f"OrderBook initialized for {instrument}")
 
     def _map_trade_type(self, type_code: int) -> str:
@@ -259,10 +267,12 @@ class OrderBook:
             return
 
         # Register for market depth events (primary orderbook data)
+        # This includes trades as type 5 entries in the depth data
         self.realtime_client.add_callback("market_depth", self._on_market_depth_update)
 
-        # Register for market trade events (for trade flow analysis)
-        self.realtime_client.add_callback("market_trade", self._on_market_trade_update)
+        # NOTE: We do NOT register for market_trade events separately anymore
+        # because trades are already included in market_depth as type 5 entries.
+        # Registering for both would cause double-counting of trade volumes.
 
         # Register for quote updates (for best bid/ask tracking)
         self.realtime_client.add_callback("quote_update", self._on_quote_update)
@@ -293,102 +303,9 @@ class OrderBook:
         except Exception as e:
             self.logger.error(f"Error processing market depth update: {e}")
 
-    def _on_market_trade_update(self, data: dict):
-        """Handle real-time market trade updates for trade flow analysis."""
-        try:
-            # Filter for this instrument
-            contract_id = data.get("contract_id", "")
-            if not self._symbol_matches_instrument(contract_id):
-                return
-
-            # Extract trade data - handle both dict and list formats
-            raw_trade_data = data.get("data", {})
-            if isinstance(raw_trade_data, list):
-                # If data is a list, treat it as the trade data directly
-                if not raw_trade_data:
-                    return
-                # For list format, we might need to extract the first element or handle differently
-                # For now, skip processing list format trade data as we need the dict structure
-                self.logger.debug(
-                    f"Skipping list format trade data: {type(raw_trade_data)}"
-                )
-                return
-            elif isinstance(raw_trade_data, dict):
-                trade_data = raw_trade_data
-            else:
-                # Neither dict nor list - can't process
-                self.logger.debug(
-                    f"Unexpected trade data format: {type(raw_trade_data)}"
-                )
-                return
-
-            if not trade_data:
-                return
-
-            # Update recent trades for analysis
-            with self.orderbook_lock:
-                current_time = datetime.now(self.timezone)
-
-                # Get current best bid/ask for context
-                best_prices = self.get_best_bid_ask()
-                best_bid = best_prices.get("bid", 0.0)
-                best_ask = best_prices.get("ask", 0.0)
-                mid_price = best_prices.get("mid", 0.0)
-                spread = best_prices.get("spread", 0.0)
-
-                # Determine trade side based on price vs best bid/ask
-                price = trade_data.get("price", 0.0)
-                if best_ask and price >= best_ask:
-                    side = "buy"  # Aggressive buy
-                elif best_bid and price <= best_bid:
-                    side = "sell"  # Aggressive sell
-                elif mid_price and price > mid_price:
-                    side = "buy"  # Above mid, likely buy
-                elif mid_price and price < mid_price:
-                    side = "sell"  # Below mid, likely sell
-                else:
-                    side = "neutral"  # Can't determine
-
-                # Map trade type
-                trade_type = trade_data.get("type", 0)
-                order_type = self._map_trade_type(trade_type)
-
-                trade_entry = {
-                    "price": price,
-                    "volume": trade_data.get("volume", 0),
-                    "timestamp": current_time,
-                    "side": side,
-                    "spread_at_trade": spread,
-                    "mid_price_at_trade": mid_price,
-                    "best_bid_at_trade": best_bid,
-                    "best_ask_at_trade": best_ask,
-                    "order_type": order_type,
-                }
-
-                # Add to recent trades DataFrame
-                if self.recent_trades.is_empty():
-                    # Initialize DataFrame with the first trade
-                    self.recent_trades = pl.DataFrame([trade_entry])
-                else:
-                    new_trade_df = pl.DataFrame([trade_entry])
-                    self.recent_trades = pl.concat([self.recent_trades, new_trade_df])
-
-                    # Keep only recent trades (last 1000)
-                    if len(self.recent_trades) > 1000:
-                        self.recent_trades = self.recent_trades.tail(1000)
-
-            # Trigger callbacks
-            self._trigger_callbacks(
-                "trade_processed",
-                {
-                    "contract_id": contract_id,
-                    "trade_data": trade_data,
-                    "timestamp": current_time,
-                },
-            )
-
-        except Exception as e:
-            self.logger.error(f"Error processing market trade update: {e}")
+    # NOTE: This method has been removed to prevent double-counting of trades.
+    # Trades are now processed exclusively through market_depth updates as type 5 entries.
+    # This ensures accurate trade volume reporting without duplication.
 
     def _on_quote_update(self, data: dict):
         """Handle real-time quote updates for best bid/ask tracking."""
@@ -494,6 +411,49 @@ class OrderBook:
                 # Force garbage collection after significant cleanup
                 gc.collect()
 
+    def get_price_level_history(self) -> dict[str, Any]:
+        """
+        Get price level refresh history for analysis.
+
+        Returns:
+            dict: Price level history statistics
+        """
+        with self.orderbook_lock:
+            total_levels = len(self.price_level_history)
+            total_updates = sum(
+                len(updates) for updates in self.price_level_history.values()
+            )
+
+            # Find most refreshed levels
+            most_refreshed = []
+            for (price, side), updates in self.price_level_history.items():
+                if len(updates) >= 3:  # At least 3 refreshes
+                    volumes = [u["volume"] for u in updates]
+                    avg_volume = sum(volumes) / len(volumes) if volumes else 0
+                    most_refreshed.append(
+                        {
+                            "price": price,
+                            "side": side,
+                            "refresh_count": len(updates),
+                            "avg_volume": avg_volume,
+                            "latest_volume": updates[-1]["volume"] if updates else 0,
+                            "last_update": updates[-1]["timestamp"]
+                            if updates
+                            else None,
+                        }
+                    )
+
+            # Sort by refresh count
+            most_refreshed.sort(key=lambda x: x["refresh_count"], reverse=True)
+
+            return {
+                "total_tracked_levels": total_levels,
+                "total_updates": total_updates,
+                "most_refreshed_levels": most_refreshed[:10],  # Top 10
+                "window_minutes": self.price_history_window_minutes,
+                "max_history_per_level": self.max_history_per_level,
+            }
+
     def get_memory_stats(self) -> dict:
         """
         Get comprehensive memory usage statistics for the orderbook.
@@ -555,6 +515,12 @@ class OrderBook:
             # Process each market depth entry
             with self.orderbook_lock:
                 current_time = datetime.now(self.timezone)
+
+                # Capture the best bid/ask BEFORE processing any updates
+                # This is crucial for accurate trade side classification
+                pre_update_best = self.get_best_bid_ask()
+                pre_update_bid = pre_update_best.get("bid")
+                pre_update_ask = pre_update_best.get("ask")
 
                 bid_updates = []
                 ask_updates = []
@@ -701,6 +667,12 @@ class OrderBook:
                                     "volume": int(volume),
                                     "timestamp": timestamp,
                                     "order_type": self._map_trade_type(entry_type),
+                                    "pre_update_bid": float(pre_update_bid)
+                                    if pre_update_bid is not None
+                                    else None,
+                                    "pre_update_ask": float(pre_update_ask)
+                                    if pre_update_ask is not None
+                                    else None,
                                 }
                             )
                     elif entry_type == 11:  # Fill (alternative trade representation)
@@ -711,6 +683,12 @@ class OrderBook:
                                     "volume": int(volume),
                                     "timestamp": timestamp,
                                     "order_type": self._map_trade_type(entry_type),
+                                    "pre_update_bid": float(pre_update_bid)
+                                    if pre_update_bid is not None
+                                    else None,
+                                    "pre_update_ask": float(pre_update_ask)
+                                    if pre_update_ask is not None
+                                    else None,
                                 }
                             )
                     elif entry_type == 6:  # Reset - clear orderbook
@@ -799,6 +777,9 @@ class OrderBook:
         """
         Update bid or ask side of the orderbook with new price levels.
 
+        IMPORTANT: Market depth updates from ProjectX represent the CURRENT state at each price level,
+        not incremental changes. Each update REPLACES the previous volume at that price level.
+
         Args:
             updates: List of price level updates {price, volume, timestamp}
             side: "bid" or "ask"
@@ -806,31 +787,91 @@ class OrderBook:
         try:
             current_df = self.orderbook_bids if side == "bid" else self.orderbook_asks
 
-            # Combine with existing data
-            if current_df.height > 0:
-                combined_df = pl.concat([current_df, updates_df])
-            else:
-                combined_df = updates_df
-
-            # Group by price and take the latest update
-            latest_df = combined_df.group_by("price").agg(
-                [
-                    pl.col("volume").last(),
-                    pl.col("timestamp").last(),
-                    pl.col("type").last(),
-                ]
+            # Separate updates by type
+            regular_updates = updates_df.filter(pl.col("type").is_in(["bid", "ask"]))
+            best_updates = updates_df.filter(
+                pl.col("type").is_in(
+                    ["best_bid", "best_ask", "new_best_bid", "new_best_ask"]
+                )
             )
 
-            # Remove zero-volume levels
+            # Process regular bid/ask updates - these REPLACE existing levels
+            if regular_updates.height > 0:
+                # Track price level refreshes for iceberg detection
+                current_time = datetime.now(self.timezone)
+                for update in regular_updates.to_dicts():
+                    price = update["price"]
+                    volume = update["volume"]
+
+                    # Only track meaningful volume updates
+                    if volume > 0:
+                        key = (price, side)
+                        self.price_level_history[key].append(
+                            {"timestamp": current_time, "volume": volume}
+                        )
+
+                        # Maintain history size limit
+                        if (
+                            len(self.price_level_history[key])
+                            > self.max_history_per_level
+                        ):
+                            self.price_level_history[key].pop(0)
+
+                # Get unique prices from updates
+                update_prices = set(regular_updates["price"].to_list())
+
+                # Keep only prices from current_df that are NOT being updated
+                if current_df.height > 0:
+                    retained_df = current_df.filter(
+                        ~pl.col("price").is_in(update_prices)
+                    )
+                    # Combine retained prices with new updates
+                    combined_df = pl.concat([retained_df, regular_updates])
+                else:
+                    combined_df = regular_updates
+
+                # Group by price and take the latest update (handles duplicates in updates)
+                latest_df = combined_df.group_by("price").agg(
+                    [
+                        pl.col("volume").last(),
+                        pl.col("timestamp").last(),
+                        pl.col("type").last(),
+                    ]
+                )
+            else:
+                latest_df = current_df
+
+            # Process best bid/ask updates - these update the top of book
+            if best_updates.height > 0:
+                for row in best_updates.iter_rows(named=True):
+                    price = row["price"]
+                    volume = row["volume"]
+
+                    # Remove any existing entry at this price
+                    latest_df = latest_df.filter(pl.col("price") != price)
+
+                    # Add the new best price if volume > 0
+                    if volume > 0:
+                        new_row = pl.DataFrame(
+                            {
+                                "price": [price],
+                                "volume": [volume],
+                                "timestamp": [row["timestamp"]],
+                                "type": [row["type"]],
+                            }
+                        )
+                        latest_df = pl.concat([latest_df, new_row])
+
+            # Remove zero-volume levels (order cancellations)
             latest_df = latest_df.filter(pl.col("volume") > 0)
 
-            # Sort appropriately
+            # Sort appropriately and limit depth
             if side == "bid":
                 latest_df = latest_df.sort("price", descending=True)
-                self.orderbook_bids = latest_df.head(100)
+                self.orderbook_bids = latest_df.head(self.max_depth_entries)
             else:
                 latest_df = latest_df.sort("price", descending=False)
-                self.orderbook_asks = latest_df.head(100)
+                self.orderbook_asks = latest_df.head(self.max_depth_entries)
 
         except Exception as e:
             self.logger.error(f"❌ Error updating {side} orderbook: {e}")
@@ -840,75 +881,76 @@ class OrderBook:
         Update trade flow data with new trade executions.
 
         Args:
-            trade_updates: List of trade executions {price, volume, timestamp}
+            trade_updates: DataFrame with trade executions including pre-update bid/ask
         """
         try:
             if trade_updates.height == 0:
                 return
 
-            # Get current best bid/ask to determine trade direction
-            best_prices = self.get_best_bid_ask()
-            best_bid = best_prices.get("bid")
-            best_ask = best_prices.get("ask")
-
-            # Enhanced trade direction detection with improved logic
-            if best_bid is not None and best_ask is not None:
-                # Calculate mid price for better classification
-                mid_price = (best_bid + best_ask) / 2
-                spread = best_ask - best_bid
-
-                # Use spread-aware logic for better trade direction detection
-                # Wider spreads require more conservative classification
-                spread_threshold = spread * 0.25  # 25% of spread as buffer zone
-
-                enhanced_trades = trade_updates.with_columns(
-                    pl.when(pl.col("price") >= best_ask)
-                    .then(pl.lit("buy"))  # Trade at or above ask = aggressive buy
-                    .when(pl.col("price") <= best_bid)
-                    .then(pl.lit("sell"))  # Trade at or below bid = aggressive sell
-                    .when(pl.col("price") >= (mid_price + spread_threshold))
-                    .then(pl.lit("buy"))  # Above mid + buffer = likely buy
-                    .when(pl.col("price") <= (mid_price - spread_threshold))
-                    .then(pl.lit("sell"))  # Below mid - buffer = likely sell
-                    .when(spread <= 0.01)  # Very tight spread (1 cent or less)
-                    .then(
-                        pl.when(pl.col("price") > mid_price)
-                        .then(pl.lit("buy"))
-                        .otherwise(pl.lit("sell"))
+            # Use pre-update bid/ask prices for accurate trade classification
+            # Calculate spread and mid price for each trade using its pre-update prices
+            enhanced_trades = trade_updates.with_columns(
+                [
+                    # Calculate spread and mid price from pre-update values
+                    pl.when(
+                        pl.col("pre_update_ask").is_not_null()
+                        & pl.col("pre_update_bid").is_not_null()
                     )
-                    .otherwise(pl.lit("neutral"))  # In the spread buffer zone
-                    .alias("side")
-                )
+                    .then(pl.col("pre_update_ask") - pl.col("pre_update_bid"))
+                    .otherwise(0.0)  # Use 0 instead of None for compatibility
+                    .alias("spread_at_trade"),
+                    pl.when(
+                        pl.col("pre_update_ask").is_not_null()
+                        & pl.col("pre_update_bid").is_not_null()
+                    )
+                    .then((pl.col("pre_update_ask") + pl.col("pre_update_bid")) / 2)
+                    .otherwise(0.0)  # Use 0 instead of None for compatibility
+                    .alias("mid_price_at_trade"),
+                    # Copy pre-update prices to standard fields, using 0.0 for null values
+                    pl.when(pl.col("pre_update_bid").is_not_null())
+                    .then(pl.col("pre_update_bid"))
+                    .otherwise(0.0)
+                    .alias("best_bid_at_trade"),
+                    pl.when(pl.col("pre_update_ask").is_not_null())
+                    .then(pl.col("pre_update_ask"))
+                    .otherwise(0.0)
+                    .alias("best_ask_at_trade"),
+                ]
+            )
 
-                # Add spread metadata to trades for analysis
-                enhanced_trades = enhanced_trades.with_columns(
-                    [
-                        pl.lit(spread).alias("spread_at_trade"),
-                        pl.lit(mid_price).alias("mid_price_at_trade"),
-                        pl.lit(best_bid).alias("best_bid_at_trade"),
-                        pl.lit(best_ask).alias("best_ask_at_trade"),
-                    ]
+            # Now classify trades based on their position relative to pre-update bid/ask
+            enhanced_trades = enhanced_trades.with_columns(
+                pl.when(
+                    pl.col("pre_update_ask").is_null()
+                    | pl.col("pre_update_bid").is_null()
                 )
-            else:
-                # Fallback to basic classification if no best prices available
-                enhanced_trades = trade_updates.with_columns(
-                    pl.when((best_ask is not None) & (pl.col("price") >= best_ask))
+                .then(pl.lit("unknown"))  # Can't classify without bid/ask
+                .when(pl.col("price") >= pl.col("pre_update_ask"))
+                .then(pl.lit("buy"))  # Trade at or above ask = aggressive buy
+                .when(pl.col("price") <= pl.col("pre_update_bid"))
+                .then(pl.lit("sell"))  # Trade at or below bid = aggressive sell
+                .when(pl.col("spread_at_trade") <= 0.01)  # Very tight spread
+                .then(
+                    pl.when(pl.col("price") > pl.col("mid_price_at_trade"))
                     .then(pl.lit("buy"))
-                    .when((best_bid is not None) & (pl.col("price") <= best_bid))
-                    .then(pl.lit("sell"))
-                    .otherwise(pl.lit("unknown"))
-                    .alias("side")
+                    .otherwise(pl.lit("sell"))
                 )
+                .when(
+                    pl.col("price")
+                    > (pl.col("mid_price_at_trade") + pl.col("spread_at_trade") * 0.25)
+                )
+                .then(pl.lit("buy"))  # Above mid + 25% of spread
+                .when(
+                    pl.col("price")
+                    < (pl.col("mid_price_at_trade") - pl.col("spread_at_trade") * 0.25)
+                )
+                .then(pl.lit("sell"))  # Below mid - 25% of spread
+                .otherwise(pl.lit("neutral"))  # In the neutral zone
+                .alias("side")
+            )
 
-                # Add null metadata for consistency when best prices unavailable
-                enhanced_trades = enhanced_trades.with_columns(
-                    [
-                        pl.lit(None, dtype=pl.Float64).alias("spread_at_trade"),
-                        pl.lit(None, dtype=pl.Float64).alias("mid_price_at_trade"),
-                        pl.lit(best_bid, dtype=pl.Float64).alias("best_bid_at_trade"),
-                        pl.lit(best_ask, dtype=pl.Float64).alias("best_ask_at_trade"),
-                    ]
-                )
+            # Drop the pre_update columns as they're no longer needed
+            enhanced_trades = enhanced_trades.drop(["pre_update_bid", "pre_update_ask"])
 
             # Combine with existing trade data
             if self.recent_trades.height > 0:
@@ -1629,70 +1671,164 @@ class OrderBook:
             return {"bid_volume": 0, "ask_volume": 0, "bid_levels": 0, "ask_levels": 0}
 
     def get_liquidity_levels(
-        self, min_volume: int = 100, levels: int = 20
+        self,
+        min_volume: int = 100,
+        lookback_minutes: int = 30,
+        min_persistence: int = 2,
     ) -> dict[str, Any]:
         """
-        Identify significant liquidity levels in the orderbook.
+        Identify significant liquidity levels using price level history.
+
+        This method finds "sticky" liquidity - price levels where orders
+        consistently reappear after being consumed, indicating institutional
+        interest or market maker activity.
 
         Args:
-            min_volume: Minimum volume threshold for significance
-            levels: Number of levels to analyze from each side
+            min_volume: Minimum average volume threshold for significance
+            lookback_minutes: Minutes of history to analyze
+            min_persistence: Minimum number of refreshes to be considered persistent
 
         Returns:
             dict: {"bid_liquidity": DataFrame, "ask_liquidity": DataFrame}
         """
         try:
             with self.orderbook_lock:
-                # Get top levels from each side
-                bids = self.get_orderbook_bids(levels)
-                asks = self.get_orderbook_asks(levels)
+                cutoff_time = datetime.now(self.timezone) - timedelta(
+                    minutes=lookback_minutes
+                )
 
-                avg_ask_volume = pl.DataFrame()
-                avg_bid_volume = pl.DataFrame()
+                # Analyze price level history for persistent liquidity
+                bid_liquidity_data = []
+                ask_liquidity_data = []
 
-                # Filter for significant volume levels
-                significant_bids = bids.filter(pl.col("volume") >= min_volume)
-                significant_asks = asks.filter(pl.col("volume") >= min_volume)
+                for (price, side), updates in self.price_level_history.items():
+                    # Filter for recent updates
+                    recent_updates = [
+                        u for u in updates if u["timestamp"] >= cutoff_time
+                    ]
 
-                # Add liquidity score (volume relative to average)
-                if len(significant_bids) > 0:
-                    avg_bid_volume = significant_bids.select(
-                        pl.col("volume").mean()
-                    ).item()
-                    significant_bids = significant_bids.with_columns(
+                    if len(recent_updates) >= min_persistence:
+                        volumes = [u["volume"] for u in recent_updates]
+                        avg_volume = sum(volumes) / len(volumes)
+
+                        if avg_volume >= min_volume:
+                            # Calculate liquidity metrics
+                            max_volume = max(volumes)
+                            total_volume = sum(volumes)
+
+                            # Time persistence
+                            time_span = (
+                                recent_updates[-1]["timestamp"]
+                                - recent_updates[0]["timestamp"]
+                            ).total_seconds() / 60
+                            refresh_rate = (
+                                len(recent_updates) / time_span if time_span > 0 else 0
+                            )
+
+                            # Volume stability (lower std = more stable)
+                            vol_std = stdev(volumes) if len(volumes) > 1 else 0
+                            stability = (
+                                1 - (vol_std / avg_volume) if avg_volume > 0 else 1
+                            )
+
+                            liquidity_data = {
+                                "price": float(price),
+                                "volume": int(avg_volume),
+                                "max_volume": int(max_volume),
+                                "total_volume": int(total_volume),
+                                "refresh_count": len(recent_updates),
+                                "refresh_rate": round(refresh_rate, 2),
+                                "stability": round(stability, 2),
+                                "persistence_minutes": round(time_span, 1),
+                                "side": side,
+                            }
+
+                            if side == "bid":
+                                bid_liquidity_data.append(liquidity_data)
+                            else:
+                                ask_liquidity_data.append(liquidity_data)
+
+                # Create DataFrames sorted by volume
+                bid_liquidity = (
+                    pl.DataFrame(bid_liquidity_data)
+                    if bid_liquidity_data
+                    else pl.DataFrame()
+                )
+                ask_liquidity = (
+                    pl.DataFrame(ask_liquidity_data)
+                    if ask_liquidity_data
+                    else pl.DataFrame()
+                )
+
+                # Add liquidity scores
+                if not bid_liquidity.is_empty():
+                    max_bid_vol = bid_liquidity.select("total_volume").max().item()
+                    max_refresh = bid_liquidity.select("refresh_count").max().item()
+
+                    bid_liquidity = bid_liquidity.with_columns(
                         [
-                            (pl.col("volume") / avg_bid_volume).alias(
-                                "liquidity_score"
-                            ),
-                            pl.lit("bid").alias("side"),
+                            (
+                                (pl.col("total_volume") / max_bid_vol) * 0.6
+                                + (pl.col("refresh_count") / max_refresh) * 0.3
+                                + pl.col("stability") * 0.1
+                            ).alias("liquidity_score")
                         ]
-                    )
+                    ).sort("liquidity_score", descending=True)
 
-                if len(significant_asks) > 0:
-                    avg_ask_volume = significant_asks.select(
-                        pl.col("volume").mean()
-                    ).item()
-                    significant_asks = significant_asks.with_columns(
+                if not ask_liquidity.is_empty():
+                    max_ask_vol = ask_liquidity.select("total_volume").max().item()
+                    max_refresh = ask_liquidity.select("refresh_count").max().item()
+
+                    ask_liquidity = ask_liquidity.with_columns(
                         [
-                            (pl.col("volume") / avg_ask_volume).alias(
-                                "liquidity_score"
-                            ),
-                            pl.lit("ask").alias("side"),
+                            (
+                                (pl.col("total_volume") / max_ask_vol) * 0.6
+                                + (pl.col("refresh_count") / max_refresh) * 0.3
+                                + pl.col("stability") * 0.1
+                            ).alias("liquidity_score")
                         ]
+                    ).sort("liquidity_score", descending=True)
+
+                # Analysis summary
+                analysis: dict[str, Any] = {
+                    "total_bid_levels": len(bid_liquidity_data),
+                    "total_ask_levels": len(ask_liquidity_data),
+                    "lookback_minutes": lookback_minutes,
+                    "min_persistence": min_persistence,
+                }
+
+                if not bid_liquidity.is_empty():
+                    analysis["avg_bid_volume"] = int(
+                        bid_liquidity.select("volume").mean().item()
                     )
+                    analysis["max_bid_persistence"] = int(
+                        bid_liquidity.select("refresh_count").max().item()
+                    )
+                    analysis["most_liquid_bid"] = bid_liquidity.row(0, named=True)
+                else:
+                    analysis["avg_bid_volume"] = 0
+                    analysis["max_bid_persistence"] = 0
+
+                if not ask_liquidity.is_empty():
+                    analysis["avg_ask_volume"] = int(
+                        ask_liquidity.select("volume").mean().item()
+                    )
+                    analysis["max_ask_persistence"] = int(
+                        ask_liquidity.select("refresh_count").max().item()
+                    )
+                    analysis["most_liquid_ask"] = ask_liquidity.row(0, named=True)
+                else:
+                    analysis["avg_ask_volume"] = 0
+                    analysis["max_ask_persistence"] = 0
 
                 return {
-                    "bid_liquidity": significant_bids,
-                    "ask_liquidity": significant_asks,
-                    "analysis": {
-                        "total_bid_levels": len(significant_bids),
-                        "total_ask_levels": len(significant_asks),
-                        "avg_bid_volume": avg_bid_volume
-                        if len(significant_bids) > 0
-                        else 0,
-                        "avg_ask_volume": avg_ask_volume
-                        if len(significant_asks) > 0
-                        else 0,
+                    "bid_liquidity": bid_liquidity,
+                    "ask_liquidity": ask_liquidity,
+                    "analysis": analysis,
+                    "metadata": {
+                        "data_source": "price_level_history",
+                        "method": "persistent_liquidity_detection",
+                        "timestamp": datetime.now(self.timezone),
                     },
                 }
 
@@ -1701,15 +1837,22 @@ class OrderBook:
             return {"bid_liquidity": pl.DataFrame(), "ask_liquidity": pl.DataFrame()}
 
     def detect_order_clusters(
-        self, price_tolerance: float | None = None, min_cluster_size: int = 3
+        self,
+        price_tolerance: float | None = None,
+        min_cluster_size: int = 3,
+        lookback_minutes: int = 30,
     ) -> dict[str, Any]:
         """
-        Detect clusters of orders at similar price levels.
+        Detect clusters of orders at similar price levels using price level history.
+
+        This method identifies price zones where multiple orders have been placed
+        repeatedly, indicating areas of concentrated interest from traders.
 
         Args:
             price_tolerance: Price difference tolerance for clustering. If None,
-                           will be calculated based on instrument tick size or derived from data
-            min_cluster_size: Minimum number of orders to form a cluster
+                           will be calculated based on instrument tick size
+            min_cluster_size: Minimum number of unique price levels to form a cluster
+            lookback_minutes: Minutes of history to analyze
 
         Returns:
             dict: {"bid_clusters": list, "ask_clusters": list}
@@ -1720,11 +1863,50 @@ class OrderBook:
                 if price_tolerance is None:
                     price_tolerance = self._calculate_price_tolerance()
 
-                bid_clusters = self._find_clusters(
-                    self.orderbook_bids, price_tolerance, min_cluster_size
+                cutoff_time = datetime.now(self.timezone) - timedelta(
+                    minutes=lookback_minutes
                 )
-                ask_clusters = self._find_clusters(
-                    self.orderbook_asks, price_tolerance, min_cluster_size
+
+                # Collect all active price levels from history
+                bid_levels = {}
+                ask_levels = {}
+
+                for (price, side), updates in self.price_level_history.items():
+                    # Filter for recent updates
+                    recent_updates = [
+                        u for u in updates if u["timestamp"] >= cutoff_time
+                    ]
+
+                    if recent_updates:
+                        level_data = {
+                            "price": price,
+                            "refresh_count": len(recent_updates),
+                            "total_volume": sum(u["volume"] for u in recent_updates),
+                            "avg_volume": sum(u["volume"] for u in recent_updates)
+                            / len(recent_updates),
+                            "last_update": recent_updates[-1]["timestamp"],
+                            "first_update": recent_updates[0]["timestamp"],
+                        }
+
+                        if side == "bid":
+                            bid_levels[price] = level_data
+                        else:
+                            ask_levels[price] = level_data
+
+                # Find clusters using price level history
+                bid_clusters = self._find_clusters_from_history(
+                    bid_levels, price_tolerance, min_cluster_size, "bid"
+                )
+                ask_clusters = self._find_clusters_from_history(
+                    ask_levels, price_tolerance, min_cluster_size, "ask"
+                )
+
+                # Enhance with current orderbook data
+                bid_clusters = self._enhance_clusters_with_current_data(
+                    bid_clusters, self.orderbook_bids, "bid"
+                )
+                ask_clusters = self._enhance_clusters_with_current_data(
+                    ask_clusters, self.orderbook_asks, "ask"
                 )
 
                 return {
@@ -1733,15 +1915,17 @@ class OrderBook:
                     "cluster_count": len(bid_clusters) + len(ask_clusters),
                     "analysis": {
                         "strongest_bid_cluster": max(
-                            bid_clusters, key=lambda x: x["total_volume"]
+                            bid_clusters, key=lambda x: x["strength"]
                         )
                         if bid_clusters
                         else None,
                         "strongest_ask_cluster": max(
-                            ask_clusters, key=lambda x: x["total_volume"]
+                            ask_clusters, key=lambda x: x["strength"]
                         )
                         if ask_clusters
                         else None,
+                        "lookback_minutes": lookback_minutes,
+                        "price_tolerance": price_tolerance,
                     },
                 }
 
@@ -1866,6 +2050,101 @@ class OrderBook:
 
         return clusters
 
+    def _find_clusters_from_history(
+        self, levels_dict: dict, tolerance: float, min_size: int, side: str
+    ) -> list[dict]:
+        """Find price clusters from historical price level data."""
+        if not levels_dict:
+            return []
+
+        # Sort prices
+        sorted_prices = sorted(levels_dict.keys())
+        clusters = []
+
+        i = 0
+        while i < len(sorted_prices):
+            cluster_prices = [sorted_prices[i]]
+            cluster_data = [levels_dict[sorted_prices[i]]]
+
+            # Look for nearby prices within tolerance
+            j = i + 1
+            while (
+                j < len(sorted_prices)
+                and abs(sorted_prices[j] - sorted_prices[i]) <= tolerance
+            ):
+                cluster_prices.append(sorted_prices[j])
+                cluster_data.append(levels_dict[sorted_prices[j]])
+                j += 1
+
+            # If cluster is large enough, record it
+            if len(cluster_prices) >= min_size:
+                total_volume = sum(d["total_volume"] for d in cluster_data)
+                total_refreshes = sum(d["refresh_count"] for d in cluster_data)
+                avg_volume = (
+                    sum(d["avg_volume"] * d["refresh_count"] for d in cluster_data)
+                    / total_refreshes
+                )
+
+                # Calculate cluster strength based on persistence and volume
+                persistence_score = total_refreshes / len(
+                    cluster_prices
+                )  # Refreshes per level
+                volume_score = total_volume / 1000  # Normalize by 1000
+
+                clusters.append(
+                    {
+                        "center_price": sum(cluster_prices) / len(cluster_prices),
+                        "price_range": (min(cluster_prices), max(cluster_prices)),
+                        "total_volume": total_volume,
+                        "avg_volume": avg_volume,
+                        "level_count": len(cluster_prices),
+                        "total_refreshes": total_refreshes,
+                        "persistence_score": persistence_score,
+                        "strength": min(1.0, (persistence_score + volume_score) / 2),
+                        "side": side,
+                        "price_levels": cluster_prices,
+                        "last_update": max(d["last_update"] for d in cluster_data),
+                        "first_update": min(d["first_update"] for d in cluster_data),
+                    }
+                )
+
+            # Move to next unclustered price
+            i = j if j > i + 1 else i + 1
+
+        return sorted(clusters, key=lambda x: x["strength"], reverse=True)
+
+    def _enhance_clusters_with_current_data(
+        self, clusters: list[dict], current_orderbook: pl.DataFrame, side: str
+    ) -> list[dict]:
+        """Enhance cluster data with current orderbook information."""
+        if not clusters or current_orderbook.is_empty():
+            return clusters
+
+        for cluster in clusters:
+            # Check current orderbook for volume at cluster prices
+            price_min, price_max = cluster["price_range"]
+
+            current_volume = (
+                current_orderbook.filter(
+                    (pl.col("price") >= price_min) & (pl.col("price") <= price_max)
+                )
+                .select(pl.col("volume").sum())
+                .item()
+            )
+
+            if current_volume is not None:
+                cluster["current_volume"] = int(current_volume or 0)
+                cluster["volume_ratio"] = (
+                    cluster["current_volume"] / cluster["avg_volume"]
+                    if cluster["avg_volume"] > 0
+                    else 0
+                )
+            else:
+                cluster["current_volume"] = 0
+                cluster["volume_ratio"] = 0
+
+        return clusters
+
     def detect_iceberg_orders(
         self,
         time_window_minutes: int = 30,
@@ -1893,43 +2172,36 @@ class OrderBook:
                     minutes=time_window_minutes
                 )
 
-                # Initialize empty history DataFrame - schema will be inferred from concatenation
-                history_df = None
+                # Build history DataFrame from price level history
+                history_data = []
 
-                # Process both bid and ask sides
-                for side, df in [
-                    ("bid", self.orderbook_bids),
-                    ("ask", self.orderbook_asks),
-                ]:
-                    if df.height == 0:
-                        continue
+                # Clean old history entries while building data
+                for (price, side), updates in list(self.price_level_history.items()):
+                    # Filter out old updates
+                    recent_updates = [
+                        u for u in updates if u["timestamp"] >= cutoff_time
+                    ]
 
-                    # Filter by timestamp if available, otherwise use all data
-                    if "timestamp" in df.columns:
-                        # Use cutoff_time directly since it's already in the correct timezone
-                        recent_df = df.filter(pl.col("timestamp") >= cutoff_time)
+                    # Update the history with only recent updates
+                    if recent_updates:
+                        self.price_level_history[(price, side)] = recent_updates
+
+                        # Add to history data for analysis
+                        for update in recent_updates:
+                            history_data.append(
+                                {
+                                    "price": price,
+                                    "volume": update["volume"],
+                                    "timestamp": update["timestamp"],
+                                    "side": side,
+                                }
+                            )
                     else:
-                        # Use all data if no timestamp filtering possible
-                        recent_df = df
+                        # Remove empty history entries
+                        del self.price_level_history[(price, side)]
 
-                    if recent_df.height == 0:
-                        continue
-
-                    # Add side column and ensure schema compatibility
-                    side_df = recent_df.select(
-                        [
-                            pl.col("price"),
-                            pl.col("volume"),
-                            pl.col("timestamp"),
-                            pl.lit(side).alias("side"),
-                        ]
-                    )
-
-                    # Concatenate with main history DataFrame
-                    if history_df is None:
-                        history_df = side_df
-                    else:
-                        history_df = pl.concat([history_df, side_df], how="vertical")
+                # Create DataFrame from history
+                history_df = pl.DataFrame(history_data) if history_data else None
 
                 # Check if we have sufficient data for analysis
                 if history_df is None or history_df.height == 0:
@@ -2518,31 +2790,24 @@ class OrderBook:
             }
 
     def get_support_resistance_levels(
-        self, lookback_minutes: int = 60
+        self, lookback_minutes: int = 60, min_refresh_count: int = 3
     ) -> dict[str, Any]:
         """
-        Identify dynamic support and resistance levels from orderbook and trade data.
+        Identify dynamic support and resistance levels using price level history.
+
+        This method analyzes price levels that have shown persistent order placement
+        activity, indicating potential support/resistance zones where institutional
+        traders are defending positions.
 
         Args:
             lookback_minutes: Minutes of data to analyze
+            min_refresh_count: Minimum number of order refreshes to consider significant
 
         Returns:
             dict: {"support_levels": list, "resistance_levels": list}
         """
         try:
             with self.orderbook_lock:
-                # Get volume profile for support/resistance detection with time filtering
-                volume_profile = self.get_volume_profile(
-                    time_window_minutes=lookback_minutes
-                )
-
-                if not volume_profile.get("profile"):
-                    return {
-                        "support_levels": [],
-                        "resistance_levels": [],
-                        "analysis": {"error": "No volume profile data available"},
-                    }
-
                 # Get current market price
                 best_prices = self.get_best_bid_ask()
                 current_price = best_prices.get("mid")
@@ -2554,121 +2819,203 @@ class OrderBook:
                         "analysis": {"error": "No current price available"},
                     }
 
-                # Identify significant volume levels
-                profile_data = volume_profile["profile"]
-                if not profile_data:
-                    return {
-                        "support_levels": [],
-                        "resistance_levels": [],
-                        "analysis": {"error": "Empty volume profile"},
-                    }
-
-                # Calculate average volume for significance threshold
-                total_volume = sum(
-                    level.get("total_volume", 0) for level in profile_data
+                cutoff_time = datetime.now(self.timezone) - timedelta(
+                    minutes=lookback_minutes
                 )
-                avg_volume = total_volume / len(profile_data) if profile_data else 0
 
-                if avg_volume == 0:
-                    return {
-                        "support_levels": [],
-                        "resistance_levels": [],
-                        "analysis": {"error": "No significant volume data"},
-                    }
+                # Analyze price level history for persistent levels
+                level_stats = {}
 
-                # Filter for significant volume levels (1.5x average)
-                significant_levels = [
-                    level
-                    for level in profile_data
-                    if level.get("total_volume", 0) > avg_volume * 1.5
-                ]
+                for (price, side), updates in self.price_level_history.items():
+                    # Filter for recent updates
+                    recent_updates = [
+                        u for u in updates if u["timestamp"] >= cutoff_time
+                    ]
 
-                # Separate into support and resistance based on current price
+                    if len(recent_updates) >= min_refresh_count:
+                        volumes = [u["volume"] for u in recent_updates]
+                        avg_volume = sum(volumes) / len(volumes)
+                        max_volume = max(volumes)
+                        total_volume = sum(volumes)
+
+                        # Calculate persistence score based on refresh frequency
+                        time_span = (
+                            recent_updates[-1]["timestamp"]
+                            - recent_updates[0]["timestamp"]
+                        ).total_seconds()
+                        refresh_rate = (
+                            len(recent_updates) / (time_span / 60)
+                            if time_span > 0
+                            else 0
+                        )
+
+                        # Volume consistency (lower std dev = more consistent)
+                        vol_std = stdev(volumes) if len(volumes) > 1 else 0
+                        consistency = (
+                            1 - (vol_std / avg_volume) if avg_volume > 0 else 0
+                        )
+
+                        level_stats[(price, side)] = {
+                            "price": price,
+                            "side": side,
+                            "refresh_count": len(recent_updates),
+                            "avg_volume": avg_volume,
+                            "max_volume": max_volume,
+                            "total_volume": total_volume,
+                            "refresh_rate": refresh_rate,  # refreshes per minute
+                            "consistency": max(0, consistency),
+                            "last_update": recent_updates[-1]["timestamp"],
+                            "first_update": recent_updates[0]["timestamp"],
+                            "time_active": time_span / 60,  # minutes
+                        }
+
+                # Calculate strength scores
+                if level_stats:
+                    # Get max values for normalization
+                    max_refresh = max(s["refresh_count"] for s in level_stats.values())
+                    max_volume = max(s["total_volume"] for s in level_stats.values())
+                    max_rate = (
+                        max(s["refresh_rate"] for s in level_stats.values())
+                        if max(s["refresh_rate"] for s in level_stats.values()) > 0
+                        else 1
+                    )
+
+                    for stats in level_stats.values():
+                        # Composite strength score
+                        refresh_score = stats["refresh_count"] / max_refresh
+                        volume_score = (
+                            stats["total_volume"] / max_volume if max_volume > 0 else 0
+                        )
+                        rate_score = stats["refresh_rate"] / max_rate
+
+                        # Weight factors: refresh count (40%), volume (30%), rate (20%), consistency (10%)
+                        stats["strength"] = round(
+                            0.4 * refresh_score
+                            + 0.3 * volume_score
+                            + 0.2 * rate_score
+                            + 0.1 * stats["consistency"],
+                            3,
+                        )
+                        stats["distance_from_price"] = abs(
+                            stats["price"] - current_price
+                        )
+
+                # Separate into support and resistance
                 support_levels = []
                 resistance_levels = []
 
-                for level in significant_levels:
-                    level_price = level.get("avg_price")
-                    level_volume = level.get("total_volume", 0)
-
-                    if level_price is None:
-                        continue  # Skip invalid levels
-
-                    level_strength = level_volume / avg_volume
-
+                for (price, side), stats in level_stats.items():
                     level_info = {
-                        "price": float(level_price),
-                        "volume": int(level_volume),
-                        "strength": round(level_strength, 2),
-                        "trade_count": level.get("trade_count", 0),
-                        "type": "volume_cluster",
-                        "distance_from_price": abs(level_price - current_price),
+                        "price": float(price),
+                        "volume": int(stats["avg_volume"]),
+                        "strength": stats["strength"],
+                        "refresh_count": stats["refresh_count"],
+                        "type": "persistent_level",
+                        "side": side,
+                        "consistency": round(stats["consistency"], 2),
+                        "refresh_rate": round(stats["refresh_rate"], 2),
+                        "time_active_minutes": round(stats["time_active"], 1),
+                        "total_volume": int(stats["total_volume"]),
+                        "distance_from_price": stats["distance_from_price"],
                     }
 
-                    if level_price < current_price:
+                    # Classify based on price relative to current and side
+                    if price < current_price and side == "bid":
                         support_levels.append(level_info)
-                    else:
+                    elif price > current_price and side == "ask":
                         resistance_levels.append(level_info)
 
                 # Sort by proximity to current price (closest first)
                 support_levels.sort(key=lambda x: x["distance_from_price"])
                 resistance_levels.sort(key=lambda x: x["distance_from_price"])
 
-                # Add orderbook levels as potential support/resistance
+                # Also consider current orderbook for immediate levels
+                # But give them lower weight than persistent historical levels
                 try:
-                    liquidity_levels = self.get_liquidity_levels(
-                        min_volume=200, levels=15
+                    # Check current bid levels for additional support
+                    if not self.orderbook_bids.is_empty():
+                        bid_summary = (
+                            self.orderbook_bids.group_by("price")
+                            .agg(
+                                [
+                                    pl.col("volume").sum().alias("total_volume"),
+                                    pl.col("volume").count().alias("order_count"),
+                                ]
+                            )
+                            .sort("price", descending=True)
+                            .head(10)
+                        )
+
+                        for row in bid_summary.to_dicts():
+                            price = row["price"]
+                            if price < current_price:
+                                # Check if this level has historical significance
+                                historical_key = (price, "bid")
+                                if historical_key not in level_stats:
+                                    support_levels.append(
+                                        {
+                                            "price": float(price),
+                                            "volume": int(row["total_volume"]),
+                                            "strength": 0.2,  # Lower strength for current-only levels
+                                            "refresh_count": 0,
+                                            "type": "current_orderbook",
+                                            "side": "bid",
+                                            "consistency": 0,
+                                            "refresh_rate": 0,
+                                            "time_active_minutes": 0,
+                                            "total_volume": int(row["total_volume"]),
+                                            "distance_from_price": abs(
+                                                price - current_price
+                                            ),
+                                        }
+                                    )
+
+                    # Check current ask levels for additional resistance
+                    if not self.orderbook_asks.is_empty():
+                        ask_summary = (
+                            self.orderbook_asks.group_by("price")
+                            .agg(
+                                [
+                                    pl.col("volume").sum().alias("total_volume"),
+                                    pl.col("volume").count().alias("order_count"),
+                                ]
+                            )
+                            .sort("price")
+                            .head(10)
+                        )
+
+                        for row in ask_summary.to_dicts():
+                            price = row["price"]
+                            if price > current_price:
+                                # Check if this level has historical significance
+                                historical_key = (price, "ask")
+                                if historical_key not in level_stats:
+                                    resistance_levels.append(
+                                        {
+                                            "price": float(price),
+                                            "volume": int(row["total_volume"]),
+                                            "strength": 0.2,  # Lower strength for current-only levels
+                                            "refresh_count": 0,
+                                            "type": "current_orderbook",
+                                            "side": "ask",
+                                            "consistency": 0,
+                                            "refresh_rate": 0,
+                                            "time_active_minutes": 0,
+                                            "total_volume": int(row["total_volume"]),
+                                            "distance_from_price": abs(
+                                                price - current_price
+                                            ),
+                                        }
+                                    )
+
+                except Exception as orderbook_error:
+                    self.logger.debug(
+                        f"Could not add current orderbook levels: {orderbook_error}"
                     )
 
-                    # Process bid liquidity as potential support
-                    bid_liquidity = liquidity_levels.get("bid_liquidity")
-                    if bid_liquidity is not None and hasattr(bid_liquidity, "to_dicts"):
-                        for bid_level in bid_liquidity.to_dicts():
-                            bid_price = bid_level.get("price")
-                            if bid_price is not None and bid_price < current_price:
-                                support_levels.append(
-                                    {
-                                        "price": float(bid_price),
-                                        "volume": int(bid_level.get("volume", 0)),
-                                        "strength": round(
-                                            bid_level.get("liquidity_score", 0), 2
-                                        ),
-                                        "type": "orderbook_liquidity",
-                                        "distance_from_price": abs(
-                                            bid_price - current_price
-                                        ),
-                                    }
-                                )
-
-                    # Process ask liquidity as potential resistance
-                    ask_liquidity = liquidity_levels.get("ask_liquidity")
-                    if ask_liquidity is not None and hasattr(ask_liquidity, "to_dicts"):
-                        for ask_level in ask_liquidity.to_dicts():
-                            ask_price = ask_level.get("price")
-                            if ask_price is not None and ask_price > current_price:
-                                resistance_levels.append(
-                                    {
-                                        "price": float(ask_price),
-                                        "volume": int(ask_level.get("volume", 0)),
-                                        "strength": round(
-                                            ask_level.get("liquidity_score", 0), 2
-                                        ),
-                                        "type": "orderbook_liquidity",
-                                        "distance_from_price": abs(
-                                            ask_price - current_price
-                                        ),
-                                    }
-                                )
-
-                except Exception as liquidity_error:
-                    self.logger.warning(
-                        f"Failed to get liquidity levels: {liquidity_error}"
-                    )
-                    # Continue without orderbook liquidity data
-
-                # Remove duplicates based on price proximity (within 1 tick)
+                # Remove duplicates based on price proximity
                 def remove_duplicates(levels_list):
-                    """Remove levels that are too close to each other (within 1 tick)."""
+                    """Remove levels that are too close to each other."""
                     if not levels_list:
                         return []
 
@@ -2676,20 +3023,26 @@ class OrderBook:
                     sorted_levels = sorted(
                         levels_list, key=lambda x: x["strength"], reverse=True
                     )
-                    unique_levels = [sorted_levels[0]]  # Start with strongest level
+                    unique_levels = []
 
-                    for level in sorted_levels[1:]:
+                    for level in sorted_levels:
                         # Check if this level is far enough from existing levels
-                        min_distance = min(
-                            abs(level["price"] - existing["price"])
-                            for existing in unique_levels
-                        )
-                        if min_distance >= 0.25:  # At least 25 cents apart
+                        is_unique = True
+                        for existing in unique_levels:
+                            if (
+                                abs(level["price"] - existing["price"]) < 0.25
+                            ):  # Within 25 cents
+                                is_unique = False
+                                break
+
+                        if is_unique:
                             unique_levels.append(level)
+                            if len(unique_levels) >= 10:  # Limit to top 10
+                                break
 
-                    return unique_levels[:10]  # Limit to top 10
+                    return unique_levels
 
-                # Apply deduplication and limit results
+                # Apply deduplication
                 support_levels = remove_duplicates(support_levels)
                 resistance_levels = remove_duplicates(resistance_levels)
 
@@ -2699,30 +3052,35 @@ class OrderBook:
 
                 # Calculate analysis metrics
                 analysis = {
-                    "strongest_support": support_levels[0] if support_levels else None,
-                    "strongest_resistance": resistance_levels[0]
-                    if resistance_levels
-                    else None,
-                    "total_levels": len(support_levels) + len(resistance_levels),
-                    "lookback_minutes": lookback_minutes,
                     "current_price": current_price,
-                    "nearest_support": support_levels[0] if support_levels else None,
-                    "nearest_resistance": resistance_levels[0]
-                    if resistance_levels
-                    else None,
+                    "lookback_minutes": lookback_minutes,
+                    "min_refresh_count": min_refresh_count,
+                    "total_levels": len(support_levels) + len(resistance_levels),
                     "support_count": len(support_levels),
                     "resistance_count": len(resistance_levels),
+                    "total_price_levels_tracked": len(self.price_level_history),
                 }
 
-                # Add distance analysis
+                # Add nearest and strongest levels
                 if support_levels:
+                    analysis["nearest_support"] = support_levels[0]
                     analysis["nearest_support_distance"] = round(
                         current_price - support_levels[0]["price"], 2
                     )
+                    # Find strongest by refresh count and volume
+                    strongest_support = max(support_levels, key=lambda x: x["strength"])
+                    analysis["strongest_support"] = strongest_support
+
                 if resistance_levels:
+                    analysis["nearest_resistance"] = resistance_levels[0]
                     analysis["nearest_resistance_distance"] = round(
                         resistance_levels[0]["price"] - current_price, 2
                     )
+                    # Find strongest by refresh count and volume
+                    strongest_resistance = max(
+                        resistance_levels, key=lambda x: x["strength"]
+                    )
+                    analysis["strongest_resistance"] = strongest_resistance
 
                 return {
                     "support_levels": support_levels,
@@ -2730,8 +3088,8 @@ class OrderBook:
                     "current_price": current_price,
                     "analysis": analysis,
                     "metadata": {
-                        "data_source": "volume_profile + orderbook_liquidity",
-                        "significance_threshold": f"{avg_volume * 1.5:.0f} volume",
+                        "data_source": "price_level_history",
+                        "method": "persistent_order_analysis",
                         "timestamp": datetime.now(self.timezone),
                     },
                 }

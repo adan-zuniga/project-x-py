@@ -280,11 +280,15 @@ class PositionManager:
             actual_position_data = position_data
             if "action" in position_data and "data" in position_data:
                 actual_position_data = position_data["data"]
-                self.logger.debug(f"Extracted position data from wrapper: action={position_data.get('action')}")
+                self.logger.debug(
+                    f"Extracted position data from wrapper: action={position_data.get('action')}"
+                )
 
             # Validate payload format
             if not self._validate_position_payload(actual_position_data):
-                self.logger.error(f"Invalid position payload format: {actual_position_data}")
+                self.logger.error(
+                    f"Invalid position payload format: {actual_position_data}"
+                )
                 return
 
             contract_id = actual_position_data.get("contractId")
@@ -314,7 +318,9 @@ class PositionManager:
                     self.order_manager.on_position_closed(contract_id)
 
                 # Trigger position_closed callbacks with the closure data
-                self._trigger_callbacks("position_closed", {"data": actual_position_data})
+                self._trigger_callbacks(
+                    "position_closed", {"data": actual_position_data}
+                )
             else:
                 # Position is open/updated - create or update position
                 # ProjectX payload structure matches our Position model fields

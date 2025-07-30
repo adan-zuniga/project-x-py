@@ -6,7 +6,9 @@ Advanced Level 2 orderbook management and market microstructure analysis.
 Overview
 --------
 
-The OrderBook class provides institutional-grade orderbook analytics for real-time market depth analysis. It includes advanced features like iceberg order detection, market imbalance analysis, volume profiling, and dynamic support/resistance identification.
+The OrderBook class provides institutional-grade orderbook analytics for real-time market depth analysis. It includes advanced features like iceberg order detection with price level history tracking, market imbalance analysis, volume profiling, and dynamic support/resistance identification based on temporal patterns.
+
+**New in v1.1.4**: Enhanced analytics using price level refresh history for detecting persistent levels, iceberg orders, and market maker activity zones.
 
 .. currentmodule:: project_x_py
 

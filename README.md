@@ -24,14 +24,17 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 
 **IMPORTANT**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
 
-**Current Version**: v1.1.3 (Contract Selection & Interactive Demo)
+**Current Version**: v1.1.4 (Contract Selection & Interactive Demo)
 
 ✅ **Production Ready SDK Components**:
 - Complete ProjectX Gateway API integration with connection pooling
 - Historical and real-time market data APIs with intelligent caching
 - 55+ technical indicators with computation caching (Full TA-Lib compatibility)
-- Institutional-grade orderbook analysis tools with memory management and dynamic tick size detection
+- Institutional-grade orderbook analysis with price level history tracking
 - Portfolio and risk management APIs
+- **NEW v1.1.4**: Fixed orderbook volume accumulation and OHLCV interpretation
+- **NEW v1.1.4**: Enhanced iceberg detection with refresh pattern analysis
+- **NEW v1.1.4**: Market structure analytics based on temporal patterns
 - **NEW**: 50-70% performance improvements through optimization
 - **NEW**: 60% memory usage reduction with sliding windows
 - **NEW**: Sub-second response times for cached operations
@@ -310,9 +313,15 @@ orderbook = create_orderbook("MGC", project_x=client)  # Uses real instrument me
 depth_snapshot = orderbook.get_orderbook_snapshot()
 best_prices = orderbook.get_best_bid_ask()
 
-# Advanced analysis
-iceberg_orders = orderbook.detect_iceberg_orders()
-imbalance = orderbook.calculate_order_imbalance()
+# Advanced analysis with price level history
+iceberg_orders = orderbook.detect_iceberg_orders()  # Now uses refresh patterns
+support_resistance = orderbook.get_support_resistance_levels()  # Persistent levels
+order_clusters = orderbook.detect_order_clusters()  # Historical activity zones
+liquidity_levels = orderbook.get_liquidity_levels(min_volume=5)  # Sticky liquidity
+
+# Price level history tracking
+history_stats = orderbook.get_price_level_history()
+print(f"Tracked levels: {history_stats['total_tracked_levels']}")
 
 # Monitor memory usage
 memory_stats = orderbook.get_memory_stats()
@@ -611,7 +620,7 @@ We welcome contributions! Please follow these guidelines:
 
 ## 📝 Changelog
 
-### Version 1.1.3 (Latest) - 2025-01-29
+### Version 1.1.4 (Latest) - 2025-01-29
 **🔧 Contract Selection & Interactive Tools**
 
 **Breaking Changes:**
