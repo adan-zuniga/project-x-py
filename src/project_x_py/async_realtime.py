@@ -351,7 +351,7 @@ class AsyncProjectXRealtimeClient:
                 None,
                 self.user_connection.send,
                 "SubscribeAccounts",
-                self.account_id,
+                [],  # Empty list for accounts subscription
             )
 
             # Subscribe to order updates
@@ -359,7 +359,7 @@ class AsyncProjectXRealtimeClient:
                 None,
                 self.user_connection.send,
                 "SubscribeOrders",
-                [self.account_id],
+                [int(self.account_id)],  # List with int account ID
             )
 
             # Subscribe to position updates
@@ -367,7 +367,7 @@ class AsyncProjectXRealtimeClient:
                 None,
                 self.user_connection.send,
                 "SubscribePositions",
-                self.account_id,
+                [int(self.account_id)],  # List with int account ID
             )
 
             # Subscribe to trade updates
@@ -375,7 +375,7 @@ class AsyncProjectXRealtimeClient:
                 None,
                 self.user_connection.send,
                 "SubscribeTrades",
-                self.account_id,
+                [int(self.account_id)],  # List with int account ID
             )
 
             self.logger.info("✅ Subscribed to user updates")
@@ -685,7 +685,7 @@ class AsyncProjectXRealtimeClient:
         self.stats["last_event_time"] = datetime.now()
 
         # Log event (debug level)
-        self.logger.debug(
+        self.logger.info(
             f"📨 Received {event_type} event: {len(args) if hasattr(args, '__len__') else 'N/A'} items"
         )
 

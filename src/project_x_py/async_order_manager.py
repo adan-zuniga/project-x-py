@@ -22,9 +22,10 @@ Key Features:
 import asyncio
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, TypedDict
 
 from .exceptions import (
     ProjectXOrderError,
@@ -38,6 +39,16 @@ from .models import (
 if TYPE_CHECKING:
     from .async_client import AsyncProjectX
     from .async_realtime import AsyncProjectXRealtimeClient
+
+
+class OrderStats(TypedDict):
+    """Type definition for order statistics."""
+
+    orders_placed: int
+    orders_cancelled: int
+    orders_modified: int
+    bracket_orders_placed: int
+    last_order_time: datetime | None
 
 
 class AsyncOrderManager:
@@ -115,7 +126,7 @@ class AsyncOrderManager:
         self.order_to_position: dict[int, str] = {}  # order_id -> contract_id
 
         # Statistics
-        self.stats: dict[str, Any] = {
+        self.stats: OrderStats = {
             "orders_placed": 0,
             "orders_cancelled": 0,
             "orders_modified": 0,
@@ -182,17 +193,57 @@ class AsyncOrderManager:
             "trade_execution", self._on_trade_execution
         )
 
-    async def _on_order_update(self, order_data: dict[str, Any]) -> None:
+    async def _on_order_update(self, order_data: dict[str, Any] | list) -> None:
         """Handle real-time order update events."""
         try:
-            order_id = order_data.get("id")
-            if not order_id:
+            self.logger.info(f"📨 Order update received: {type(order_data)}")
+
+            # Handle different data formats from SignalR
+            if isinstance(order_data, list):
+                # SignalR sometimes sends data as a list
+                if len(order_data) > 0:
+                    # Try to extract the actual order data
+                    if len(order_data) == 1:
+                        order_data = order_data[0]
+                    elif len(order_data) >= 2 and isinstance(order_data[1], dict):
+                        # Format: [id, data_dict]
+                        order_data = order_data[1]
+                    else:
+                        self.logger.warning(
+                            f"Unexpected order data format: {order_data}"
+                        )
+                        return
+                else:
+                    return
+
+            if not isinstance(order_data, dict):
+                self.logger.warning(f"Order data is not a dict: {type(order_data)}")
                 return
 
-            # Update our cache
+            # Extract order data - handle nested structure from SignalR
+            actual_order_data = order_data
+            if "action" in order_data and "data" in order_data:
+                # SignalR format: {'action': 1, 'data': {...}}
+                actual_order_data = order_data["data"]
+
+            order_id = actual_order_data.get("id")
+            if not order_id:
+                self.logger.warning(f"No order ID found in data: {order_data}")
+                return
+
+            self.logger.info(
+                f"📨 Tracking order {order_id} (status: {actual_order_data.get('status')})"
+            )
+
+            # Update our cache with the actual order data
             async with self.order_lock:
-                self.tracked_orders[str(order_id)] = order_data
-                self.order_status_cache[str(order_id)] = order_data.get("status", 0)
+                self.tracked_orders[str(order_id)] = actual_order_data
+                self.order_status_cache[str(order_id)] = actual_order_data.get(
+                    "status", 0
+                )
+                self.logger.info(
+                    f"✅ Order {order_id} added to cache. Total tracked: {len(self.tracked_orders)}"
+                )
 
             # Call any registered callbacks
             if str(order_id) in self.order_callbacks:
@@ -201,10 +252,33 @@ class AsyncOrderManager:
 
         except Exception as e:
             self.logger.error(f"Error handling order update: {e}")
+            self.logger.debug(f"Order data received: {order_data}")
 
-    async def _on_trade_execution(self, trade_data: dict[str, Any]) -> None:
+    async def _on_trade_execution(self, trade_data: dict[str, Any] | list) -> None:
         """Handle real-time trade execution events."""
         try:
+            # Handle different data formats from SignalR
+            if isinstance(trade_data, list):
+                # SignalR sometimes sends data as a list
+                if len(trade_data) > 0:
+                    # Try to extract the actual trade data
+                    if len(trade_data) == 1:
+                        trade_data = trade_data[0]
+                    elif len(trade_data) >= 2 and isinstance(trade_data[1], dict):
+                        # Format: [id, data_dict]
+                        trade_data = trade_data[1]
+                    else:
+                        self.logger.warning(
+                            f"Unexpected trade data format: {trade_data}"
+                        )
+                        return
+                else:
+                    return
+
+            if not isinstance(trade_data, dict):
+                self.logger.warning(f"Trade data is not a dict: {type(trade_data)}")
+                return
+
             order_id = trade_data.get("orderId")
             if order_id and str(order_id) in self.tracked_orders:
                 # Update fill information
@@ -215,144 +289,132 @@ class AsyncOrderManager:
 
         except Exception as e:
             self.logger.error(f"Error handling trade execution: {e}")
+            self.logger.debug(f"Trade data received: {trade_data}")
 
     async def place_order(
         self,
         contract_id: str,
+        order_type: int,
         side: int,
         size: int,
-        order_type: int,
-        price: float | None = None,
+        limit_price: float | None = None,
         stop_price: float | None = None,
-        trailing_offset: float | None = None,
-        time_in_force: int = 2,
-        reduce_only: bool = False,
-        auto_align_price: bool = True,
-    ) -> OrderPlaceResponse | None:
+        trail_price: float | None = None,
+        custom_tag: str | None = None,
+        linked_order_id: int | None = None,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse:
         """
-        Place a new order with automatic price alignment.
+        Place an order with comprehensive parameter support and automatic price alignment.
 
         Args:
-            contract_id: Instrument to trade (e.g., "MGC", "MNQ")
-            side: 0=Buy, 1=Sell
-            size: Number of contracts
-            order_type: 1=Market, 2=Limit, 3=Stop, 4=StopLimit, 5=TrailingStop
-            price: Limit price (required for limit orders)
-            stop_price: Stop trigger price (required for stop orders)
-            trailing_offset: Offset for trailing stop orders
-            time_in_force: 1=IOC, 2=GTC, 3=GTD, 4=DAY, 5=FOK
-            reduce_only: If True, order can only reduce position
-            auto_align_price: Automatically align price to tick size
+            contract_id: The contract ID to trade
+            order_type: Order type:
+                1=Limit, 2=Market, 4=Stop, 5=TrailingStop, 6=JoinBid, 7=JoinAsk
+            side: Order side: 0=Buy, 1=Sell
+            size: Number of contracts to trade
+            limit_price: Limit price for limit orders (auto-aligned to tick size)
+            stop_price: Stop price for stop orders (auto-aligned to tick size)
+            trail_price: Trail amount for trailing stop orders (auto-aligned to tick size)
+            custom_tag: Custom identifier for the order
+            linked_order_id: ID of a linked order (for OCO, etc.)
+            account_id: Account ID. Uses default account if None.
 
         Returns:
-            OrderPlaceResponse with order details or None on failure
+            OrderPlaceResponse: Response containing order ID and status
 
-        Example:
-            >>> # Market order
-            >>> response = await order_manager.place_order("MGC", 0, 1, 1)
-            >>> # Limit order with auto price alignment
-            >>> response = await order_manager.place_order("MGC", 0, 1, 2, price=2045.5)
+        Raises:
+            ProjectXOrderError: If order placement fails
         """
+        result = None
+        aligned_limit_price = None
+        aligned_stop_price = None
+        aligned_trail_price = None
+
         async with self.order_lock:
             try:
-                # Resolve contract ID
-                resolved_contract = await self._resolve_contract_id(contract_id)
-                if not resolved_contract:
-                    raise ProjectXOrderError(f"Cannot resolve contract: {contract_id}")
+                # Align all prices to tick size to prevent "Invalid price" errors
+                aligned_limit_price = await self._align_price_to_tick_size(
+                    limit_price, contract_id
+                )
+                aligned_stop_price = await self._align_price_to_tick_size(
+                    stop_price, contract_id
+                )
+                aligned_trail_price = await self._align_price_to_tick_size(
+                    trail_price, contract_id
+                )
 
-                resolved_id = resolved_contract.get("id")
-                if not resolved_id:
-                    raise ProjectXOrderError(f"Invalid contract data: {contract_id}")
-                contract_id = resolved_id
-                tick_size = resolved_contract.get("tickSize", 0.1)
+                # Use account_info if no account_id provided
+                if account_id is None:
+                    if not self.project_x.account_info:
+                        raise ProjectXOrderError("No account information available")
+                    account_id = self.project_x.account_info.id
 
-                # Price alignment
-                if auto_align_price:
-                    if price is not None:
-                        price = self._align_price_to_tick(price, tick_size)
-                    if stop_price is not None:
-                        stop_price = self._align_price_to_tick(stop_price, tick_size)
-
-                # Build order request
-                if not self.project_x.account_info:
-                    raise ProjectXOrderError("No account selected")
-
-                order_data = {
-                    "accountId": self.project_x.account_info.id,
+                # Build order request payload
+                payload = {
+                    "accountId": account_id,
                     "contractId": contract_id,
+                    "type": order_type,
                     "side": side,
                     "size": size,
-                    "orderType": order_type,
-                    "timeInForce": time_in_force,
-                    "reduceOnly": reduce_only,
+                    "limitPrice": aligned_limit_price,
+                    "stopPrice": aligned_stop_price,
+                    "trailPrice": aligned_trail_price,
+                    "linkedOrderId": linked_order_id,
                 }
 
-                # Add price fields based on order type
-                if order_type == 2:  # Limit
-                    if price is None:
-                        raise ProjectXOrderError("Limit order requires price")
-                    order_data["price"] = float(price)
-                elif order_type == 3:  # Stop
-                    if stop_price is None:
-                        raise ProjectXOrderError("Stop order requires stop_price")
-                    order_data["stopPrice"] = float(stop_price)
-                elif order_type == 4:  # StopLimit
-                    if price is None or stop_price is None:
-                        raise ProjectXOrderError(
-                            "StopLimit order requires both price and stop_price"
-                        )
-                    order_data["price"] = float(price)
-                    order_data["stopPrice"] = float(stop_price)
-                elif order_type == 5:  # TrailingStop
-                    if trailing_offset is None:
-                        raise ProjectXOrderError(
-                            "TrailingStop order requires trailing_offset"
-                        )
-                    order_data["trailingOffset"] = float(trailing_offset)
+                # Only include customTag if it's provided and not None/empty
+                if custom_tag:
+                    payload["customTag"] = custom_tag
+
+                # Log order parameters for debugging
+                self.logger.debug(f"🔍 Order Placement Request: {payload}")
 
                 # Place the order
                 response = await self.project_x._make_request(
-                    "POST", "/orders", data=order_data
+                    "POST", "/Order/place", data=payload
                 )
 
-                if response:
-                    order_response = OrderPlaceResponse(**response)
+                # Log the actual API response for debugging
+                self.logger.debug(f"🔍 Order API Response: {response}")
 
-                    # Track order internally
-                    self.tracked_orders[str(order_response.orderId)] = response
-                    self.order_to_position[order_response.orderId] = contract_id
-
-                    # Update stats
-                    self.stats["orders_placed"] = self.stats["orders_placed"] + 1
-                    self.stats["last_order_time"] = datetime.now()
-
-                    self.logger.info(
-                        f"✅ Order placed: {order_response.orderId} - "
-                        f"{'BUY' if side == 0 else 'SELL'} {size} {contract_id}"
+                if not response.get("success", False):
+                    error_msg = (
+                        response.get("errorMessage")
+                        or "Unknown error - no error message provided"
                     )
+                    self.logger.error(f"Order placement failed: {error_msg}")
+                    self.logger.error(f"🔍 Full response data: {response}")
+                    raise ProjectXOrderError(f"Order placement failed: {error_msg}")
 
-                    return order_response
+                result = OrderPlaceResponse(**response)
 
-                return None
+                # Update statistics
+                self.stats["orders_placed"] += 1
+                self.stats["last_order_time"] = datetime.now()
+
+                self.logger.info(f"✅ Order placed: {result.orderId}")
 
             except Exception as e:
                 self.logger.error(f"❌ Failed to place order: {e}")
                 raise ProjectXOrderError(f"Order placement failed: {e}") from e
 
+        return result
+
     async def place_market_order(
-        self, contract_id: str, side: int, size: int, reduce_only: bool = False
-    ) -> OrderPlaceResponse | None:
+        self, contract_id: str, side: int, size: int, account_id: int | None = None
+    ) -> OrderPlaceResponse:
         """
-        Place a market order.
+        Place a market order (immediate execution at current market price).
 
         Args:
-            contract_id: Instrument to trade
-            side: 0=Buy, 1=Sell
-            size: Number of contracts
-            reduce_only: If True, order can only reduce position
+            contract_id: The contract ID to trade
+            side: Order side: 0=Buy, 1=Sell
+            size: Number of contracts to trade
+            account_id: Account ID. Uses default account if None.
 
         Returns:
-            OrderPlaceResponse or None
+            OrderPlaceResponse: Response containing order ID and status
 
         Example:
             >>> response = await order_manager.place_market_order("MGC", 0, 1)
@@ -361,8 +423,8 @@ class AsyncOrderManager:
             contract_id=contract_id,
             side=side,
             size=size,
-            order_type=1,  # Market
-            reduce_only=reduce_only,
+            order_type=2,  # Market
+            account_id=account_id,
         )
 
     async def place_limit_order(
@@ -370,38 +432,32 @@ class AsyncOrderManager:
         contract_id: str,
         side: int,
         size: int,
-        price: float,
-        time_in_force: int = 2,
-        reduce_only: bool = False,
-        auto_align_price: bool = True,
-    ) -> OrderPlaceResponse | None:
+        limit_price: float,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse:
         """
-        Place a limit order with automatic price alignment.
+        Place a limit order (execute only at specified price or better).
 
         Args:
-            contract_id: Instrument to trade
-            side: 0=Buy, 1=Sell
-            size: Number of contracts
-            price: Limit price
-            time_in_force: 1=IOC, 2=GTC, 3=GTD, 4=DAY, 5=FOK
-            reduce_only: If True, order can only reduce position
-            auto_align_price: Automatically align price to tick size
+            contract_id: The contract ID to trade
+            side: Order side: 0=Buy, 1=Sell
+            size: Number of contracts to trade
+            limit_price: Maximum price for buy orders, minimum price for sell orders
+            account_id: Account ID. Uses default account if None.
 
         Returns:
-            OrderPlaceResponse or None
+            OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> response = await order_manager.place_limit_order("MGC", 0, 1, 2045.5)
+            >>> response = await order_manager.place_limit_order("MGC", 1, 1, 2050.0)
         """
         return await self.place_order(
             contract_id=contract_id,
             side=side,
             size=size,
-            order_type=2,  # Limit
-            price=price,
-            time_in_force=time_in_force,
-            reduce_only=reduce_only,
-            auto_align_price=auto_align_price,
+            order_type=1,  # Limit
+            limit_price=limit_price,
+            account_id=account_id,
         )
 
     async def place_stop_order(
@@ -410,34 +466,32 @@ class AsyncOrderManager:
         side: int,
         size: int,
         stop_price: float,
-        time_in_force: int = 2,
-        reduce_only: bool = False,
-        auto_align_price: bool = True,
-    ) -> OrderPlaceResponse | None:
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse:
         """
-        Place a stop order.
+        Place a stop order (market order triggered at stop price).
 
         Args:
-            contract_id: Instrument to trade
-            side: 0=Buy, 1=Sell
-            size: Number of contracts
-            stop_price: Stop trigger price
-            time_in_force: 1=IOC, 2=GTC, 3=GTD, 4=DAY, 5=FOK
-            reduce_only: If True, order can only reduce position
-            auto_align_price: Automatically align price to tick size
+            contract_id: The contract ID to trade
+            side: Order side: 0=Buy, 1=Sell
+            size: Number of contracts to trade
+            stop_price: Price level that triggers the market order
+            account_id: Account ID. Uses default account if None.
 
         Returns:
-            OrderPlaceResponse or None
+            OrderPlaceResponse: Response containing order ID and status
+
+        Example:
+            >>> # Stop loss for long position
+            >>> response = await order_manager.place_stop_order("MGC", 1, 1, 2040.0)
         """
         return await self.place_order(
             contract_id=contract_id,
             side=side,
             size=size,
-            order_type=3,  # Stop
+            order_type=4,  # Stop
             stop_price=stop_price,
-            time_in_force=time_in_force,
-            reduce_only=reduce_only,
-            auto_align_price=auto_align_price,
+            account_id=account_id,
         )
 
     async def search_open_orders(
@@ -468,52 +522,163 @@ class AsyncOrderManager:
             if contract_id:
                 # Resolve contract
                 resolved = await self._resolve_contract_id(contract_id)
-                if resolved:
-                    params["contractId"] = resolved.get("id")
+                if resolved and resolved.get("id"):
+                    params["contractId"] = resolved["id"]
 
             if side is not None:
                 params["side"] = side
 
             response = await self.project_x._make_request(
-                "GET", "/orders/search", params=params
+                "POST", "/Order/searchOpen", data=params
             )
 
-            if response and isinstance(response, list):
-                # Filter for open orders (status < 100)
-                open_orders = [
-                    Order(**order) for order in response if order.get("status", 0) < 100
-                ]
+            if not response.get("success", False):
+                error_msg = response.get("errorMessage", "Unknown error")
+                self.logger.error(f"Order search failed: {error_msg}")
+                return []
 
-                # Update our cache
-                async with self.order_lock:
-                    for order in open_orders:
-                        # Convert dataclass to dict
-                        self.tracked_orders[str(order.id)] = {
-                            "id": order.id,
-                            "accountId": order.accountId,
-                            "contractId": order.contractId,
-                            "status": order.status,
-                            "side": order.side,
-                            "size": order.size,
-                            "limitPrice": order.limitPrice,
-                            "stopPrice": order.stopPrice,
-                        }
+            orders = response.get("orders", [])
+            # Filter to only include fields that Order model expects
+            open_orders = []
+            for order_data in orders:
+                try:
+                    order = Order(**order_data)
+                    open_orders.append(order)
+
+                    # Update our cache
+                    async with self.order_lock:
+                        self.tracked_orders[str(order.id)] = order_data
                         self.order_status_cache[str(order.id)] = order.status
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse order: {e}")
+                    continue
 
-                return open_orders
-
-            return []
+            return open_orders
 
         except Exception as e:
             self.logger.error(f"Failed to search orders: {e}")
             return []
 
-    async def cancel_order(self, order_id: int) -> bool:
+    async def get_tracked_order_status(
+        self, order_id: str, wait_for_cache: bool = False
+    ) -> dict[str, Any] | None:
+        """
+        Get cached order status from real-time tracking for faster access.
+
+        When real-time mode is enabled, this method provides instant access to
+        order status without requiring API calls, improving performance.
+
+        Args:
+            order_id: Order ID to get status for (as string)
+            wait_for_cache: If True, briefly wait for real-time cache to populate
+
+        Returns:
+            dict: Complete order data if tracked in cache, None if not found
+                Contains all ProjectX GatewayUserOrder fields:
+                - id, accountId, contractId, status, type, side, size
+                - limitPrice, stopPrice, fillVolume, filledPrice, etc.
+
+        Example:
+            >>> order_data = await order_manager.get_tracked_order_status("12345")
+            >>> if order_data:
+            ...     print(
+            ...         f"Status: {order_data['status']}"
+            ...     )  # 1=Open, 2=Filled, 3=Cancelled
+            ...     print(f"Fill volume: {order_data.get('fillVolume', 0)}")
+            >>> else:
+            ...     print("Order not found in cache")
+        """
+        if wait_for_cache and self._realtime_enabled:
+            # Brief wait for real-time cache to populate
+            for attempt in range(3):
+                async with self.order_lock:
+                    order_data = self.tracked_orders.get(order_id)
+                    if order_data:
+                        return order_data
+
+                if attempt < 2:  # Don't sleep on last attempt
+                    await asyncio.sleep(0.3)  # Brief wait for real-time update
+
+        async with self.order_lock:
+            return self.tracked_orders.get(order_id)
+
+    async def is_order_filled(self, order_id: str | int) -> bool:
+        """
+        Check if an order has been filled using cached data with API fallback.
+
+        Efficiently checks order fill status by first consulting the real-time
+        cache (if available) before falling back to API queries for maximum
+        performance.
+
+        Args:
+            order_id: Order ID to check (accepts both string and integer)
+
+        Returns:
+            bool: True if order status is 2 (Filled), False otherwise
+
+        Example:
+            >>> if await order_manager.is_order_filled(12345):
+            ...     print("Order has been filled")
+            ...     # Proceed with next trading logic
+            >>> else:
+            ...     print("Order still pending")
+        """
+        order_id_str = str(order_id)
+
+        # Try cached data first with brief retry for real-time updates
+        if self._realtime_enabled:
+            for attempt in range(3):  # Try 3 times with small delays
+                async with self.order_lock:
+                    status = self.order_status_cache.get(order_id_str)
+                    if status is not None:
+                        return status == 2  # 2 = Filled
+
+                if attempt < 2:  # Don't sleep on last attempt
+                    await asyncio.sleep(0.2)  # Brief wait for real-time update
+
+        # Fallback to API check
+        order = await self.get_order_by_id(int(order_id))
+        return order is not None and order.status == 2  # 2 = Filled
+
+    async def get_order_by_id(self, order_id: int) -> Order | None:
+        """
+        Get detailed order information by ID using cached data with API fallback.
+
+        Args:
+            order_id: Order ID to retrieve
+
+        Returns:
+            Order object with full details or None if not found
+        """
+        order_id_str = str(order_id)
+
+        # Try cached data first (realtime optimization)
+        if self._realtime_enabled:
+            order_data = await self.get_tracked_order_status(order_id_str)
+            if order_data:
+                try:
+                    return Order(**order_data)
+                except Exception as e:
+                    self.logger.debug(f"Failed to parse cached order data: {e}")
+
+        # Fallback to API search
+        try:
+            orders = await self.search_open_orders()
+            for order in orders:
+                if order.id == order_id:
+                    return order
+            return None
+        except Exception as e:
+            self.logger.error(f"Failed to get order {order_id}: {e}")
+            return None
+
+    async def cancel_order(self, order_id: int, account_id: int | None = None) -> bool:
         """
         Cancel an open order.
 
         Args:
             order_id: Order ID to cancel
+            account_id: Account ID. Uses default account if None.
 
         Returns:
             True if cancellation successful
@@ -523,21 +688,49 @@ class AsyncOrderManager:
         """
         async with self.order_lock:
             try:
+                # Get account ID if not provided
+                if account_id is None:
+                    if not self.project_x.account_info:
+                        await self.project_x.authenticate()
+                    if not self.project_x.account_info:
+                        raise ProjectXOrderError("No account information available")
+                    account_id = self.project_x.account_info.id
+
+                # Use correct endpoint and payload structure
+                payload = {
+                    "accountId": account_id,
+                    "orderId": order_id,
+                }
+
                 response = await self.project_x._make_request(
-                    "POST", f"/orders/{order_id}/cancel"
+                    "POST", "/Order/cancel", data=payload
                 )
 
-                if response:
+                success = response.get("success", False) if response else False
+
+                if success:
                     # Update cache
                     if str(order_id) in self.tracked_orders:
-                        self.tracked_orders[str(order_id)]["status"] = 200  # Cancelled
-                        self.order_status_cache[str(order_id)] = 200
+                        self.tracked_orders[str(order_id)]["status"] = (
+                            3  # Cancelled = 3
+                        )
+                        self.order_status_cache[str(order_id)] = 3
 
-                    self.stats["orders_cancelled"] = self.stats["orders_cancelled"] + 1
+                    self.stats["orders_cancelled"] = (
+                        self.stats.get("orders_cancelled", 0) + 1
+                    )
                     self.logger.info(f"✅ Order cancelled: {order_id}")
                     return True
-
-                return False
+                else:
+                    error_msg = (
+                        response.get("errorMessage", "Unknown error")
+                        if response
+                        else "No response"
+                    )
+                    self.logger.error(
+                        f"❌ Failed to cancel order {order_id}: {error_msg}"
+                    )
+                    return False
 
             except Exception as e:
                 self.logger.error(f"Failed to cancel order {order_id}: {e}")
@@ -546,203 +739,169 @@ class AsyncOrderManager:
     async def modify_order(
         self,
         order_id: int,
-        new_price: float | None = None,
-        new_stop_price: float | None = None,
-        new_size: int | None = None,
-        auto_align_price: bool = True,
+        limit_price: float | None = None,
+        stop_price: float | None = None,
+        size: int | None = None,
     ) -> bool:
         """
         Modify an existing order.
 
         Args:
             order_id: Order ID to modify
-            new_price: New limit price (optional)
-            new_stop_price: New stop price (optional)
-            new_size: New order size (optional)
-            auto_align_price: Automatically align price to tick size
+            limit_price: New limit price (optional)
+            stop_price: New stop price (optional)
+            size: New order size (optional)
 
         Returns:
             True if modification successful
 
         Example:
-            >>> success = await order_manager.modify_order(12345, new_price=2046.0)
+            >>> success = await order_manager.modify_order(12345, limit_price=2046.0)
         """
-        async with self.order_lock:
-            try:
-                # Get current order details
-                order_data = self.tracked_orders.get(str(order_id))
-                if not order_data:
-                    # Fetch from API if not cached
-                    response = await self.project_x._make_request(
-                        "GET", f"/orders/{order_id}"
+        try:
+            # Get existing order details to determine contract_id for price alignment
+            existing_order = await self.get_order_by_id(order_id)
+            if not existing_order:
+                self.logger.error(f"❌ Cannot modify order {order_id}: Order not found")
+                return False
+
+            contract_id = existing_order.contractId
+
+            # Align prices to tick size
+            aligned_limit = await self._align_price_to_tick_size(
+                limit_price, contract_id
+            )
+            aligned_stop = await self._align_price_to_tick_size(stop_price, contract_id)
+
+            # Build modification request
+            payload: dict[str, Any] = {
+                "accountId": self.project_x.account_info.id
+                if self.project_x.account_info
+                else None,
+                "orderId": order_id,
+            }
+
+            # Add only the fields that are being modified
+            if aligned_limit is not None:
+                payload["limitPrice"] = aligned_limit
+            if aligned_stop is not None:
+                payload["stopPrice"] = aligned_stop
+            if size is not None:
+                payload["size"] = size
+
+            if len(payload) <= 2:  # Only accountId and orderId
+                return True  # Nothing to modify
+
+            # Modify order
+            response = await self.project_x._make_request(
+                "POST", "/Order/modify", data=payload
+            )
+
+            if response and response.get("success", False):
+                # Update statistics
+                async with self.order_lock:
+                    self.stats["orders_modified"] = (
+                        self.stats.get("orders_modified", 0) + 1
                     )
-                    if not response:
-                        raise ProjectXOrderError(f"Order {order_id} not found")
-                    order_data = response
 
-                # Get tick size for price alignment
-                contract_id = order_data.get("contractId")
-                tick_size = 0.1  # Default
-
-                if auto_align_price and contract_id:
-                    resolved = await self._resolve_contract_id(contract_id)
-                    if resolved:
-                        tick_size = resolved.get("tickSize", 0.1)
-
-                    if new_price is not None:
-                        new_price = self._align_price_to_tick(new_price, tick_size)
-                    if new_stop_price is not None:
-                        new_stop_price = self._align_price_to_tick(
-                            new_stop_price, tick_size
-                        )
-
-                # Build modification request
-                modify_data = {}
-                if new_price is not None:
-                    modify_data["price"] = float(new_price)
-                if new_stop_price is not None:
-                    modify_data["stopPrice"] = float(new_stop_price)
-                if new_size is not None:
-                    modify_data["size"] = new_size
-
-                if not modify_data:
-                    return True  # Nothing to modify
-
-                # Send modification request
-                response = await self.project_x._make_request(
-                    "PUT", f"/orders/{order_id}", data=modify_data
+                self.logger.info(f"✅ Order modified: {order_id}")
+                return True
+            else:
+                error_msg = (
+                    response.get("errorMessage", "Unknown error")
+                    if response
+                    else "No response"
                 )
-
-                if response:
-                    # Update cache
-                    self.tracked_orders[str(order_id)].update(modify_data)
-                    self.stats["orders_modified"] = self.stats["orders_modified"] + 1
-                    self.logger.info(f"✅ Order modified: {order_id}")
-                    return True
-
+                self.logger.error(f"❌ Order modification failed: {error_msg}")
                 return False
 
-            except Exception as e:
-                self.logger.error(f"Failed to modify order {order_id}: {e}")
-                return False
+        except Exception as e:
+            self.logger.error(f"Failed to modify order {order_id}: {e}")
+            return False
 
     async def place_bracket_order(
         self,
         contract_id: str,
         side: int,
         size: int,
-        entry_type: int = 1,
-        entry_price: float | None = None,
-        stop_loss_price: float | None = None,
-        take_profit_price: float | None = None,
-        stop_loss_offset: float | None = None,
-        take_profit_offset: float | None = None,
-        auto_align_price: bool = True,
-    ) -> BracketOrderResponse | None:
+        entry_price: float,
+        stop_loss_price: float,
+        take_profit_price: float,
+        entry_type: str = "limit",
+        account_id: int | None = None,
+        custom_tag: str | None = None,
+    ) -> BracketOrderResponse:
         """
-        Place a bracket order (entry + stop loss + take profit).
+        Place a bracket order with entry, stop loss, and take profit.
+
+        A bracket order consists of three orders:
+        1. Entry order (limit or market)
+        2. Stop loss order (triggered if entry fills and price moves against position)
+        3. Take profit order (triggered if entry fills and price moves favorably)
 
         Args:
-            contract_id: Instrument to trade
-            side: 0=Buy, 1=Sell
-            size: Number of contracts
-            entry_type: 1=Market, 2=Limit
-            entry_price: Entry limit price (required if entry_type=2)
-            stop_loss_price: Stop loss price (optional, can use offset)
-            take_profit_price: Take profit price (optional, can use offset)
-            stop_loss_offset: Points from entry for stop loss
-            take_profit_offset: Points from entry for take profit
-            auto_align_price: Automatically align prices to tick size
+            contract_id: The contract ID to trade
+            side: Order side: 0=Buy, 1=Sell
+            size: Number of contracts to trade
+            entry_price: Entry price for the position
+            stop_loss_price: Stop loss price (risk management)
+            take_profit_price: Take profit price (profit target)
+            entry_type: Entry order type: "limit" or "market"
+            account_id: Account ID. Uses default account if None.
+            custom_tag: Custom identifier for the bracket
 
         Returns:
-            BracketOrderResponse with all three order IDs
+            BracketOrderResponse with entry, stop, and target order IDs
 
         Example:
-            >>> # Market entry with fixed stop/target
-            >>> bracket = await order_manager.place_bracket_order(
-            ...     "MGC", 0, 1, stop_loss_price=2040.0, take_profit_price=2055.0
-            ... )
-            >>> # Limit entry with offset stop/target
-            >>> bracket = await order_manager.place_bracket_order(
-            ...     "MGC",
-            ...     0,
-            ...     1,
-            ...     entry_type=2,
-            ...     entry_price=2045.0,
-            ...     stop_loss_offset=5.0,
-            ...     take_profit_offset=10.0,
+            >>> response = await order_manager.place_bracket_order(
+            ...     "MGC", 0, 1, 2045.0, 2040.0, 2055.0
             ... )
         """
-        # No lock here - individual order methods handle their own locking
         try:
-            # Resolve contract
-            resolved = await self._resolve_contract_id(contract_id)
-            if not resolved:
-                raise ProjectXOrderError(f"Cannot resolve contract: {contract_id}")
-
-            resolved_id = resolved.get("id")
-            if not resolved_id:
-                raise ProjectXOrderError(f"Invalid contract data: {contract_id}")
-            contract_id = resolved_id
+            # Validate prices
+            if side == 0:  # Buy
+                if stop_loss_price >= entry_price:
+                    raise ProjectXOrderError(
+                        f"Buy order stop loss ({stop_loss_price}) must be below entry ({entry_price})"
+                    )
+                if take_profit_price <= entry_price:
+                    raise ProjectXOrderError(
+                        f"Buy order take profit ({take_profit_price}) must be above entry ({entry_price})"
+                    )
+            else:  # Sell
+                if stop_loss_price <= entry_price:
+                    raise ProjectXOrderError(
+                        f"Sell order stop loss ({stop_loss_price}) must be above entry ({entry_price})"
+                    )
+                if take_profit_price >= entry_price:
+                    raise ProjectXOrderError(
+                        f"Sell order take profit ({take_profit_price}) must be below entry ({entry_price})"
+                    )
 
             # Place entry order
-            if entry_type == 1:  # Market
-                entry_response = await self.place_market_order(contract_id, side, size)
-            else:  # Limit
-                if entry_price is None:
-                    raise ProjectXOrderError("Limit entry requires entry_price")
+            if entry_type.lower() == "market":
+                entry_response = await self.place_market_order(
+                    contract_id, side, size, account_id
+                )
+            else:  # limit
                 entry_response = await self.place_limit_order(
-                    contract_id,
-                    side,
-                    size,
-                    entry_price,
-                    auto_align_price=auto_align_price,
+                    contract_id, side, size, entry_price, account_id
                 )
 
-            if not entry_response:
+            if not entry_response or not entry_response.success:
                 raise ProjectXOrderError("Failed to place entry order")
 
-            # Calculate stop and target prices if using offsets
-            # For market orders, we might need to wait for fill or use current market price
-            current_price = entry_price or 0 if entry_type == 1 else entry_price
+            # Place stop loss (opposite side)
+            stop_side = 1 if side == 0 else 0
+            stop_response = await self.place_stop_order(
+                contract_id, stop_side, size, stop_loss_price, account_id
+            )
 
-            if stop_loss_offset and current_price:
-                if side == 0:  # Buy
-                    stop_loss_price = current_price - stop_loss_offset
-                else:  # Sell
-                    stop_loss_price = current_price + stop_loss_offset
-
-            if take_profit_offset and current_price:
-                if side == 0:  # Buy
-                    take_profit_price = current_price + take_profit_offset
-                else:  # Sell
-                    take_profit_price = current_price - take_profit_offset
-
-            # Place stop loss order
-            stop_response = None
-            if stop_loss_price:
-                stop_side = 1 if side == 0 else 0  # Opposite side
-                stop_response = await self.place_stop_order(
-                    contract_id,
-                    stop_side,
-                    size,
-                    stop_loss_price,
-                    reduce_only=True,
-                    auto_align_price=auto_align_price,
-                )
-
-            # Place take profit order
-            target_response = None
-            if take_profit_price:
-                target_side = 1 if side == 0 else 0  # Opposite side
-                target_response = await self.place_limit_order(
-                    contract_id,
-                    target_side,
-                    size,
-                    take_profit_price,
-                    reduce_only=True,
-                    auto_align_price=auto_align_price,
-                )
+            # Place take profit (opposite side)
+            target_response = await self.place_limit_order(
+                contract_id, stop_side, size, take_profit_price, account_id
+            )
 
             # Create bracket response
             bracket_response = BracketOrderResponse(
@@ -785,7 +944,7 @@ class AsyncOrderManager:
 
         except Exception as e:
             self.logger.error(f"Failed to place bracket order: {e}")
-            return None
+            raise ProjectXOrderError(f"Failed to place bracket order: {e}") from e
 
     async def _resolve_contract_id(self, contract_id: str) -> dict[str, Any] | None:
         """Resolve a contract ID to its full contract details."""
@@ -820,6 +979,739 @@ class AsyncOrderManager:
 
         return float(aligned)
 
-    def get_stats(self) -> dict[str, Any]:
-        """Get order manager statistics."""
-        return self.stats.copy()
+    async def _align_price_to_tick_size(
+        self, price: float | None, contract_id: str
+    ) -> float | None:
+        """
+        Align a price to the instrument's tick size.
+
+        Args:
+            price: The price to align
+            contract_id: Contract ID to get tick size from
+
+        Returns:
+            float: Price aligned to tick size
+            None: If price is None
+        """
+        try:
+            if price is None:
+                return None
+
+            instrument_obj = None
+
+            # Try to get instrument by simple symbol first (e.g., "MNQ")
+            if "." not in contract_id:
+                instrument_obj = await self.project_x.get_instrument(contract_id)
+            else:
+                # Extract symbol from contract ID (e.g., "CON.F.US.MGC.M25" -> "MGC")
+                from .utils import extract_symbol_from_contract_id
+
+                symbol = extract_symbol_from_contract_id(contract_id)
+                if symbol:
+                    instrument_obj = await self.project_x.get_instrument(symbol)
+
+            if not instrument_obj or not hasattr(instrument_obj, "tickSize"):
+                self.logger.warning(
+                    f"No tick size available for contract {contract_id}, using original price: {price}"
+                )
+                return price
+
+            tick_size = instrument_obj.tickSize
+            if tick_size is None or tick_size <= 0:
+                self.logger.warning(
+                    f"Invalid tick size {tick_size} for {contract_id}, using original price: {price}"
+                )
+                return price
+
+            self.logger.debug(
+                f"Aligning price {price} with tick size {tick_size} for {contract_id}"
+            )
+
+            # Convert to Decimal for precise calculation
+            price_decimal = Decimal(str(price))
+            tick_decimal = Decimal(str(tick_size))
+
+            # Round to nearest tick using precise decimal arithmetic
+            ticks = (price_decimal / tick_decimal).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+            aligned_decimal = ticks * tick_decimal
+
+            # Determine the number of decimal places needed for the tick size
+            tick_str = str(tick_size)
+            decimal_places = len(tick_str.split(".")[1]) if "." in tick_str else 0
+
+            # Create the quantization pattern
+            if decimal_places == 0:
+                quantize_pattern = Decimal("1")
+            else:
+                quantize_pattern = Decimal("0." + "0" * (decimal_places - 1) + "1")
+
+            result = float(aligned_decimal.quantize(quantize_pattern))
+
+            if result != price:
+                self.logger.info(
+                    f"Price alignment: {price} -> {result} (tick size: {tick_size})"
+                )
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Error aligning price {price} to tick size: {e}")
+            return price  # Return original price if alignment fails
+
+    async def get_order_statistics(self) -> dict[str, Any]:
+        """
+        Get comprehensive order management statistics and system health information.
+
+        Provides detailed metrics about order activity, real-time tracking status,
+        position-order relationships, and system health for monitoring and debugging.
+
+        Returns:
+            Dict with complete statistics including:
+                - statistics: Core order metrics (placed, cancelled, modified, etc.)
+                - realtime_enabled: Whether real-time order tracking is active
+                - tracked_orders: Number of orders currently in cache
+                - position_order_relationships: Details about order-position links
+                - callbacks_registered: Number of callbacks per event type
+                - health_status: Overall system health status
+
+        Example:
+            >>> stats = await order_manager.get_order_statistics()
+            >>> print(f"Orders placed: {stats['statistics']['orders_placed']}")
+            >>> print(f"Real-time enabled: {stats['realtime_enabled']}")
+            >>> print(f"Tracked orders: {stats['tracked_orders']}")
+            >>> relationships = stats["position_order_relationships"]
+            >>> print(
+            ...     f"Positions with orders: {relationships['positions_with_orders']}"
+            ... )
+            >>> for contract_id, orders in relationships["position_summary"].items():
+            ...     print(f"  {contract_id}: {orders['total']} orders")
+        """
+        async with self.order_lock:
+            # Use internal order tracking
+            tracked_orders_count = len(self.tracked_orders)
+
+            # Count position-order relationships
+            total_position_orders = 0
+            position_summary = {}
+            for contract_id, orders in self.position_orders.items():
+                entry_count = len(orders["entry_orders"])
+                stop_count = len(orders["stop_orders"])
+                target_count = len(orders["target_orders"])
+                total_count = entry_count + stop_count + target_count
+
+                if total_count > 0:
+                    total_position_orders += total_count
+                    position_summary[contract_id] = {
+                        "entry": entry_count,
+                        "stop": stop_count,
+                        "target": target_count,
+                        "total": total_count,
+                    }
+
+            # Count callbacks
+            callback_counts = {
+                event_type: len(callbacks)
+                for event_type, callbacks in self.order_callbacks.items()
+            }
+
+            return {
+                "statistics": self.stats,
+                "realtime_enabled": self._realtime_enabled,
+                "tracked_orders": tracked_orders_count,
+                "position_order_relationships": {
+                    "total_order_position_links": len(self.order_to_position),
+                    "positions_with_orders": len(position_summary),
+                    "total_position_orders": total_position_orders,
+                    "position_summary": position_summary,
+                },
+                "callbacks_registered": callback_counts,
+                "health_status": "healthy"
+                if self._realtime_enabled or tracked_orders_count > 0
+                else "degraded",
+            }
+
+    async def close_position(
+        self,
+        contract_id: str,
+        method: str = "market",
+        limit_price: float | None = None,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse | None:
+        """
+        Close an existing position using market or limit order.
+
+        Args:
+            contract_id: Contract ID of position to close
+            method: "market" or "limit"
+            limit_price: Limit price if using limit order
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            OrderPlaceResponse: Response from closing order
+
+        Example:
+            >>> # Close position at market
+            >>> response = await order_manager.close_position("MGC", method="market")
+            >>> # Close position with limit
+            >>> response = await order_manager.close_position(
+            ...     "MGC", method="limit", limit_price=2050.0
+            ... )
+        """
+        # Get current position
+        positions = await self.project_x.search_open_positions(account_id=account_id)
+        position = None
+        for pos in positions:
+            if pos.contractId == contract_id:
+                position = pos
+                break
+
+        if not position:
+            self.logger.warning(f"⚠️ No open position found for {contract_id}")
+            return None
+
+        # Determine order side (opposite of position)
+        side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        size = abs(position.size)
+
+        # Place closing order
+        if method == "market":
+            return await self.place_market_order(contract_id, side, size, account_id)
+        elif method == "limit":
+            if limit_price is None:
+                raise ProjectXOrderError("Limit price required for limit close")
+            return await self.place_limit_order(
+                contract_id, side, size, limit_price, account_id
+            )
+        else:
+            raise ProjectXOrderError(f"Invalid close method: {method}")
+
+    async def place_trailing_stop_order(
+        self,
+        contract_id: str,
+        side: int,
+        size: int,
+        trail_price: float,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse:
+        """
+        Place a trailing stop order (stop that follows price by trail amount).
+
+        Args:
+            contract_id: The contract ID to trade
+            side: Order side: 0=Buy, 1=Sell
+            size: Number of contracts to trade
+            trail_price: Trail amount (distance from current price)
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            OrderPlaceResponse: Response containing order ID and status
+
+        Example:
+            >>> response = await order_manager.place_trailing_stop_order(
+            ...     "MGC", 1, 1, 5.0
+            ... )
+        """
+        return await self.place_order(
+            contract_id=contract_id,
+            order_type=5,  # Trailing stop order
+            side=side,
+            size=size,
+            trail_price=trail_price,
+            account_id=account_id,
+        )
+
+    async def cancel_all_orders(
+        self, contract_id: str | None = None, account_id: int | None = None
+    ) -> dict[str, Any]:
+        """
+        Cancel all open orders, optionally filtered by contract.
+
+        Args:
+            contract_id: Optional contract ID to filter orders
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            Dict with cancellation results
+
+        Example:
+            >>> results = await order_manager.cancel_all_orders()
+            >>> print(f"Cancelled {results['cancelled']} orders")
+        """
+        orders = await self.search_open_orders(contract_id, account_id)
+
+        results: dict[str, Any] = {
+            "total": len(orders),
+            "cancelled": 0,
+            "failed": 0,
+            "errors": [],
+        }
+
+        for order in orders:
+            try:
+                if await self.cancel_order(order.id, account_id):
+                    results["cancelled"] += 1
+                else:
+                    results["failed"] += 1
+            except Exception as e:
+                results["failed"] += 1
+                results["errors"].append({"order_id": order.id, "error": str(e)})
+
+        return results
+
+    async def add_stop_loss(
+        self,
+        contract_id: str,
+        stop_price: float,
+        size: int | None = None,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse | None:
+        """
+        Add a stop loss order to protect an existing position.
+
+        Args:
+            contract_id: Contract ID of the position
+            stop_price: Stop loss trigger price
+            size: Number of contracts (defaults to position size)
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            OrderPlaceResponse if successful, None if no position
+
+        Example:
+            >>> response = await order_manager.add_stop_loss("MGC", 2040.0)
+        """
+        # Get current position
+        positions = await self.project_x.search_open_positions(account_id=account_id)
+        position = None
+        for pos in positions:
+            if pos.contractId == contract_id:
+                position = pos
+                break
+
+        if not position:
+            self.logger.warning(f"⚠️ No open position found for {contract_id}")
+            return None
+
+        # Determine order side (opposite of position)
+        side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        order_size = size if size else abs(position.size)
+
+        # Place stop order
+        response = await self.place_stop_order(
+            contract_id, side, order_size, stop_price, account_id
+        )
+
+        # Track order for position
+        if response and response.success:
+            await self.track_order_for_position(
+                contract_id, response.orderId, "stop", account_id
+            )
+
+        return response
+
+    async def add_take_profit(
+        self,
+        contract_id: str,
+        limit_price: float,
+        size: int | None = None,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse | None:
+        """
+        Add a take profit (limit) order to an existing position.
+
+        Args:
+            contract_id: Contract ID of the position
+            limit_price: Take profit price
+            size: Number of contracts (defaults to position size)
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            OrderPlaceResponse if successful, None if no position
+
+        Example:
+            >>> response = await order_manager.add_take_profit("MGC", 2060.0)
+        """
+        # Get current position
+        positions = await self.project_x.search_open_positions(account_id=account_id)
+        position = None
+        for pos in positions:
+            if pos.contractId == contract_id:
+                position = pos
+                break
+
+        if not position:
+            self.logger.warning(f"⚠️ No open position found for {contract_id}")
+            return None
+
+        # Determine order side (opposite of position)
+        side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        order_size = size if size else abs(position.size)
+
+        # Place limit order
+        response = await self.place_limit_order(
+            contract_id, side, order_size, limit_price, account_id
+        )
+
+        # Track order for position
+        if response and response.success:
+            await self.track_order_for_position(
+                contract_id, response.orderId, "target", account_id
+            )
+
+        return response
+
+    async def track_order_for_position(
+        self,
+        contract_id: str,
+        order_id: int,
+        order_type: str = "entry",
+        account_id: int | None = None,
+    ) -> None:
+        """
+        Track an order as part of position management.
+
+        Args:
+            contract_id: Contract ID the order is for
+            order_id: Order ID to track
+            order_type: Type of order: "entry", "stop", or "target"
+            account_id: Account ID for multi-account support
+        """
+        async with self.order_lock:
+            if contract_id not in self.position_orders:
+                self.position_orders[contract_id] = {
+                    "entry_orders": [],
+                    "stop_orders": [],
+                    "target_orders": [],
+                }
+
+            if order_type == "entry":
+                self.position_orders[contract_id]["entry_orders"].append(order_id)
+            elif order_type == "stop":
+                self.position_orders[contract_id]["stop_orders"].append(order_id)
+            elif order_type == "target":
+                self.position_orders[contract_id]["target_orders"].append(order_id)
+
+            self.order_to_position[order_id] = contract_id
+            self.logger.debug(
+                f"Tracking {order_type} order {order_id} for position {contract_id}"
+            )
+
+    def untrack_order(self, order_id: int) -> None:
+        """
+        Remove an order from position tracking.
+
+        Args:
+            order_id: Order ID to untrack
+        """
+        if order_id in self.order_to_position:
+            contract_id = self.order_to_position[order_id]
+            del self.order_to_position[order_id]
+
+            # Remove from position orders
+            if contract_id in self.position_orders:
+                for order_list in self.position_orders[contract_id].values():
+                    if order_id in order_list:
+                        order_list.remove(order_id)
+
+            self.logger.debug(f"Untracked order {order_id}")
+
+    def get_position_orders(self, contract_id: str) -> dict[str, list[int]]:
+        """
+        Get all orders associated with a position.
+
+        Args:
+            contract_id: Contract ID to get orders for
+
+        Returns:
+            Dict with entry_orders, stop_orders, and target_orders lists
+        """
+        return self.position_orders.get(
+            contract_id, {"entry_orders": [], "stop_orders": [], "target_orders": []}
+        )
+
+    async def cancel_position_orders(
+        self,
+        contract_id: str,
+        order_types: list[str] | None = None,
+        account_id: int | None = None,
+    ) -> dict[str, int]:
+        """
+        Cancel all orders associated with a position.
+
+        Args:
+            contract_id: Contract ID of the position
+            order_types: List of order types to cancel (e.g., ["stop", "target"])
+                        If None, cancels all order types
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            Dict with counts of cancelled orders by type
+
+        Example:
+            >>> # Cancel only stop orders
+            >>> results = await order_manager.cancel_position_orders("MGC", ["stop"])
+            >>> # Cancel all orders for position
+            >>> results = await order_manager.cancel_position_orders("MGC")
+        """
+        if order_types is None:
+            order_types = ["entry", "stop", "target"]
+
+        position_orders = self.get_position_orders(contract_id)
+        results = {"entry": 0, "stop": 0, "target": 0}
+
+        for order_type in order_types:
+            order_key = f"{order_type}_orders"
+            if order_key in position_orders:
+                for order_id in position_orders[order_key][:]:  # Copy list
+                    try:
+                        if await self.cancel_order(order_id, account_id):
+                            results[order_type] += 1
+                            self.untrack_order(order_id)
+                    except Exception as e:
+                        self.logger.error(
+                            f"Failed to cancel {order_type} order {order_id}: {e}"
+                        )
+
+        return results
+
+    async def update_position_order_sizes(
+        self, contract_id: str, new_size: int, account_id: int | None = None
+    ) -> dict[str, Any]:
+        """
+        Update order sizes for a position (e.g., after partial fill).
+
+        Args:
+            contract_id: Contract ID of the position
+            new_size: New position size to protect
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            Dict with update results
+        """
+        position_orders = self.get_position_orders(contract_id)
+        results: dict[str, Any] = {"modified": 0, "failed": 0, "errors": []}
+
+        # Update stop and target orders
+        for order_type in ["stop", "target"]:
+            order_key = f"{order_type}_orders"
+            for order_id in position_orders.get(order_key, []):
+                try:
+                    # Get current order
+                    order = await self.get_order_by_id(order_id)
+                    if order and order.status == 1:  # Open
+                        # Modify order size
+                        success = await self.modify_order(
+                            order_id=order_id, size=new_size
+                        )
+                        if success:
+                            results["modified"] += 1
+                        else:
+                            results["failed"] += 1
+                except Exception as e:
+                    results["failed"] += 1
+                    results["errors"].append({"order_id": order_id, "error": str(e)})
+
+        return results
+
+    async def sync_orders_with_position(
+        self,
+        contract_id: str,
+        target_size: int,
+        cancel_orphaned: bool = True,
+        account_id: int | None = None,
+    ) -> dict[str, Any]:
+        """
+        Synchronize orders with actual position size.
+
+        Args:
+            contract_id: Contract ID to sync
+            target_size: Expected position size
+            cancel_orphaned: Whether to cancel orders if no position exists
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            Dict with sync results
+        """
+        results: dict[str, Any] = {"actions_taken": [], "errors": []}
+
+        if target_size == 0 and cancel_orphaned:
+            # No position, cancel all orders
+            cancel_results = await self.cancel_position_orders(
+                contract_id, account_id=account_id
+            )
+            results["actions_taken"].append(
+                {"action": "cancelled_all_orders", "details": cancel_results}
+            )
+        elif target_size > 0:
+            # Update order sizes to match position
+            update_results = await self.update_position_order_sizes(
+                contract_id, target_size, account_id
+            )
+            results["actions_taken"].append(
+                {"action": "updated_order_sizes", "details": update_results}
+            )
+
+        return results
+
+    async def on_position_changed(
+        self,
+        contract_id: str,
+        old_size: int,
+        new_size: int,
+        account_id: int | None = None,
+    ) -> None:
+        """
+        Handle position size changes (e.g., partial fills).
+
+        Args:
+            contract_id: Contract ID of the position
+            old_size: Previous position size
+            new_size: New position size
+            account_id: Account ID for multi-account support
+        """
+        self.logger.info(
+            f"Position changed for {contract_id}: {old_size} -> {new_size}"
+        )
+
+        if new_size == 0:
+            # Position closed, cancel remaining orders
+            await self.on_position_closed(contract_id, account_id)
+        else:
+            # Position partially filled, update order sizes
+            await self.sync_orders_with_position(
+                contract_id, abs(new_size), cancel_orphaned=True, account_id=account_id
+            )
+
+    async def on_position_closed(
+        self, contract_id: str, account_id: int | None = None
+    ) -> None:
+        """
+        Handle position closure by canceling all related orders.
+
+        Args:
+            contract_id: Contract ID of the closed position
+            account_id: Account ID for multi-account support
+        """
+        self.logger.info(f"Position closed for {contract_id}, cancelling all orders")
+
+        # Cancel all orders for this position
+        cancel_results = await self.cancel_position_orders(
+            contract_id, account_id=account_id
+        )
+
+        # Clean up tracking
+        if contract_id in self.position_orders:
+            del self.position_orders[contract_id]
+
+        # Remove from order_to_position mapping
+        orders_to_remove = [
+            order_id
+            for order_id, pos_id in self.order_to_position.items()
+            if pos_id == contract_id
+        ]
+        for order_id in orders_to_remove:
+            del self.order_to_position[order_id]
+
+        self.logger.info(f"Cleaned up position {contract_id}: {cancel_results}")
+
+    def get_realtime_validation_status(self) -> dict[str, Any]:
+        """
+        Get real-time validation and health status.
+
+        Returns:
+            Dict with validation status and metrics
+        """
+        return {
+            "realtime_enabled": self._realtime_enabled,
+            "tracked_orders": len(self.tracked_orders),
+            "order_cache_size": len(self.order_status_cache),
+            "position_links": len(self.order_to_position),
+            "monitored_positions": len(self.position_orders),
+            "callbacks_registered": {
+                event_type: len(callbacks)
+                for event_type, callbacks in self.order_callbacks.items()
+            },
+        }
+
+    def add_callback(
+        self, event_type: str, callback: Callable[[dict[str, Any]], None]
+    ) -> None:
+        """
+        Register a callback function for specific order events.
+
+        Allows you to listen for order fills, cancellations, rejections, and other
+        order status changes to build custom monitoring and notification systems.
+
+        Args:
+            event_type: Type of event to listen for
+                - "order_filled": Order completely filled
+                - "order_cancelled": Order cancelled
+                - "order_expired": Order expired
+                - "order_rejected": Order rejected by exchange
+                - "order_pending": Order pending submission
+                - "trade_execution": Trade execution notification
+            callback: Function to call when event occurs
+
+        Example:
+            >>> def on_order_filled(data):
+            ...     print(f"Order {data['orderId']} filled at {data['filledPrice']}")
+            >>> order_manager.add_callback("order_filled", on_order_filled)
+        """
+        if event_type not in self.order_callbacks:
+            self.order_callbacks[event_type] = []
+        self.order_callbacks[event_type].append(callback)
+        self.logger.debug(f"Registered callback for {event_type}")
+
+    async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
+        """
+        Trigger all callbacks registered for a specific event type.
+
+        Args:
+            event_type: Type of event that occurred
+            data: Event data to pass to callbacks
+        """
+        if event_type in self.order_callbacks:
+            for callback in self.order_callbacks[event_type]:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(data)
+                    else:
+                        callback(data)
+                except Exception as e:
+                    self.logger.error(f"Error in {event_type} callback: {e}")
+
+    def clear_order_tracking(self) -> None:
+        """
+        Clear all cached order tracking data.
+
+        Useful for resetting the order manager state, particularly after
+        connectivity issues or when switching between accounts.
+        """
+        self.tracked_orders.clear()
+        self.order_status_cache.clear()
+        self.order_to_position.clear()
+        self.position_orders.clear()
+        self.logger.info("Cleared all order tracking data")
+
+    async def cleanup(self) -> None:
+        """Clean up resources and connections."""
+        self.logger.info("Cleaning up AsyncOrderManager resources")
+
+        # Clear all tracking data
+        async with self.order_lock:
+            self.tracked_orders.clear()
+            self.order_status_cache.clear()
+            self.order_to_position.clear()
+            self.position_orders.clear()
+            self.order_callbacks.clear()
+
+        # Clean up realtime client if it exists
+        if self.realtime_client:
+            try:
+                await self.realtime_client.disconnect()
+            except Exception as e:
+                self.logger.error(f"Error disconnecting realtime client: {e}")
+
+        self.logger.info("AsyncOrderManager cleanup complete")
