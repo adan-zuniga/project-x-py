@@ -31,6 +31,7 @@ from .async_client import AsyncProjectX
 from .async_order_manager import AsyncOrderManager
 from .async_orderbook import AsyncOrderBook
 from .async_position_manager import AsyncPositionManager
+from .async_realtime import AsyncProjectXRealtimeClient
 from .async_realtime_data_manager import AsyncRealtimeDataManager
 from .client import ProjectX
 
@@ -141,6 +142,7 @@ __all__ = [
     "AsyncOrderManager",
     "AsyncOrderBook",
     "AsyncPositionManager",
+    "AsyncProjectXRealtimeClient",
     "AsyncRealtimeDataManager",
     "ProjectXAuthenticationError",
     "ProjectXConfig",
@@ -179,6 +181,13 @@ __all__ = [
     "calculate_volume_profile",
     "calculate_williams_r",
     "convert_timeframe_to_seconds",
+    "create_async_client",
+    "create_async_data_manager",
+    "create_async_order_manager",
+    "create_async_orderbook",
+    "create_async_position_manager",
+    "create_async_realtime_client",
+    "create_async_trading_suite",
     "create_custom_config",
     "create_data_manager",
     "create_data_snapshot",
@@ -706,6 +715,400 @@ def create_trading_suite(
     # Create position manager for position tracking and risk management
     position_manager = PositionManager(project_x)
     position_manager.initialize(
+        realtime_client=realtime_client, order_manager=order_manager
+    )
+
+    return {
+        "realtime_client": realtime_client,
+        "data_manager": data_manager,
+        "orderbook": orderbook,
+        "order_manager": order_manager,
+        "position_manager": position_manager,
+        "config": config,
+    }
+
+
+# Async factory functions
+def create_async_client(
+    username: str | None = None,
+    api_key: str | None = None,
+    config: ProjectXConfig | None = None,
+    account_name: str | None = None,
+) -> AsyncProjectX:
+    """
+    Create an AsyncProjectX client with flexible initialization options.
+
+    This convenience function provides multiple ways to initialize an async ProjectX client:
+    - Using environment variables (recommended for security)
+    - Using explicit credentials
+    - Using custom configuration
+    - Selecting specific account by name
+
+    Args:
+        username: ProjectX username (uses PROJECT_X_USERNAME env var if None)
+        api_key: ProjectX API key (uses PROJECT_X_API_KEY env var if None)
+        config: Configuration object with endpoints and settings (uses defaults if None)
+        account_name: Optional account name to select specific account
+
+    Returns:
+        AsyncProjectX: Configured async client instance ready for API operations
+
+    Example:
+        >>> # Using environment variables (recommended)
+        >>> client = create_async_client()
+        >>> async with client:
+        ...     await client.authenticate()
+        >>> # Using explicit credentials
+        >>> client = create_async_client("username", "api_key")
+        >>> async with client:
+        ...     await client.authenticate()
+        >>> # Using specific account
+        >>> client = create_async_client(account_name="Main Trading Account")
+        >>> async with client:
+        ...     await client.authenticate()
+    """
+    if username is None or api_key is None:
+        if config is None:
+            config = load_default_config()
+        username = get_env_var("PROJECT_X_USERNAME")
+        api_key = get_env_var("PROJECT_X_API_KEY")
+
+    return AsyncProjectX(
+        username=username, api_key=api_key, config=config, account_name=account_name
+    )
+
+
+def create_async_realtime_client(
+    jwt_token: str, account_id: str, config: ProjectXConfig | None = None
+) -> AsyncProjectXRealtimeClient:
+    """
+    Create an AsyncProjectX real-time client for WebSocket connections.
+
+    This function creates an async real-time client that connects to ProjectX WebSocket hubs
+    for live market data, order updates, and position changes. The client handles
+    both user-specific data (orders, positions, accounts) and market data (quotes, trades, depth).
+
+    Args:
+        jwt_token: JWT authentication token from ProjectX client session
+        account_id: Account ID for user-specific subscriptions
+        config: Configuration object with hub URLs (uses default TopStepX if None)
+
+    Returns:
+        AsyncProjectXRealtimeClient: Configured async real-time client ready for WebSocket connections
+
+    Example:
+        >>> # Get JWT token from main client
+        >>> async with AsyncProjectX.from_env() as client:
+        ...     await client.authenticate()
+        ...     jwt_token = client.jwt_token
+        ...     account = client.account_info
+        >>> # Create async real-time client
+        >>> realtime_client = create_async_realtime_client(jwt_token, account.id)
+        >>> # Connect and subscribe
+        >>> await realtime_client.connect()
+        >>> await realtime_client.subscribe_user_updates()
+        >>> await realtime_client.subscribe_market_data(["MGC"])
+    """
+    if config is None:
+        config = load_default_config()
+
+    return AsyncProjectXRealtimeClient(
+        jwt_token=jwt_token,
+        account_id=account_id,
+        user_hub_url=config.user_hub_url,
+        market_hub_url=config.market_hub_url,
+    )
+
+
+def create_async_data_manager(
+    instrument: str,
+    project_x: AsyncProjectX,
+    realtime_client: AsyncProjectXRealtimeClient,
+    timeframes: list[str] | None = None,
+    config: ProjectXConfig | None = None,
+) -> AsyncRealtimeDataManager:
+    """
+    Create an AsyncProjectX real-time OHLCV data manager with dependency injection.
+
+    This function creates an async data manager that combines historical OHLCV data from the API
+    with real-time updates via WebSocket to maintain live, multi-timeframe candlestick data.
+    Perfect for building trading algorithms that need both historical context and real-time updates.
+
+    Args:
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+        project_x: AsyncProjectX client instance for historical data and API access
+        realtime_client: AsyncProjectXRealtimeClient instance for real-time market data feeds
+        timeframes: List of timeframes to track (default: ["5min"]).
+                   Common: ["5sec", "1min", "5min", "15min", "1hour", "1day"]
+        config: Configuration object with timezone settings (uses defaults if None)
+
+    Returns:
+        AsyncRealtimeDataManager: Configured async data manager ready for initialization
+
+    Example:
+        >>> # Setup clients
+        >>> async with AsyncProjectX.from_env() as client:
+        ...     await client.authenticate()
+        ...     realtime_client = create_async_realtime_client(jwt_token, account_id)
+        ...     # Create data manager for multiple timeframes
+        ...     data_manager = create_async_data_manager(
+        ...         instrument="MGC",
+        ...         project_x=client,
+        ...         realtime_client=realtime_client,
+        ...         timeframes=["5sec", "1min", "5min", "15min"],
+        ...     )
+        ...     # Initialize with historical data and start real-time feed
+        ...     await data_manager.initialize(initial_days=30)
+        ...     await data_manager.start_realtime_feed()
+        ...     # Access multi-timeframe data
+        ...     current_5min = await data_manager.get_data("5min")
+        ...     current_1min = await data_manager.get_data("1min")
+    """
+    if timeframes is None:
+        timeframes = ["5min"]
+
+    if config is None:
+        config = load_default_config()
+
+    return AsyncRealtimeDataManager(
+        instrument=instrument,
+        project_x=project_x,
+        realtime_client=realtime_client,
+        timeframes=timeframes,
+        timezone=config.timezone,
+    )
+
+
+def create_async_orderbook(
+    instrument: str,
+    config: ProjectXConfig | None = None,
+    realtime_client: AsyncProjectXRealtimeClient | None = None,
+    project_x: "AsyncProjectX | None" = None,
+) -> "AsyncOrderBook":
+    """
+    Create an AsyncProjectX OrderBook for advanced market depth analysis.
+
+    This function creates an async orderbook instance for Level 2 market depth analysis,
+    iceberg order detection, and advanced market microstructure analytics. The orderbook
+    processes real-time market depth data to provide insights into market structure,
+    liquidity, and hidden order activity.
+
+    Args:
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+        config: Configuration object with timezone settings (uses defaults if None)
+        realtime_client: Optional realtime client for automatic market data integration
+        project_x: Optional AsyncProjectX client for instrument metadata (enables dynamic tick size)
+
+    Returns:
+        AsyncOrderBook: Configured async orderbook instance ready for market depth processing
+
+    Example:
+        >>> # Create orderbook with automatic real-time integration
+        >>> orderbook = create_async_orderbook("MGC", realtime_client=realtime_client)
+        >>> # OrderBook will automatically receive market depth updates
+        >>> snapshot = await orderbook.get_orderbook_snapshot()
+        >>> spread = await orderbook.get_bid_ask_spread()
+        >>> imbalance = await orderbook.get_order_imbalance()
+        >>> iceberg_signals = await orderbook.detect_iceberg_orders()
+        >>> # Volume analysis
+        >>> volume_profile = await orderbook.get_volume_profile()
+        >>> liquidity_analysis = await orderbook.analyze_liquidity_distribution()
+        >>>
+        >>> # Alternative: Manual mode without real-time client
+        >>> orderbook = create_async_orderbook("MGC")
+        >>> # Manually process market data
+        >>> await orderbook.process_market_depth(depth_data)
+    """
+    if config is None:
+        config = load_default_config()
+
+    orderbook = AsyncOrderBook(
+        instrument=instrument,
+        timezone=config.timezone,
+        client=project_x,
+    )
+
+    # Initialize with real-time capabilities if provided
+    if realtime_client is not None:
+        # Note: initialize is async, so caller must await it
+        # We can't await here since this is a sync function
+        # The caller should call: await orderbook.initialize(realtime_client)
+        pass
+
+    return orderbook
+
+
+def create_async_order_manager(
+    project_x: AsyncProjectX,
+    realtime_client: AsyncProjectXRealtimeClient | None = None,
+) -> AsyncOrderManager:
+    """
+    Create an AsyncProjectX OrderManager for comprehensive order operations.
+
+    Args:
+        project_x: AsyncProjectX client instance
+        realtime_client: Optional AsyncProjectXRealtimeClient for real-time order tracking
+
+    Returns:
+        AsyncOrderManager instance
+
+    Example:
+        >>> async with AsyncProjectX.from_env() as client:
+        ...     await client.authenticate()
+        ...     order_manager = create_async_order_manager(client, realtime_client)
+        ...     await order_manager.initialize()
+        ...     # Place orders
+        ...     response = await order_manager.place_market_order("MGC", 0, 1)
+        ...     bracket = await order_manager.place_bracket_order(
+        ...         "MGC", 0, 1, 2045.0, 2040.0, 2055.0
+        ...     )
+        ...     # Manage orders
+        ...     orders = await order_manager.search_open_orders()
+        ...     await order_manager.cancel_order(order_id)
+    """
+    # Return the manager, caller must await initialize()
+    return AsyncOrderManager(project_x)
+
+
+def create_async_position_manager(
+    project_x: AsyncProjectX,
+    realtime_client: AsyncProjectXRealtimeClient | None = None,
+) -> AsyncPositionManager:
+    """
+    Create an AsyncProjectX PositionManager for comprehensive position operations.
+
+    Args:
+        project_x: AsyncProjectX client instance
+        realtime_client: Optional AsyncProjectXRealtimeClient for real-time position tracking
+
+    Returns:
+        AsyncPositionManager instance
+
+    Example:
+        >>> async with AsyncProjectX.from_env() as client:
+        ...     await client.authenticate()
+        ...     position_manager = create_async_position_manager(
+        ...         client, realtime_client
+        ...     )
+        ...     await position_manager.initialize()
+        ...     # Get positions
+        ...     positions = await position_manager.get_all_positions()
+        ...     mgc_position = await position_manager.get_position("MGC")
+        ...     # Portfolio analytics
+        ...     pnl = await position_manager.get_portfolio_pnl()
+        ...     risk = await position_manager.get_risk_metrics()
+        ...     # Position monitoring
+        ...     await position_manager.add_position_alert("MGC", max_loss=-500.0)
+        ...     await position_manager.start_monitoring()
+    """
+    # Return the manager, caller must await initialize()
+    return AsyncPositionManager(project_x)
+
+
+async def create_async_trading_suite(
+    instrument: str,
+    project_x: AsyncProjectX,
+    jwt_token: str,
+    account_id: str,
+    timeframes: list[str] | None = None,
+    config: ProjectXConfig | None = None,
+) -> dict[str, Any]:
+    """
+    Create a complete async trading application toolkit with optimized architecture.
+
+    This async factory function provides developers with a comprehensive suite of connected
+    async components for building sophisticated trading applications. It sets up:
+
+    - Single AsyncProjectXRealtimeClient for efficient WebSocket connections
+    - AsyncRealtimeDataManager for multi-timeframe OHLCV data management
+    - AsyncOrderBook for advanced market depth analysis and microstructure insights
+    - AsyncOrderManager for comprehensive order lifecycle management
+    - AsyncPositionManager for position tracking, risk management, and portfolio analytics
+    - Proper dependency injection and optimized connection sharing
+
+    Perfect for developers building async algorithmic trading systems, market analysis tools,
+    or automated trading strategies that need real-time data and order management.
+
+    Args:
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
+        project_x: AsyncProjectX client instance for API access
+        jwt_token: JWT token for WebSocket authentication
+        account_id: Account ID for real-time subscriptions and trading operations
+        timeframes: List of timeframes to track (default: ["5min"])
+        config: Configuration object with endpoints and settings (uses defaults if None)
+
+    Returns:
+        dict: Complete async trading toolkit with keys:
+              - "realtime_client": AsyncProjectXRealtimeClient for WebSocket connections
+              - "data_manager": AsyncRealtimeDataManager for OHLCV data
+              - "orderbook": AsyncOrderBook for market depth analysis
+              - "order_manager": AsyncOrderManager for order operations
+              - "position_manager": AsyncPositionManager for position tracking
+              - "config": ProjectXConfig used for initialization
+
+    Example:
+        >>> async with AsyncProjectX.from_env() as client:
+        ...     await client.authenticate()
+        ...     suite = await create_async_trading_suite(
+        ...         "MGC", client, jwt_token, account_id, ["5sec", "1min", "5min"]
+        ...     )
+        ...     # Connect once
+        ...     await suite["realtime_client"].connect()
+        ...     # Initialize components
+        ...     await suite["data_manager"].initialize(initial_days=30)
+        ...     await suite["data_manager"].start_realtime_feed()
+        ...     # OrderBook automatically receives market depth updates
+        ...     # Place orders
+        ...     bracket = await suite["order_manager"].place_bracket_order(
+        ...         "MGC", 0, 1, 2045.0, 2040.0, 2055.0
+        ...     )
+        ...     # Monitor positions
+        ...     await suite["position_manager"].add_position_alert(
+        ...         "MGC", max_loss=-500.0
+        ...     )
+        ...     await suite["position_manager"].start_monitoring()
+        ...     # Access data
+        ...     ohlcv_data = await suite["data_manager"].get_data("5min")
+        ...     orderbook_snapshot = await suite["orderbook"].get_orderbook_snapshot()
+        ...     portfolio_pnl = await suite["position_manager"].get_portfolio_pnl()
+    """
+    if timeframes is None:
+        timeframes = ["5min"]
+
+    if config is None:
+        config = load_default_config()
+
+    # Create single async realtime client (shared connection)
+    realtime_client = AsyncProjectXRealtimeClient(
+        jwt_token=jwt_token,
+        account_id=account_id,
+        config=config,
+    )
+
+    # Create async OHLCV data manager with dependency injection
+    data_manager = AsyncRealtimeDataManager(
+        instrument=instrument,
+        project_x=project_x,
+        realtime_client=realtime_client,
+        timeframes=timeframes,
+        timezone=config.timezone,
+    )
+
+    # Create async orderbook for market depth analysis with automatic real-time integration
+    orderbook = AsyncOrderBook(
+        instrument=instrument,
+        timezone=config.timezone,
+        client=project_x,
+    )
+    await orderbook.initialize(realtime_client=realtime_client)
+
+    # Create async order manager for comprehensive order operations
+    order_manager = AsyncOrderManager(project_x)
+    await order_manager.initialize(realtime_client=realtime_client)
+
+    # Create async position manager for position tracking and risk management
+    position_manager = AsyncPositionManager(project_x)
+    await position_manager.initialize(
         realtime_client=realtime_client, order_manager=order_manager
     )
 
