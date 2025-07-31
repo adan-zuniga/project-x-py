@@ -28,6 +28,7 @@ __author__ = "TexasCoding"
 
 # Core client classes
 from .async_client import AsyncProjectX
+from .async_order_manager import AsyncOrderManager
 from .client import ProjectX
 
 # Configuration management
@@ -134,6 +135,7 @@ __all__ = [
     "PositionManager",
     "ProjectX",
     "AsyncProjectX",
+    "AsyncOrderManager",
     "ProjectXAuthenticationError",
     "ProjectXConfig",
     "ProjectXConnectionError",
