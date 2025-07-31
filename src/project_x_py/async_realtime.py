@@ -685,7 +685,7 @@ class AsyncProjectXRealtimeClient:
         self.stats["last_event_time"] = datetime.now()
 
         # Log event (debug level)
-        self.logger.info(
+        self.logger.debug(
             f"📨 Received {event_type} event: {len(args) if hasattr(args, '__len__') else 'N/A'} items"
         )
 

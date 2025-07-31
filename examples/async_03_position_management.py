@@ -21,7 +21,6 @@ Date: July 2025
 
 import asyncio
 from datetime import datetime
-from typing import Optional
 
 from project_x_py import (
     AsyncProjectX,
@@ -67,7 +66,7 @@ async def get_current_market_price(
     # Return first valid result
     for price in results:
         if price is not None:
-            print(f"   ℹ️  Using historical price: ${price:.2f}")
+            print(f"    Using historical price: ${price:.2f}")
             return price
 
     # DON'T use a fallback - return None if no data available
@@ -181,7 +180,11 @@ async def main():
         # Create async client
         async with AsyncProjectX.from_env() as client:
             await client.authenticate()
-            print(f"✅ Connected as: {client.account_info.name}")
+            if client.account_info:
+                print(f"✅ Connected as: {client.account_info.name}")
+            else:
+                print("❌ Could not get account information")
+                return
 
             # Create real-time client for live updates
             realtime_client = create_async_realtime_client(
@@ -383,7 +386,7 @@ async def main():
                                             # Use entry price if no market data
                                             current_market_price = pos.averagePrice
                                             print(
-                                                f"   ⚠️  No market data - using entry price"
+                                                "   ⚠️  No market data - using entry price"
                                             )
 
                                         # Use position manager's P&L calculation with point value
@@ -436,7 +439,7 @@ async def main():
                                                         pos.averagePrice
                                                     )
                                                     print(
-                                                        f"   ⚠️  No market data - P&L will be $0"
+                                                        "   ⚠️  No market data - P&L will be $0"
                                                     )
 
                                                 # Use position manager's P&L calculation with point value

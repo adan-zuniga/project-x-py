@@ -430,7 +430,7 @@ class AsyncRealtimeDataManager:
             callback_data: Quote update callback data from realtime client
         """
         try:
-            self.logger.info(f"📊 Quote update received: {type(callback_data)}")
+            self.logger.debug(f"📊 Quote update received: {type(callback_data)}")
             self.logger.debug(f"Quote data: {callback_data}")
 
             # Extract the actual quote data from the callback structure (same as sync version)
@@ -504,7 +504,7 @@ class AsyncRealtimeDataManager:
             callback_data: Market trade callback data from realtime client
         """
         try:
-            self.logger.info(f"📊 Trade update received: {type(callback_data)}")
+            self.logger.debug(f"💹 Trade update received: {type(callback_data)}")
             self.logger.debug(f"Trade data: {callback_data}")
 
             # Extract the actual trade data from the callback structure (same as sync version)
