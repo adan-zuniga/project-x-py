@@ -571,6 +571,9 @@ class AsyncRealtimeDataManager:
 
             # Update each timeframe
             async with self.data_lock:
+                # Add to current tick data for get_current_price()
+                self.current_tick_data.append(tick)
+
                 for tf_key in self.timeframes:
                     await self._update_timeframe_data(tf_key, timestamp, price, volume)
 

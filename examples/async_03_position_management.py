@@ -21,6 +21,7 @@ Date: July 2025
 
 import asyncio
 from datetime import datetime
+from typing import Optional
 
 from project_x_py import (
     AsyncProjectX,
@@ -30,10 +31,13 @@ from project_x_py import (
     create_async_realtime_client,
     setup_logging,
 )
+from project_x_py.async_realtime_data_manager import AsyncRealtimeDataManager
 
 
 async def get_current_market_price(
-    client: AsyncProjectX, symbol="MNQ", realtime_data_manager=None
+    client: AsyncProjectX,
+    symbol="MNQ",
+    realtime_data_manager: AsyncRealtimeDataManager | None = None,
 ):
     """Get current market price with async fallback for closed markets."""
     # Try to get real-time price first if available
@@ -200,7 +204,10 @@ async def main():
                 realtime_data_manager = None
                 try:
                     realtime_data_manager = create_async_data_manager(
-                        "MNQ", client, realtime_client
+                        "MNQ",
+                        client,
+                        realtime_client,
+                        timeframes=["15sec", "1min", "5min"],
                     )
                     await realtime_data_manager.initialize()
                     print("✅ Real-time market data enabled for MNQ")
