@@ -13,7 +13,6 @@ Key Features:
 
 import asyncio
 import logging
-import time
 from collections import defaultdict
 from collections.abc import Callable, Coroutine
 from datetime import datetime
@@ -171,6 +170,9 @@ class AsyncProjectXRealtimeClient:
         self._callback_lock = asyncio.Lock()
         self._connection_lock = asyncio.Lock()
 
+        # Store the event loop for cross-thread task scheduling
+        self._loop = None
+
     async def setup_connections(self):
         """Set up SignalR hub connections with ProjectX Gateway configuration."""
         try:
@@ -259,6 +261,9 @@ class AsyncProjectXRealtimeClient:
         if not self.setup_complete:
             await self.setup_connections()
 
+        # Store the event loop for cross-thread task scheduling
+        self._loop = asyncio.get_event_loop()
+
         self.logger.info("🔌 Connecting to ProjectX Gateway...")
 
         try:
@@ -335,14 +340,42 @@ class AsyncProjectXRealtimeClient:
 
         try:
             self.logger.info(f"📡 Subscribing to user updates for {self.account_id}")
-
+            if self.user_connection is None:
+                self.logger.error("❌ User connection not available")
+                return False
             # ProjectX Gateway expects Subscribe method with account ID
             loop = asyncio.get_event_loop()
+
+            # Subscribe to account updates
             await loop.run_in_executor(
                 None,
-                self.user_connection.invoke,
-                "Subscribe",
+                self.user_connection.send,
+                "SubscribeAccounts",
+                self.account_id,
+            )
+
+            # Subscribe to order updates
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "SubscribeOrders",
                 [self.account_id],
+            )
+
+            # Subscribe to position updates
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "SubscribePositions",
+                self.account_id,
+            )
+
+            # Subscribe to trade updates
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "SubscribeTrades",
+                self.account_id,
             )
 
             self.logger.info("✅ Subscribed to user updates")
@@ -371,23 +404,101 @@ class AsyncProjectXRealtimeClient:
                 f"📊 Subscribing to market data for {len(contract_ids)} contracts"
             )
 
-            # Store for reconnection
-            self._subscribed_contracts.extend(contract_ids)
+            # Store for reconnection (avoid duplicates)
+            for contract_id in contract_ids:
+                if contract_id not in self._subscribed_contracts:
+                    self._subscribed_contracts.append(contract_id)
 
-            # ProjectX Gateway expects Subscribe method with contract IDs array
+            # Subscribe using ProjectX Gateway methods (same as sync client)
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                self.market_connection.invoke,
-                "Subscribe",
-                [contract_ids],
-            )
+            for contract_id in contract_ids:
+                # Subscribe to quotes
+                if self.market_connection is None:
+                    self.logger.error("❌ Market connection not available")
+                    return False
+                await loop.run_in_executor(
+                    None,
+                    self.market_connection.send,
+                    "SubscribeContractQuotes",
+                    [contract_id],
+                )
+                # Subscribe to trades
+                await loop.run_in_executor(
+                    None,
+                    self.market_connection.send,
+                    "SubscribeContractTrades",
+                    [contract_id],
+                )
+                # Subscribe to market depth
+                await loop.run_in_executor(
+                    None,
+                    self.market_connection.send,
+                    "SubscribeContractMarketDepth",
+                    [contract_id],
+                )
 
             self.logger.info(f"✅ Subscribed to {len(contract_ids)} contracts")
             return True
 
         except Exception as e:
             self.logger.error(f"❌ Failed to subscribe to market data: {e}")
+            return False
+
+    async def unsubscribe_user_updates(self) -> bool:
+        """
+        Unsubscribe from all user-specific real-time updates.
+        """
+        if not self.user_connected:
+            self.logger.error("❌ User hub not connected")
+            return False
+
+        if self.user_connection is None:
+            self.logger.error("❌ User connection not available")
+            return False
+
+        try:
+            loop = asyncio.get_event_loop()
+
+            # Unsubscribe from account updates
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "UnsubscribeAccounts",
+                self.account_id,
+            )
+
+            # Unsubscribe from order updates
+
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "UnsubscribeOrders",
+                [self.account_id],
+            )
+
+            # Unsubscribe from position updates
+
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "UnsubscribePositions",
+                self.account_id,
+            )
+
+            # Unsubscribe from trade updates
+
+            await loop.run_in_executor(
+                None,
+                self.user_connection.send,
+                "UnsubscribeTrades",
+                self.account_id,
+            )
+
+            self.logger.info("✅ Unsubscribed from user updates")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"❌ Failed to unsubscribe from user updates: {e}")
             return False
 
     async def unsubscribe_market_data(self, contract_ids: list[str]) -> bool:
@@ -414,10 +525,31 @@ class AsyncProjectXRealtimeClient:
 
             # ProjectX Gateway expects Unsubscribe method
             loop = asyncio.get_event_loop()
+            if self.market_connection is None:
+                self.logger.error("❌ Market connection not available")
+                return False
+
+            # Unsubscribe from quotes
             await loop.run_in_executor(
                 None,
-                self.market_connection.invoke,
-                "Unsubscribe",
+                self.market_connection.send,
+                "UnsubscribeContractQuotes",
+                [contract_ids],
+            )
+
+            # Unsubscribe from trades
+            await loop.run_in_executor(
+                None,
+                self.market_connection.send,
+                "UnsubscribeContractTrades",
+                [contract_ids],
+            )
+
+            # Unsubscribe from market depth
+            await loop.run_in_executor(
+                None,
+                self.market_connection.send,
+                "UnsubscribeContractMarketDepth",
                 [contract_ids],
             )
 
@@ -498,45 +630,107 @@ class AsyncProjectXRealtimeClient:
         self.logger.error(f"❌ {hub.capitalize()} hub error: {error}")
         self.stats["connection_errors"] += 1
 
-    # Event forwarding methods (async wrappers)
-    def _forward_account_update(self, data):
+    # Event forwarding methods (cross-thread safe)
+    def _forward_account_update(self, *args):
         """Forward account update to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("account_update", data))
+        self._schedule_async_task("account_update", args)
 
-    def _forward_position_update(self, data):
+    def _forward_position_update(self, *args):
         """Forward position update to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("position_update", data))
+        self._schedule_async_task("position_update", args)
 
-    def _forward_order_update(self, data):
+    def _forward_order_update(self, *args):
         """Forward order update to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("order_update", data))
+        self._schedule_async_task("order_update", args)
 
-    def _forward_trade_execution(self, data):
+    def _forward_trade_execution(self, *args):
         """Forward trade execution to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("trade_execution", data))
+        self._schedule_async_task("trade_execution", args)
 
-    def _forward_quote_update(self, data):
+    def _forward_quote_update(self, *args):
         """Forward quote update to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("quote_update", data))
+        self._schedule_async_task("quote_update", args)
 
-    def _forward_market_trade(self, data):
+    def _forward_market_trade(self, *args):
         """Forward market trade to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("market_trade", data))
+        self._schedule_async_task("market_trade", args)
 
-    def _forward_market_depth(self, data):
+    def _forward_market_depth(self, *args):
         """Forward market depth to registered callbacks."""
-        asyncio.create_task(self._forward_event_async("market_depth", data))
+        self._schedule_async_task("market_depth", args)
 
-    async def _forward_event_async(self, event_type: str, data):
+    def _schedule_async_task(self, event_type: str, data):
+        """Schedule async task in the main event loop from any thread."""
+        if self._loop and not self._loop.is_closed():
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._forward_event_async(event_type, data), self._loop
+                )
+            except Exception as e:
+                # Fallback for logging - avoid recursion
+                print(f"Error scheduling async task: {e}")
+        else:
+            # Fallback - try to create task in current loop context
+            try:
+                task = asyncio.create_task(self._forward_event_async(event_type, data))
+                # Fire and forget - we don't need to await the task
+                task.add_done_callback(lambda t: None)
+            except RuntimeError:
+                # No event loop available, log and continue
+                print(f"No event loop available for {event_type} event")
+
+    async def _forward_event_async(self, event_type: str, args):
         """Forward event to registered callbacks asynchronously."""
         self.stats["events_received"] += 1
         self.stats["last_event_time"] = datetime.now()
 
-        # Log event (debug level to avoid spam)
-        self.logger.debug(f"📨 {event_type}: {data}")
+        # Log event (debug level)
+        self.logger.debug(
+            f"📨 Received {event_type} event: {len(args) if hasattr(args, '__len__') else 'N/A'} items"
+        )
 
-        # Trigger callbacks
-        await self._trigger_callbacks(event_type, data)
+        # Parse args and create structured data like sync version
+        try:
+            if event_type in ["quote_update", "market_trade", "market_depth"]:
+                # Market events - parse SignalR format like sync version
+                if len(args) == 1:
+                    # Single argument - the data payload
+                    raw_data = args[0]
+                    if isinstance(raw_data, list) and len(raw_data) >= 2:
+                        # SignalR format: [contract_id, actual_data_dict]
+                        contract_id = raw_data[0]
+                        data = raw_data[1]
+                    elif isinstance(raw_data, dict):
+                        contract_id = raw_data.get(
+                            "symbol" if event_type == "quote_update" else "symbolId",
+                            "unknown",
+                        )
+                        data = raw_data
+                    else:
+                        contract_id = "unknown"
+                        data = raw_data
+                elif len(args) == 2:
+                    # Two arguments - contract_id and data
+                    contract_id, data = args
+                else:
+                    self.logger.warning(
+                        f"Unexpected {event_type} args: {len(args)} - {args}"
+                    )
+                    return
+
+                # Create structured callback data like sync version
+                callback_data = {"contract_id": contract_id, "data": data}
+
+            else:
+                # User events - single data payload like sync version
+                callback_data = args[0] if args else {}
+
+            # Trigger callbacks with structured data
+            await self._trigger_callbacks(event_type, callback_data)
+
+        except Exception as e:
+            self.logger.error(f"Error processing {event_type} event: {e}")
+            self.logger.debug(f"Args received: {args}")
 
     def is_connected(self) -> bool:
         """Check if both hubs are connected."""

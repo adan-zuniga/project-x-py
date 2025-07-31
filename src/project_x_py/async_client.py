@@ -382,7 +382,7 @@ class AsyncProjectX:
         request_headers = {**self.headers, **(headers or {})}
 
         # Add authorization if we have a token
-        if self.session_token and endpoint != "/auth/login":
+        if self.session_token and endpoint != "/Auth/loginKey":
             request_headers["Authorization"] = f"Bearer {self.session_token}"
 
         # Apply rate limiting
@@ -420,7 +420,7 @@ class AsyncProjectX:
 
             # Handle authentication errors
             if response.status_code == 401:
-                if endpoint != "/auth/login" and retry_count == 0:
+                if endpoint != "/Auth/loginKey" and retry_count == 0:
                     # Try to refresh authentication
                     await self._refresh_authentication()
                     return await self._make_request(
@@ -521,16 +521,16 @@ class AsyncProjectX:
         """
         # Authenticate and get token
         auth_data = {
-            "username": self.username,
-            "password": self.api_key,
+            "userName": self.username,
+            "apiKey": self.api_key,
         }
 
-        response = await self._make_request("POST", "/auth/login", data=auth_data)
+        response = await self._make_request("POST", "/Auth/loginKey", data=auth_data)
 
         if not response:
             raise ProjectXAuthenticationError("Authentication failed")
 
-        self.session_token = response["access_token"]
+        self.session_token = response["token"]
         self.headers["Authorization"] = f"Bearer {self.session_token}"
 
         # Parse token to get expiry
@@ -552,12 +552,16 @@ class AsyncProjectX:
             # Set a default expiry of 1 hour
             self.token_expiry = datetime.datetime.now(pytz.UTC) + timedelta(hours=1)
 
-        # Get accounts
-        accounts_response = await self._make_request("GET", "/accounts")
-        if not accounts_response or not isinstance(accounts_response, list):
-            raise ProjectXAuthenticationError("No accounts found for user")
+        # Get accounts using the same endpoint as sync client
+        payload = {"onlyActiveAccounts": True}
+        accounts_response = await self._make_request(
+            "POST", "/Account/search", data=payload
+        )
+        if not accounts_response or not accounts_response.get("success", False):
+            raise ProjectXAuthenticationError("Account search failed")
 
-        accounts = [Account(**acc) for acc in accounts_response]
+        accounts_data = accounts_response.get("accounts", [])
+        accounts = [Account(**acc) for acc in accounts_data]
 
         if not accounts:
             raise ProjectXAuthenticationError("No accounts found for user")
@@ -647,15 +651,18 @@ class AsyncProjectX:
                 return self._instrument_cache[cache_key]
 
         # Search for instrument
-        response = await self._make_request(
-            "GET", "/instruments/search", params={"query": symbol}
-        )
+        payload = {"searchText": symbol, "live": False}
+        response = await self._make_request("POST", "/Contract/search", data=payload)
 
-        if not response or not isinstance(response, list):
+        if not response or not response.get("success", False):
+            raise ProjectXInstrumentError(f"No instruments found for symbol: {symbol}")
+
+        contracts_data = response.get("contracts", [])
+        if not contracts_data:
             raise ProjectXInstrumentError(f"No instruments found for symbol: {symbol}")
 
         # Select best match
-        best_match = self._select_best_contract(response, symbol)
+        best_match = self._select_best_contract(contracts_data, symbol)
         instrument = Instrument(**best_match)
 
         # Cache the result
@@ -804,12 +811,14 @@ class AsyncProjectX:
         """
         await self._ensure_authenticated()
 
-        response = await self._make_request("GET", "/accounts")
+        payload = {"onlyActiveAccounts": True}
+        response = await self._make_request("POST", "/Account/search", data=payload)
 
-        if not response or not isinstance(response, list):
+        if not response or not response.get("success", False):
             return []
 
-        return [Account(**acc) for acc in response]
+        accounts_data = response.get("accounts", [])
+        return [Account(**acc) for acc in accounts_data]
 
     async def search_instruments(
         self, query: str, live: bool = False
@@ -831,16 +840,14 @@ class AsyncProjectX:
         """
         await self._ensure_authenticated()
 
-        params = {"query": query}
-        if live:
-            params["live"] = "true"
+        payload = {"searchText": query, "live": live}
+        response = await self._make_request("POST", "/Contract/search", data=payload)
 
-        response = await self._make_request("GET", "/instruments/search", params=params)
-
-        if not response or not isinstance(response, list):
+        if not response or not response.get("success", False):
             return []
 
-        return [Instrument(**inst) for inst in response]
+        contracts_data = response.get("contracts", [])
+        return [Instrument(**contract) for contract in contracts_data]
 
     async def get_bars(
         self,
@@ -900,45 +907,82 @@ class AsyncProjectX:
         # Lookup instrument
         instrument = await self.get_instrument(symbol)
 
-        # Prepare parameters
-        params = {
-            "accountId": self.account_info.id,
+        # Calculate date range (same as sync version)
+        from datetime import timedelta
+
+        start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
+        end_date = datetime.datetime.now(pytz.UTC)
+
+        # Calculate limit based on unit type (same as sync version)
+        if limit is None:
+            if unit == 1:  # Seconds
+                total_seconds = int((end_date - start_date).total_seconds())
+                limit = int(total_seconds / interval)
+            elif unit == 2:  # Minutes
+                total_minutes = int((end_date - start_date).total_seconds() / 60)
+                limit = int(total_minutes / interval)
+            elif unit == 3:  # Hours
+                total_hours = int((end_date - start_date).total_seconds() / 3600)
+                limit = int(total_hours / interval)
+            else:  # Days or other units
+                total_minutes = int((end_date - start_date).total_seconds() / 60)
+                limit = int(total_minutes / interval)
+
+        # Prepare payload (same as sync version)
+        payload = {
             "contractId": instrument.id,
-            "daysBack": days,
-            "interval": interval,
-            "unitOfTime": unit,
-            "partial": str(partial).lower(),
+            "live": False,
+            "startTime": start_date.isoformat(),
+            "endTime": end_date.isoformat(),
+            "unit": unit,
+            "unitNumber": interval,
+            "limit": limit,
+            "includePartialBar": partial,
         }
 
-        if limit is not None:
-            params["limit"] = limit
+        # Fetch data using correct endpoint (same as sync version)
+        response = await self._make_request(
+            "POST", "/History/retrieveBars", data=payload
+        )
 
-        # Fetch data
-        response = await self._make_request("GET", "/market/bars", params=params)
-
-        if not response or not isinstance(response, list):
+        if not response:
             return pl.DataFrame()
 
-        # Convert to DataFrame
-        data = pl.DataFrame(response)
+        # Handle the response format (same as sync version)
+        if not response.get("success", False):
+            error_msg = response.get("errorMessage", "Unknown error")
+            self.logger.error(f"History retrieval failed: {error_msg}")
+            return pl.DataFrame()
 
-        if data.is_empty():
-            return data
+        bars_data = response.get("bars", [])
+        if not bars_data:
+            return pl.DataFrame()
 
-        # Process timestamps and convert timezone
-        data = data.with_columns(
-            pl.col("timestamp").str.strptime(
-                pl.Datetime("ns", time_zone="UTC"),
-                format="%Y-%m-%dT%H:%M:%S%.f",
-                strict=False,
+        # Convert to DataFrame and process like sync version
+        data = (
+            pl.DataFrame(bars_data)
+            .sort("t")
+            .rename(
+                {
+                    "t": "timestamp",
+                    "o": "open",
+                    "h": "high",
+                    "l": "low",
+                    "c": "close",
+                    "v": "volume",
+                }
+            )
+            .with_columns(
+                # Optimized datetime conversion with cached timezone
+                pl.col("timestamp")
+                .str.to_datetime()
+                .dt.replace_time_zone("UTC")
+                .dt.convert_time_zone(self.config.timezone)
             )
         )
 
-        # Convert to configured timezone
-        if self.config.timezone != "UTC":
-            data = data.with_columns(
-                pl.col("timestamp").dt.convert_time_zone(self.config.timezone)
-            )
+        if data.is_empty():
+            return data
 
         # Sort by timestamp
         data = data.sort("timestamp")
@@ -972,16 +1016,23 @@ class AsyncProjectX:
         """
         await self._ensure_authenticated()
 
-        params = {}
-        if account_id is not None:
-            params["accountId"] = account_id
+        # Use the account_id from the authenticated account if not provided
+        if account_id is None and self.account_info:
+            account_id = self.account_info.id
 
-        response = await self._make_request("GET", "/positions/search", params=params)
+        if account_id is None:
+            raise ProjectXError("No account ID available for position search")
 
-        if not response or not isinstance(response, list):
+        payload = {"accountId": account_id}
+        response = await self._make_request(
+            "POST", "/Position/searchOpen", data=payload
+        )
+
+        if not response or not response.get("success", False):
             return []
 
-        return [Position(**pos) for pos in response]
+        positions_data = response.get("positions", [])
+        return [Position(**pos) for pos in positions_data]
 
     async def search_trades(
         self,

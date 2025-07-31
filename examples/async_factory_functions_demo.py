@@ -32,7 +32,7 @@ async def simple_component_creation():
         print(f"✅ Created client: {client.account_info.name}")
 
         # Get JWT token for real-time
-        jwt_token = client.jwt_token
+        jwt_token = client.session_token
         account_id = client.account_info.id
 
         # Create async realtime client
@@ -93,7 +93,7 @@ async def complete_suite_creation():
         suite = await create_async_trading_suite(
             instrument=instrument.symbol,
             project_x=client,
-            jwt_token=client.jwt_token,
+            jwt_token=client.session_token,
             account_id=client.account_info.id,
             timeframes=["5sec", "1min", "5min", "15min"],
         )

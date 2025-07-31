@@ -314,7 +314,7 @@ class AsyncRealtimeDataManager:
             async with self.data_lock:
                 for tf_key, tf_config in self.timeframes.items():
                     bars = await self.project_x.get_bars(
-                        self.contract_id,
+                        self.instrument,  # Use base symbol, not contract ID
                         interval=tf_config["interval"],
                         unit=tf_config["unit"],
                         days=initial_days,
@@ -357,17 +357,27 @@ class AsyncRealtimeDataManager:
                 self.logger.error("❌ Contract ID not set - call initialize() first")
                 return False
 
-            # Subscribe to market data
-            # Note: subscribe_market_data will be implemented in AsyncProjectXRealtimeClient
-            # For now, assume subscription is successful
-            self.logger.info(f"✅ Ready to receive market data for {self.contract_id}")
-
-            # Register callbacks
+            # Register callbacks first
             await self.realtime_client.add_callback(
                 "quote_update", self._on_quote_update
             )
             await self.realtime_client.add_callback(
-                "trade_update", self._on_trade_update
+                "market_trade",
+                self._on_trade_update,  # Use market_trade event name
+            )
+
+            # Subscribe to market data using the contract ID
+            self.logger.info(f"📡 Subscribing to market data for {self.contract_id}")
+            subscription_success = await self.realtime_client.subscribe_market_data(
+                [self.contract_id]
+            )
+
+            if not subscription_success:
+                self.logger.error("❌ Failed to subscribe to market data")
+                return False
+
+            self.logger.info(
+                f"✅ Successfully subscribed to market data for {self.contract_id}"
             )
 
             self.is_running = True
@@ -412,68 +422,137 @@ class AsyncRealtimeDataManager:
         except Exception as e:
             self.logger.error(f"❌ Error stopping real-time feed: {e}")
 
-    async def _on_quote_update(self, quote_data: dict) -> None:
+    async def _on_quote_update(self, callback_data: dict) -> None:
         """
         Handle real-time quote updates for OHLCV data processing.
 
         Args:
-            quote_data: ProjectX GatewayQuote payload
+            callback_data: Quote update callback data from realtime client
         """
         try:
-            # Validate it's for our instrument
-            if quote_data.get("contractId") != self.contract_id:
+            self.logger.debug(f"📊 Quote update received: {callback_data}")
+
+            # Extract the actual quote data from the callback structure (same as sync version)
+            data = (
+                callback_data.get("data", {}) if isinstance(callback_data, dict) else {}
+            )
+
+            # Debug log to see what we're receiving
+            self.logger.debug(
+                f"Quote callback - callback_data type: {type(callback_data)}, data type: {type(data)}"
+            )
+
+            # Parse and validate payload format (same as sync version)
+            quote_data = self._parse_and_validate_quote_payload(data)
+            if quote_data is None:
                 return
 
-            # Extract quote data
-            bid_price = quote_data.get("bidPrice", 0)
-            ask_price = quote_data.get("askPrice", 0)
+            # Check if this quote is for our tracked instrument
+            symbol = quote_data.get("symbol", "")
+            if not self._symbol_matches_instrument(symbol):
+                return
 
-            if bid_price > 0 and ask_price > 0:
-                # Use mid price for OHLCV
-                mid_price = (bid_price + ask_price) / 2
+            # Extract price information for OHLCV processing according to ProjectX format
+            last_price = quote_data.get("lastPrice")
+            best_bid = quote_data.get("bestBid")
+            best_ask = quote_data.get("bestAsk")
+            volume = quote_data.get("volume", 0)
 
-                tick = {
-                    "timestamp": datetime.now(self.timezone),
-                    "price": mid_price,
-                    "volume": 0,  # Quote updates don't have volume
-                    "bid": bid_price,
-                    "ask": ask_price,
-                    "type": "quote",
+            # Calculate price for OHLCV tick processing
+            price = None
+
+            if last_price is not None:
+                # Use last traded price when available
+                price = float(last_price)
+                volume = 0  # GatewayQuote volume is daily total, not trade volume
+            elif best_bid is not None and best_ask is not None:
+                # Use mid price for quote updates
+                price = (float(best_bid) + float(best_ask)) / 2
+                volume = 0  # No volume for quote updates
+            elif best_bid is not None:
+                price = float(best_bid)
+                volume = 0
+            elif best_ask is not None:
+                price = float(best_ask)
+                volume = 0
+
+            if price is not None:
+                # Use timezone-aware timestamp
+                current_time = datetime.now(self.timezone)
+
+                # Create tick data for OHLCV processing
+                tick_data = {
+                    "timestamp": current_time,
+                    "price": float(price),
+                    "volume": volume,
+                    "type": "quote",  # GatewayQuote is always a quote, not a trade
+                    "source": "gateway_quote",
                 }
 
-                await self._process_tick_data(tick)
+                await self._process_tick_data(tick_data)
 
         except Exception as e:
-            self.logger.error(f"Error processing quote update: {e}")
+            self.logger.error(f"Error processing quote update for OHLCV: {e}")
+            self.logger.debug(f"Callback data that caused error: {callback_data}")
 
-    async def _on_trade_update(self, trade_data: dict) -> None:
+    async def _on_trade_update(self, callback_data: dict) -> None:
         """
         Handle real-time trade updates for OHLCV data processing.
 
         Args:
-            trade_data: ProjectX GatewayTrade payload
+            callback_data: Market trade callback data from realtime client
         """
         try:
-            # Validate it's for our instrument
-            if trade_data.get("contractId") != self.contract_id:
+            self.logger.debug(f"📊 Trade update received: {callback_data}")
+
+            # Extract the actual trade data from the callback structure (same as sync version)
+            data = (
+                callback_data.get("data", {}) if isinstance(callback_data, dict) else {}
+            )
+
+            # Debug log to see what we're receiving
+            self.logger.debug(
+                f"🔍 Trade callback - callback_data type: {type(callback_data)}, data type: {type(data)}"
+            )
+
+            # Parse and validate payload format (same as sync version)
+            trade_data = self._parse_and_validate_trade_payload(data)
+            if trade_data is None:
                 return
 
-            # Extract trade data
-            price = trade_data.get("price", 0)
-            size = trade_data.get("size", 0)
+            # Check if this trade is for our tracked instrument
+            symbol_id = trade_data.get("symbolId", "")
+            if not self._symbol_matches_instrument(symbol_id):
+                return
 
-            if price > 0:
-                tick = {
-                    "timestamp": datetime.now(self.timezone),
-                    "price": price,
-                    "volume": size,
+            # Extract trade information according to ProjectX format
+            price = trade_data.get("price")
+            volume = trade_data.get("volume", 0)
+            trade_type = trade_data.get("type")  # TradeLogType enum: Buy=0, Sell=1
+
+            if price is not None:
+                current_time = datetime.now(self.timezone)
+
+                # Create tick data for OHLCV processing
+                tick_data = {
+                    "timestamp": current_time,
+                    "price": float(price),
+                    "volume": int(volume),
                     "type": "trade",
+                    "trade_side": "buy"
+                    if trade_type == 0
+                    else "sell"
+                    if trade_type == 1
+                    else "unknown",
+                    "source": "gateway_trade",
                 }
 
-                await self._process_tick_data(tick)
+                self.logger.debug(f"🔥 Processing tick: {tick_data}")
+                await self._process_tick_data(tick_data)
 
         except Exception as e:
-            self.logger.error(f"Error processing trade update: {e}")
+            self.logger.error(f"❌ Error processing market trade for OHLCV: {e}")
+            self.logger.debug(f"Callback data that caused error: {callback_data}")
 
     async def _process_tick_data(self, tick: dict) -> None:
         """
@@ -482,116 +561,190 @@ class AsyncRealtimeDataManager:
         Args:
             tick: Dictionary containing tick data (timestamp, price, volume, etc.)
         """
-        async with self.data_lock:
-            # Add to tick buffer
-            self.current_tick_data.append(tick)
-            self.memory_stats["ticks_processed"] += 1
+        try:
+            if not self.is_running:
+                return
 
-            # Update each timeframe
-            current_time = tick["timestamp"]
+            timestamp = tick["timestamp"]
             price = tick["price"]
             volume = tick.get("volume", 0)
 
-            for tf_key, tf_config in self.timeframes.items():
-                # Calculate the bar time for this timeframe
-                bar_time = self._calculate_bar_time(current_time, tf_config)
+            # Update each timeframe
+            async with self.data_lock:
+                for tf_key in self.timeframes:
+                    await self._update_timeframe_data(tf_key, timestamp, price, volume)
 
-                # Get or create the dataframe for this timeframe
-                if tf_key not in self.data:
-                    # Create new dataframe with first bar
-                    self.data[tf_key] = pl.DataFrame(
+            # Trigger callbacks for data updates
+            await self._trigger_callbacks(
+                "data_update",
+                {"timestamp": timestamp, "price": price, "volume": volume},
+            )
+
+            # Update memory stats and periodic cleanup
+            self.memory_stats["ticks_processed"] += 1
+            await self._cleanup_old_data()
+
+        except Exception as e:
+            self.logger.error(f"Error processing tick data: {e}")
+
+    async def _update_timeframe_data(
+        self, tf_key: str, timestamp: datetime, price: float, volume: int
+    ):
+        """
+        Update a specific timeframe with new tick data.
+
+        Args:
+            tf_key: Timeframe key (e.g., "5min", "15min", "1hr")
+            timestamp: Timestamp of the tick
+            price: Price of the tick
+            volume: Volume of the tick
+        """
+        try:
+            interval = self.timeframes[tf_key]["interval"]
+            unit = self.timeframes[tf_key]["unit"]
+
+            # Calculate the bar time for this timeframe
+            bar_time = self._calculate_bar_time(timestamp, interval, unit)
+
+            # Get current data for this timeframe
+            if tf_key not in self.data:
+                return
+
+            current_data = self.data[tf_key]
+
+            # Check if we need to create a new bar or update existing
+            if current_data.height == 0:
+                # First bar - ensure minimum volume for pattern detection
+                bar_volume = max(volume, 1) if volume > 0 else 1
+                new_bar = pl.DataFrame(
+                    {
+                        "timestamp": [bar_time],
+                        "open": [price],
+                        "high": [price],
+                        "low": [price],
+                        "close": [price],
+                        "volume": [bar_volume],
+                    }
+                )
+
+                self.data[tf_key] = new_bar
+                self.last_bar_times[tf_key] = bar_time
+
+            else:
+                last_bar_time = current_data.select(pl.col("timestamp")).tail(1).item()
+
+                if bar_time > last_bar_time:
+                    # New bar needed
+                    bar_volume = max(volume, 1) if volume > 0 else 1
+                    new_bar = pl.DataFrame(
                         {
                             "timestamp": [bar_time],
                             "open": [price],
                             "high": [price],
                             "low": [price],
                             "close": [price],
-                            "volume": [volume],
+                            "volume": [bar_volume],
                         }
                     )
-                    self.last_bar_times[tf_key] = bar_time
-                    await self._trigger_callbacks("new_bar", {"timeframe": tf_key})
-                else:
-                    # Update existing dataframe
-                    if bar_time > self.last_bar_times.get(tf_key, bar_time):
-                        # New bar
-                        new_row = pl.DataFrame(
-                            {
-                                "timestamp": [bar_time],
-                                "open": [price],
-                                "high": [price],
-                                "low": [price],
-                                "close": [price],
-                                "volume": [volume],
-                            }
-                        )
-                        self.data[tf_key] = pl.concat([self.data[tf_key], new_row])
-                        self.last_bar_times[tf_key] = bar_time
-                        await self._trigger_callbacks("new_bar", {"timeframe": tf_key})
-                    else:
-                        # Update current bar
-                        last_idx = len(self.data[tf_key]) - 1
-                        if last_idx >= 0:
-                            # Update high
-                            if price > self.data[tf_key]["high"][last_idx]:
-                                self.data[tf_key] = self.data[tf_key].with_columns(
-                                    pl.when(pl.int_range(pl.len()) == last_idx)
-                                    .then(price)
-                                    .otherwise(pl.col("high"))
-                                    .alias("high")
-                                )
-                            # Update low
-                            if price < self.data[tf_key]["low"][last_idx]:
-                                self.data[tf_key] = self.data[tf_key].with_columns(
-                                    pl.when(pl.int_range(pl.len()) == last_idx)
-                                    .then(price)
-                                    .otherwise(pl.col("low"))
-                                    .alias("low")
-                                )
-                            # Update close and volume
-                            self.data[tf_key] = self.data[tf_key].with_columns(
-                                pl.when(pl.int_range(pl.len()) == last_idx)
-                                .then(price)
-                                .otherwise(pl.col("close"))
-                                .alias("close"),
-                                pl.when(pl.int_range(pl.len()) == last_idx)
-                                .then(self.data[tf_key]["volume"][last_idx] + volume)
-                                .otherwise(pl.col("volume"))
-                                .alias("volume"),
-                            )
 
-            # Trigger data update callbacks
-            await self._trigger_callbacks("data_update", {"tick": tick})
+                    self.data[tf_key] = pl.concat([current_data, new_bar])
+                    self.last_bar_times[tf_key] = bar_time
+
+                    # Trigger new bar callback
+                    await self._trigger_callbacks(
+                        "new_bar",
+                        {
+                            "timeframe": tf_key,
+                            "bar_time": bar_time,
+                            "data": new_bar.to_dicts()[0],
+                        },
+                    )
+
+                elif bar_time == last_bar_time:
+                    # Update existing bar
+                    last_row_mask = pl.col("timestamp") == pl.lit(bar_time)
+
+                    # Get current values
+                    last_row = current_data.filter(last_row_mask)
+                    current_high = (
+                        last_row.select(pl.col("high")).item()
+                        if last_row.height > 0
+                        else price
+                    )
+                    current_low = (
+                        last_row.select(pl.col("low")).item()
+                        if last_row.height > 0
+                        else price
+                    )
+                    current_volume = (
+                        last_row.select(pl.col("volume")).item()
+                        if last_row.height > 0
+                        else 0
+                    )
+
+                    # Calculate new values
+                    new_high = max(current_high, price)
+                    new_low = min(current_low, price)
+                    new_volume = max(current_volume + volume, 1)
+
+                    # Update with new values
+                    self.data[tf_key] = current_data.with_columns(
+                        [
+                            pl.when(last_row_mask)
+                            .then(pl.lit(new_high))
+                            .otherwise(pl.col("high"))
+                            .alias("high"),
+                            pl.when(last_row_mask)
+                            .then(pl.lit(new_low))
+                            .otherwise(pl.col("low"))
+                            .alias("low"),
+                            pl.when(last_row_mask)
+                            .then(pl.lit(price))
+                            .otherwise(pl.col("close"))
+                            .alias("close"),
+                            pl.when(last_row_mask)
+                            .then(pl.lit(new_volume))
+                            .otherwise(pl.col("volume"))
+                            .alias("volume"),
+                        ]
+                    )
+
+            # Prune memory
+            if self.data[tf_key].height > 1000:
+                self.data[tf_key] = self.data[tf_key].tail(1000)
+
+        except Exception as e:
+            self.logger.error(f"Error updating {tf_key} timeframe: {e}")
 
     def _calculate_bar_time(
-        self, timestamp: datetime, timeframe_config: dict
+        self, timestamp: datetime, interval: int, unit: int
     ) -> datetime:
         """
-        Calculate the bar time for a given timestamp and timeframe.
+        Calculate the bar time for a given timestamp and interval.
 
         Args:
-            timestamp: Current timestamp
-            timeframe_config: Timeframe configuration dict
+            timestamp: The tick timestamp (should be timezone-aware)
+            interval: Bar interval value
+            unit: Time unit (1=seconds, 2=minutes)
 
         Returns:
-            datetime: Bar time aligned to timeframe
+            datetime: The bar time (start of the bar period) - timezone-aware
         """
-        interval = timeframe_config["interval"]
-        unit = timeframe_config["unit"]
+        # Ensure timestamp is timezone-aware
+        if timestamp.tzinfo is None:
+            timestamp = self.timezone.localize(timestamp)
 
         if unit == 1:  # Seconds
-            seconds = timestamp.second
-            bar_seconds = (seconds // interval) * interval
-            bar_time = timestamp.replace(second=bar_seconds, microsecond=0)
+            # Round down to the nearest interval in seconds
+            total_seconds = timestamp.second + timestamp.microsecond / 1000000
+            rounded_seconds = (int(total_seconds) // interval) * interval
+            bar_time = timestamp.replace(second=rounded_seconds, microsecond=0)
         elif unit == 2:  # Minutes
-            minutes = timestamp.minute
-            bar_minutes = (minutes // interval) * interval
-            bar_time = timestamp.replace(minute=bar_minutes, second=0, microsecond=0)
-        elif unit == 4:  # Days
-            bar_time = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+            # Round down to the nearest interval in minutes
+            minutes = (timestamp.minute // interval) * interval
+            bar_time = timestamp.replace(minute=minutes, second=0, microsecond=0)
         else:
-            # Default to current time for other units
-            bar_time = timestamp
+            raise ValueError(f"Unsupported time unit: {unit}")
 
         return bar_time
 
@@ -741,3 +894,147 @@ class AsyncRealtimeDataManager:
             self.indicator_cache.clear()
 
         self.logger.info("✅ AsyncRealtimeDataManager cleanup completed")
+
+    def _parse_and_validate_trade_payload(self, trade_data):
+        """Parse and validate trade payload, returning the parsed data or None if invalid."""
+        # Handle string payloads - parse JSON if it's a string
+        if isinstance(trade_data, str):
+            try:
+                import json
+
+                self.logger.debug(
+                    f"Attempting to parse trade JSON string: {trade_data[:200]}..."
+                )
+                trade_data = json.loads(trade_data)
+                self.logger.debug(
+                    f"Successfully parsed JSON string payload: {type(trade_data)}"
+                )
+            except (json.JSONDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse trade payload JSON: {e}")
+                self.logger.warning(f"Trade payload content: {trade_data[:500]}...")
+                return None
+
+        # Handle list payloads - SignalR sends [contract_id, data_dict]
+        if isinstance(trade_data, list):
+            if not trade_data:
+                self.logger.warning("Trade payload is an empty list")
+                return None
+            if len(trade_data) >= 2:
+                # SignalR format: [contract_id, actual_data_dict]
+                trade_data = trade_data[1]
+                self.logger.debug(
+                    f"Using second item from SignalR trade list: {type(trade_data)}"
+                )
+            else:
+                # Fallback: use first item if only one element
+                trade_data = trade_data[0]
+                self.logger.debug(
+                    f"Using first item from trade list: {type(trade_data)}"
+                )
+
+        # Handle nested list case: trade data might be wrapped in another list
+        if (
+            isinstance(trade_data, list)
+            and trade_data
+            and isinstance(trade_data[0], dict)
+        ):
+            trade_data = trade_data[0]
+            self.logger.debug(
+                f"Using first item from nested trade list: {type(trade_data)}"
+            )
+
+        if not isinstance(trade_data, dict):
+            self.logger.warning(
+                f"Trade payload is not a dict after processing: {type(trade_data)}"
+            )
+            self.logger.debug(f"Trade payload content: {trade_data}")
+            return None
+
+        required_fields = {"symbolId", "price", "timestamp", "volume"}
+        missing_fields = required_fields - set(trade_data.keys())
+        if missing_fields:
+            self.logger.warning(
+                f"Trade payload missing required fields: {missing_fields}"
+            )
+            self.logger.debug(f"Available fields: {list(trade_data.keys())}")
+            return None
+
+        return trade_data
+
+    def _parse_and_validate_quote_payload(self, quote_data):
+        """Parse and validate quote payload, returning the parsed data or None if invalid."""
+        # Handle string payloads - parse JSON if it's a string
+        if isinstance(quote_data, str):
+            try:
+                import json
+
+                self.logger.debug(
+                    f"Attempting to parse quote JSON string: {quote_data[:200]}..."
+                )
+                quote_data = json.loads(quote_data)
+                self.logger.debug(
+                    f"Successfully parsed JSON string payload: {type(quote_data)}"
+                )
+            except (json.JSONDecodeError, ValueError) as e:
+                self.logger.warning(f"Failed to parse quote payload JSON: {e}")
+                self.logger.warning(f"Quote payload content: {quote_data[:500]}...")
+                return None
+
+        # Handle list payloads - SignalR sends [contract_id, data_dict]
+        if isinstance(quote_data, list):
+            if not quote_data:
+                self.logger.warning("Quote payload is an empty list")
+                return None
+            if len(quote_data) >= 2:
+                # SignalR format: [contract_id, actual_data_dict]
+                quote_data = quote_data[1]
+                self.logger.debug(
+                    f"Using second item from SignalR quote list: {type(quote_data)}"
+                )
+            else:
+                # Fallback: use first item if only one element
+                quote_data = quote_data[0]
+                self.logger.debug(
+                    f"Using first item from quote list: {type(quote_data)}"
+                )
+
+        if not isinstance(quote_data, dict):
+            self.logger.warning(
+                f"Quote payload is not a dict after processing: {type(quote_data)}"
+            )
+            self.logger.debug(f"Quote payload content: {quote_data}")
+            return None
+
+        # More flexible validation - only require symbol and timestamp
+        # Different quote types have different data (some may not have all price fields)
+        required_fields = {"symbol", "timestamp"}
+        missing_fields = required_fields - set(quote_data.keys())
+        if missing_fields:
+            self.logger.warning(
+                f"Quote payload missing required fields: {missing_fields}"
+            )
+            self.logger.debug(f"Available fields: {list(quote_data.keys())}")
+            return None
+
+        return quote_data
+
+    def _symbol_matches_instrument(self, symbol: str) -> bool:
+        """
+        Check if the symbol from the payload matches our tracked instrument.
+
+        Args:
+            symbol: Symbol from the payload (e.g., "F.US.EP")
+
+        Returns:
+            bool: True if symbol matches our instrument
+        """
+        # Extract the base symbol from the full symbol ID
+        # Example: "F.US.EP" -> "EP", "F.US.MGC" -> "MGC"
+        if "." in symbol:
+            parts = symbol.split(".")
+            base_symbol = parts[-1] if parts else symbol
+        else:
+            base_symbol = symbol
+
+        # Compare with our instrument (case-insensitive)
+        return base_symbol.upper() == self.instrument.upper()

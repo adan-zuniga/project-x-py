@@ -93,7 +93,7 @@ async def main():
         print(f"✅ Authenticated as {client.account_info.name}")
 
         # Get JWT token and account ID
-        jwt_token = client.jwt_token
+        jwt_token = client.session_token
         account_id = client.account_info.id
 
         # Create async realtime client
