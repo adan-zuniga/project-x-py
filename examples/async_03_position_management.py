@@ -210,7 +210,11 @@ async def main():
                         timeframes=["15sec", "1min", "5min"],
                     )
                     await realtime_data_manager.initialize()
-                    print("✅ Real-time market data enabled for MNQ")
+                    # Start the real-time feed
+                    if await realtime_data_manager.start_realtime_feed():
+                        print("✅ Real-time market data enabled for MNQ")
+                    else:
+                        print("⚠️  Real-time market data feed failed to start")
                 except Exception as e:
                     print(f"⚠️  Real-time market data setup failed: {e}")
             else:
