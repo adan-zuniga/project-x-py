@@ -29,6 +29,7 @@ __author__ = "TexasCoding"
 # Core client classes
 from .async_client import AsyncProjectX
 from .async_order_manager import AsyncOrderManager
+from .async_position_manager import AsyncPositionManager
 from .client import ProjectX
 
 # Configuration management
@@ -136,6 +137,7 @@ __all__ = [
     "ProjectX",
     "AsyncProjectX",
     "AsyncOrderManager",
+    "AsyncPositionManager",
     "ProjectXAuthenticationError",
     "ProjectXConfig",
     "ProjectXConnectionError",
@@ -308,8 +310,8 @@ def diagnose_issues() -> dict:
 
     # Check dependencies
     try:
-        import polars
-        import pytz
+        import polars  # noqa: F401
+        import pytz  # noqa: F401
         import requests
     except ImportError as e:
         diagnostics["issues"].append(f"Missing dependency: {e.name}")
