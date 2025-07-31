@@ -24,10 +24,10 @@ from datetime import datetime
 
 from project_x_py import (
     AsyncProjectX,
+    create_async_data_manager,
     create_async_order_manager,
     create_async_position_manager,
     create_async_realtime_client,
-    create_async_realtime_data_manager,
     setup_logging,
 )
 
@@ -199,7 +199,7 @@ async def main():
                 # Create real-time data manager for MNQ
                 realtime_data_manager = None
                 try:
-                    realtime_data_manager = create_async_realtime_data_manager(
+                    realtime_data_manager = create_async_data_manager(
                         "MNQ", client, realtime_client
                     )
                     await realtime_data_manager.initialize()
