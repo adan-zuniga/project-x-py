@@ -502,7 +502,7 @@ class AsyncPositionManager:
     # ================================================================================
 
     async def calculate_position_pnl(
-        self, position: Position, current_price: float
+        self, position: Position, current_price: float, point_value: float | None = None
     ) -> dict[str, Any]:
         """
         Calculate P&L for a position given current market price.
@@ -510,6 +510,8 @@ class AsyncPositionManager:
         Args:
             position: Position object
             current_price: Current market price
+            point_value: Optional point value for the contract (dollar value per point)
+                        If not provided, P&L will be in points
 
         Returns:
             Dict with P&L calculations
@@ -517,12 +519,23 @@ class AsyncPositionManager:
         Example:
             >>> pnl = await position_manager.calculate_position_pnl(position, 2050.0)
             >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
+            >>> # With point value for accurate dollar P&L
+            >>> pnl = await position_manager.calculate_position_pnl(
+            ...     position, 2050.0, point_value=2.0
+            ... )
+            >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
         """
         # Calculate P&L based on position direction
         if position.type == 1:  # LONG
-            pnl_per_contract = current_price - position.averagePrice
+            price_change = current_price - position.averagePrice
         else:  # SHORT (type == 2)
-            pnl_per_contract = position.averagePrice - current_price
+            price_change = position.averagePrice - current_price
+
+        # Apply point value if provided (for accurate dollar P&L)
+        if point_value is not None:
+            pnl_per_contract = price_change * point_value
+        else:
+            pnl_per_contract = price_change
 
         unrealized_pnl = pnl_per_contract * position.size
         market_value = current_price * position.size
@@ -535,6 +548,7 @@ class AsyncPositionManager:
             "entry_price": position.averagePrice,
             "size": position.size,
             "direction": "LONG" if position.type == 1 else "SHORT",
+            "price_change": price_change,
         }
 
     async def calculate_portfolio_pnl(

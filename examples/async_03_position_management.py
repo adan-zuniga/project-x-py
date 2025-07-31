@@ -21,25 +21,36 @@ Date: July 2025
 
 import asyncio
 from datetime import datetime
-from decimal import Decimal
 
 from project_x_py import (
     AsyncProjectX,
     create_async_order_manager,
     create_async_position_manager,
     create_async_realtime_client,
+    create_async_realtime_data_manager,
     setup_logging,
 )
 
 
-async def get_current_market_price(client: AsyncProjectX, symbol="MNQ"):
+async def get_current_market_price(
+    client: AsyncProjectX, symbol="MNQ", realtime_data_manager=None
+):
     """Get current market price with async fallback for closed markets."""
+    # Try to get real-time price first if available
+    if realtime_data_manager:
+        try:
+            current_price = await realtime_data_manager.get_current_price()
+            if current_price:
+                return float(current_price)
+        except Exception as e:
+            print(f"   ⚠️  Real-time price not available: {e}")
+
     # Try different data configurations concurrently
     configs = [(1, 1), (1, 5), (2, 15), (5, 15), (7, 60)]
 
     async def try_get_data(days, interval):
         try:
-            market_data = await client.get_data(symbol, days=days, interval=interval)
+            market_data = await client.get_bars(symbol, days=days, interval=interval)
             if market_data is not None and not market_data.is_empty():
                 return float(market_data.select("close").tail(1).item())
         except Exception:
@@ -52,10 +63,12 @@ async def get_current_market_price(client: AsyncProjectX, symbol="MNQ"):
     # Return first valid result
     for price in results:
         if price is not None:
+            print(f"   ℹ️  Using historical price: ${price:.2f}")
             return price
 
-    # Fallback price if no data available
-    return 23400.00  # Reasonable MNQ price
+    # DON'T use a fallback - return None if no data available
+    print("   ❌ No market data available")
+    return None
 
 
 async def display_positions(position_manager):
@@ -168,20 +181,36 @@ async def main():
 
             # Create real-time client for live updates
             realtime_client = create_async_realtime_client(
-                client.session_token, client.account_info.id
+                client.session_token, str(client.account_info.id)
             )
 
             # Create position manager with real-time integration
             position_manager = create_async_position_manager(client, realtime_client)
-            await position_manager.initialize()
 
-            # Connect real-time client
+            # Connect real-time client first
             print("\n🔌 Connecting to real-time services...")
             if await realtime_client.connect():
                 await realtime_client.subscribe_user_updates()
+
+                # Initialize position manager with connected realtime client
+                await position_manager.initialize(realtime_client=realtime_client)
                 print("✅ Real-time position tracking enabled")
+
+                # Create real-time data manager for MNQ
+                realtime_data_manager = None
+                try:
+                    realtime_data_manager = create_async_realtime_data_manager(
+                        "MNQ", client, realtime_client
+                    )
+                    await realtime_data_manager.initialize()
+                    print("✅ Real-time market data enabled for MNQ")
+                except Exception as e:
+                    print(f"⚠️  Real-time market data setup failed: {e}")
             else:
-                print("⚠️  Real-time tracking unavailable")
+                # Fall back to polling mode
+                await position_manager.initialize()
+                print("⚠️  Using polling mode (real-time connection failed)")
+                realtime_data_manager = None
 
             # Display current positions
             await display_positions(position_manager)
@@ -201,61 +230,307 @@ async def main():
             print("\n💡 Position Sizing Recommendations:")
 
             # Get market price for calculation
-            market_price = await get_current_market_price(client, "MNQ")
+            market_price = await get_current_market_price(
+                client, "MNQ", realtime_data_manager
+            )
+            if market_price is None:
+                market_price = 23400.00  # Use fallback only for sizing calculations
+                print(f"   ⚠️  Using fallback price for sizing: ${market_price:.2f}")
 
-            # Calculate position sizes for different risk levels
-            risk_levels = [0.01, 0.02, 0.05]  # 1%, 2%, 5% risk
-            account_balance = float(client.account_info.balance)
+            # Get account info
+            account_info = client.account_info
+            if not account_info:
+                print("❌ Could not get account information")
+                return
+            account_balance = float(account_info.balance)
 
             print(f"  Account Balance: ${account_balance:,.2f}")
             print(f"  Market Price (MNQ): ${market_price:.2f}")
 
-            for risk_pct in risk_levels:
-                position_size = await position_manager.calculate_position_size(
-                    account_balance=account_balance,
-                    risk_percentage=risk_pct,
+            # Calculate position sizes for different risk amounts
+            # For MNQ micro contracts, use smaller risk amounts
+            risk_amounts = [25, 50, 100, 200]  # Risk $25, $50, $100, $200
+            stop_distance = 10.0  # $10 stop distance (40 ticks for MNQ)
+
+            print(f"  Stop Distance: ${stop_distance:.2f}")
+            print()
+
+            for risk_amount in risk_amounts:
+                sizing = await position_manager.calculate_position_size(
+                    contract_id="MNQ",  # Use base symbol
+                    risk_amount=risk_amount,
                     entry_price=market_price,
-                    stop_loss_price=market_price * 0.99,  # 1% stop loss
+                    stop_price=market_price - stop_distance,
+                    account_balance=account_balance,
                 )
 
-                print(f"  {risk_pct * 100:.0f}% Risk: {position_size} contracts")
+                if "error" in sizing:
+                    print(f"  Risk ${risk_amount:.0f}: ❌ {sizing['error']}")
+                else:
+                    suggested_size = sizing["suggested_size"]
+                    total_risk = sizing["total_risk"]
+                    risk_percentage = sizing["risk_percentage"]
+                    risk_per_contract = sizing["risk_per_contract"]
 
-            # Check for any positions that need alerts
+                    print(f"  Risk ${risk_amount:.0f}:")
+                    print(f"    Position Size: {suggested_size} contracts")
+                    print(f"    Risk per Contract: ${risk_per_contract:.2f}")
+                    print(f"    Total Risk: ${total_risk:.2f}")
+                    print(f"    Risk %: {risk_percentage:.1f}%")
+
+                    # Show warnings if any
+                    warnings = sizing.get("risk_warnings", [])
+                    if warnings:
+                        for warning in warnings:
+                            print(f"    ⚠️  {warning}")
+
+            # Create order manager for placing test position
+            print("\n🏗️ Creating order manager for test position...")
+            order_manager = create_async_order_manager(client, realtime_client)
+            await order_manager.initialize(realtime_client=realtime_client)
+
+            # Ask user if they want to place a test position
+            print("\n⚠️  DEMONSTRATION: Place a test position?")
+            print("   This will place a REAL market order for 1 MNQ contract")
+            print("   The position will be closed at the end of the demo")
+
+            # Get user confirmation
+            try:
+                response = input("\nPlace test position? (y/N): ").strip().lower()
+                place_test_position = response == "y"
+            except (EOFError, KeyboardInterrupt):
+                # Handle non-interactive mode
+                print("N (non-interactive mode)")
+                place_test_position = False
+
+            if place_test_position:
+                print("\n📈 Placing test market order...")
+
+                # Get MNQ contract info
+                mnq = await client.get_instrument("MNQ")
+                if not mnq:
+                    print("❌ Could not find MNQ instrument")
+                else:
+                    # Get tick value for P&L calculations
+                    tick_size = float(mnq.tickSize)  # $0.25 for MNQ
+                    tick_value = float(mnq.tickValue)  # $0.50 for MNQ
+                    point_value = tick_value / tick_size  # $2 per point
+
+                    print(
+                        f"   Using {mnq.name}: Tick size ${tick_size}, Tick value ${tick_value}, Point value ${point_value}"
+                    )
+
+                    # Place a small market buy order (1 contract)
+                    order_response = await order_manager.place_market_order(
+                        contract_id=mnq.id,
+                        side=0,  # Buy
+                        size=1,  # Just 1 contract for safety
+                    )
+
+                    if order_response and order_response.success:
+                        print(
+                            f"✅ Test position order placed: {order_response.orderId}"
+                        )
+                        print("   Waiting for order to fill and position to appear...")
+
+                        # Wait for position to appear
+                        wait_time = 0
+                        max_wait = 10  # Maximum 10 seconds
+                        position_found = False
+
+                        while wait_time < max_wait and not position_found:
+                            await asyncio.sleep(2)
+                            wait_time += 2
+
+                            # Refresh positions
+                            await position_manager.refresh_positions()
+                            positions = await position_manager.get_all_positions()
+
+                            if positions:
+                                position_found = True
+                                print("\n✅ Position established!")
+
+                                # Display the new position
+                                for pos in positions:
+                                    direction = "LONG" if pos.type == 1 else "SHORT"
+                                    print("\n📊 New Position:")
+                                    print(f"   Contract: {pos.contractId}")
+                                    print(f"   Direction: {direction}")
+                                    print(f"   Size: {pos.size} contracts")
+                                    print(f"   Average Price: ${pos.averagePrice:.2f}")
+
+                                    # Get fresh market price for accurate P&L
+                                    try:
+                                        # Get current price from market data
+                                        current_market_price = (
+                                            await get_current_market_price(
+                                                client, "MNQ", realtime_data_manager
+                                            )
+                                        )
+
+                                        if current_market_price is None:
+                                            # Use entry price if no market data
+                                            current_market_price = pos.averagePrice
+                                            print(
+                                                f"   ⚠️  No market data - using entry price"
+                                            )
+
+                                        # Use position manager's P&L calculation with point value
+                                        pnl_info = await position_manager.calculate_position_pnl(
+                                            pos,
+                                            current_market_price,
+                                            point_value=point_value,
+                                        )
+
+                                        print(
+                                            f"   Current Price: ${current_market_price:.2f}"
+                                        )
+                                        print(
+                                            f"   Unrealized P&L: ${pnl_info['unrealized_pnl']:.2f}"
+                                        )
+                                        print(
+                                            f"   Points: {pnl_info['price_change']:.2f}"
+                                        )
+                                    except Exception:
+                                        print("   P&L calculation pending...")
+
+                                # Monitor the position for 20 seconds
+                                print("\n👀 Monitoring position for 20 seconds...")
+
+                                for i in range(4):  # 4 updates, 5 seconds apart
+                                    await asyncio.sleep(5)
+
+                                    # Refresh and show update
+                                    await position_manager.refresh_positions()
+                                    positions = (
+                                        await position_manager.get_all_positions()
+                                    )
+
+                                    if positions:
+                                        print(f"\n📊 Position Update {i + 1}/4:")
+                                        for pos in positions:
+                                            try:
+                                                # Get fresh market price
+                                                current_market_price = (
+                                                    await get_current_market_price(
+                                                        client,
+                                                        "MNQ",
+                                                        realtime_data_manager,
+                                                    )
+                                                )
+
+                                                if current_market_price is None:
+                                                    # Use entry price if no market data
+                                                    current_market_price = (
+                                                        pos.averagePrice
+                                                    )
+                                                    print(
+                                                        f"   ⚠️  No market data - P&L will be $0"
+                                                    )
+
+                                                # Use position manager's P&L calculation with point value
+                                                pnl_info = await position_manager.calculate_position_pnl(
+                                                    pos,
+                                                    current_market_price,
+                                                    point_value=point_value,
+                                                )
+
+                                                print(
+                                                    f"   Current Price: ${current_market_price:.2f}"
+                                                )
+                                                print(
+                                                    f"   P&L: ${pnl_info['unrealized_pnl']:.2f}"
+                                                )
+                                                print(
+                                                    f"   Points: {pnl_info['price_change']:.2f}"
+                                                )
+                                            except Exception:
+                                                print("   P&L: Calculating...")
+
+                        if not position_found:
+                            print(
+                                "⚠️  Position not found after waiting. Order may still be pending."
+                            )
+                    else:
+                        error_msg = (
+                            order_response.errorMessage
+                            if order_response
+                            else "Unknown error"
+                        )
+                        print(f"❌ Failed to place test order: {error_msg}")
+
+            # Check for any positions that need cleanup
             positions = await position_manager.get_all_positions()
 
             if positions:
-                print("\n⚠️  Setting up position alerts...")
+                print("\n🧹 Cleaning up positions...")
 
-                # Add alerts for each position
-                alert_tasks = []
-                for symbol, position in positions.items():
-                    # Alert if position loses more than 2%
-                    max_loss = position.averagePrice * position.quantity * 0.02
-                    task = position_manager.add_position_alert(
-                        symbol, max_loss=-max_loss, alert_name=f"{symbol}_2pct_loss"
+                for position in positions:
+                    # Close the position
+                    side = 1 if position.type == 1 else 0  # Opposite side to close
+                    close_response = await order_manager.place_market_order(
+                        contract_id=position.contractId,
+                        side=side,
+                        size=position.size,
                     )
-                    alert_tasks.append(task)
 
-                await asyncio.gather(*alert_tasks)
-                print(f"✅ Added alerts for {len(positions)} positions")
+                    if close_response and close_response.success:
+                        print(
+                            f"✅ Close order placed for {position.contractId}: {close_response.orderId}"
+                        )
+                    else:
+                        print(f"❌ Failed to close {position.contractId}")
 
-                # Monitor positions for 30 seconds
-                await monitor_positions_realtime(position_manager, duration_seconds=30)
+                # Wait for positions to close
+                await asyncio.sleep(3)
 
-            # Display position history
-            print("\n📜 Recent Position History:")
-            history = await position_manager.get_position_history(days=7)
+                # Final check
+                positions = await position_manager.get_all_positions()
+                if not positions:
+                    print("✅ All positions closed successfully")
+                else:
+                    print(f"⚠️  {len(positions)} positions still open")
 
-            if history:
-                for i, pos in enumerate(history[:5]):  # Show last 5
-                    print(f"\n{i + 1}. {pos.get('contractId', 'Unknown')}:")
-                    print(f"   Opened: {pos.get('openedAt', 'Unknown')}")
-                    print(f"   Closed: {pos.get('closedAt', 'Unknown')}")
-                    print(f"   P&L: ${pos.get('realizedPnl', 0):.2f}")
+            # Demonstrate portfolio P&L calculation
+            print("\n💰 Portfolio P&L Summary:")
+            portfolio_pnl = await position_manager.get_portfolio_pnl()
+            print(f"  Position Count: {portfolio_pnl['position_count']}")
+            print(
+                f"  Total Unrealized P&L: ${portfolio_pnl.get('total_unrealized_pnl', 0):.2f}"
+            )
+            print(
+                f"  Total Realized P&L: ${portfolio_pnl.get('total_realized_pnl', 0):.2f}"
+            )
+            print(f"  Net P&L: ${portfolio_pnl.get('net_pnl', 0):.2f}")
+
+            # Display position statistics
+            print("\n📊 Position Statistics:")
+            stats = position_manager.get_position_statistics()
+            print(f"  Tracked Positions: {stats['tracked_positions']}")
+            print(
+                f"  P&L Calculations: {stats['statistics'].get('pnl_calculations', 0)}"
+            )
+            print(
+                f"  Position Updates: {stats['statistics'].get('position_updates', 0)}"
+            )
+            print(f"  Refresh Count: {stats['statistics'].get('refresh_count', 0)}")
+
+            if stats["realtime_enabled"]:
+                print("  Real-time Updates: ✅ Enabled")
             else:
-                print("  No position history available")
+                print("  Real-time Updates: ❌ Disabled")
+
+            print("\n✅ Position management example completed!")
+            print("\n📝 Next Steps:")
+            print(
+                "   - Try examples/async_04_combined_trading.py for full trading workflow"
+            )
+            print("   - Review position manager documentation for advanced features")
+            print("   - Implement your own risk management strategies")
 
             # Clean up
+            if realtime_data_manager:
+                await realtime_data_manager.cleanup()
             await realtime_client.cleanup()
 
     except Exception as e:
