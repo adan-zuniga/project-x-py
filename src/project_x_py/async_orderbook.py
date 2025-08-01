@@ -494,7 +494,7 @@ class AsyncOrderBook:
 
                 # Log processing summary
                 if self.level2_update_count % 10 == 1:
-                    self.logger.info(
+                    self.logger.debug(
                         f"Processed {self.level2_update_count} updates, bids={len(self.orderbook_bids)}, asks={len(self.orderbook_asks)}"
                     )
 
@@ -616,9 +616,47 @@ class AsyncOrderBook:
         """
         try:
             async with self.orderbook_lock:
-                bids = await self.get_orderbook_bids(levels)
-                asks = await self.get_orderbook_asks(levels)
-                best_bid, best_ask = await self.get_best_bid_ask()
+                # Get bid levels directly (don't call get_orderbook_bids which also locks)
+                if len(self.orderbook_bids) == 0:
+                    bids = []
+                else:
+                    top_bids = (
+                        self.orderbook_bids.sort("price", descending=True)
+                        .head(levels)
+                        .to_dicts()
+                    )
+                    bids = [
+                        {
+                            "price": bid["price"],
+                            "volume": bid["volume"],
+                            "timestamp": bid["timestamp"],
+                        }
+                        for bid in top_bids
+                    ]
+
+                # Get ask levels directly (don't call get_orderbook_asks which also locks)
+                if len(self.orderbook_asks) == 0:
+                    asks = []
+                else:
+                    top_asks = self.orderbook_asks.sort("price").head(levels).to_dicts()
+                    asks = [
+                        {
+                            "price": ask["price"],
+                            "volume": ask["volume"],
+                            "timestamp": ask["timestamp"],
+                        }
+                        for ask in top_asks
+                    ]
+
+                # Get best bid/ask directly (don't call get_best_bid_ask which also locks)
+                best_bid = None
+                best_ask = None
+
+                if len(self.orderbook_bids) > 0:
+                    best_bid = self.orderbook_bids["price"].max()
+
+                if len(self.orderbook_asks) > 0:
+                    best_ask = self.orderbook_asks["price"].min()
 
                 return {
                     "timestamp": datetime.now(self.timezone),
