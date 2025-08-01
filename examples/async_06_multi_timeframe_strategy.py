@@ -23,9 +23,7 @@ Date: July 2025
 
 import asyncio
 import signal
-import sys
 from datetime import datetime
-from decimal import Decimal
 
 from project_x_py import (
     AsyncProjectX,
@@ -90,7 +88,7 @@ class AsyncMultiTimeframeStrategy:
 
         # Map results back to timeframes
         analysis = {}
-        for (timeframe, _), result in zip(tasks.items(), results):
+        for (timeframe, _), result in zip(tasks.items(), results, strict=False):
             if isinstance(result, Exception):
                 self.logger.error(f"Error analyzing {timeframe}: {result}")
                 analysis[timeframe] = None
@@ -101,7 +99,7 @@ class AsyncMultiTimeframeStrategy:
 
     async def _analyze_longterm_trend(self):
         """Analyze 4hr timeframe for overall trend direction."""
-        data = await self.data_manager.get_data("4hour")
+        data = await self.data_manager.get_data("4hr")
         if data is None or len(data) < 50:
             return None
 
@@ -120,7 +118,7 @@ class AsyncMultiTimeframeStrategy:
 
     async def _analyze_medium_trend(self):
         """Analyze 1hr timeframe for medium-term trend."""
-        data = await self.data_manager.get_data("1hour")
+        data = await self.data_manager.get_data("1hr")
         if data is None or len(data) < 20:
             return None
 
@@ -399,7 +397,7 @@ async def main():
                 project_x=client,
                 jwt_token=client.session_token,
                 account_id=client.account_info.id,
-                timeframes=["15min", "1hour", "4hour"],
+                timeframes=["15min", "1hr", "4hr"],
             )
 
             # Connect and initialize
@@ -431,10 +429,10 @@ async def main():
             print("ASYNC MULTI-TIMEFRAME STRATEGY ACTIVE")
             print("=" * 60)
             print("\nStrategy Configuration:")
-            print(f"  Symbol: MNQ")
-            print(f"  Max Position Size: 2 contracts")
-            print(f"  Risk per Trade: 2%")
-            print(f"  Timeframes: 15min, 1hr, 4hr")
+            print("  Symbol: MNQ")
+            print("  Max Position Size: 2 contracts")
+            print("  Risk per Trade: 2%")
+            print("  Timeframes: 15min, 1hr, 4hr")
             print("\n⚠️  This strategy can place REAL ORDERS!")
             print("Press Ctrl+C to stop\n")
 
