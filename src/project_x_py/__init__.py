@@ -29,7 +29,7 @@ __author__ = "TexasCoding"
 # Core client classes
 from .async_client import AsyncProjectX
 from .async_order_manager import AsyncOrderManager
-from .async_orderbook import AsyncOrderBook
+from .async_orderbook import AsyncOrderBook, create_async_orderbook
 from .async_position_manager import AsyncPositionManager
 from .async_realtime import AsyncProjectXRealtimeClient
 from .async_realtime_data_manager import AsyncRealtimeDataManager
@@ -879,63 +879,7 @@ def create_async_data_manager(
     )
 
 
-def create_async_orderbook(
-    instrument: str,
-    config: ProjectXConfig | None = None,
-    realtime_client: AsyncProjectXRealtimeClient | None = None,
-    project_x: "AsyncProjectX | None" = None,
-) -> "AsyncOrderBook":
-    """
-    Create an AsyncProjectX OrderBook for advanced market depth analysis.
-
-    This function creates an async orderbook instance for Level 2 market depth analysis,
-    iceberg order detection, and advanced market microstructure analytics. The orderbook
-    processes real-time market depth data to provide insights into market structure,
-    liquidity, and hidden order activity.
-
-    Args:
-        instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
-        config: Configuration object with timezone settings (uses defaults if None)
-        realtime_client: Optional realtime client for automatic market data integration
-        project_x: Optional AsyncProjectX client for instrument metadata (enables dynamic tick size)
-
-    Returns:
-        AsyncOrderBook: Configured async orderbook instance ready for market depth processing
-
-    Example:
-        >>> # Create orderbook with automatic real-time integration
-        >>> orderbook = create_async_orderbook("MGC", realtime_client=realtime_client)
-        >>> # OrderBook will automatically receive market depth updates
-        >>> snapshot = await orderbook.get_orderbook_snapshot()
-        >>> spread = await orderbook.get_bid_ask_spread()
-        >>> imbalance = await orderbook.get_order_imbalance()
-        >>> iceberg_signals = await orderbook.detect_iceberg_orders()
-        >>> # Volume analysis
-        >>> volume_profile = await orderbook.get_volume_profile()
-        >>> liquidity_analysis = await orderbook.analyze_liquidity_distribution()
-        >>>
-        >>> # Alternative: Manual mode without real-time client
-        >>> orderbook = create_async_orderbook("MGC")
-        >>> # Manually process market data
-        >>> await orderbook.process_market_depth(depth_data)
-    """
-    if config is None:
-        config = load_default_config()
-
-    orderbook = AsyncOrderBook(
-        instrument=instrument,
-        timezone=config.timezone,
-        client=project_x,
-    )
-
-    # Initialize with real-time capabilities if provided
-    if realtime_client is not None:
-        # Note: initialize is async, so caller must await it
-        # We can't await here since this is a sync function
-        # The caller should call: await orderbook.initialize(realtime_client)
-        pass
-
-    return orderbook
+# Note: create_async_orderbook is imported from .async_orderbook module above
 
 
 def create_async_order_manager(

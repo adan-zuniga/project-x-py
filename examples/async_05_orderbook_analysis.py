@@ -42,7 +42,9 @@ from project_x_py import (
 
 async def display_best_prices(orderbook):
     """Display current best bid/ask prices."""
-    best_bid, best_ask = await orderbook.get_best_bid_ask()
+    best_prices = await orderbook.get_best_bid_ask()
+    best_bid = best_prices.get("bid")
+    best_ask = best_prices.get("ask")
 
     print("📊 Best Bid/Ask:", flush=True)
     if best_bid and best_ask:
@@ -66,9 +68,11 @@ async def display_orderbook_levels(orderbook, levels=5):
 
     # Display asks (sellers) - highest price first
     print("   ASKS (Sellers):", flush=True)
-    if asks:
+    if not asks.is_empty():
+        # Convert to list of dicts for display
+        asks_list = asks.to_dicts()
         # Sort asks by price descending for display
-        asks_sorted = sorted(asks, key=lambda x: x["price"], reverse=True)
+        asks_sorted = sorted(asks_list, key=lambda x: x["price"], reverse=True)
         for ask in asks_sorted:
             price = ask["price"]
             volume = ask["volume"]
@@ -81,8 +85,10 @@ async def display_orderbook_levels(orderbook, levels=5):
 
     # Display bids (buyers) - highest price first
     print("   BIDS (Buyers):", flush=True)
-    if bids:
-        for bid in bids:
+    if not bids.is_empty():
+        # Convert to list of dicts for display
+        bids_list = bids.to_dicts()
+        for bid in bids_list:
             price = bid["price"]
             volume = bid["volume"]
             timestamp = bid["timestamp"]
@@ -133,14 +139,17 @@ async def display_orderbook_snapshot(orderbook):
 async def display_memory_stats(orderbook):
     """Display orderbook memory statistics."""
     try:
-        stats = orderbook.get_memory_stats()
+        stats = await orderbook.get_memory_stats()
 
         print("\n💾 Memory Statistics:", flush=True)
-        print(f"   Bid Levels: {stats['total_bid_levels']:,}", flush=True)
-        print(f"   Ask Levels: {stats['total_ask_levels']:,}", flush=True)
-        print(f"   Recent Trades: {stats['total_trades']:,}", flush=True)
-        print(f"   Price History Levels: {stats['price_history_levels']:,}", flush=True)
-        print(f"   Update Count: {stats['update_count']:,}", flush=True)
+        print(f"   Bid Levels: {stats['orderbook_bids_count']:,}", flush=True)
+        print(f"   Ask Levels: {stats['orderbook_asks_count']:,}", flush=True)
+        print(f"   Recent Trades: {stats['recent_trades_count']:,}", flush=True)
+        print(
+            f"   Total Trades Processed: {stats['total_trades_processed']:,}",
+            flush=True,
+        )
+        print(f"   Trades Cleaned: {stats['trades_cleaned']:,}", flush=True)
         print(
             f"   Total Trades Processed: {stats.get('total_trades', 0):,}", flush=True
         )
@@ -177,7 +186,7 @@ async def display_iceberg_detection(orderbook):
                 print(f"      Refresh Count: {level['refresh_count']}", flush=True)
                 print(f"      Confidence: {level['confidence']:.2%}", flush=True)
                 print(
-                    f"      Last Seen: {level['last_seen'].strftime('%H:%M:%S')}",
+                    f"      Last Update: {level.get('last_update', datetime.now()).strftime('%H:%M:%S') if 'last_update' in level else 'N/A'}",
                     flush=True,
                 )
         else:
@@ -233,9 +242,9 @@ async def monitor_orderbook_feed(orderbook, duration_seconds=60):
                 await display_best_prices(orderbook)
 
                 # Show memory stats
-                stats = orderbook.get_memory_stats()
+                stats = await orderbook.get_memory_stats()
                 print(
-                    f"\n📊 Stats: {stats['update_count']} updates, {stats['total_trades']} trades"
+                    f"\n📊 Stats: {stats['total_trades_processed']} trades processed, {stats['recent_trades_count']} in memory"
                 )
 
                 update_count += 1
@@ -265,7 +274,9 @@ async def demonstrate_all_orderbook_methods(orderbook):
     await display_orderbook_snapshot(orderbook)
 
     print("\n2. get_best_bid_ask():", flush=True)
-    best_bid, best_ask = await orderbook.get_best_bid_ask()
+    best_prices = await orderbook.get_best_bid_ask()
+    best_bid = best_prices.get("bid")
+    best_ask = best_prices.get("ask")
     print(
         f"   Best Bid: ${best_bid:.2f}" if best_bid else "   Best Bid: None", flush=True
     )
@@ -283,54 +294,323 @@ async def demonstrate_all_orderbook_methods(orderbook):
 
     print("4. get_orderbook_bids():", flush=True)
     bids = await orderbook.get_orderbook_bids(levels=5)
-    print(f"   Top 5 bid levels: {len(bids)} levels", flush=True)
-    if bids:
-        top_bid = bids[0]
+    print(f"   Top 5 bid levels: {bids.height} levels", flush=True)
+    if not bids.is_empty():
+        top_bid = bids.row(0, named=True)
         print(f"   Best bid: ${top_bid['price']:.2f} x{top_bid['volume']}", flush=True)
 
     print("\n5. get_orderbook_asks():", flush=True)
     asks = await orderbook.get_orderbook_asks(levels=5)
-    print(f"   Top 5 ask levels: {len(asks)} levels", flush=True)
-    if asks:
-        top_ask = asks[0]
+    print(f"   Top 5 ask levels: {asks.height} levels", flush=True)
+    if not asks.is_empty():
+        top_ask = asks.row(0, named=True)
         print(f"   Best ask: ${top_ask['price']:.2f} x{top_ask['volume']}", flush=True)
 
-    # 3. Advanced Detection
-    print("\n🔍 ADVANCED DETECTION", flush=True)
+    print("\n6. get_orderbook_depth():", flush=True)
+    depth = await orderbook.get_orderbook_depth(price_range=10.0)
+    bid_depth = depth.get("bid_depth", {})
+    ask_depth = depth.get("ask_depth", {})
+    print(f"   Price range: ±${depth.get('price_range', 0):.2f}", flush=True)
+    print(
+        f"   Bid side: {bid_depth.get('levels', 0)} levels, {bid_depth.get('total_volume', 0):,} contracts",
+        flush=True,
+    )
+    print(
+        f"   Ask side: {ask_depth.get('levels', 0)} levels, {ask_depth.get('total_volume', 0):,} contracts",
+        flush=True,
+    )
+
+    # 3. Liquidity Analysis Methods
+    print("\n📈 LIQUIDITY ANALYSIS METHODS", flush=True)
     print("-" * 40)
 
-    print("6. detect_iceberg_orders():", flush=True)
+    print("7. get_liquidity_levels():", flush=True)
+    try:
+        liquidity = await orderbook.get_liquidity_levels(min_volume=10, levels=20)
+        significant_bids = liquidity.get("significant_bid_levels", [])
+        significant_asks = liquidity.get("significant_ask_levels", [])
+        print(f"   Significant bid levels: {len(significant_bids)} levels", flush=True)
+        print(f"   Significant ask levels: {len(significant_asks)} levels", flush=True)
+        print(
+            f"   Total bid liquidity: {liquidity.get('total_bid_liquidity', 0):,} contracts",
+            flush=True,
+        )
+        print(
+            f"   Total ask liquidity: {liquidity.get('total_ask_liquidity', 0):,} contracts",
+            flush=True,
+        )
+        print(
+            f"   Liquidity imbalance: {liquidity.get('liquidity_imbalance', 0):.3f}",
+            flush=True,
+        )
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n8. get_market_imbalance():", flush=True)
+    try:
+        imbalance = await orderbook.get_market_imbalance(levels=10)
+        imbalance_ratio = imbalance.get("imbalance_ratio", 0)
+        bid_volume = imbalance.get("bid_volume", 0)
+        ask_volume = imbalance.get("ask_volume", 0)
+        analysis = imbalance.get("analysis", "neutral")
+        print(f"   Imbalance ratio: {imbalance_ratio:.3f}", flush=True)
+        print(f"   Bid volume (top 10): {bid_volume:,} contracts", flush=True)
+        print(f"   Ask volume (top 10): {ask_volume:,} contracts", flush=True)
+        print(f"   Analysis: {analysis}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    # 4. Advanced Detection Methods
+    print("\n🔍 ADVANCED DETECTION METHODS", flush=True)
+    print("-" * 40)
+
+    print("9. detect_order_clusters():", flush=True)
+    try:
+        clusters = await orderbook.detect_order_clusters(min_cluster_size=2)
+        bid_clusters = [c for c in clusters if c["side"] == "bid"]
+        ask_clusters = [c for c in clusters if c["side"] == "ask"]
+        print(f"   Bid clusters found: {len(bid_clusters)}", flush=True)
+        print(f"   Ask clusters found: {len(ask_clusters)}", flush=True)
+        print(f"   Total clusters: {len(clusters)}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n10. detect_iceberg_orders():", flush=True)
     await display_iceberg_detection(orderbook)
 
-    # 4. Memory and Performance
+    # 5. Volume Analysis Methods
+    print("\n📊 VOLUME ANALYSIS METHODS", flush=True)
+    print("-" * 40)
+    print(
+        "📝 These methods analyze trade volume data (requires recent_trades data)",
+        flush=True,
+    )
+    print("", flush=True)
+
+    print("11. get_volume_profile():", flush=True)
+    try:
+        vol_profile = await orderbook.get_volume_profile()
+        if "error" in vol_profile:
+            print(f"   ❌ Error: {vol_profile['error']}", flush=True)
+        else:
+            poc_price = vol_profile.get("poc", 0)
+            total_volume = vol_profile.get("total_volume", 0)
+            price_bins = vol_profile.get("price_bins", [])
+            print(
+                f"   Point of Control (POC): ${poc_price:.2f}"
+                if poc_price
+                else "   Point of Control (POC): N/A",
+                flush=True,
+            )
+            print(f"   Price bins: {len(price_bins)}", flush=True)
+            print(f"   Total volume analyzed: {total_volume:,}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n12. get_cumulative_delta():", flush=True)
+    try:
+        cum_delta = await orderbook.get_cumulative_delta(time_window_minutes=15)
+        delta_value = cum_delta.get("cumulative_delta", 0)
+        buy_vol = cum_delta.get("buy_volume", 0)
+        sell_vol = cum_delta.get("sell_volume", 0)
+        neutral_vol = cum_delta.get("neutral_volume", 0)
+        trade_count = cum_delta.get("trade_count", 0)
+        print(f"   Cumulative delta: {delta_value:,}", flush=True)
+        print(f"   Buy volume: {buy_vol:,} contracts", flush=True)
+        print(f"   Sell volume: {sell_vol:,} contracts", flush=True)
+        print(f"   Neutral volume: {neutral_vol:,} contracts", flush=True)
+        print(f"   Trades analyzed: {trade_count}", flush=True)
+        # Determine trend
+        if delta_value > 1000:
+            trend = "strong bullish"
+        elif delta_value > 0:
+            trend = "bullish"
+        elif delta_value < -1000:
+            trend = "strong bearish"
+        elif delta_value < 0:
+            trend = "bearish"
+        else:
+            trend = "neutral"
+        print(f"   Delta trend: {trend}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n13. get_trade_flow_summary():", flush=True)
+    try:
+        trade_flow = await orderbook.get_trade_flow_summary()
+        total_trades = trade_flow.get("total_trades", 0)
+        aggressive_buy = trade_flow.get("aggressive_buy_volume", 0)
+        aggressive_sell = trade_flow.get("aggressive_sell_volume", 0)
+        avg_trade_size = trade_flow.get("avg_trade_size", 0)
+        vwap = trade_flow.get("vwap", None)
+        print(f"   Trades analyzed: {total_trades}", flush=True)
+        print(f"   Aggressive buy volume: {aggressive_buy:,} contracts", flush=True)
+        print(f"   Aggressive sell volume: {aggressive_sell:,} contracts", flush=True)
+        print(f"   Average trade size: {avg_trade_size:.1f}", flush=True)
+        if vwap:
+            print(f"   VWAP: ${vwap:.2f}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    # 6. Support/Resistance Methods
+    print("\n📈 SUPPORT/RESISTANCE METHODS", flush=True)
+    print("-" * 40)
+
+    print("14. get_support_resistance_levels():", flush=True)
+    try:
+        sr_levels = await orderbook.get_support_resistance_levels()
+        support_levels = sr_levels.get("support_levels", [])
+        resistance_levels = sr_levels.get("resistance_levels", [])
+        print(f"   Support levels found: {len(support_levels)}", flush=True)
+        print(f"   Resistance levels found: {len(resistance_levels)}", flush=True)
+        if support_levels:
+            first_support = support_levels[0]
+            if isinstance(first_support, dict):
+                price = first_support.get("price", 0)
+                print(f"   Strongest support: ${price:.2f}", flush=True)
+            else:
+                print(f"   Strongest support: ${first_support:.2f}", flush=True)
+        if resistance_levels:
+            first_resistance = resistance_levels[0]
+            if isinstance(first_resistance, dict):
+                price = first_resistance.get("price", 0)
+                print(f"   Strongest resistance: ${price:.2f}", flush=True)
+            else:
+                print(f"   Strongest resistance: ${first_resistance:.2f}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    # 7. Spread Analysis
+    print("\n📊 SPREAD ANALYSIS", flush=True)
+    print("-" * 40)
+
+    print("15. get_spread_analysis():", flush=True)
+    try:
+        spread_analysis = await orderbook.get_spread_analysis()
+        current_spread = spread_analysis.get("current_spread", 0)
+        avg_spread = spread_analysis.get("average_spread", 0)
+        min_spread = spread_analysis.get("min_spread", 0)
+        max_spread = spread_analysis.get("max_spread", 0)
+        print(f"   Current spread: ${current_spread:.2f}", flush=True)
+        print(f"   Average spread: ${avg_spread:.2f}", flush=True)
+        print(f"   Min spread: ${min_spread:.2f}", flush=True)
+        print(f"   Max spread: ${max_spread:.2f}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    # 8. Statistical Analysis Methods
+    print("\n📊 STATISTICAL ANALYSIS METHODS", flush=True)
+    print("-" * 40)
+
+    print("16. get_statistics():", flush=True)
+    try:
+        stats = await orderbook.get_statistics()
+        print(f"   Instrument: {stats.get('instrument', 'N/A')}", flush=True)
+        print(f"   Level 2 updates: {stats.get('update_count', 0)}", flush=True)
+        print(f"   Total trades: {stats.get('total_trades', 0)}", flush=True)
+        print(f"   Bid levels: {stats.get('bid_levels', 0)}", flush=True)
+        print(f"   Ask levels: {stats.get('ask_levels', 0)}", flush=True)
+        if "spread_stats" in stats:
+            spread_stats = stats["spread_stats"]
+            print(
+                f"   Average spread: ${spread_stats.get('average', 0):.2f}", flush=True
+            )
+            print(
+                f"   Current spread: ${spread_stats.get('current', 0):.2f}", flush=True
+            )
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n17. get_order_type_statistics():", flush=True)
+    try:
+        order_stats = await orderbook.get_order_type_statistics()
+        print(f"   Type 1 (Ask): {order_stats.get('type_1_count', 0)}", flush=True)
+        print(f"   Type 2 (Bid): {order_stats.get('type_2_count', 0)}", flush=True)
+        print(f"   Type 5 (Trade): {order_stats.get('type_5_count', 0)}", flush=True)
+        print(f"   Type 6 (Reset): {order_stats.get('type_6_count', 0)}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    # 9. Memory and Performance
     print("\n💾 MEMORY AND PERFORMANCE", flush=True)
     print("-" * 40)
 
-    print("7. get_memory_stats():", flush=True)
-    stats = orderbook.get_memory_stats()
-    for key, value in stats.items():
-        if isinstance(value, int | float):
-            print(
-                f"   {key}: {value:,}"
-                if isinstance(value, int)
-                else f"   {key}: {value:.2f}"
-            )
-        else:
-            print(f"   {key}: {value}", flush=True)
+    print("18. get_memory_stats():", flush=True)
+    try:
+        stats = await orderbook.get_memory_stats()
+        for key, value in stats.items():
+            if isinstance(value, int | float):
+                print(
+                    f"   {key}: {value:,}"
+                    if isinstance(value, int)
+                    else f"   {key}: {value:.2f}",
+                    flush=True,
+                )
+            else:
+                print(f"   {key}: {value}", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
 
-    # 5. Data Management
+    # 10. Data Management
     print("\n🧹 DATA MANAGEMENT", flush=True)
     print("-" * 40)
 
-    print("8. clear_orderbook():", flush=True)
+    print("19. get_recent_trades():", flush=True)
+    try:
+        recent_trades = await orderbook.get_recent_trades(count=5)
+        print(f"   Recent trades: {len(recent_trades)} trades", flush=True)
+        for i, trade in enumerate(recent_trades[:3], 1):
+            price = trade.get("price", 0)
+            volume = trade.get("volume", 0)
+            side = trade.get("side", "unknown")
+            print(f"   Trade {i}: ${price:.2f} x{volume} ({side})", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n20. get_price_level_history():", flush=True)
+    try:
+        # Get current best bid for testing
+        best_prices = await orderbook.get_best_bid_ask()
+        best_bid = best_prices.get("bid")
+        if best_bid:
+            # Access price_level_history attribute directly
+            async with orderbook.orderbook_lock:
+                history = orderbook.price_level_history.get((best_bid, "bid"), [])
+            print(
+                f"   History for bid ${best_bid:.2f}: {len(history)} updates",
+                flush=True,
+            )
+            if history:
+                # Show last few updates
+                for update in history[-3:]:
+                    print(
+                        f"      Volume: {update.get('volume', 0)}, "
+                        f"Time: {update.get('timestamp', 'N/A')}",
+                        flush=True,
+                    )
+        else:
+            print("   No bid prices available for history test", flush=True)
+    except Exception as e:
+        print(f"   ❌ Error: {e}", flush=True)
+
+    print("\n21. clear_orderbook() & clear_recent_trades():", flush=True)
     # Don't actually clear during demo
-    print("   Method available for clearing all orderbook data", flush=True)
-    print("   Would reset: bids, asks, trades, and history", flush=True)
+    print("   Methods available for clearing orderbook data", flush=True)
+    print("   clear_orderbook(): Resets bids, asks, trades, and history", flush=True)
+    print("   clear_recent_trades(): Clears only the trade history", flush=True)
 
     print(
         "\n✅ Comprehensive AsyncOrderBook method demonstration completed!", flush=True
     )
-    print("📊 Total methods demonstrated: 8 core async methods", flush=True)
+    print("📊 Total methods demonstrated: 21 async methods", flush=True)
+    print(
+        "🎯 Feature coverage: Basic data, liquidity analysis, volume profiling,",
+        flush=True,
+    )
+    print(
+        "   market microstructure, statistical analysis, and memory management",
+        flush=True,
+    )
 
 
 async def main():
@@ -375,33 +655,36 @@ async def main():
                         "   ⚠️ Real-time client connection failed - continuing with limited functionality"
                     )
 
+                # Get contract ID first
+                print("   Getting contract ID for MNQ...", flush=True)
+                instrument_obj = await client.get_instrument("MNQ")
+                if not instrument_obj:
+                    print("   ❌ Failed to get contract ID for MNQ", flush=True)
+                    return False
+
+                contract_id = instrument_obj.id
+                print(f"   Contract ID: {contract_id}", flush=True)
+
+                # Note: We use the full contract ID for proper matching
                 orderbook = create_async_orderbook(
-                    instrument="MNQ", realtime_client=realtime_client, project_x=client
+                    instrument=contract_id,
+                    realtime_client=realtime_client,
+                    project_x=client,
                 )
 
                 # Initialize the orderbook with real-time capabilities
                 await orderbook.initialize(realtime_client)
                 print("✅ Async Level 2 orderbook created for MNQ", flush=True)
 
-                # Get contract ID and subscribe to market data
-                print("   Getting contract ID for MNQ...", flush=True)
-                instrument_obj = await client.get_instrument("MNQ")
-                if instrument_obj:
-                    contract_id = instrument_obj.id
-                    print(f"   Contract ID: {contract_id}", flush=True)
-
-                    # Subscribe to market data for this contract
-                    print("   Subscribing to market data...", flush=True)
-                    success = await realtime_client.subscribe_market_data([contract_id])
-                    if success:
-                        print("   ✅ Market data subscription successful", flush=True)
-                    else:
-                        print(
-                            "   ⚠️ Market data subscription may have failed (might already be subscribed)"
-                        )
+                # Subscribe to market data for this contract
+                print("   Subscribing to market data...", flush=True)
+                success = await realtime_client.subscribe_market_data([contract_id])
+                if success:
+                    print("   ✅ Market data subscription successful", flush=True)
                 else:
-                    print("   ❌ Failed to get contract ID for MNQ", flush=True)
-                    return False
+                    print(
+                        "   ⚠️ Market data subscription may have failed (might already be subscribed)"
+                    )
             except Exception as e:
                 print(f"❌ Failed to create orderbook: {e}", flush=True)
                 return False
@@ -461,10 +744,10 @@ async def main():
             print("=" * 60)
 
             print(
-                "Waiting 2 minutes to make sure orderbook is full for testing!!",
+                "Waiting 45 seconds to make sure orderbook is full for testing!!",
                 flush=True,
             )
-            await asyncio.sleep(120)
+            await asyncio.sleep(45)
             await demonstrate_all_orderbook_methods(orderbook)
 
             # Final statistics
@@ -479,10 +762,14 @@ async def main():
             )
             print("\n📝 Key Features Demonstrated:", flush=True)
             print("   ✅ Async/await patterns throughout", flush=True)
-            print("   ✅ Real-time bid/ask levels", flush=True)
-            print("   ✅ Orderbook snapshot functionality", flush=True)
-            print("   ✅ Memory management and statistics", flush=True)
-            print("   ✅ Iceberg order detection", flush=True)
+            print("   ✅ Real-time bid/ask levels and depth analysis", flush=True)
+            print("   ✅ Liquidity levels and market imbalance detection", flush=True)
+            print("   ✅ Order clusters and iceberg order detection", flush=True)
+            print("   ✅ Cumulative delta and volume profile analysis", flush=True)
+            print("   ✅ Trade flow and market microstructure analysis", flush=True)
+            print("   ✅ Support/resistance level identification", flush=True)
+            print("   ✅ Spread analysis and statistics", flush=True)
+            print("   ✅ Memory management and performance monitoring", flush=True)
             print("   ✅ Real-time async callbacks", flush=True)
             print("   ✅ Thread-safe async operations", flush=True)
 
