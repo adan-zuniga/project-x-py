@@ -145,8 +145,10 @@ class AsyncMultiTimeframeStrategy:
             return None
 
         # Calculate fast and slow SMAs
-        data = data.pipe(SMA, period=10, column_name="sma_fast")
-        data = data.pipe(SMA, period=20, column_name="sma_slow")
+        data = data.pipe(SMA, period=10)
+        data = data.rename({"SMA_10": "sma_fast"})
+        data = data.pipe(SMA, period=20)
+        data = data.rename({"SMA_20": "sma_slow"})
 
         # Get last two bars for crossover detection
         recent = data.tail(2)
@@ -169,14 +171,14 @@ class AsyncMultiTimeframeStrategy:
 
     async def _analyze_orderbook(self):
         """Analyze orderbook for market microstructure."""
-        spread = await self.orderbook.get_bid_ask_spread()
-        imbalance = await self.orderbook.get_order_imbalance()
+        best_bid_ask = await self.orderbook.get_best_bid_ask()
+        imbalance = await self.orderbook.get_market_imbalance()
 
         return {
-            "spread": spread["spread"],
-            "spread_percentage": spread["spread_percentage"],
-            "imbalance": imbalance["ratio"],
-            "imbalance_side": imbalance["side"],
+            "spread": best_bid_ask.get("spread", 0),
+            "spread_percentage": best_bid_ask.get("spread_percentage", 0),
+            "imbalance": imbalance.get("ratio", 0),
+            "imbalance_side": imbalance.get("side", "neutral"),
         }
 
     async def generate_trading_signal(self):
@@ -358,7 +360,11 @@ class AsyncMultiTimeframeStrategy:
         print(f"\n📊 Strategy Status at {datetime.now().strftime('%H:%M:%S')}")
         print(f"  Signals Generated: {self.signal_count}")
         print(f"  Open Positions: {len(positions)}")
-        print(f"  Portfolio P&L: ${portfolio_pnl:.2f}")
+        if isinstance(portfolio_pnl, dict):
+            total_pnl = portfolio_pnl.get("total_pnl", 0)
+            print(f"  Portfolio P&L: ${total_pnl:.2f}")
+        else:
+            print(f"  Portfolio P&L: ${portfolio_pnl:.2f}")
 
         if self.last_signal_time:
             time_since = (datetime.now() - self.last_signal_time).seconds
