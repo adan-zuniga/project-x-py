@@ -16,11 +16,11 @@ Key Features:
 - Async error handling and connection management
 - HTTP/2 support for improved performance
 
-For advanced trading operations, use the specialized async managers:
-- AsyncOrderManager: Async order lifecycle management
-- AsyncPositionManager: Async portfolio analytics and risk management
-- AsyncProjectXRealtimeDataManager: Async real-time multi-timeframe OHLCV data
-- AsyncOrderBook: Async Level 2 market depth and microstructure analysis
+For advanced trading operations, use the specialized managers:
+- OrderManager: Complete order lifecycle management
+- PositionManager: Portfolio analytics and risk management
+- ProjectXRealtimeDataManager: Real-time multi-timeframe OHLCV data
+- OrderBook: Level 2 market depth and microstructure analysis
 """
 
 import asyncio
@@ -104,11 +104,11 @@ class AsyncProjectX:
     - Non-blocking position tracking and trade history analysis
     - Async account management and information retrieval
 
-    For advanced trading operations, this client integrates with specialized async managers:
-    - AsyncOrderManager: Complete async order lifecycle management
-    - AsyncPositionManager: Async portfolio analytics and risk management
-    - AsyncProjectXRealtimeDataManager: Async real-time multi-timeframe data
-    - AsyncOrderBook: Async Level 2 market depth analysis
+    For advanced trading operations, this client integrates with specialized managers:
+    - OrderManager: Complete order lifecycle management
+    - PositionManager: Portfolio analytics and risk management
+    - ProjectXRealtimeDataManager: Real-time multi-timeframe data
+    - OrderBook: Level 2 market depth analysis
 
     The client implements enterprise-grade features including HTTP/2 connection pooling,
     automatic retry mechanisms, rate limiting, and intelligent caching for optimal
@@ -276,15 +276,50 @@ class AsyncProjectX:
     async def from_config_file(
         cls, config_file: str, account_name: str | None = None
     ) -> AsyncGenerator["AsyncProjectX", None]:
-        """
-        Create async ProjectX client using a configuration file.
+        """Create async ProjectX client using a configuration file.
+
+        Alternative initialization method that loads configuration and credentials
+        from a JSON file instead of environment variables. Useful for managing
+        multiple configurations or environments.
 
         Args:
-            config_file: Path to configuration file
-            account_name: Optional account name to select specific account
+            config_file (str): Path to JSON configuration file containing:
+                - username: ProjectX account username
+                - api_key: API authentication key
+                - api_url: API endpoint URL (optional)
+                - websocket_url: WebSocket URL (optional)
+                - timezone: Preferred timezone (optional)
+            account_name (str | None): Optional account name to select when
+                multiple accounts are available. Overrides any account name
+                specified in the config file.
 
         Yields:
-            AsyncProjectX client instance
+            AsyncProjectX: Configured client instance ready for trading operations
+
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+            json.JSONDecodeError: If config file is invalid JSON
+            ValueError: If required fields are missing from config
+            ProjectXAuthenticationError: If authentication fails
+
+        Example:
+            >>> # Create config file
+            >>> config = {
+            ...     "username": "your_username",
+            ...     "api_key": "your_api_key",
+            ...     "api_url": "https://api.topstepx.com/api",
+            ...     "timezone": "US/Central",
+            ... }
+            >>>
+            >>> # Use client with config file
+            >>> async with AsyncProjectX.from_config_file("config.json") as client:
+            ...     await client.authenticate()
+            ...     # Client is ready for trading
+
+        Note:
+            - Config file should not be committed to version control
+            - Consider using environment variables for production
+            - File permissions should restrict access to the config file
         """
         config_manager = ConfigManager(config_file)
         config = config_manager.load_config()

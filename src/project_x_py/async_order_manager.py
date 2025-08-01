@@ -17,6 +17,48 @@ Key Features:
 - Automatic price alignment and validation
 - Comprehensive error handling and retry logic
 - Support for complex order strategies
+- Position-aware order management
+- Real-time order status tracking and caching
+- Bracket order management with stop-loss and take-profit
+
+Usage Example:
+```python
+import asyncio
+from project_x_py import AsyncProjectX, AsyncOrderManager, AsyncProjectXRealtimeClient
+
+
+async def main():
+    # Create client instances
+    client = AsyncProjectX()
+    await client.authenticate()
+
+    # Create and initialize order manager
+    order_manager = AsyncOrderManager(client)
+    realtime_client = AsyncProjectXRealtimeClient(client.config)
+    await order_manager.initialize(realtime_client=realtime_client)
+
+    # Place a simple market order
+    response = await order_manager.place_market_order(
+        "MGC", side=0, size=1
+    )  # Buy 1 contract
+    print(f"Order placed with ID: {response.orderId}")
+
+    # Place a bracket order (entry + stop-loss + take-profit)
+    bracket = await order_manager.place_bracket_order(
+        contract_id="MGC",
+        side=0,  # Buy
+        size=1,
+        entry_price=2045.0,
+        stop_loss_price=2040.0,
+        take_profit_price=2055.0,
+    )
+    print(
+        f"Bracket order placed: Entry={bracket.entry_order_id}, Stop={bracket.stop_order_id}, Target={bracket.target_order_id}"
+    )
+
+
+asyncio.run(main())
+```
 """
 
 import asyncio
@@ -57,7 +99,7 @@ class AsyncOrderManager:
 
     This class handles all order-related operations including placement, modification,
     cancellation, and tracking using async/await patterns. It integrates with both the
-    AsyncProjectX client and the async real-time client for live order monitoring.
+    AsyncProjectX client and the AsyncProjectXRealtimeClient for live order monitoring.
 
     Features:
         - Complete async order lifecycle management
@@ -67,40 +109,108 @@ class AsyncOrderManager:
         - OCO (One-Cancels-Other) order support
         - Position-based order management
         - Async-safe operations for concurrent trading
+        - Order callback registration for custom event handling
+        - Performance optimization with local order caching
+
+    Order Status Enum Values:
+        - 0: None (undefined)
+        - 1: Open (active order)
+        - 2: Filled (completely executed)
+        - 3: Cancelled (cancelled by user or system)
+        - 4: Expired (timed out)
+        - 5: Rejected (rejected by exchange)
+        - 6: Pending (awaiting submission)
+
+    Order Side Enum Values:
+        - 0: Buy (bid)
+        - 1: Sell (ask)
+
+    Order Type Enum Values:
+        - 1: Limit
+        - 2: Market
+        - 4: Stop
+        - 5: TrailingStop
+        - 6: JoinBid
+        - 7: JoinAsk
 
     Example Usage:
-        >>> # Create async order manager with dependency injection
-        >>> order_manager = AsyncOrderManager(async_project_x_client)
-        >>> # Initialize with optional real-time client
-        >>> await order_manager.initialize(realtime_client=async_realtime_client)
-        >>> # Place simple orders
-        >>> response = await order_manager.place_market_order("MGC", side=0, size=1)
-        >>> response = await order_manager.place_limit_order("MGC", 1, 1, 2050.0)
-        >>> # Place bracket orders (entry + stop + target)
-        >>> bracket = await order_manager.place_bracket_order(
-        ...     contract_id="MGC",
-        ...     side=0,  # Buy
-        ...     size=1,
-        ...     entry_price=2045.0,
-        ...     stop_loss_price=2040.0,
-        ...     take_profit_price=2055.0,
-        ... )
-        >>> # Manage existing orders
-        >>> orders = await order_manager.search_open_orders()
-        >>> await order_manager.cancel_order(order_id)
-        >>> await order_manager.modify_order(order_id, new_price=2052.0)
-        >>> # Position-based operations
-        >>> await order_manager.close_position("MGC", method="market")
-        >>> await order_manager.add_stop_loss("MGC", stop_price=2040.0)
-        >>> await order_manager.add_take_profit("MGC", target_price=2055.0)
+        ```python
+        # Create async order manager with dependency injection
+        order_manager = AsyncOrderManager(async_project_x_client)
+
+        # Initialize with optional real-time client
+        await order_manager.initialize(realtime_client=async_realtime_client)
+
+        # Place simple orders
+        response = await order_manager.place_market_order(
+            "MGC", side=0, size=1
+        )  # Buy 1 contract
+        response = await order_manager.place_limit_order(
+            "MGC", 1, 1, 2050.0
+        )  # Sell 1 contract at 2050.0
+
+        # Place bracket orders (entry + stop + target)
+        bracket = await order_manager.place_bracket_order(
+            contract_id="MGC",
+            side=0,  # Buy
+            size=1,
+            entry_price=2045.0,
+            stop_loss_price=2040.0,
+            take_profit_price=2055.0,
+        )
+
+        # Manage existing orders
+        orders = await order_manager.search_open_orders()  # Get all open orders
+        orders = await order_manager.search_open_orders("MGC")  # Get MGC open orders
+
+        # Cancel and modify orders
+        await order_manager.cancel_order(order_id)
+        await order_manager.modify_order(order_id, limit_price=2052.0)
+
+        # Position-based operations
+        await order_manager.close_position("MGC", method="market")
+        await order_manager.add_stop_loss("MGC", stop_price=2040.0)
+        await order_manager.add_take_profit("MGC", limit_price=2055.0)
+
+        # Check order status efficiently (uses cache when available)
+        if await order_manager.is_order_filled(order_id):
+            print("Order has been filled!")
+
+
+        # Register callbacks for order events
+        async def on_order_filled(order_data):
+            print(
+                f"Order {order_data.get('id')} filled at {order_data.get('filledPrice')}"
+            )
+
+
+        order_manager.add_callback("order_filled", on_order_filled)
+        ```
     """
 
     def __init__(self, project_x_client: "AsyncProjectX"):
         """
         Initialize the AsyncOrderManager with an AsyncProjectX client.
 
+        Creates a new instance of the AsyncOrderManager that uses the provided AsyncProjectX client
+        for API access. This establishes the foundation for order operations but does not
+        set up real-time capabilities. To enable real-time order tracking, call the `initialize`
+        method with a real-time client after initialization.
+
         Args:
-            project_x_client: AsyncProjectX client instance for API access
+            project_x_client: AsyncProjectX client instance for API access. This client
+                should already be authenticated or authentication should be handled
+                separately before attempting order operations.
+
+        Example:
+            ```python
+            # Create the AsyncProjectX client first
+            client = AsyncProjectX()
+            await client.authenticate()
+
+            # Then create the order manager
+            order_manager = AsyncOrderManager(client)
+            ```
         """
         self.project_x = project_x_client
         self.logger = logging.getLogger(__name__)
@@ -142,11 +252,43 @@ class AsyncOrderManager:
         """
         Initialize the AsyncOrderManager with optional real-time capabilities.
 
+        This method configures the AsyncOrderManager for operation, optionally enabling
+        real-time order status tracking if a realtime client is provided. Real-time
+        tracking significantly improves performance by minimizing API calls and
+        providing immediate order status updates through websocket connections.
+
+        When real-time tracking is enabled:
+        1. Order status changes are detected immediately
+        2. Fills, cancellations and rejections are processed in real-time
+        3. The order_manager caches order data to reduce API calls
+        4. Callbacks can be triggered for custom event handling
+
         Args:
-            realtime_client: Optional AsyncProjectXRealtimeClient for live order tracking
+            realtime_client: Optional AsyncProjectXRealtimeClient for live order tracking.
+                If provided, the order manager will connect to the real-time API
+                and subscribe to user updates for order status tracking.
 
         Returns:
-            bool: True if initialization successful
+            bool: True if initialization successful, False otherwise.
+
+        Example:
+            ```python
+            # Create and set up the required components
+            px_client = AsyncProjectX()
+            await px_client.authenticate()
+
+            # Create the realtime client
+            realtime = AsyncProjectXRealtimeClient(px_client.config)
+
+            # Initialize order manager with realtime capabilities
+            order_manager = AsyncOrderManager(px_client)
+            success = await order_manager.initialize(realtime_client=realtime)
+
+            if success:
+                print("Order manager initialized with realtime tracking")
+            else:
+                print("Using order manager in polling mode")
+            ```
         """
         try:
             # Set up real-time integration if provided
@@ -307,24 +449,77 @@ class AsyncOrderManager:
         """
         Place an order with comprehensive parameter support and automatic price alignment.
 
+        This is the core order placement method that all specific order type methods use internally.
+        It provides complete control over all order parameters and handles automatic price alignment
+        to prevent "Invalid price" errors from the exchange. The method is thread-safe and can be
+        called concurrently from multiple tasks.
+
         Args:
-            contract_id: The contract ID to trade
-            order_type: Order type:
-                1=Limit, 2=Market, 4=Stop, 5=TrailingStop, 6=JoinBid, 7=JoinAsk
-            side: Order side: 0=Buy, 1=Sell
-            size: Number of contracts to trade
-            limit_price: Limit price for limit orders (auto-aligned to tick size)
-            stop_price: Stop price for stop orders (auto-aligned to tick size)
-            trail_price: Trail amount for trailing stop orders (auto-aligned to tick size)
-            custom_tag: Custom identifier for the order
-            linked_order_id: ID of a linked order (for OCO, etc.)
-            account_id: Account ID. Uses default account if None.
+            contract_id: The contract ID to trade (e.g., "MGC", "MES", "F.US.EP")
+            order_type: Order type integer value:
+                1=Limit (executes at specified price or better)
+                2=Market (executes immediately at best available price)
+                4=Stop (market order triggered at stop price)
+                5=TrailingStop (stop that follows price movements)
+                6=JoinBid (joins the bid price automatically)
+                7=JoinAsk (joins the ask price automatically)
+            side: Order side integer value:
+                0=Buy (bid)
+                1=Sell (ask)
+            size: Number of contracts to trade (positive integer)
+            limit_price: Limit price for limit orders, automatically aligned to tick size.
+                Required for order types 1 (Limit) and 6/7 (JoinBid/JoinAsk).
+            stop_price: Stop price for stop orders, automatically aligned to tick size.
+                Required for order type 4 (Stop).
+            trail_price: Trail amount for trailing stop orders, automatically aligned to tick size.
+                Required for order type 5 (TrailingStop).
+            custom_tag: Custom identifier for the order (for your reference)
+            linked_order_id: ID of a linked order for OCO (One-Cancels-Other) relationships
+            account_id: Account ID. Uses default account from authenticated client if None.
 
         Returns:
-            OrderPlaceResponse: Response containing order ID and status
+            OrderPlaceResponse: Response containing order ID and status information including:
+                - orderId: The unique ID of the placed order (int)
+                - success: Whether the order was successfully placed (bool)
+                - errorMessage: Error message if placement failed (str, None if successful)
 
         Raises:
-            ProjectXOrderError: If order placement fails
+            ProjectXOrderError: If order placement fails due to invalid parameters or API errors
+
+        Example:
+            ```python
+            # Place a limit order to buy 1 contract
+            response = await order_manager.place_order(
+                contract_id="MGC",
+                order_type=1,  # Limit
+                side=0,  # Buy
+                size=1,
+                limit_price=2040.50,
+                account_id=12345,  # Optional, uses default if None
+            )
+
+            if response.success:
+                print(f"Order placed with ID: {response.orderId}")
+            else:
+                print(f"Order failed: {response.errorMessage}")
+
+            # Place a stop order to sell 2 contracts
+            stop_response = await order_manager.place_order(
+                contract_id="MGC",
+                order_type=4,  # Stop
+                side=1,  # Sell
+                size=2,
+                stop_price=2030.00,
+                custom_tag="stop_loss",
+            )
+            ```
+
+        Note:
+            - Prices are automatically aligned to the instrument's tick size
+            - For market orders, limit_price, stop_price, and trail_price are ignored
+            - For limit orders, only limit_price is used
+            - For stop orders, only stop_price is used
+            - For trailing stop orders, only trail_price is used
         """
         result = None
         aligned_limit_price = None
@@ -566,27 +761,72 @@ class AsyncOrderManager:
         Get cached order status from real-time tracking for faster access.
 
         When real-time mode is enabled, this method provides instant access to
-        order status without requiring API calls, improving performance.
+        order status without requiring API calls, significantly improving performance
+        and reducing API rate limit consumption. The method can optionally wait
+        briefly for the cache to populate if a very recent order is being checked.
 
         Args:
             order_id: Order ID to get status for (as string)
             wait_for_cache: If True, briefly wait for real-time cache to populate
+                (useful when checking status immediately after placing an order)
 
         Returns:
-            dict: Complete order data if tracked in cache, None if not found
-                Contains all ProjectX GatewayUserOrder fields:
-                - id, accountId, contractId, status, type, side, size
-                - limitPrice, stopPrice, fillVolume, filledPrice, etc.
+            dict: Complete order data dictionary if tracked in cache, None if not found.
+                Contains all ProjectX GatewayUserOrder fields including:
+                - id: Order ID (int)
+                - accountId: Account ID (int)
+                - contractId: Contract ID (str)
+                - status: Order status (int - see enum values in class docstring)
+                - type: Order type (int)
+                - side: Order side (0=Buy, 1=Sell)
+                - size: Order size (int)
+                - limitPrice: Limit price if applicable (float)
+                - stopPrice: Stop price if applicable (float)
+                - fillVolume: Total filled quantity (int)
+                - filledPrice: Average fill price (float)
+                - fills: List of individual fill objects if available
+                - lastModified: Timestamp of last order update
 
         Example:
-            >>> order_data = await order_manager.get_tracked_order_status("12345")
-            >>> if order_data:
-            ...     print(
-            ...         f"Status: {order_data['status']}"
-            ...     )  # 1=Open, 2=Filled, 3=Cancelled
-            ...     print(f"Fill volume: {order_data.get('fillVolume', 0)}")
-            >>> else:
-            ...     print("Order not found in cache")
+            ```python
+            # Check order status with cache lookup
+            order_data = await order_manager.get_tracked_order_status("12345")
+
+            if order_data:
+                # Get order status (1=Open, 2=Filled, 3=Cancelled, etc.)
+                status = order_data["status"]
+
+                if status == 2:  # Filled
+                    # Access fill information
+                    filled_qty = order_data.get("fillVolume", 0)
+                    avg_price = order_data.get("filledPrice", 0)
+                    print(f"Order filled: {filled_qty} @ {avg_price}")
+
+                    # Access detailed fills if available
+                    if "fills" in order_data:
+                        for fill in order_data["fills"]:
+                            print(
+                                f"Partial fill: {fill.get('volume')} @ {fill.get('price')}"
+                            )
+
+                elif status == 3:  # Cancelled
+                    print("Order was cancelled")
+
+                else:
+                    print(f"Order status: {status}, Size: {order_data.get('size')}")
+            else:
+                print("Order not found in cache")
+
+            # Wait for cache to populate for a new order
+            new_order_data = await order_manager.get_tracked_order_status(
+                "54321", wait_for_cache=True
+            )
+            ```
+
+        Note:
+            If real-time tracking is disabled, this method will always return None,
+            and you should use get_order_by_id() instead. The is_order_filled() method
+            automatically falls back to API calls when cache data is unavailable.
         """
         if wait_for_cache and self._realtime_enabled:
             # Brief wait for real-time cache to populate
@@ -832,31 +1072,90 @@ class AsyncOrderManager:
         custom_tag: str | None = None,
     ) -> BracketOrderResponse:
         """
-        Place a bracket order with entry, stop loss, and take profit.
+        Place a bracket order with entry, stop loss, and take profit orders.
 
-        A bracket order consists of three orders:
-        1. Entry order (limit or market)
-        2. Stop loss order (triggered if entry fills and price moves against position)
-        3. Take profit order (triggered if entry fills and price moves favorably)
+        A bracket order is a sophisticated order strategy that consists of three linked orders:
+        1. Entry order (limit or market) - The primary order to establish a position
+        2. Stop loss order - Risk management order that's triggered if price moves against position
+        3. Take profit order - Profit target order that's triggered if price moves favorably
+
+        The advantage of bracket orders is automatic risk management - the stop loss and
+        take profit orders are placed immediately when the entry fills, ensuring consistent
+        trade management. Each order is tracked and associated with the position.
 
         Args:
-            contract_id: The contract ID to trade
+            contract_id: The contract ID to trade (e.g., "MGC", "MES", "F.US.EP")
             side: Order side: 0=Buy, 1=Sell
-            size: Number of contracts to trade
-            entry_price: Entry price for the position
-            stop_loss_price: Stop loss price (risk management)
+            size: Number of contracts to trade (positive integer)
+            entry_price: Entry price for the position (ignored for market entries)
+            stop_loss_price: Stop loss price for risk management
+                For buy orders: must be below entry price
+                For sell orders: must be above entry price
             take_profit_price: Take profit price (profit target)
-            entry_type: Entry order type: "limit" or "market"
+                For buy orders: must be above entry price
+                For sell orders: must be below entry price
+            entry_type: Entry order type: "limit" (default) or "market"
             account_id: Account ID. Uses default account if None.
-            custom_tag: Custom identifier for the bracket
+            custom_tag: Custom identifier for the bracket orders
 
         Returns:
-            BracketOrderResponse with entry, stop, and target order IDs
+            BracketOrderResponse with comprehensive information including:
+                - success: Whether the bracket order was placed successfully
+                - entry_order_id: ID of the entry order
+                - stop_order_id: ID of the stop loss order
+                - target_order_id: ID of the take profit order
+                - entry_response: Complete response from entry order placement
+                - stop_response: Complete response from stop order placement
+                - target_response: Complete response from take profit order placement
+                - error_message: Error message if placement failed
+
+        Raises:
+            ProjectXOrderError: If bracket order validation or placement fails
 
         Example:
-            >>> response = await order_manager.place_bracket_order(
-            ...     "MGC", 0, 1, 2045.0, 2040.0, 2055.0
-            ... )
+            ```python
+            # Place a buy bracket order with limit entry
+            bracket = await order_manager.place_bracket_order(
+                contract_id="MGC",  # Gold mini
+                side=0,  # Buy
+                size=1,  # 1 contract
+                entry_price=2045.0,  # Entry at 2045
+                stop_loss_price=2040.0,  # Stop loss at 2040 (-$50/contract risk)
+                take_profit_price=2055.0,  # Take profit at 2055 (+$100/contract target)
+                custom_tag="gold_breakout",  # Optional tracking tag
+            )
+
+            if bracket.success:
+                print(f"Bracket order placed successfully")
+                print(f"Entry ID: {bracket.entry_order_id}")
+                print(f"Stop ID: {bracket.stop_order_id}")
+                print(f"Target ID: {bracket.target_order_id}")
+
+                # You can track the bracket orders as a group
+                entry_status = await order_manager.is_order_filled(
+                    bracket.entry_order_id
+                )
+                if entry_status:
+                    print("Entry order has been filled")
+
+            # Place a sell bracket order with market entry
+            sell_bracket = await order_manager.place_bracket_order(
+                contract_id="MES",  # E-mini S&P
+                side=1,  # Sell
+                size=2,  # 2 contracts
+                entry_price=0,  # Ignored for market orders
+                stop_loss_price=4205.0,  # Stop loss above entry
+                take_profit_price=4180.0,  # Take profit below entry
+                entry_type="market",  # Market order entry
+            )
+            ```
+
+        Note:
+            - For market entries, the entry_price is ignored
+            - Stop loss orders must be below entry for buys and above for sells
+            - Take profit orders must be above entry for buys and below for sells
+            - All orders use automatic price alignment to respect instrument tick sizes
+            - The orders are linked in tracking but not at the exchange level
         """
         try:
             # Validate prices
@@ -1066,6 +1365,8 @@ class AsyncOrderManager:
 
         Provides detailed metrics about order activity, real-time tracking status,
         position-order relationships, and system health for monitoring and debugging.
+        This method is useful for system monitoring, performance analysis, and
+        diagnosing potential issues with order tracking.
 
         Returns:
             Dict with complete statistics including:
@@ -1074,19 +1375,55 @@ class AsyncOrderManager:
                 - tracked_orders: Number of orders currently in cache
                 - position_order_relationships: Details about order-position links
                 - callbacks_registered: Number of callbacks per event type
-                - health_status: Overall system health status
+                - health_status: Overall system health status ("healthy" or "degraded")
 
         Example:
-            >>> stats = await order_manager.get_order_statistics()
-            >>> print(f"Orders placed: {stats['statistics']['orders_placed']}")
-            >>> print(f"Real-time enabled: {stats['realtime_enabled']}")
-            >>> print(f"Tracked orders: {stats['tracked_orders']}")
-            >>> relationships = stats["position_order_relationships"]
-            >>> print(
-            ...     f"Positions with orders: {relationships['positions_with_orders']}"
-            ... )
-            >>> for contract_id, orders in relationships["position_summary"].items():
-            ...     print(f"  {contract_id}: {orders['total']} orders")
+            ```python
+            # Get comprehensive order statistics
+            stats = await order_manager.get_order_statistics()
+
+            # Access basic statistics
+            orders_placed = stats["statistics"]["orders_placed"]
+            orders_cancelled = stats["statistics"]["orders_cancelled"]
+            bracket_orders = stats["statistics"]["bracket_orders_placed"]
+            last_order_time = stats["statistics"]["last_order_time"]
+
+            print(
+                f"Session statistics: {orders_placed} orders placed, "
+                f"{orders_cancelled} cancelled, {bracket_orders} bracket orders"
+            )
+
+            if last_order_time:
+                print(f"Last order placed at: {last_order_time}")
+
+            # Check realtime system status
+            realtime_status = "ENABLED" if stats["realtime_enabled"] else "DISABLED"
+            cached_orders = stats["tracked_orders"]
+            print(
+                f"Realtime tracking: {realtime_status}, {cached_orders} orders in cache"
+            )
+
+            # Examine position-order relationships
+            relationships = stats["position_order_relationships"]
+            positions_count = relationships["positions_with_orders"]
+            print(f"Tracking {positions_count} positions with active orders")
+
+            # Detailed position order summary
+            for contract_id, orders in relationships["position_summary"].items():
+                print(
+                    f"  {contract_id}: {orders['entry']} entry, "
+                    f"{orders['stop']} stop, {orders['target']} target orders"
+                )
+
+            # Assess system health
+            health = stats["health_status"]
+            print(f"System health status: {health}")
+            ```
+
+        Note:
+            - This method acquires the order_lock to ensure thread safety
+            - The health_status is "healthy" if real-time tracking is enabled or orders are tracked
+            - Position summary only includes positions with at least one active order
         """
         async with self.order_lock:
             # Use internal order tracking
@@ -1643,21 +1980,59 @@ class AsyncOrderManager:
 
         Allows you to listen for order fills, cancellations, rejections, and other
         order status changes to build custom monitoring and notification systems.
+        Callbacks can be synchronous functions or asynchronous coroutines.
 
         Args:
             event_type: Type of event to listen for
-                - "order_filled": Order completely filled
-                - "order_cancelled": Order cancelled
-                - "order_expired": Order expired
-                - "order_rejected": Order rejected by exchange
-                - "order_pending": Order pending submission
-                - "trade_execution": Trade execution notification
-            callback: Function to call when event occurs
+                - "order_filled": Order completely filled (status changed to 2)
+                - "order_cancelled": Order cancelled (status changed to 3)
+                - "order_expired": Order expired (status changed to 4)
+                - "order_rejected": Order rejected by exchange (status changed to 5)
+                - "order_pending": Order pending submission (status changed to 6)
+                - "order_update": Any order status update (with new order data)
+                - "trade_execution": Individual trade execution notification
+                - "position_update": Position changes (size or average price)
+                - "{order_id}": Specific order ID to monitor (string ID)
+            callback: Function or coroutine to call when event occurs.
+                Will be called with a dictionary of order/trade data.
 
         Example:
-            >>> def on_order_filled(data):
-            ...     print(f"Order {data['orderId']} filled at {data['filledPrice']}")
-            >>> order_manager.add_callback("order_filled", on_order_filled)
+            ```python
+            # Regular function callback for order fills
+            def on_order_filled(data):
+                print(f"Order {data.get('id')} filled at {data.get('filledPrice')}")
+
+
+            order_manager.add_callback("order_filled", on_order_filled)
+
+
+            # Async coroutine callback for specific order
+            async def on_specific_order_update(data):
+                print(f"Order {data.get('id')} updated: status={data.get('status')}")
+                # Perform async operations like database updates
+                await database.update_order_status(data.get("id"), data.get("status"))
+
+
+            # Monitor a specific order by ID
+            order_manager.add_callback("12345", on_specific_order_update)
+
+
+            # Monitor all trade executions
+            async def on_trade(trade_data):
+                print(
+                    f"Trade executed: {trade_data.get('volume')} @ {trade_data.get('price')}"
+                )
+
+
+            order_manager.add_callback("trade_execution", on_trade)
+            ```
+
+        Note:
+            - Both synchronous functions and async coroutines are supported as callbacks
+            - For order-specific callbacks, use the string order ID as the event_type
+            - Callbacks are executed sequentially for each event
+            - Exceptions in callbacks are caught and logged but don't affect other callbacks
+            - Real-time client must be enabled for callbacks to work effectively
         """
         if event_type not in self.order_callbacks:
             self.order_callbacks[event_type] = []

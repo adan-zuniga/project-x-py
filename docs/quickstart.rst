@@ -36,30 +36,42 @@ Step 2: Create Your First Client
 
 .. code-block:: python
 
+   import asyncio
    from project_x_py import ProjectX
 
-   # Create client using environment variables
-   client = ProjectX.from_env()
+   async def main():
+       # Create client using environment variables
+       async with ProjectX.from_env() as client:
+           # Authenticate
+           await client.authenticate()
+           
+           # Get account information
+           print(f"Account: {client.account_info.name}")
+           print(f"Balance: ${client.account_info.balance:,.2f}")
 
-   # Get account information
-   account = client.get_account_info()
-   print(f"Account: {account.name}")
-   print(f"Balance: ${account.balance:,.2f}")
+   # Run the async function
+   asyncio.run(main())
 
 Step 3: Get Market Data
 -----------------------
 
 .. code-block:: python
 
-   # Get historical data for Micro Gold futures
-   data = client.get_data('MGC', days=5, interval=15)
-   print(f"Retrieved {len(data)} bars of data")
-   print(data.head())
+   async def get_market_data():
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Get historical data for Micro Gold futures
+           data = await client.get_bars('MGC', days=5, interval=15)
+           print(f"Retrieved {len(data)} bars of data")
+           print(data.head())
 
-   # Search for instruments
-   instruments = client.search_instruments('MGC')
-   for instrument in instruments:
-       print(f"{instrument.name}: {instrument.description}")
+           # Search for instruments
+           instruments = await client.search_instruments('MGC')
+           for instrument in instruments:
+               print(f"{instrument.name}: {instrument.description}")
+
+   asyncio.run(get_market_data())
 
 Step 4: Place Your First Order
 -------------------------------
@@ -69,43 +81,60 @@ Step 4: Place Your First Order
 
 .. code-block:: python
 
-   from project_x_py import create_order_manager
+   from project_x_py import create_order_manager, create_realtime_client
 
-   # Create order manager
-   order_manager = create_order_manager(client)
+   async def place_order():
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Get instrument details first
+           instrument = await client.get_instrument('MGC')
+           
+           # Create realtime client and order manager
+           realtime_client = create_realtime_client(client.session_token)
+           order_manager = create_order_manager(client, realtime_client)
 
-   # Place a limit order
-   response = order_manager.place_limit_order(
-       contract_id='MGC',  # Micro Gold
-       side=0,             # 0=Buy, 1=Sell
-       size=1,             # 1 contract
-       limit_price=2050.0  # Limit price
-   )
+           # Place a limit order
+           response = await order_manager.place_limit_order(
+               contract_id=instrument.id,  # Use instrument ID
+               side=0,                     # 0=Buy, 1=Sell
+               size=1,                     # 1 contract
+               limit_price=2050.0          # Limit price
+           )
 
-   if response.success:
-       print(f"Order placed! Order ID: {response.orderId}")
-   else:
-       print(f"Order failed: {response}")
+           if response.success:
+               print(f"Order placed! Order ID: {response.orderId}")
+           else:
+               print(f"Order failed: {response}")
+
+   asyncio.run(place_order())
 
 Step 5: Monitor Positions
 -------------------------
 
 .. code-block:: python
 
-   from project_x_py import create_position_manager
+   from project_x_py import create_position_manager, create_realtime_client
 
-   # Create position manager
-   position_manager = create_position_manager(client)
+   async def monitor_positions():
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Create realtime client and position manager
+           realtime_client = create_realtime_client(client.session_token)
+           position_manager = create_position_manager(client, realtime_client)
 
-   # Get all open positions
-   positions = position_manager.get_all_positions()
-   for position in positions:
-       direction = "LONG" if position.type == 1 else "SHORT"
-       print(f"{position.contractId}: {direction} {position.size} @ ${position.averagePrice:.2f}")
+           # Get all open positions
+           positions = await position_manager.get_all_positions()
+           for position in positions:
+               direction = "LONG" if position.side == 0 else "SHORT"
+               print(f"{position.contract_id}: {direction} {position.size} @ ${position.average_price:.2f}")
 
-   # Get portfolio metrics
-   portfolio = position_manager.get_portfolio_pnl()
-   print(f"Total positions: {portfolio['position_count']}")
+           # Get portfolio metrics
+           portfolio = await position_manager.get_portfolio_pnl()
+           print(f"Total positions: {portfolio['position_count']}")
+
+   asyncio.run(monitor_positions())
 
 Step 6: Real-time Data (Optional)
 ----------------------------------
@@ -114,24 +143,32 @@ Step 6: Real-time Data (Optional)
 
    from project_x_py import create_trading_suite
 
-   # Create complete trading suite with real-time capabilities
-   suite = create_trading_suite(
-       instrument='MGC',
-       project_x=client,
-       jwt_token=client.session_token,
-       account_id=str(account.id)
-   )
+   async def setup_realtime():
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Create complete trading suite with real-time capabilities
+           suite = await create_trading_suite(
+               instrument='MGC',
+               project_x=client,
+               timeframes=['1min', '5min', '15min']
+           )
 
-   # Connect to real-time feeds
-   suite['realtime_client'].connect()
+           # Connect to real-time feeds
+           await suite['realtime_client'].connect()
 
-   # Start real-time data collection
-   suite['data_manager'].initialize(initial_days=1)
-   suite['data_manager'].start_realtime_feed()
+           # Start real-time data collection
+           await suite['data_manager'].initialize(initial_days=1)
+           await suite['data_manager'].start_realtime_feed()
 
-   # Get real-time OHLCV data
-   live_data = suite['data_manager'].get_data('5min')
-   print(f"Live data: {len(live_data)} bars")
+           # Get real-time OHLCV data
+           live_data = await suite['data_manager'].get_data('5min')
+           print(f"Live data: {len(live_data)} bars")
+           
+           # Keep running for 60 seconds to collect data
+           await asyncio.sleep(60)
+
+   asyncio.run(setup_realtime())
 
 Common Patterns
 ---------------
@@ -141,35 +178,42 @@ Basic Trading Workflow
 
 .. code-block:: python
 
-   from project_x_py import ProjectX, create_order_manager, create_position_manager
+   from project_x_py import ProjectX, create_order_manager, create_position_manager, create_realtime_client
 
-   # 1. Initialize client
-   client = ProjectX.from_env()
+   async def trading_workflow():
+       # 1. Initialize client
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Get instrument details
+           instrument = await client.get_instrument('MGC')
+           
+           # 2. Set up trading managers
+           realtime_client = create_realtime_client(client.session_token)
+           order_manager = create_order_manager(client, realtime_client)
+           position_manager = create_position_manager(client, realtime_client)
 
-   # 2. Set up trading managers
-   order_manager = create_order_manager(client)
-   position_manager = create_position_manager(client)
+           # 3. Check account status
+           print(f"Account balance: ${client.account_info.balance:,.2f}")
 
-   # 3. Check account status
-   account = client.get_account_info()
-   print(f"Account balance: ${account.balance:,.2f}")
+           # 4. Get market data
+           data = await client.get_bars('MGC', days=1, interval=5)
+           current_price = float(data.select('close').tail(1).item())
 
-   # 4. Get market data
-   data = client.get_data('MGC', days=1, interval=5)
-   current_price = float(data.select('close').tail(1).item())
+           # 5. Place bracket order (entry + stop + target)
+           bracket = await order_manager.place_bracket_order(
+               contract_id=instrument.id,
+               side=0,                    # Buy
+               size=1,
+               entry_price=current_price - 5.0,   # Entry below market
+               stop_loss_price=current_price - 10.0,  # $5 risk
+               take_profit_price=current_price + 5.0  # $10 profit target
+           )
 
-   # 5. Place bracket order (entry + stop + target)
-   bracket = order_manager.place_bracket_order(
-       contract_id='MGC',
-       side=0,                    # Buy
-       size=1,
-       entry_price=current_price - 5.0,   # Entry below market
-       stop_loss_price=current_price - 10.0,  # $5 risk
-       take_profit_price=current_price + 5.0  # $10 profit target
-   )
+           if bracket.success:
+               print("Bracket order placed successfully!")
 
-   if bracket.success:
-       print("Bracket order placed successfully!")
+   asyncio.run(trading_workflow())
 
 Market Analysis with Technical Indicators
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -178,34 +222,40 @@ Market Analysis with Technical Indicators
 
    from project_x_py.indicators import RSI, SMA, BBANDS, MACD
 
-   # Get data
-   data = client.get_data('MGC', days=30, interval=60)
+   async def analyze_market():
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Get data
+           data = await client.get_bars('MGC', days=30, interval=60)
 
-   # Calculate technical indicators using TA-Lib style functions
-   data = RSI(data, period=14)
-   data = SMA(data, period=20)
-   data = SMA(data, period=50)
-   data = BBANDS(data, period=20, std_dev=2.0)
-   data = MACD(data, fast_period=12, slow_period=26, signal_period=9)
+           # Calculate technical indicators using TA-Lib style functions
+           data = RSI(data, period=14)
+           data = SMA(data, period=20)
+           data = SMA(data, period=50)
+           data = BBANDS(data, period=20, std_dev=2.0)
+           data = MACD(data, fast_period=12, slow_period=26, signal_period=9)
 
-   # Check latest values
-   latest = data.tail(1)
-   print(f"Current RSI: {latest['rsi_14'].item():.2f}")
-   print(f"Price: ${latest['close'].item():.2f}")
-   print(f"SMA(20): ${latest['sma_20'].item():.2f}")
-   print(f"SMA(50): ${latest['sma_50'].item():.2f}")
-   print(f"MACD: {latest['macd'].item():.4f}")
+           # Check latest values
+           latest = data.tail(1)
+           print(f"Current RSI: {latest['rsi_14'].item():.2f}")
+           print(f"Price: ${latest['close'].item():.2f}")
+           print(f"SMA(20): ${latest['sma_20'].item():.2f}")
+           print(f"SMA(50): ${latest['sma_50'].item():.2f}")
+           print(f"MACD: {latest['macd'].item():.4f}")
 
-   # Simple signal logic
-   rsi_val = latest['rsi_14'].item()
-   price = latest['close'].item()
-   sma_20 = latest['sma_20'].item()
-   sma_50 = latest['sma_50'].item()
-   
-   if rsi_val < 30 and price > sma_20 > sma_50:
-       print("🟢 Potential BUY signal: Oversold RSI + Uptrend")
-   elif rsi_val > 70 and price < sma_20 < sma_50:
-       print("🔴 Potential SELL signal: Overbought RSI + Downtrend")
+           # Simple signal logic
+           rsi_val = latest['rsi_14'].item()
+           price = latest['close'].item()
+           sma_20 = latest['sma_20'].item()
+           sma_50 = latest['sma_50'].item()
+           
+           if rsi_val < 30 and price > sma_20 > sma_50:
+               print("🟢 Potential BUY signal: Oversold RSI + Uptrend")
+           elif rsi_val > 70 and price < sma_20 < sma_50:
+               print("🔴 Potential SELL signal: Overbought RSI + Downtrend")
+
+   asyncio.run(analyze_market())
 
 Error Handling
 ~~~~~~~~~~~~~~
@@ -214,18 +264,33 @@ Error Handling
 
    from project_x_py import ProjectXError, ProjectXOrderError
 
-   try:
-       # Attempt to place order
-       response = order_manager.place_limit_order('MGC', 0, 1, 2050.0)
-       
-   except ProjectXOrderError as e:
-       print(f"Order error: {e}")
-       
-   except ProjectXError as e:
-       print(f"API error: {e}")
-       
-   except Exception as e:
-       print(f"Unexpected error: {e}")
+   async def place_order_with_error_handling():
+       try:
+           async with ProjectX.from_env() as client:
+               await client.authenticate()
+               
+               instrument = await client.get_instrument('MGC')
+               realtime_client = create_realtime_client(client.session_token)
+               order_manager = create_order_manager(client, realtime_client)
+               
+               # Attempt to place order
+               response = await order_manager.place_limit_order(
+                   contract_id=instrument.id, 
+                   side=0, 
+                   size=1, 
+                   limit_price=2050.0
+               )
+               
+       except ProjectXOrderError as e:
+           print(f"Order error: {e}")
+           
+       except ProjectXError as e:
+           print(f"API error: {e}")
+           
+       except Exception as e:
+           print(f"Unexpected error: {e}")
+
+   asyncio.run(place_order_with_error_handling())
 
 Next Steps
 ----------

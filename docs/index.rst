@@ -17,7 +17,10 @@ project-x-py Documentation
    :target: https://project-x-py.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-**project-x-py** is a professional Python SDK for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
+**project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
+
+.. note::
+   **Version 2.0.0**: Complete async-first rewrite. All APIs now require ``async/await`` for better performance and concurrent operations.
 
 .. warning::
    **Development Phase**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
@@ -43,22 +46,35 @@ Set up your credentials::
 
 Start trading::
 
+   import asyncio
    from project_x_py import ProjectX
    from project_x_py.indicators import RSI, SMA, MACD
    
-   # Create client
-   client = ProjectX.from_env()
+   async def main():
+       # Create client with async context manager
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           
+           # Get market data with technical analysis
+           data = await client.get_bars('MGC', days=30, interval=60)
+           data = RSI(data, period=14)         # Add RSI
+           data = SMA(data, period=20)         # Add moving average
+           data = MACD(data)                   # Add MACD
+           
+           # Place an order
+           from project_x_py import create_order_manager, create_realtime_client
+           instrument = await client.get_instrument('MGC')
+           realtime_client = create_realtime_client(client.session_token)
+           order_manager = create_order_manager(client, realtime_client)
+           response = await order_manager.place_limit_order(
+               contract_id=instrument.id, 
+               side=0, 
+               size=1, 
+               limit_price=2050.0
+           )
    
-   # Get market data with technical analysis
-   data = client.get_data('MGC', days=30, interval=60)
-   data = RSI(data, period=14)         # Add RSI
-   data = SMA(data, period=20)         # Add moving average
-   data = MACD(data)                   # Add MACD
-   
-   # Place an order
-   from project_x_py import create_order_manager
-   order_manager = create_order_manager(client)
-   response = order_manager.place_limit_order('MGC', 0, 1, 2050.0)
+   # Run the async function
+   asyncio.run(main())
 
 Key Features
 ------------
@@ -70,10 +86,10 @@ Key Features
    * Multi-account support
 
 📊 **Market Data & Analysis**
-   * Historical OHLCV data with multiple timeframes
-   * Real-time market data feeds via WebSocket
+   * Async historical OHLCV data with multiple timeframes
+   * Real-time market data feeds via async WebSocket
    * **Level 2 orderbook analysis** with institutional-grade features
-   * **25+ Technical Indicators** with TA-Lib compatibility (RSI, MACD, Bollinger Bands, etc.)
+   * **55+ Technical Indicators** with TA-Lib compatibility (RSI, MACD, Bollinger Bands, etc.)
    * **Advanced market microstructure** analysis (iceberg detection, order flow, volume profile)
 
 🔧 **Developer Tools**
@@ -83,10 +99,10 @@ Key Features
    * Flexible configuration management
 
 ⚡ **Real-time Capabilities**
-   * Live market data streaming
+   * Async live market data streaming
    * Real-time order and position updates
-   * Event-driven architecture
-   * WebSocket-based connections
+   * Async event-driven architecture
+   * WebSocket-based connections with async handlers
 
 Table of Contents
 -----------------

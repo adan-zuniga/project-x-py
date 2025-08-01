@@ -1,12 +1,18 @@
 """
 Async Real-time Data Manager for OHLCV Data
 
-This module provides async/await support for efficient real-time OHLCV data management by:
+This module provides async/await support for efficient real-time OHLCV (Open, High, Low, Close, Volume)
+data management for trading algorithms and applications. The implementation follows an event-driven
+architecture for optimal performance and resource utilization.
+
+Core Functionality:
 1. Loading initial historical data for all timeframes once at startup
 2. Receiving real-time market data from AsyncProjectXRealtimeClient WebSocket feeds
 3. Resampling real-time data into multiple timeframes (5s, 15s, 1m, 5m, 15m, 1h, 4h)
 4. Maintaining synchronized OHLCV bars across all timeframes
 5. Eliminating the need for repeated API calls during live trading
+6. Providing event callbacks for real-time data processing and visualization
+7. Managing memory efficiently with automatic cleanup and sliding windows
 
 Key Features:
 - Async/await patterns for all operations
@@ -16,6 +22,76 @@ Key Features:
 - Sub-second data updates vs 5-minute polling delays
 - Perfect synchronization between timeframes
 - Resilient to API outages during trading
+- Memory-efficient sliding window storage with automatic cleanup
+- Event-based callbacks for real-time processing
+- ProjectX-compliant payload processing
+
+Usage Example:
+```python
+import asyncio
+from project_x_py import (
+    AsyncProjectX,
+    AsyncProjectXRealtimeClient,
+    AsyncRealtimeDataManager,
+)
+
+
+async def main():
+    # Create and authenticate clients
+    px_client = AsyncProjectX()
+    await px_client.authenticate()
+
+    # Setup realtime client
+    realtime_client = AsyncProjectXRealtimeClient(px_client.config)
+    await realtime_client.connect()
+
+    # Create data manager for a specific instrument with multiple timeframes
+    data_manager = AsyncRealtimeDataManager(
+        instrument="MGC",  # Mini Gold futures
+        project_x=px_client,
+        realtime_client=realtime_client,
+        timeframes=["1min", "5min", "15min", "1hr"],
+        timezone="America/Chicago",  # CME timezone
+    )
+
+    # Initialize with 30 days of historical data
+    await data_manager.initialize(initial_days=30)
+
+    # Start real-time data feed
+    await data_manager.start_realtime_feed()
+
+    # Register a callback for new bars
+    async def on_new_bar(data):
+        tf = data["timeframe"]
+        bar = data["data"]
+        print(f"New {tf} bar: Open={bar['open']}, Close={bar['close']}")
+
+    await data_manager.add_callback("new_bar", on_new_bar)
+
+    # In your trading loop
+    while True:
+        # Get latest data for analysis
+        data_5m = await data_manager.get_data("5min", bars=100)
+        current_price = await data_manager.get_current_price()
+
+        # Your trading logic here
+        print(f"Current price: {current_price}")
+
+        # Get memory stats periodically
+        if loop_count % 100 == 0:
+            stats = data_manager.get_memory_stats()
+            print(
+                f"Memory stats: {stats['total_bars']} bars, {stats['ticks_processed']} ticks"
+            )
+
+        await asyncio.sleep(1)
+
+    # Cleanup when done
+    await data_manager.cleanup()
+
+
+asyncio.run(main())
+```
 """
 
 import asyncio
@@ -42,47 +118,89 @@ class AsyncRealtimeDataManager:
 
     This class focuses exclusively on OHLCV (Open, High, Low, Close, Volume) data management
     across multiple timeframes through real-time tick processing using async/await patterns.
+    It provides a foundation for trading strategies that require synchronized data across
+    different timeframes with minimal API usage.
 
-    Core Concept:
+    Core Architecture:
         Traditional approach: Poll API every 5 minutes for each timeframe = 20+ API calls/hour
         Real-time approach: Load historical once + live tick processing = 1 API call + WebSocket
         Result: 95% reduction in API calls with sub-second data freshness
 
+    Key Benefits:
+        - Reduction in API rate limit consumption
+        - Synchronized data across all timeframes
+        - Real-time updates without polling
+        - Minimal latency for trading signals
+        - Resilience to network issues
+
     Features:
-        - Complete async/await implementation
-        - Zero-latency OHLCV updates via WebSocket
-        - Automatic bar creation and maintenance
-        - Async-safe multi-timeframe access
-        - Memory-efficient sliding window storage
-        - Timezone-aware timestamp handling (CME Central Time)
-        - Event callbacks for new bars and data updates
+        - Complete async/await implementation for non-blocking operation
+        - Zero-latency OHLCV updates via WebSocket integration
+        - Automatic bar creation and maintenance across all timeframes
+        - Async-safe multi-timeframe data access with locks
+        - Memory-efficient sliding window storage with automatic pruning
+        - Timezone-aware timestamp handling (default: CME Central Time)
+        - Event callbacks for new bars and real-time data updates
         - Comprehensive health monitoring and statistics
 
+    Available Timeframes:
+        - Second-based: "1sec", "5sec", "10sec", "15sec", "30sec"
+        - Minute-based: "1min", "5min", "15min", "30min"
+        - Hour-based: "1hr", "4hr"
+        - Day-based: "1day"
+        - Week-based: "1week"
+        - Month-based: "1month"
+
     Example Usage:
-        >>> # Create shared async realtime client
-        >>> async_realtime_client = AsyncProjectXRealtimeClient(jwt_token, account_id)
-        >>> await async_realtime_client.connect()
-        >>>
-        >>> # Initialize async data manager with dependency injection
-        >>> manager = AsyncRealtimeDataManager(
-        ...     "MGC", async_project_x, async_realtime_client
-        ... )
-        >>>
-        >>> # Load historical data for all timeframes
-        >>> if await manager.initialize(initial_days=30):
-        ...     print("Historical data loaded successfully")
-        >>>
-        >>> # Start real-time feed (registers callbacks with existing client)
-        >>> if await manager.start_realtime_feed():
-        ...     print("Real-time OHLCV feed active")
-        >>>
-        >>> # Access multi-timeframe OHLCV data
-        >>> data_5m = await manager.get_data("5min", bars=100)
-        >>> data_15m = await manager.get_data("15min", bars=50)
-        >>> mtf_data = await manager.get_mtf_data()
-        >>>
-        >>> # Get current market price
-        >>> current_price = await manager.get_current_price()
+        ```python
+        # Create shared async realtime client
+        async_realtime_client = AsyncProjectXRealtimeClient(config)
+        await async_realtime_client.connect()
+
+        # Initialize async data manager with dependency injection
+        manager = AsyncRealtimeDataManager(
+            instrument="MGC",  # Mini Gold futures
+            project_x=async_project_x_client,  # For historical data loading
+            realtime_client=async_realtime_client,
+            timeframes=["1min", "5min", "15min", "1hr"],
+            timezone="America/Chicago",  # CME timezone
+        )
+
+        # Load historical data for all timeframes
+        if await manager.initialize(initial_days=30):
+            print("Historical data loaded successfully")
+
+        # Start real-time feed (registers callbacks with existing client)
+        if await manager.start_realtime_feed():
+            print("Real-time OHLCV feed active")
+
+
+        # Register callback for new bars
+        async def on_new_bar(data):
+            timeframe = data["timeframe"]
+            bar_data = data["data"]
+            print(f"New {timeframe} bar: Close={bar_data['close']}")
+
+
+        await manager.add_callback("new_bar", on_new_bar)
+
+        # Access multi-timeframe OHLCV data in your trading loop
+        data_5m = await manager.get_data("5min", bars=100)
+        data_15m = await manager.get_data("15min", bars=50)
+        mtf_data = await manager.get_mtf_data()  # All timeframes at once
+
+        # Get current market price (latest tick or bar close)
+        current_price = await manager.get_current_price()
+
+        # When done, clean up resources
+        await manager.cleanup()
+        ```
+
+    Note:
+        - All methods accessing data are thread-safe with asyncio locks
+        - Automatic memory management limits data storage for efficiency
+        - All timestamp handling is timezone-aware by default
+        - Uses Polars DataFrames for high-performance data operations
     """
 
     def __init__(
@@ -96,26 +214,63 @@ class AsyncRealtimeDataManager:
         """
         Initialize the async optimized real-time OHLCV data manager with dependency injection.
 
+        Creates a new instance of the AsyncRealtimeDataManager that manages real-time market data
+        for a specific trading instrument across multiple timeframes. The manager uses dependency
+        injection with AsyncProjectX for historical data loading and AsyncProjectXRealtimeClient
+        for live WebSocket market data.
+
         Args:
-            instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES")
-            project_x: AsyncProjectX client instance for initial historical data loading
-            realtime_client: AsyncProjectXRealtimeClient instance for live market data
-            timeframes: List of timeframes to track (default: ["5min"])
-                Available: ["5sec", "15sec", "1min", "5min", "15min", "1hr", "4hr"]
-            timezone: Timezone for timestamp handling (default: "America/Chicago")
+            instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES").
+                This should be the base symbol, not a specific contract.
+
+            project_x: AsyncProjectX client instance for initial historical data loading.
+                This client should already be authenticated before passing to this constructor.
+
+            realtime_client: AsyncProjectXRealtimeClient instance for live market data.
+                The client does not need to be connected yet, as the manager will handle
+                connection when start_realtime_feed() is called.
+
+            timeframes: List of timeframes to track (default: ["5min"] if None provided).
+                Available timeframes include:
+                - Seconds: "1sec", "5sec", "10sec", "15sec", "30sec"
+                - Minutes: "1min", "5min", "15min", "30min"
+                - Hours: "1hr", "4hr"
+                - Days/Weeks/Months: "1day", "1week", "1month"
+
+            timezone: Timezone for timestamp handling (default: "America/Chicago").
+                This timezone is used for all bar calculations and should typically be set to
+                the exchange timezone for the instrument (e.g., "America/Chicago" for CME).
+
+        Raises:
+            ValueError: If an invalid timeframe is provided.
 
         Example:
-            >>> # Create shared async realtime client
-            >>> async_realtime_client = AsyncProjectXRealtimeClient(
-            ...     jwt_token, account_id
-            ... )
-            >>> # Initialize multi-timeframe manager
-            >>> manager = AsyncRealtimeDataManager(
-            ...     instrument="MGC",
-            ...     project_x=async_project_x_client,
-            ...     realtime_client=async_realtime_client,
-            ...     timeframes=["1min", "5min", "15min", "1hr"],
-            ... )
+            ```python
+            # Create the required clients first
+            px_client = AsyncProjectX()
+            await px_client.authenticate()
+
+            # Create and connect realtime client
+            realtime_client = AsyncProjectXRealtimeClient(px_client.config)
+
+            # Create data manager with multiple timeframes for Gold mini futures
+            data_manager = AsyncRealtimeDataManager(
+                instrument="MGC",  # Gold mini futures
+                project_x=px_client,
+                realtime_client=realtime_client,
+                timeframes=["1min", "5min", "15min", "1hr"],
+                timezone="America/Chicago",  # CME timezone
+            )
+
+            # Note: After creating the manager, you need to call:
+            # 1. await data_manager.initialize() to load historical data
+            # 2. await data_manager.start_realtime_feed() to begin real-time updates
+            ```
+
+        Note:
+            The manager instance is not fully initialized until you call the initialize() method,
+            which loads historical data for all timeframes. After initialization, call
+            start_realtime_feed() to begin receiving real-time updates.
         """
         if timeframes is None:
             timeframes = ["5min"]
@@ -286,15 +441,49 @@ class AsyncRealtimeDataManager:
         """
         Initialize the real-time data manager by loading historical OHLCV data.
 
+        This method performs the initial setup of the data manager by loading historical
+        OHLCV data for all configured timeframes. It identifies the correct contract ID
+        for the instrument and loads the specified number of days of historical data
+        into memory for each timeframe. This provides a baseline of data before real-time
+        updates begin.
+
         Args:
-            initial_days: Number of days of historical data to load (default: 1)
+            initial_days: Number of days of historical data to load (default: 1).
+                Higher values provide more historical context but consume more memory.
+                Typical values are:
+                - 1-5 days: For short-term trading and minimal memory usage
+                - 30 days: For strategies requiring more historical context
+                - 90+ days: For longer-term pattern detection or backtesting
 
         Returns:
-            bool: True if initialization completed successfully, False if errors occurred
+            bool: True if initialization completed successfully for at least one timeframe,
+                False if errors occurred for all timeframes or the instrument wasn't found.
+
+        Raises:
+            Exception: Any exceptions from the API are caught and logged, returning False.
 
         Example:
-            >>> if await manager.initialize(initial_days=30):
-            ...     print("Historical data loaded successfully")
+            ```python
+            # Initialize with 30 days of historical data
+            success = await data_manager.initialize(initial_days=30)
+
+            if success:
+                print("Historical data loaded successfully")
+
+                # Check data availability for each timeframe
+                memory_stats = data_manager.get_memory_stats()
+                for tf, count in memory_stats["timeframe_bar_counts"].items():
+                    print(f"Loaded {count} bars for {tf} timeframe")
+            else:
+                print("Failed to initialize data manager")
+            ```
+
+        Note:
+            - This method must be called before start_realtime_feed()
+            - The method retrieves the contract ID for the instrument, which is needed
+              for real-time data subscriptions
+            - If data for a specific timeframe fails to load, the method will log a warning
+              but continue with the other timeframes
         """
         try:
             self.logger.info(
@@ -341,12 +530,54 @@ class AsyncRealtimeDataManager:
         """
         Start the real-time OHLCV data feed using WebSocket connections.
 
+        This method configures and starts the real-time market data feed for the instrument.
+        It registers callbacks with the realtime client to receive market data updates,
+        subscribes to the appropriate market data channels, and initiates the background
+        cleanup task for memory management.
+
+        The method will:
+        1. Register callback handlers for quotes and trades
+        2. Subscribe to market data for the instrument's contract ID
+        3. Start a background task for periodic memory cleanup
+
         Returns:
-            bool: True if real-time feed started successfully
+            bool: True if real-time feed started successfully, False if there were errors
+                such as connection failures or subscription issues.
+
+        Raises:
+            Exception: Any exceptions during setup are caught and logged, returning False.
 
         Example:
-            >>> if await manager.start_realtime_feed():
-            ...     print("Real-time OHLCV updates active")
+            ```python
+            # Initialize data manager first
+            await data_manager.initialize(initial_days=10)
+
+            # Start the real-time feed
+            if await data_manager.start_realtime_feed():
+                print("Real-time OHLCV updates active")
+
+                # Register callback for new bars
+                async def on_new_bar(data):
+                    print(f"New {data['timeframe']} bar at {data['bar_time']}")
+
+                await data_manager.add_callback("new_bar", on_new_bar)
+
+                # Use the data in your trading loop
+                while True:
+                    current_price = await data_manager.get_current_price()
+                    # Your trading logic here
+                    await asyncio.sleep(1)
+            else:
+                print("Failed to start real-time feed")
+            ```
+
+        Note:
+            - The initialize() method must be called successfully before calling this method,
+              as it requires the contract_id to be set
+            - This method is idempotent - calling it multiple times will only establish
+              the connection once
+            - The method sets up a background task for periodic memory cleanup to prevent
+              excessive memory usage
         """
         try:
             if self.is_running:
@@ -759,17 +990,64 @@ class AsyncRealtimeDataManager:
         """
         Get OHLCV data for a specific timeframe.
 
+        This method returns a Polars DataFrame containing OHLCV (Open, High, Low, Close, Volume)
+        data for the specified timeframe. The data is retrieved from the in-memory cache,
+        which is continuously updated in real-time. You can optionally limit the number of
+        bars returned.
+
         Args:
-            timeframe: Timeframe to retrieve (default: "5min")
-            bars: Number of bars to return (None for all)
+            timeframe: Timeframe to retrieve (default: "5min").
+                Must be one of the timeframes configured during initialization.
+                Common values are "1min", "5min", "15min", "1hr".
+
+            bars: Number of most recent bars to return (None for all available bars).
+                When specified, returns only the N most recent bars, which is more
+                memory efficient for large datasets.
 
         Returns:
-            DataFrame with OHLCV data or None if not available
+            pl.DataFrame: A Polars DataFrame with OHLCV data containing the following columns:
+                - timestamp: Bar timestamp (timezone-aware datetime)
+                - open: Opening price for the period
+                - high: Highest price during the period
+                - low: Lowest price during the period
+                - close: Closing price for the period
+                - volume: Volume traded during the period
+
+                Returns None if the timeframe is not available or no data is loaded.
 
         Example:
-            >>> data = await manager.get_data("5min", bars=100)
-            >>> if data is not None:
-            ...     print(f"Got {len(data)} bars")
+            ```python
+            # Get the most recent 100 bars of 5-minute data
+            data_5m = await manager.get_data("5min", bars=100)
+
+            if data_5m is not None:
+                print(f"Got {len(data_5m)} bars of 5-minute data")
+
+                # Get the most recent close price
+                latest_close = data_5m["close"].last()
+                print(f"Latest close price: {latest_close}")
+
+                # Calculate a simple moving average
+                if len(data_5m) >= 20:
+                    sma_20 = data_5m["close"].tail(20).mean()
+                    print(f"20-bar SMA: {sma_20}")
+
+                # Check for gaps in data
+                if data_5m.height > 1:
+                    timestamps = data_5m["timestamp"]
+                    # This requires handling timezone-aware datetimes properly
+
+                # Use the data with external libraries
+                # Convert to pandas if needed (though Polars is preferred)
+                # pandas_df = data_5m.to_pandas()
+            else:
+                print(f"No data available for timeframe: 5min")
+            ```
+
+        Note:
+            - This method is thread-safe and can be called concurrently from multiple tasks
+            - The returned DataFrame is a copy of the internal data and can be modified safely
+            - For memory efficiency, specify the 'bars' parameter to limit the result size
         """
         async with self.data_lock:
             if timeframe not in self.data:
@@ -784,13 +1062,45 @@ class AsyncRealtimeDataManager:
         """
         Get the current market price from the most recent data.
 
+        This method provides the most recent market price available from tick data or bar data.
+        It's designed for quick access to the current price without having to process the full
+        OHLCV dataset, making it ideal for real-time trading decisions and order placement.
+
+        The method follows this logic:
+        1. First tries to get price from the most recent tick data (most up-to-date)
+        2. If no tick data is available, falls back to the most recent bar close price
+        3. Checks common timeframes in order of priority: 1min, 5min, 15min
+
         Returns:
-            Current price or None if no data available
+            float: The current price if available
+            None: If no price data is available from any source
 
         Example:
-            >>> price = await manager.get_current_price()
-            >>> if price:
-            ...     print(f"Current price: ${price:.2f}")
+            ```python
+            # Get the most recent price
+            current_price = await manager.get_current_price()
+
+            if current_price is not None:
+                print(f"Current price: ${current_price:.2f}")
+
+                # Use in trading logic
+                if current_price > threshold:
+                    # Place a sell order
+                    await order_manager.place_market_order(
+                        contract_id="MGC",
+                        side=1,  # Sell
+                        size=1,
+                    )
+                    print(f"Placed sell order at ${current_price:.2f}")
+            else:
+                print("No current price data available")
+            ```
+
+        Note:
+            - This method is optimized for performance and minimal latency
+            - The returned price is the most recent available, which could be
+              several seconds old if market activity is low
+            - The method is thread-safe and can be called concurrently
         """
         # Try to get from tick data first
         if self.current_tick_data:
@@ -827,15 +1137,83 @@ class AsyncRealtimeDataManager:
         """
         Register a callback for specific data events.
 
+        This method allows you to register callback functions that will be triggered when
+        specific events occur in the data manager. Callbacks can be either synchronous functions
+        or asynchronous coroutines. This event-driven approach enables building reactive
+        trading systems that respond to real-time market events.
+
         Args:
-            event_type: Type of event ("new_bar", "data_update")
-            callback: Async function to call when event occurs
+            event_type: Type of event to listen for. Supported event types:
+                - "new_bar": Triggered when a new OHLCV bar is created in any timeframe.
+                  The callback receives data with timeframe, bar_time, and complete bar data.
+                - "data_update": Triggered on every tick update.
+                  The callback receives timestamp, price, and volume information.
+
+            callback: Function or coroutine to call when the event occurs.
+                Both synchronous functions and async coroutines are supported.
+                The function should accept a single dictionary parameter with event data.
+
+        Event Data Structures:
+            "new_bar" event data contains:
+                {
+                    "timeframe": "5min",                  # The timeframe of the bar
+                    "bar_time": datetime(2023,5,1,10,0),  # Bar timestamp (timezone-aware)
+                    "data": {                             # Complete bar data
+                        "timestamp": datetime(...),       # Bar timestamp
+                        "open": 1950.5,                   # Opening price
+                        "high": 1955.2,                   # High price
+                        "low": 1950.0,                    # Low price
+                        "close": 1954.8,                  # Closing price
+                        "volume": 128                     # Bar volume
+                    }
+                }
+
+            "data_update" event data contains:
+                {
+                    "timestamp": datetime(2023,5,1,10,0,15),  # Tick timestamp
+                    "price": 1954.75,                         # Current price
+                    "volume": 1                               # Tick volume
+                }
 
         Example:
-            >>> async def on_new_bar(data):
-            ...     tf = data["timeframe"]
-            ...     print(f"New bar on {tf}")
-            >>> await manager.add_callback("new_bar", on_new_bar)
+            ```python
+            # Register an async callback for new bar events
+            async def on_new_bar(data):
+                tf = data["timeframe"]
+                bar = data["data"]
+                print(
+                    f"New {tf} bar: O={bar['open']}, H={bar['high']}, L={bar['low']}, C={bar['close']}"
+                )
+
+                # Implement trading logic based on the new bar
+                if tf == "5min" and bar["close"] > bar["open"]:
+                    # Bullish bar detected
+                    print(f"Bullish 5min bar detected at {data['bar_time']}")
+
+                    # Trigger trading logic (implement your strategy here)
+                    # await strategy.on_bullish_bar(data)
+
+
+            # Register the callback
+            await data_manager.add_callback("new_bar", on_new_bar)
+
+
+            # You can also use regular (non-async) functions
+            def on_data_update(data):
+                # This is called on every tick - keep it lightweight!
+                print(f"Price update: {data['price']}")
+
+
+            await data_manager.add_callback("data_update", on_data_update)
+            ```
+
+        Note:
+            - Multiple callbacks can be registered for the same event type
+            - Callbacks are executed sequentially for each event
+            - For high-frequency events like "data_update", keep callbacks lightweight
+              to avoid processing bottlenecks
+            - Exceptions in callbacks are caught and logged, preventing them from
+              affecting the data manager's operation
         """
         self.callbacks[event_type].append(callback)
 

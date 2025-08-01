@@ -1,8 +1,24 @@
 """
 Base async orderbook functionality.
 
-This module contains the core orderbook data structures and basic operations
-like maintaining bid/ask levels, best prices, and spread calculations.
+This module contains the core orderbook data structures and foundational operations for
+the async orderbook implementation. It provides the base class that maintains the primary
+orderbook state, handles data consistency, and implements the core functionality upon which
+higher-level analytics are built.
+
+Key features:
+- Thread-safe orderbook data structures using asyncio locks
+- Polars DataFrame-based bid and ask level storage
+- Recent trade history tracking with automatic classification
+- Best bid/ask price tracking with historical records
+- Spread calculation and tracking
+- Price level refreshment detection for iceberg analysis
+- Configurable memory management
+- Event-driven architecture with customizable callbacks
+
+The AsyncOrderBookBase class serves as the foundation for the complete AsyncOrderBook
+implementation, providing the essential infrastructure while delegating specialized
+functionality to dedicated component classes.
 """
 
 import asyncio
@@ -30,7 +46,30 @@ from project_x_py.exceptions import ProjectXError
 
 
 class AsyncOrderBookBase:
-    """Base class for async orderbook with core functionality."""
+    """
+    Base class for async orderbook with core functionality.
+
+    This class implements the fundamental orderbook infrastructure including data
+    structures for storing bid/ask levels, trade history, and related market data.
+    It provides thread-safe operations through asyncio locks and establishes the
+    foundation for the component-based architecture of the complete orderbook.
+
+    Key responsibilities:
+    1. Maintain bid and ask price level data in Polars DataFrames
+    2. Track and store recent trades with side classification
+    3. Calculate and monitor best bid/ask prices and spreads
+    4. Provide thread-safe data access through locks
+    5. Implement the callback registration system
+    6. Support price level history tracking for advanced analytics
+
+    This base class is designed to be extended by the full AsyncOrderBook implementation,
+    which adds specialized components for analytics, detection algorithms, and real-time
+    data handling.
+
+    Thread safety:
+        All public methods acquire the appropriate locks before accessing shared data
+        structures, making them safe to call from multiple asyncio tasks concurrently.
+    """
 
     def __init__(
         self,
@@ -246,8 +285,30 @@ class AsyncOrderBookBase:
         """
         Get current best bid and ask prices with spread calculation.
 
+        This method provides the current top-of-book information, including the best
+        (highest) bid price, best (lowest) ask price, the calculated spread between
+        them, and the timestamp of the calculation. It also updates internal history
+        tracking for bid, ask, and spread values.
+
+        The method is thread-safe and acquires the orderbook lock before accessing
+        the underlying data structures.
+
         Returns:
-            Dict containing bid, ask, spread, and timestamp
+            Dict containing:
+                bid: The highest bid price (float or None if no bids)
+                ask: The lowest ask price (float or None if no asks)
+                spread: The difference between ask and bid (float or None if either missing)
+                timestamp: The time of calculation (datetime)
+
+        Example:
+            >>> prices = await orderbook.get_best_bid_ask()
+            >>> if prices["bid"] is not None and prices["ask"] is not None:
+            ...     print(
+            ...         f"Bid: {prices['bid']}, Ask: {prices['ask']}, "
+            ...         f"Spread: {prices['spread']}"
+            ...     )
+            ... else:
+            ...     print("Incomplete market data")
         """
         async with self.orderbook_lock:
             return self._get_best_bid_ask_unlocked()
@@ -314,7 +375,57 @@ class AsyncOrderBookBase:
             return self._get_orderbook_asks_unlocked(levels)
 
     async def get_orderbook_snapshot(self, levels: int = 10) -> dict[str, Any]:
-        """Get a complete snapshot of the current orderbook state."""
+        """
+        Get a complete snapshot of the current orderbook state.
+
+        This method provides a comprehensive snapshot of the current orderbook state,
+        including top-of-book information, bid/ask levels, volume totals, and imbalance
+        calculations. It's designed to give a complete picture of the market at a single
+        point in time for analysis or display purposes.
+
+        The snapshot includes:
+        - Best bid and ask prices with spread
+        - Mid-price calculation
+        - Specified number of bid and ask levels with prices and volumes
+        - Total volume on bid and ask sides
+        - Order count on each side
+        - Bid/ask imbalance ratio
+        - Last update timestamp and update count
+
+        The method is thread-safe and acquires the orderbook lock during execution.
+
+        Args:
+            levels: Number of price levels to include on each side (default: 10)
+
+        Returns:
+            Dict containing the complete orderbook snapshot with all the fields
+            specified above. See OrderbookSnapshot type for details.
+
+        Raises:
+            ProjectXError: If an error occurs during snapshot generation
+
+        Example:
+            >>> # Get full orderbook with 5 levels on each side
+            >>> snapshot = await orderbook.get_orderbook_snapshot(levels=5)
+            >>>
+            >>> # Print top of book
+            >>> print(
+            ...     f"Best Bid: {snapshot['best_bid']} ({snapshot['total_bid_volume']})"
+            ... )
+            >>> print(
+            ...     f"Best Ask: {snapshot['best_ask']} ({snapshot['total_ask_volume']})"
+            ... )
+            >>> print(f"Spread: {snapshot['spread']}, Mid: {snapshot['mid_price']}")
+            >>>
+            >>> # Display full depth
+            >>> print("Bids:")
+            >>> for bid in snapshot["bids"]:
+            ...     print(f"  {bid['price']}: {bid['volume']}")
+            >>>
+            >>> print("Asks:")
+            >>> for ask in snapshot["asks"]:
+            ...     print(f"  {ask['price']}: {ask['volume']}")
+        """
         async with self.orderbook_lock:
             try:
                 # Get best prices - use unlocked version since we already hold the lock
@@ -386,7 +497,39 @@ class AsyncOrderBookBase:
             return self.order_type_stats.copy()
 
     async def add_callback(self, event_type: str, callback: CallbackType) -> None:
-        """Register a callback for orderbook events."""
+        """
+        Register a callback for orderbook events.
+
+        This method allows client code to register callbacks that will be triggered when
+        specific orderbook events occur. Callbacks can be either synchronous functions or
+        asynchronous coroutines. When an event occurs, all registered callbacks for that
+        event type will be executed with the event data.
+
+        Supported event types:
+        - "depth_update": Triggered when a price level is updated
+        - "trade": Triggered when a new trade is processed
+        - "best_bid_change": Triggered when the best bid price changes
+        - "best_ask_change": Triggered when the best ask price changes
+        - "spread_change": Triggered when the bid-ask spread changes
+        - "reset": Triggered when the orderbook is reset
+
+        Args:
+            event_type: The type of event to listen for (from the list above)
+            callback: A callable function or coroutine that will receive the event data.
+                The callback should accept a single parameter: a dictionary containing
+                the event data specific to that event type.
+
+        Example:
+            >>> # Register an async callback for trade events
+            >>> async def on_trade(data):
+            ...     print(f"Trade: {data['volume']} @ {data['price']} ({data['side']})")
+            >>> await orderbook.add_callback("trade", on_trade)
+            >>>
+            >>> # Register a synchronous callback for best bid changes
+            >>> def on_best_bid_change(data):
+            ...     print(f"New best bid: {data['price']}")
+            >>> await orderbook.add_callback("best_bid_change", on_best_bid_change)
+        """
         async with self._callback_lock:
             self.callbacks[event_type].append(callback)
             self.logger.debug(f"Added orderbook callback for {event_type}")

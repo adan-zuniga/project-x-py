@@ -76,8 +76,30 @@ class AsyncPositionManager:
         """
         Initialize the AsyncPositionManager with an AsyncProjectX client.
 
+        Creates a comprehensive position management system with tracking, monitoring,
+        alerts, risk management, and optional real-time/order synchronization.
+
         Args:
-            project_x_client: AsyncProjectX client instance for API access
+            project_x_client (AsyncProjectX): The authenticated AsyncProjectX client instance
+                used for all API operations. Must be properly authenticated before use.
+
+        Attributes:
+            project_x (AsyncProjectX): Reference to the ProjectX client
+            logger (logging.Logger): Logger instance for this manager
+            position_lock (asyncio.Lock): Thread-safe lock for position operations
+            realtime_client (AsyncProjectXRealtimeClient | None): Optional real-time client
+            order_manager (AsyncOrderManager | None): Optional order manager for sync
+            tracked_positions (dict[str, Position]): Current positions by contract ID
+            position_history (dict[str, list[dict]]): Historical position changes
+            position_callbacks (dict[str, list[Any]]): Event callbacks by type
+            position_alerts (dict[str, dict]): Active position alerts by contract
+            stats (dict): Comprehensive tracking statistics
+            risk_settings (dict): Risk management configuration
+
+        Example:
+            >>> async with AsyncProjectX.from_env() as client:
+            ...     await client.authenticate()
+            ...     position_manager = AsyncPositionManager(client)
         """
         self.project_x = project_x_client
         self.logger = logging.getLogger(__name__)
@@ -133,12 +155,38 @@ class AsyncPositionManager:
         """
         Initialize the AsyncPositionManager with optional real-time capabilities and order synchronization.
 
+        This method sets up advanced features including real-time position tracking via WebSocket
+        and automatic order synchronization. Must be called before using real-time features.
+
         Args:
-            realtime_client: Optional AsyncProjectXRealtimeClient for live position tracking
-            order_manager: Optional AsyncOrderManager for automatic order synchronization
+            realtime_client (AsyncProjectXRealtimeClient, optional): Real-time client instance
+                for WebSocket-based position updates. When provided, enables live position
+                tracking without polling. Defaults to None (polling mode).
+            order_manager (AsyncOrderManager, optional): Order manager instance for automatic
+                order synchronization. When provided, orders are automatically updated when
+                positions change. Defaults to None (no order sync).
 
         Returns:
-            bool: True if initialization successful
+            bool: True if initialization successful, False if any errors occurred
+
+        Raises:
+            Exception: Logged but not raised - returns False on failure
+
+        Example:
+            >>> # Initialize with real-time tracking
+            >>> rt_client = create_async_realtime_client(jwt_token)
+            >>> success = await position_manager.initialize(realtime_client=rt_client)
+            >>>
+            >>> # Initialize with both real-time and order sync
+            >>> order_mgr = AsyncOrderManager(client, rt_client)
+            >>> success = await position_manager.initialize(
+            ...     realtime_client=rt_client, order_manager=order_mgr
+            ... )
+
+        Note:
+            - Real-time mode provides instant position updates via WebSocket
+            - Polling mode refreshes positions periodically (see start_monitoring)
+            - Order synchronization helps maintain order/position consistency
         """
         try:
             # Set up real-time integration if provided
@@ -170,7 +218,20 @@ class AsyncPositionManager:
             return False
 
     async def _setup_realtime_callbacks(self) -> None:
-        """Set up callbacks for real-time position monitoring."""
+        """
+        Set up callbacks for real-time position monitoring via WebSocket.
+
+        Registers internal callback handlers with the real-time client to process
+        position updates and account changes. Called automatically during initialization
+        when a real-time client is provided.
+
+        Registered callbacks:
+            - position_update: Handles position size/price changes and closures
+            - account_update: Handles account-level changes affecting positions
+
+        Note:
+            This is an internal method called by initialize(). Do not call directly.
+        """
         if not self.realtime_client:
             return
 
@@ -185,7 +246,23 @@ class AsyncPositionManager:
         self.logger.info("🔄 Real-time position callbacks registered")
 
     async def _on_position_update(self, data: dict) -> None:
-        """Handle real-time position updates and detect position closures."""
+        """
+        Handle real-time position updates and detect position closures.
+
+        Processes incoming position data from the WebSocket feed, updates tracked
+        positions, detects closures (size=0), and triggers appropriate callbacks.
+
+        Args:
+            data (dict): Position update data from real-time feed. Can be:
+                - Single position dict with GatewayUserPosition fields
+                - List of position dicts
+                - Wrapped format: {"action": 1, "data": {position_data}}
+
+        Note:
+            - Position closure is detected when size == 0 (not type == 0)
+            - Type 0 means "Undefined" in PositionType enum, not closed
+            - Automatically triggers position_closed callbacks on closure
+        """
         try:
             async with self.position_lock:
                 if isinstance(data, list):
@@ -198,27 +275,47 @@ class AsyncPositionManager:
             self.logger.error(f"Error processing position update: {e}")
 
     async def _on_account_update(self, data: dict) -> None:
-        """Handle account-level updates that may affect positions."""
+        """
+        Handle account-level updates that may affect positions.
+
+        Processes account update events from the real-time feed and triggers
+        registered account_update callbacks for custom handling.
+
+        Args:
+            data (dict): Account update data containing balance, margin, and other
+                account-level information that may impact position management
+        """
         await self._trigger_callbacks("account_update", data)
 
     def _validate_position_payload(self, position_data: dict) -> bool:
         """
         Validate that position payload matches ProjectX GatewayUserPosition format.
 
+        Ensures incoming position data conforms to the expected schema before processing.
+        This validation prevents errors from malformed data and ensures API compliance.
+
         Expected fields according to ProjectX docs:
-        - id (int): The position ID
-        - accountId (int): The account associated with the position
-        - contractId (string): The contract ID associated with the position
-        - creationTimestamp (string): When the position was created or opened
-        - type (int): PositionType enum (Undefined=0, Long=1, Short=2)
-        - size (int): The size of the position (0 means closed)
-        - averagePrice (number): The average price of the position
+            - id (int): The unique position identifier
+            - accountId (int): The account associated with the position
+            - contractId (string): The contract ID associated with the position
+            - creationTimestamp (string): ISO timestamp when position was opened
+            - type (int): PositionType enum value:
+                * 0 = Undefined (not a closed position)
+                * 1 = Long position
+                * 2 = Short position
+            - size (int): The number of contracts (0 means position is closed)
+            - averagePrice (number): The weighted average entry price
 
         Args:
-            position_data: Position payload from ProjectX realtime feed
+            position_data (dict): Raw position payload from ProjectX real-time feed
 
         Returns:
-            bool: True if payload format is valid
+            bool: True if payload contains all required fields with valid values,
+                False if validation fails
+
+        Warning:
+            Position closure is determined by size == 0, NOT type == 0.
+            Type 0 means "Undefined" position type, not a closed position.
         """
         required_fields = {
             "id",
@@ -255,10 +352,35 @@ class AsyncPositionManager:
         """
         Process individual position data update and detect position closures.
 
+        Core processing method that handles position updates, maintains tracked positions,
+        detects closures, triggers callbacks, and synchronizes with order management.
+
         ProjectX GatewayUserPosition payload structure:
-        - Position is closed when size == 0 (not when type == 0)
-        - type=0 means "Undefined" according to PositionType enum
-        - type=1 means "Long", type=2 means "Short"
+            - Position is closed when size == 0 (not when type == 0)
+            - type=0 means "Undefined" according to PositionType enum
+            - type=1 means "Long", type=2 means "Short"
+
+        Args:
+            position_data (dict): Position data which can be:
+                - Direct position dict with GatewayUserPosition fields
+                - Wrapped format: {"action": 1, "data": {actual_position_data}}
+
+        Processing flow:
+            1. Extract actual position data from wrapper if needed
+            2. Validate payload format
+            3. Check if position is closed (size == 0)
+            4. Update tracked positions or remove if closed
+            5. Trigger appropriate callbacks
+            6. Update position history
+            7. Check position alerts
+            8. Synchronize with order manager if enabled
+
+        Side effects:
+            - Updates self.tracked_positions
+            - Appends to self.position_history
+            - May trigger position_closed or position_update callbacks
+            - May trigger position alerts
+            - Updates statistics counters
         """
         try:
             # Handle wrapped position data from real-time updates
@@ -343,7 +465,27 @@ class AsyncPositionManager:
             self.logger.debug(f"Position data that caused error: {position_data}")
 
     async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
-        """Trigger registered callbacks for position events."""
+        """
+        Trigger registered callbacks for position events.
+
+        Executes all registered callback functions for a specific event type.
+        Handles both sync and async callbacks, with error isolation to prevent
+        one failing callback from affecting others.
+
+        Args:
+            event_type (str): The type of event to trigger callbacks for:
+                - "position_update": Position changed
+                - "position_closed": Position fully closed
+                - "account_update": Account-level change
+                - "position_alert": Alert condition met
+            data (Any): Event data to pass to callbacks, typically a dict with
+                event-specific information
+
+        Note:
+            - Callbacks are executed in registration order
+            - Errors in callbacks are logged but don't stop other callbacks
+            - Supports both sync and async callback functions
+        """
         for callback in self.position_callbacks.get(event_type, []):
             try:
                 if asyncio.iscoroutinefunction(callback):
@@ -397,18 +539,37 @@ class AsyncPositionManager:
 
     async def get_all_positions(self, account_id: int | None = None) -> list[Position]:
         """
-        Get all current positions.
+        Get all current positions from the API and update tracking.
+
+        Retrieves all open positions for the specified account, updates the internal
+        tracking cache, and returns the position list. This is the primary method
+        for fetching position data.
 
         Args:
-            account_id: Account ID. Uses default account if None.
+            account_id (int, optional): The account ID to get positions for.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            List[Position]: List of all current positions
+            list[Position]: List of all current open positions. Each Position object
+                contains id, accountId, contractId, type, size, averagePrice, and
+                creationTimestamp. Empty list if no positions or on error.
+
+        Side effects:
+            - Updates self.tracked_positions with current data
+            - Updates statistics (positions_tracked, last_update_time)
 
         Example:
+            >>> # Get all positions for default account
             >>> positions = await position_manager.get_all_positions()
             >>> for pos in positions:
             ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice}")
+            >>> # Get positions for specific account
+            >>> positions = await position_manager.get_all_positions(account_id=12345)
+
+        Note:
+            In real-time mode, tracked positions are also updated via WebSocket,
+            but this method always fetches fresh data from the API.
         """
         try:
             positions = await self.project_x.search_open_positions(
@@ -436,17 +597,34 @@ class AsyncPositionManager:
         """
         Get a specific position by contract ID.
 
+        Searches for a position matching the given contract ID. In real-time mode,
+        checks the local cache first for better performance before falling back
+        to an API call.
+
         Args:
-            contract_id: Contract ID to search for
-            account_id: Account ID. Uses default account if None.
+            contract_id (str): The contract ID to search for (e.g., "MGC", "NQ")
+            account_id (int, optional): The account ID to search within.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Position: Position object if found, None otherwise
+            Position | None: Position object if found, containing all position details
+                (id, size, averagePrice, type, etc.). Returns None if no position
+                exists for the contract.
 
         Example:
+            >>> # Check if we have a Gold position
             >>> mgc_position = await position_manager.get_position("MGC")
             >>> if mgc_position:
-            ...     print(f"MGC size: {mgc_position.size}")
+            ...     print(f"MGC position: {mgc_position.size} contracts")
+            ...     print(f"Entry price: ${mgc_position.averagePrice}")
+            ...     print(f"Direction: {'Long' if mgc_position.type == 1 else 'Short'}")
+            ... else:
+            ...     print("No MGC position found")
+
+        Performance:
+            - Real-time mode: O(1) cache lookup, falls back to API if miss
+            - Polling mode: Always makes API call via get_all_positions()
         """
         # Try cached data first if real-time enabled
         if self._realtime_enabled:
@@ -467,11 +645,34 @@ class AsyncPositionManager:
         """
         Refresh all position data from the API.
 
+        Forces a fresh fetch of all positions from the API, updating the internal
+        tracking cache. Useful for ensuring data is current after external changes
+        or when real-time updates may have been missed.
+
         Args:
-            account_id: Account ID. Uses default account if None.
+            account_id (int, optional): The account ID to refresh positions for.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            bool: True if refresh successful
+            bool: True if refresh was successful, False if any error occurred
+
+        Side effects:
+            - Updates self.tracked_positions with fresh data
+            - Updates position statistics
+            - Logs refresh results
+
+        Example:
+            >>> # Manually refresh positions
+            >>> success = await position_manager.refresh_positions()
+            >>> if success:
+            ...     print("Positions refreshed successfully")
+            >>> # Refresh specific account
+            >>> await position_manager.refresh_positions(account_id=12345)
+
+        Note:
+            This method is called automatically during initialization and by
+            the monitoring loop in polling mode.
         """
         try:
             positions = await self.get_all_positions(account_id=account_id)
@@ -487,12 +688,28 @@ class AsyncPositionManager:
         """
         Check if a position exists for the given contract.
 
+        Convenience method to quickly check if you have an open position in a
+        specific contract without retrieving the full position details.
+
         Args:
-            contract_id: Contract ID to check
-            account_id: Account ID. Uses default account if None.
+            contract_id (str): The contract ID to check (e.g., "MGC", "NQ")
+            account_id (int, optional): The account ID to check within.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            bool: True if position exists and size > 0
+            bool: True if an open position exists (size != 0), False otherwise
+
+        Example:
+            >>> # Check before placing an order
+            >>> if await position_manager.is_position_open("MGC"):
+            ...     print("Already have MGC position")
+            ... else:
+            ...     # Safe to open new position
+            ...     await order_manager.place_market_order("MGC", 0, 1)
+
+        Note:
+            A position with size=0 is considered closed and returns False.
         """
         position = await self.get_position(contract_id, account_id)
         return position is not None and position.size != 0
@@ -507,23 +724,47 @@ class AsyncPositionManager:
         """
         Calculate P&L for a position given current market price.
 
+        Computes unrealized profit/loss for a position based on the difference
+        between entry price and current market price, accounting for position
+        direction (long/short).
+
         Args:
-            position: Position object
-            current_price: Current market price
-            point_value: Optional point value for the contract (dollar value per point)
-                        If not provided, P&L will be in points
+            position (Position): The position object to calculate P&L for
+            current_price (float): Current market price of the contract
+            point_value (float, optional): Dollar value per point movement.
+                For futures, this is the contract multiplier (e.g., 10 for MGC).
+                If None, P&L is returned in points rather than dollars.
+                Defaults to None.
 
         Returns:
-            Dict with P&L calculations
+            dict[str, Any]: Comprehensive P&L calculations containing:
+                - unrealized_pnl (float): Total unrealized P&L (dollars or points)
+                - market_value (float): Current market value of position
+                - pnl_per_contract (float): P&L per contract (dollars or points)
+                - current_price (float): The provided current price
+                - entry_price (float): Average entry price (position.averagePrice)
+                - size (int): Position size in contracts
+                - direction (str): "LONG" or "SHORT"
+                - price_change (float): Favorable price movement amount
 
         Example:
+            >>> # Calculate P&L in points
+            >>> position = await position_manager.get_position("MGC")
             >>> pnl = await position_manager.calculate_position_pnl(position, 2050.0)
-            >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
-            >>> # With point value for accurate dollar P&L
+            >>> print(f"Unrealized P&L: {pnl['unrealized_pnl']:.2f} points")
+            >>> # Calculate P&L in dollars with contract multiplier
             >>> pnl = await position_manager.calculate_position_pnl(
-            ...     position, 2050.0, point_value=2.0
+            ...     position,
+            ...     2050.0,
+            ...     point_value=10.0,  # MGC = $10/point
             ... )
             >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
+            >>> print(f"Per contract: ${pnl['pnl_per_contract']:.2f}")
+
+        Note:
+            - Long positions profit when price increases
+            - Short positions profit when price decreases
+            - Use instrument.contractMultiplier for accurate point_value
         """
         # Calculate P&L based on position direction
         if position.type == 1:  # LONG
@@ -557,17 +798,50 @@ class AsyncPositionManager:
         """
         Calculate portfolio P&L given current market prices.
 
+        Computes aggregate P&L across all positions using provided market prices.
+        Handles missing prices gracefully and provides detailed breakdown by position.
+
         Args:
-            current_prices: Dict mapping contract IDs to current prices
-            account_id: Account ID. Uses default account if None.
+            current_prices (dict[str, float]): Dictionary mapping contract IDs to
+                their current market prices. Example: {"MGC": 2050.0, "NQ": 15500.0}
+            account_id (int, optional): The account ID to calculate P&L for.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with portfolio P&L breakdown
+            dict[str, Any]: Portfolio P&L analysis containing:
+                - total_pnl (float): Sum of all calculated P&Ls
+                - positions_count (int): Total number of positions
+                - positions_with_prices (int): Positions with price data
+                - positions_without_prices (int): Positions missing price data
+                - position_breakdown (list[dict]): Detailed P&L per position:
+                    * contract_id (str): Contract identifier
+                    * size (int): Position size
+                    * entry_price (float): Average entry price
+                    * current_price (float | None): Current market price
+                    * unrealized_pnl (float | None): Position P&L
+                    * market_value (float | None): Current market value
+                    * direction (str): "LONG" or "SHORT"
+                - timestamp (datetime): Calculation timestamp
 
         Example:
-            >>> prices = {"MGC": 2050.0, "NQ": 15500.0}
-            >>> pnl = await position_manager.calculate_portfolio_pnl(prices)
-            >>> print(f"Total P&L: ${pnl['total_pnl']:.2f}")
+            >>> # Get current prices from market data
+            >>> prices = {"MGC": 2050.0, "NQ": 15500.0, "ES": 4400.0}
+            >>> portfolio_pnl = await position_manager.calculate_portfolio_pnl(prices)
+            >>> print(f"Total P&L: ${portfolio_pnl['total_pnl']:.2f}")
+            >>> print(
+            ...     f"Positions analyzed: {portfolio_pnl['positions_with_prices']}/"
+            ...     f"{portfolio_pnl['positions_count']}"
+            ... )
+            >>> # Check individual positions
+            >>> for pos in portfolio_pnl["position_breakdown"]:
+            ...     if pos["unrealized_pnl"] is not None:
+            ...         print(f"{pos['contract_id']}: ${pos['unrealized_pnl']:.2f}")
+
+        Note:
+            - P&L calculations assume point values of 1.0
+            - For accurate dollar P&L, use calculate_position_pnl() with point values
+            - Positions without prices in current_prices dict will have None P&L
         """
         positions = await self.get_all_positions(account_id=account_id)
 
@@ -623,18 +897,45 @@ class AsyncPositionManager:
 
     async def get_portfolio_pnl(self, account_id: int | None = None) -> dict[str, Any]:
         """
-        Calculate comprehensive portfolio P&L metrics.
+        Get portfolio P&L placeholder data (requires market prices for actual P&L).
+
+        Retrieves current positions and provides a structure for P&L analysis.
+        Since ProjectX API doesn't provide P&L data directly, actual P&L calculation
+        requires current market prices via calculate_portfolio_pnl().
 
         Args:
-            account_id: Account ID. Uses default account if None.
+            account_id (int, optional): The account ID to analyze.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with portfolio P&L breakdown
+            dict[str, Any]: Portfolio structure containing:
+                - position_count (int): Number of open positions
+                - positions (list[dict]): Position details with placeholders:
+                    * contract_id (str): Contract identifier
+                    * size (int): Position size
+                    * avg_price (float): Average entry price
+                    * market_value (float): Size x average price estimate
+                    * direction (str): "LONG" or "SHORT"
+                    * note (str): Reminder about P&L calculation
+                - total_pnl (float): 0.0 (placeholder)
+                - total_unrealized_pnl (float): 0.0 (placeholder)
+                - total_realized_pnl (float): 0.0 (placeholder)
+                - net_pnl (float): 0.0 (placeholder)
+                - last_updated (datetime): Timestamp
+                - note (str): Instructions for actual P&L calculation
 
         Example:
-            >>> pnl = await position_manager.get_portfolio_pnl()
-            >>> print(f"Total P&L: ${pnl['total_pnl']:.2f}")
-            >>> print(f"Unrealized: ${pnl['unrealized_pnl']:.2f}")
+            >>> # Get portfolio structure
+            >>> portfolio = await position_manager.get_portfolio_pnl()
+            >>> print(f"Open positions: {portfolio['position_count']}")
+            >>> for pos in portfolio["positions"]:
+            ...     print(f"{pos['contract_id']}: {pos['size']} @ ${pos['avg_price']}")
+            >>> # For actual P&L, use calculate_portfolio_pnl() with prices
+            >>> print(portfolio["note"])
+
+        See Also:
+            calculate_portfolio_pnl(): For actual P&L calculations with market prices
         """
         positions = await self.get_all_positions(account_id=account_id)
 
@@ -666,17 +967,48 @@ class AsyncPositionManager:
 
     async def get_risk_metrics(self, account_id: int | None = None) -> dict[str, Any]:
         """
-        Calculate portfolio risk metrics.
+        Calculate portfolio risk metrics and concentration analysis.
+
+        Analyzes portfolio composition, exposure concentration, and generates risk
+        warnings based on configured thresholds. Provides insights for risk management
+        and position sizing decisions.
 
         Args:
-            account_id: Account ID. Uses default account if None.
+            account_id (int, optional): The account ID to analyze.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with risk analysis
+            dict[str, Any]: Comprehensive risk analysis containing:
+                - portfolio_risk (float): Overall portfolio risk score (0.0-1.0)
+                - largest_position_risk (float): Concentration in largest position
+                - total_exposure (float): Sum of all position values
+                - position_count (int): Number of open positions
+                - diversification_score (float): Portfolio diversification (0.0-1.0)
+                - risk_warnings (list[str]): Generated warnings based on thresholds
+
+        Risk thresholds (configurable via self.risk_settings):
+            - max_portfolio_risk: 2% default
+            - max_position_risk: 1% default
+            - max_correlation: 0.7 default
+            - alert_threshold: 0.5% default
 
         Example:
-            >>> risk = await position_manager.get_risk_metrics()
-            >>> print(f"Portfolio risk: {risk['portfolio_risk']:.2%}")
+            >>> # Analyze portfolio risk
+            >>> risk_metrics = await position_manager.get_risk_metrics()
+            >>> print(f"Portfolio risk: {risk_metrics['portfolio_risk']:.2%}")
+            >>> print(f"Largest position: {risk_metrics['largest_position_risk']:.2%}")
+            >>> print(f"Diversification: {risk_metrics['diversification_score']:.2f}")
+            >>> # Check for warnings
+            >>> if risk_metrics["risk_warnings"]:
+            ...     print("\nRisk Warnings:")
+            ...     for warning in risk_metrics["risk_warnings"]:
+            ...         print(f"  ⚠️  {warning}")
+
+        Note:
+            - P&L-based risk metrics require current market prices
+            - Diversification score: 1.0 = well diversified, 0.0 = concentrated
+            - Empty portfolio returns zero risk with perfect diversification
         """
         positions = await self.get_all_positions(account_id=account_id)
 
@@ -726,7 +1058,25 @@ class AsyncPositionManager:
         portfolio_risk: float,
         largest_position_risk: float,
     ) -> list[str]:
-        """Generate risk warnings based on current portfolio state."""
+        """
+        Generate risk warnings based on current portfolio state.
+
+        Analyzes portfolio metrics against configured risk thresholds and generates
+        actionable warnings for risk management.
+
+        Args:
+            positions (list[Position]): Current open positions
+            portfolio_risk (float): Calculated portfolio risk (0.0-1.0)
+            largest_position_risk (float): Largest position concentration (0.0-1.0)
+
+        Returns:
+            list[str]: List of warning messages, empty if no issues detected
+
+        Warning conditions:
+            - Portfolio risk exceeds max_portfolio_risk setting
+            - Largest position exceeds max_position_risk setting
+            - Single position portfolio (no diversification)
+        """
         warnings = []
 
         if portfolio_risk > self.risk_settings["max_portfolio_risk"]:
@@ -805,17 +1155,30 @@ class AsyncPositionManager:
         """
         Check if position alerts should be triggered and handle alert notifications.
 
-        This method is called automatically when positions are updated to evaluate
-        whether any configured alerts should be triggered.
+        Evaluates position changes against configured alert thresholds and triggers
+        notifications when conditions are met. Called automatically during position
+        updates from both real-time feeds and polling.
 
         Args:
-            contract_id: Contract ID of the position being checked
-            current_position: Current position state
-            old_position: Previous position state (None if new position)
+            contract_id (str): Contract ID of the position being checked
+            current_position (Position): Current position state after update
+            old_position (Position | None): Previous position state before update,
+                None if this is a new position
+
+        Alert types:
+            - max_loss: Triggers when P&L falls below threshold (requires prices)
+            - max_gain: Triggers when P&L exceeds threshold (requires prices)
+            - pnl_threshold: Triggers on absolute P&L change (requires prices)
+            - size_change: Currently implemented - alerts on position size changes
+
+        Side effects:
+            - Sets alert['triggered'] = True when triggered (one-time trigger)
+            - Logs warning message for triggered alerts
+            - Calls position_alert callbacks with alert details
 
         Note:
-            Currently checks for position size changes. P&L-based alerts require
-            current market prices to be provided separately.
+            P&L-based alerts require current market prices to be provided
+            separately. Currently only size change detection is implemented.
         """
         alert = self.position_alerts.get(contract_id)
         if not alert or alert["triggered"]:
@@ -848,7 +1211,20 @@ class AsyncPositionManager:
             )
 
     async def _monitoring_loop(self, refresh_interval: int) -> None:
-        """Main monitoring loop for polling mode."""
+        """
+        Main monitoring loop for polling mode position updates.
+
+        Continuously refreshes position data at specified intervals when real-time
+        mode is not available. Handles errors gracefully to maintain monitoring.
+
+        Args:
+            refresh_interval (int): Seconds between position refreshes
+
+        Note:
+            - Runs until self._monitoring_active becomes False
+            - Errors are logged but don't stop the monitoring loop
+            - Only used in polling mode (when real-time client not available)
+        """
         while self._monitoring_active:
             try:
                 await self.refresh_positions()
@@ -923,21 +1299,59 @@ class AsyncPositionManager:
         """
         Calculate optimal position size based on risk parameters.
 
+        Implements fixed-risk position sizing by calculating the maximum number
+        of contracts that can be traded while limiting loss to the specified
+        risk amount if the stop loss is hit.
+
         Args:
-            contract_id: Contract to trade
-            risk_amount: Maximum amount to risk (in currency)
-            entry_price: Planned entry price
-            stop_price: Stop loss price
-            account_balance: Account balance (retrieved if None)
+            contract_id (str): Contract to size position for (e.g., "MGC")
+            risk_amount (float): Maximum dollar amount to risk on the trade
+            entry_price (float): Planned entry price for the position
+            stop_price (float): Stop loss price for risk management
+            account_balance (float, optional): Account balance for risk percentage
+                calculation. If None, retrieved from account info or defaults
+                to $10,000. Defaults to None.
 
         Returns:
-            Dict with position sizing recommendations
+            dict[str, Any]: Position sizing analysis containing:
+                - suggested_size (int): Recommended number of contracts
+                - risk_per_contract (float): Dollar risk per contract
+                - total_risk (float): Actual total risk with suggested size
+                - risk_percentage (float): Risk as percentage of account
+                - entry_price (float): Provided entry price
+                - stop_price (float): Provided stop price
+                - price_diff (float): Absolute price difference (risk in points)
+                - contract_multiplier (float): Contract point value
+                - account_balance (float): Account balance used
+                - risk_warnings (list[str]): Risk management warnings
+                - error (str): Error message if calculation fails
 
         Example:
+            >>> # Size position for $500 risk on Gold
             >>> sizing = await position_manager.calculate_position_size(
-            ...     "MGC", risk_amount=100.0, entry_price=2045.0, stop_price=2040.0
+            ...     "MGC", risk_amount=500.0, entry_price=2050.0, stop_price=2040.0
             ... )
-            >>> print(f"Suggested size: {sizing['suggested_size']} contracts")
+            >>> print(f"Trade {sizing['suggested_size']} contracts")
+            >>> print(
+            ...     f"Risk: ${sizing['total_risk']:.2f} "
+            ...     f"({sizing['risk_percentage']:.1f}% of account)"
+            ... )
+            >>> # With specific account balance
+            >>> sizing = await position_manager.calculate_position_size(
+            ...     "NQ",
+            ...     risk_amount=1000.0,
+            ...     entry_price=15500.0,
+            ...     stop_price=15450.0,
+            ...     account_balance=50000.0,
+            ... )
+
+        Formula:
+            position_size = risk_amount / (price_diff x contract_multiplier)
+
+        Warnings generated when:
+            - Risk percentage exceeds max_position_risk setting
+            - Calculated size is 0 (risk amount too small)
+            - Size is unusually large (>10 contracts)
         """
         try:
             # Get account balance if not provided
@@ -989,7 +1403,24 @@ class AsyncPositionManager:
             return {"error": str(e)}
 
     def _generate_sizing_warnings(self, risk_percentage: float, size: int) -> list[str]:
-        """Generate warnings for position sizing."""
+        """
+        Generate warnings for position sizing calculations.
+
+        Evaluates calculated position size and risk percentage against thresholds
+        to provide risk management guidance.
+
+        Args:
+            risk_percentage (float): Position risk as percentage of account (0-100)
+            size (int): Calculated position size in contracts
+
+        Returns:
+            list[str]: Risk warnings, empty if sizing is appropriate
+
+        Warning thresholds:
+            - Risk percentage > max_position_risk setting
+            - Size = 0 (risk amount insufficient)
+            - Size > 10 contracts (arbitrary large position threshold)
+        """
         warnings = []
 
         if risk_percentage > self.risk_settings["max_position_risk"] * 100:
@@ -1019,17 +1450,46 @@ class AsyncPositionManager:
         """
         Close an entire position using the direct position close API.
 
+        Sends a market order to close the full position immediately at the current
+        market price. This is the fastest way to exit a position completely.
+
         Args:
-            contract_id: Contract ID of the position to close
-            account_id: Account ID. Uses default account if None.
+            contract_id (str): Contract ID of the position to close (e.g., "MGC")
+            account_id (int, optional): Account ID holding the position.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with closure response details
+            dict[str, Any]: API response containing:
+                - success (bool): True if closure was successful
+                - orderId (str): Order ID of the closing order (if successful)
+                - errorMessage (str): Error description (if failed)
+                - error (str): Additional error details
+
+        Raises:
+            ProjectXError: If no account information is available
+
+        Side effects:
+            - Removes position from tracked_positions on success
+            - Increments positions_closed counter
+            - May trigger order synchronization if enabled
 
         Example:
+            >>> # Close entire Gold position
             >>> result = await position_manager.close_position_direct("MGC")
             >>> if result["success"]:
-            ...     print(f"Position closed: {result.get('orderId', 'N/A')}")
+            ...     print(f"Position closed with order: {result.get('orderId')}")
+            ... else:
+            ...     print(f"Failed: {result.get('errorMessage')}")
+            >>> # Close position in specific account
+            >>> result = await position_manager.close_position_direct(
+            ...     "NQ", account_id=12345
+            ... )
+
+        Note:
+            - Uses market order for immediate execution
+            - No price control - executes at current market price
+            - For partial closes, use partially_close_position()
         """
         await self.project_x._ensure_authenticated()
 
@@ -1086,19 +1546,48 @@ class AsyncPositionManager:
         """
         Partially close a position by reducing its size.
 
+        Sends a market order to close a specified number of contracts from an
+        existing position, allowing for gradual position reduction or profit taking.
+
         Args:
-            contract_id: Contract ID of the position to partially close
-            close_size: Number of contracts to close (must be less than position size)
-            account_id: Account ID. Uses default account if None.
+            contract_id (str): Contract ID of the position to partially close
+            close_size (int): Number of contracts to close. Must be positive and
+                less than the current position size.
+            account_id (int, optional): Account ID holding the position.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with partial closure response details
+            dict[str, Any]: API response containing:
+                - success (bool): True if partial closure was successful
+                - orderId (str): Order ID of the closing order (if successful)
+                - errorMessage (str): Error description (if failed)
+                - error (str): Additional error details
+
+        Raises:
+            ProjectXError: If no account information available or close_size <= 0
+
+        Side effects:
+            - Triggers position refresh on success to update sizes
+            - Increments positions_partially_closed counter
+            - May trigger order synchronization if enabled
 
         Example:
-            >>> # Close 5 contracts from a 10 contract position
+            >>> # Take profit on half of a 10 contract position
             >>> result = await position_manager.partially_close_position("MGC", 5)
             >>> if result["success"]:
-            ...     print(f"Partially closed: {result.get('orderId', 'N/A')}")
+            ...     print(f"Partially closed with order: {result.get('orderId')}")
+            >>> # Scale out of position in steps
+            >>> for size in [3, 2, 1]:
+            ...     result = await position_manager.partially_close_position("NQ", size)
+            ...     if not result["success"]:
+            ...         break
+            ...     await asyncio.sleep(60)  # Wait between scales
+
+        Note:
+            - Uses market order for immediate execution
+            - Remaining position continues with same average price
+            - Close size must not exceed current position size
         """
         await self.project_x._ensure_authenticated()
 
@@ -1159,18 +1648,43 @@ class AsyncPositionManager:
         """
         Close all positions, optionally filtered by contract.
 
+        Iterates through open positions and closes each one individually.
+        Useful for emergency exits, end-of-day flattening, or closing all
+        positions in a specific contract.
+
         Args:
-            contract_id: Optional contract ID to filter positions
-            account_id: Account ID. Uses default account if None.
+            contract_id (str, optional): If provided, only closes positions
+                in this specific contract. If None, closes all positions.
+                Defaults to None.
+            account_id (int, optional): Account ID to close positions for.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with bulk closure results
+            dict[str, Any]: Bulk operation results containing:
+                - total_positions (int): Number of positions attempted
+                - closed (int): Number successfully closed
+                - failed (int): Number that failed to close
+                - errors (list[str]): Error messages for failed closures
 
         Example:
-            >>> # Close all positions
+            >>> # Emergency close all positions
             >>> result = await position_manager.close_all_positions()
-            >>> # Close all MGC positions
+            >>> print(
+            ...     f"Closed {result['closed']}/{result['total_positions']} positions"
+            ... )
+            >>> if result["errors"]:
+            ...     for error in result["errors"]:
+            ...         print(f"Error: {error}")
+            >>> # Close all Gold positions only
             >>> result = await position_manager.close_all_positions(contract_id="MGC")
+            >>> # Close positions in specific account
+            >>> result = await position_manager.close_all_positions(account_id=12345)
+
+        Warning:
+            - Uses market orders - no price control
+            - Processes positions sequentially, not in parallel
+            - Continues attempting remaining positions even if some fail
         """
         positions = await self.get_all_positions(account_id=account_id)
 
@@ -1216,21 +1730,45 @@ class AsyncPositionManager:
         """
         Close position by contract ID (full or partial).
 
+        Convenience method that automatically determines whether to use full or
+        partial position closure based on the requested size.
+
         Args:
-            contract_id: Contract ID of position to close
-            close_size: Optional size to close (full position if None)
-            account_id: Account ID. Uses default account if None.
+            contract_id (str): Contract ID of position to close (e.g., "MGC")
+            close_size (int, optional): Number of contracts to close.
+                If None or >= position size, closes entire position.
+                If less than position size, closes partially.
+                Defaults to None (full close).
+            account_id (int, optional): Account ID holding the position.
+                If None, uses the default account from authentication.
+                Defaults to None.
 
         Returns:
-            Dict with closure response details
+            dict[str, Any]: Closure response containing:
+                - success (bool): True if closure was successful
+                - orderId (str): Order ID (if successful)
+                - errorMessage (str): Error description (if failed)
+                - error (str): Error details or "No open position found"
 
         Example:
-            >>> # Close entire MGC position
+            >>> # Close entire position (auto-detect size)
             >>> result = await position_manager.close_position_by_contract("MGC")
-            >>> # Close 3 contracts from MGC position
+            >>> # Close specific number of contracts
             >>> result = await position_manager.close_position_by_contract(
             ...     "MGC", close_size=3
             ... )
+            >>> # Smart scaling - close half of any position
+            >>> position = await position_manager.get_position("NQ")
+            >>> if position:
+            ...     half_size = position.size // 2
+            ...     result = await position_manager.close_position_by_contract(
+            ...         "NQ", close_size=half_size
+            ...     )
+
+        Note:
+            - Returns error if no position exists for the contract
+            - Automatically chooses between full and partial close
+            - Uses market orders for immediate execution
         """
         # Find the position
         position = await self.get_position(contract_id, account_id)
@@ -1262,12 +1800,39 @@ class AsyncPositionManager:
         performance metrics, and system health for debugging and monitoring.
 
         Returns:
-            Dict with complete statistics
+            dict[str, Any]: Complete system statistics containing:
+                - statistics (dict): Core metrics:
+                    * positions_tracked (int): Current position count
+                    * total_pnl (float): Aggregate P&L
+                    * realized_pnl (float): Closed position P&L
+                    * unrealized_pnl (float): Open position P&L
+                    * positions_closed (int): Total positions closed
+                    * positions_partially_closed (int): Partial closures
+                    * last_update_time (datetime): Last data refresh
+                    * monitoring_started (datetime): Monitoring start time
+                - realtime_enabled (bool): Using WebSocket updates
+                - order_sync_enabled (bool): Order synchronization active
+                - monitoring_active (bool): Position monitoring running
+                - tracked_positions (int): Positions in local cache
+                - active_alerts (int): Untriggered alert count
+                - callbacks_registered (dict): Callbacks by event type
+                - risk_settings (dict): Current risk thresholds
+                - health_status (str): "active" or "inactive"
 
         Example:
             >>> stats = position_manager.get_position_statistics()
+            >>> print(f"System Health: {stats['health_status']}")
             >>> print(f"Tracking {stats['tracked_positions']} positions")
-            >>> print(f"Real-time enabled: {stats['realtime_enabled']}")
+            >>> print(f"Real-time: {stats['realtime_enabled']}")
+            >>> print(f"Monitoring: {stats['monitoring_active']}")
+            >>> print(f"Positions closed: {stats['statistics']['positions_closed']}")
+            >>> # Check callback registrations
+            >>> for event, count in stats["callbacks_registered"].items():
+            ...     print(f"{event}: {count} callbacks")
+
+        Note:
+            Statistics are cumulative since manager initialization.
+            Use export_portfolio_report() for more detailed analysis.
         """
         return {
             "statistics": self.stats.copy(),
@@ -1298,16 +1863,36 @@ class AsyncPositionManager:
         timestamps, and position snapshots for analysis and debugging.
 
         Args:
-            contract_id: Contract ID to get history for
-            limit: Maximum number of history entries to return (default: 100)
+            contract_id (str): Contract ID to retrieve history for (e.g., "MGC")
+            limit (int, optional): Maximum number of history entries to return.
+                Returns most recent entries if history exceeds limit.
+                Defaults to 100.
 
         Returns:
-            List[dict]: Historical position data entries
+            list[dict]: Historical position entries, each containing:
+                - timestamp (datetime): When the change occurred
+                - position (dict): Complete position snapshot at that time
+                - size_change (int): Change in position size from previous
 
         Example:
+            >>> # Get recent history for Gold position
             >>> history = await position_manager.get_position_history("MGC", limit=50)
+            >>> print(f"Found {len(history)} historical entries")
+            >>> # Analyze recent changes
             >>> for entry in history[-5:]:  # Last 5 changes
-            ...     print(f"{entry['timestamp']}: Size change {entry['size_change']}")
+            ...     ts = entry["timestamp"].strftime("%H:%M:%S")
+            ...     size = entry["position"]["size"]
+            ...     change = entry["size_change"]
+            ...     print(f"{ts}: Size {size} (change: {change:+d})")
+            >>> # Find when position was opened
+            >>> if history:
+            ...     first_entry = history[0]
+            ...     print(f"Position opened at {first_entry['timestamp']}")
+
+        Note:
+            - History is maintained in memory during manager lifetime
+            - Cleared when cleanup() is called
+            - Empty list returned if no history exists
         """
         async with self.position_lock:
             history = self.position_history.get(contract_id, [])
@@ -1318,19 +1903,47 @@ class AsyncPositionManager:
         Generate a comprehensive portfolio report with complete analysis.
 
         Creates a detailed report suitable for saving to file, sending via email,
-        or displaying in dashboards. Includes positions, P&L, risk metrics,
-        and system statistics.
+        or displaying in dashboards. Combines all available analytics into a
+        single comprehensive document.
 
         Returns:
-            Dict with complete portfolio analysis
+            dict[str, Any]: Complete portfolio report containing:
+                - report_timestamp (datetime): Report generation time
+                - portfolio_summary (dict):
+                    * total_positions (int): Open position count
+                    * total_pnl (float): Aggregate P&L (requires prices)
+                    * total_exposure (float): Sum of position values
+                    * portfolio_risk (float): Risk score
+                - positions (list[dict]): Detailed position list
+                - risk_analysis (dict): Complete risk metrics
+                - statistics (dict): System statistics and health
+                - alerts (dict):
+                    * active_alerts (int): Untriggered alert count
+                    * triggered_alerts (int): Triggered alert count
 
         Example:
+            >>> # Generate comprehensive report
             >>> report = await position_manager.export_portfolio_report()
             >>> print(f"Portfolio Report - {report['report_timestamp']}")
+            >>> print(f"Positions: {report['portfolio_summary']['total_positions']}")
+            >>> print(
+            ...     f"Exposure: ${report['portfolio_summary']['total_exposure']:,.2f}"
+            ... )
             >>> # Save report to file
             >>> import json
             >>> with open("portfolio_report.json", "w") as f:
             ...     json.dump(report, f, indent=2, default=str)
+            >>> # Send key metrics
+            >>> summary = report["portfolio_summary"]
+            >>> alerts = report["alerts"]
+            >>> print(f"Active Alerts: {alerts['active_alerts']}")
+
+        Use cases:
+            - End-of-day reporting
+            - Risk management dashboards
+            - Performance tracking
+            - Audit trails
+            - Email summaries
         """
         positions = await self.get_all_positions()
         pnl_data = await self.get_portfolio_pnl()
@@ -1367,14 +1980,41 @@ class AsyncPositionManager:
         and system validation.
 
         Returns:
-            Dict with comprehensive validation status
+            dict[str, Any]: Validation and compliance status containing:
+                - realtime_enabled (bool): WebSocket integration active
+                - tracked_positions_count (int): Positions in cache
+                - position_callbacks_registered (int): Update callbacks
+                - payload_validation (dict):
+                    * enabled (bool): Validation active
+                    * required_fields (list[str]): Expected fields
+                    * position_type_enum (dict): Type mappings
+                    * closure_detection (str): How closures detected
+                - projectx_compliance (dict):
+                    * gateway_user_position_format: Compliance status
+                    * position_type_enum: Enum validation status
+                    * closure_logic: Closure detection status
+                    * payload_structure: Payload format status
+                - statistics (dict): Current statistics
 
         Example:
+            >>> # Check real-time integration health
             >>> status = position_manager.get_realtime_validation_status()
             >>> print(f"Real-time enabled: {status['realtime_enabled']}")
+            >>> print(f"Tracking {status['tracked_positions_count']} positions")
+            >>> # Verify API compliance
             >>> compliance = status["projectx_compliance"]
-            >>> for check, result in compliance.items():
-            ...     print(f"{check}: {result}")
+            >>> all_compliant = all("✅" in v for v in compliance.values())
+            >>> print(f"Fully compliant: {all_compliant}")
+            >>> # Check payload validation
+            >>> validation = status["payload_validation"]
+            >>> print(f"Closure detection: {validation['closure_detection']}")
+            >>> print(f"Required fields: {len(validation['required_fields'])}")
+
+        Use cases:
+            - Integration testing
+            - Debugging connection issues
+            - Compliance verification
+            - System health checks
         """
         return {
             "realtime_enabled": self._realtime_enabled,
@@ -1409,13 +2049,38 @@ class AsyncPositionManager:
         """
         Clean up resources and connections when shutting down.
 
-        Properly shuts down monitoring, clears tracked data, and releases
-        resources to prevent memory leaks when the AsyncPositionManager is no
-        longer needed.
+        Performs complete cleanup of the AsyncPositionManager, including stopping
+        monitoring tasks, clearing tracked data, and releasing all resources.
+        Should be called when the manager is no longer needed to prevent memory
+        leaks and ensure graceful shutdown.
+
+        Cleanup operations:
+            1. Stops position monitoring (cancels async tasks)
+            2. Clears all tracked positions
+            3. Clears position history
+            4. Removes all callbacks
+            5. Clears all alerts
+            6. Disconnects order manager integration
 
         Example:
-            >>> # Proper shutdown
+            >>> # Basic cleanup
             >>> await position_manager.cleanup()
+            >>> # Cleanup in finally block
+            >>> position_manager = AsyncPositionManager(client)
+            >>> try:
+            ...     await position_manager.initialize(realtime_client)
+            ...     # ... use position manager ...
+            ... finally:
+            ...     await position_manager.cleanup()
+            >>> # Context manager pattern (if implemented)
+            >>> async with AsyncPositionManager(client) as pm:
+            ...     await pm.initialize(realtime_client)
+            ...     # ... automatic cleanup on exit ...
+
+        Note:
+            - Safe to call multiple times
+            - Logs successful cleanup
+            - Does not close underlying client connections
         """
         await self.stop_monitoring()
 

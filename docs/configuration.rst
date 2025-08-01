@@ -19,9 +19,10 @@ The package comes with sensible defaults:
 
 .. code-block:: python
 
-   from project_x_py import load_default_config
+   from project_x_py import ProjectXConfig
 
-   config = load_default_config()
+   # View default configuration
+   config = ProjectXConfig()
    print(config)
 
 Configuration Options
@@ -38,9 +39,9 @@ Core Settings
      - Type
      - Default
      - Description
-   * - ``base_url``
+   * - ``api_url``
      - str
-     - ``"https://api.topstepx.com"``
+     - ``"https://api.topstepx.com/api"``
      - API base URL
    * - ``timeout_seconds``
      - int
@@ -66,14 +67,10 @@ WebSocket Settings
      - Type
      - Default
      - Description
-   * - ``user_hub_url``
+   * - ``websocket_url``
      - str
-     - ``"https://rtc.topstepx.com/hubs/user"``
-     - User data WebSocket URL
-   * - ``market_hub_url``
-     - str
-     - ``"https://rtc.topstepx.com/hubs/market"``
-     - Market data WebSocket URL
+     - ``"wss://api.topstepx.com"``
+     - WebSocket base URL
    * - ``ping_interval``
      - int
      - ``30``
@@ -110,7 +107,7 @@ Set configuration via environment variables:
    export PROJECT_X_USERNAME='your_username'
    
    # Optional configuration
-   export PROJECT_X_BASE_URL='https://api.topstepx.com'
+   export PROJECTX_API_URL='https://api.topstepx.com/api'
    export PROJECT_X_TIMEOUT='60'
    export PROJECT_X_TIMEZONE='America/New_York'
 
@@ -121,47 +118,56 @@ Create a custom configuration:
 
 .. code-block:: python
 
+   import asyncio
    from project_x_py import ProjectXConfig, ProjectX
 
-   # Custom configuration
-   config = ProjectXConfig(
-       base_url="https://api.topstepx.com",
-       timeout_seconds=60,
-       retry_attempts=5,
-       requests_per_minute=200,
-       timezone="America/New_York"
-   )
+   async def custom_config():
+       # Custom configuration
+       config = ProjectXConfig(
+           api_url="https://api.topstepx.com/api",
+           websocket_url="wss://api.topstepx.com",
+           timeout_seconds=60,
+           retry_attempts=5,
+           timezone="America/New_York"
+       )
 
-   # Use with client
-   client = ProjectX(
-       username='your_username',
-       api_key='your_api_key',
-       config=config
-   )
+       # Use with client
+       async with ProjectX(
+           username='your_username',
+           api_key='your_api_key',
+           config=config
+       ) as client:
+           await client.authenticate()
+           # Use client for operations
+
+   asyncio.run(custom_config())
 
 Configuration File
 ~~~~~~~~~~~~~~~~~~
 
-Create a configuration file:
+Create a JSON configuration file at ``~/.config/projectx/config.json``:
+
+.. code-block:: json
+
+   {
+       "api_key": "your_api_key",
+       "username": "your_username",
+       "api_url": "https://api.topstepx.com/api",
+       "websocket_url": "wss://api.topstepx.com",
+       "timezone": "US/Central"
+   }
+
+Then use it:
 
 .. code-block:: python
 
-   from project_x_py import create_config_template
+   async def use_config_file():
+       # Automatically loads from config file
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           # Use client
 
-   # Create a template configuration file
-   create_config_template('config.json')
-
-Then load it:
-
-.. code-block:: python
-
-   from project_x_py import ConfigManager
-
-   # Load configuration from file
-   config_manager = ConfigManager('config.json')
-   config = config_manager.load_config()
-
-   client = ProjectX.from_env(config=config)
+   asyncio.run(use_config_file())
 
 Advanced Configuration
 ----------------------
@@ -174,9 +180,8 @@ For testing or custom deployments:
 .. code-block:: python
 
    config = ProjectXConfig(
-       base_url="https://sandbox-api.topstepx.com",
-       user_hub_url="https://sandbox-rtc.topstepx.com/hubs/user",
-       market_hub_url="https://sandbox-rtc.topstepx.com/hubs/market"
+       api_url="https://sandbox-api.topstepx.com/api",
+       websocket_url="wss://sandbox-api.topstepx.com"
    )
 
 Rate Limiting
@@ -194,15 +199,20 @@ Adjust rate limiting for your usage pattern:
 Multiple Accounts
 ~~~~~~~~~~~~~~~~~
 
-Configure for specific accounts:
+Handle multiple accounts:
 
 .. code-block:: python
 
-   # Production account
-   prod_client = ProjectX.from_env(account_name="Production Trading")
+   async def multi_account():
+       # List all accounts after authentication
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           accounts = await client.list_accounts()
+           
+           for account in accounts:
+               print(f"Account: {account['name']} (ID: {account['id']})")
 
-   # Testing account  
-   test_client = ProjectX.from_env(account_name="Demo Account")
+   asyncio.run(multi_account())
 
 Environment-Specific Configs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -215,13 +225,15 @@ Environment-Specific Configs
    # Load different configs based on environment
    if os.getenv('ENVIRONMENT') == 'production':
        config = ProjectXConfig(
-           base_url="https://api.topstepx.com",
+           api_url="https://api.topstepx.com/api",
+           websocket_url="wss://api.topstepx.com",
            timeout_seconds=30,
            retry_attempts=3
        )
    else:
        config = ProjectXConfig(
-           base_url="https://sandbox-api.topstepx.com", 
+           api_url="https://sandbox-api.topstepx.com/api",
+           websocket_url="wss://sandbox-api.topstepx.com", 
            timeout_seconds=60,
            retry_attempts=5
        )
@@ -257,20 +269,23 @@ Validate your configuration:
 
    from project_x_py import check_setup
 
-   # Check overall setup
-   status = check_setup()
-   if status['status'] != 'Ready to use':
-       print("Configuration issues found:")
-       for issue in status['issues']:
-           print(f"  - {issue}")
+   async def validate_config():
+       # Check overall setup
+       status = check_setup()
+       if status['status'] != 'Ready to use':
+           print("Configuration issues found:")
+           for issue in status['issues']:
+               print(f"  - {issue}")
 
-   # Test client connection
-   try:
-       client = ProjectX.from_env()
-       account = client.get_account_info()
-       print(f"✅ Configuration valid: {account.name}")
-   except Exception as e:
-       print(f"❌ Configuration error: {e}")
+       # Test client connection
+       try:
+           async with ProjectX.from_env() as client:
+               await client.authenticate()
+               print(f"✅ Configuration valid: {client.account_info.name}")
+       except Exception as e:
+           print(f"❌ Configuration error: {e}")
+
+   asyncio.run(validate_config())
 
 Best Practices
 --------------
@@ -310,8 +325,7 @@ High-Frequency Trading
    config = ProjectXConfig(
        timeout_seconds=10,      # Fast timeouts
        retry_attempts=1,        # Minimal retries
-       requests_per_minute=500, # High rate limit
-       ping_interval=15         # Frequent pings
+       timezone="US/Central"   # Exchange timezone
    )
 
 Batch Processing
@@ -322,7 +336,7 @@ Batch Processing
    config = ProjectXConfig(
        timeout_seconds=300,     # Long timeouts
        retry_attempts=10,       # More retries
-       requests_per_minute=30   # Lower rate limit
+       timezone="UTC"          # UTC for consistency
    )
 
 Development/Testing
@@ -331,7 +345,8 @@ Development/Testing
 .. code-block:: python
 
    config = ProjectXConfig(
-       base_url="https://sandbox-api.topstepx.com",
+       api_url="https://sandbox-api.topstepx.com/api",
+       websocket_url="wss://sandbox-api.topstepx.com",
        timeout_seconds=60,
        retry_attempts=5,
        timezone="UTC"           # Consistent timezone for testing
@@ -374,11 +389,7 @@ Increase the timeout or check your network:
 
    ProjectXRateLimitError: Rate limit exceeded
 
-Reduce your request rate:
-
-.. code-block:: python
-
-   config = ProjectXConfig(requests_per_minute=60)
+The SDK handles rate limiting automatically with exponential backoff and retry logic.
 
 Getting Help
 ~~~~~~~~~~~~

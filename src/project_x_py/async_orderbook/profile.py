@@ -1,8 +1,26 @@
 """
 Volume profile and support/resistance analysis for the async orderbook.
 
-This module provides volume profile analysis, support/resistance detection,
-and spread analytics for market structure analysis.
+This module implements sophisticated volume profile analysis, support/resistance level
+detection, and spread analytics for market structure analysis. It focuses on identifying
+key price levels and zones where significant trading activity has occurred or where
+the market may find support or resistance in the future.
+
+Key capabilities:
+- Volume profile analysis: Creates histogram-based analysis of volume distribution across
+  price levels, identifying high-volume nodes and areas of interest
+- Point of Control (POC) identification: Locates the price level with highest traded volume
+- Value Area calculation: Determines the price range containing 70% of volume around the POC
+- Support and resistance level detection: Identifies price levels that have acted as
+  barriers to price movement based on historical price action
+- Spread pattern analysis: Studies bid-ask spread behavior to identify market regime changes
+  and liquidity conditions
+- Market structure analysis: Integrates volume and price information to understand underlying
+  market structure and participant behavior
+
+These analyses are particularly valuable for trading strategy development, trade planning,
+and execution timing, as they provide insights into where market participants have been
+active and where price may react in the future.
 """
 
 import logging
@@ -15,7 +33,32 @@ from .base import AsyncOrderBookBase
 
 
 class VolumeProfile:
-    """Provides volume profile and price level analysis."""
+    """
+    Provides volume profile and price level analysis.
+
+    This class implements advanced market structure analysis methods focusing on volume
+    distribution and key price level identification. It is designed as a specialized
+    component of the AsyncOrderBook that reveals deeper insights into market structure
+    and participant behavior patterns.
+
+    Key functionalities:
+    1. Volume profile generation - Creates histogram-style analysis of volume distribution
+       across price levels, identifying high-volume nodes and areas of interest
+    2. Support/resistance detection - Identifies price levels that have shown significant
+       reaction in the past based on price history and order flow
+    3. Spread analysis - Studies bid-ask spread patterns over time to identify market
+       regime changes and liquidity conditions
+
+    These analyses are particularly useful for:
+    - Identifying key price levels for trade entry and exit
+    - Understanding where significant market participant activity has occurred
+    - Recognizing market structure patterns and regime changes
+    - Planning trade executions around areas of expected support/resistance
+
+    The class implements thread-safe methods that operate on the historical data
+    accumulated by the orderbook, with configurable time window parameters to
+    focus analysis on the most relevant recent market activity.
+    """
 
     def __init__(self, orderbook: AsyncOrderBookBase):
         self.orderbook = orderbook

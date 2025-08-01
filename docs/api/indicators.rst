@@ -21,21 +21,29 @@ Quick Start
 
 .. code-block:: python
 
+   import asyncio
    from project_x_py.indicators import RSI, SMA, MACD, BBANDS
    from project_x_py import ProjectX
    
-   # Get market data
-   client = ProjectX.from_env()
-   data = client.get_data('MGC', days=30, interval=60)
+   async def analyze_market():
+       # Get market data
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           data = await client.get_bars('MGC', days=30, interval=60)
+       
+       # Class-based interface
+       rsi = RSI()
+       data_with_rsi = rsi.calculate(data, period=14)
+       
+       # TA-Lib style functions (direct usage)
+       data = RSI(data, period=14)        # Add RSI
+       data = SMA(data, period=20)        # Add 20-period SMA
+       data = BBANDS(data, period=20)     # Add Bollinger Bands
+       
+       return data
    
-   # Class-based interface
-   rsi = RSI()
-   data_with_rsi = rsi.calculate(data, period=14)
-   
-   # TA-Lib style functions (direct usage)
-   data = RSI(data, period=14)        # Add RSI
-   data = SMA(data, period=20)        # Add 20-period SMA
-   data = BBANDS(data, period=20)     # Add Bollinger Bands
+   # Run the analysis
+   data = asyncio.run(analyze_market())
 
 Base Classes
 ------------
@@ -249,21 +257,28 @@ Basic Usage
 
 .. code-block:: python
 
+   import asyncio
    from project_x_py.indicators import RSI, SMA, MACD
+   from project_x_py import ProjectX
    
-   # Load your data (Polars DataFrame with OHLCV columns)
-   data = client.get_data('MGC', days=30, interval=60)
+   async def basic_analysis():
+       # Load your data (Polars DataFrame with OHLCV columns)
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           data = await client.get_bars('MGC', days=30, interval=60)
+       
+       # Add indicators using TA-Lib style functions
+       data = RSI(data, period=14)
+       data = SMA(data, period=20)
+       data = SMA(data, period=50) 
+       data = MACD(data, fast_period=12, slow_period=26, signal_period=9)
+       
+       # Check latest values
+       latest = data.tail(1)
+       print(f"RSI: {latest['rsi_14'].item():.2f}")
+       print(f"SMA(20): ${latest['sma_20'].item():.2f}")
    
-   # Add indicators using TA-Lib style functions
-   data = RSI(data, period=14)
-   data = SMA(data, period=20)
-   data = SMA(data, period=50) 
-   data = MACD(data, fast_period=12, slow_period=26, signal_period=9)
-   
-   # Check latest values
-   latest = data.tail(1)
-   print(f"RSI: {latest['rsi_14'].item():.2f}")
-   print(f"SMA(20): ${latest['sma_20'].item():.2f}")
+   asyncio.run(basic_analysis())
 
 Class-Based Interface
 ~~~~~~~~~~~~~~~~~~~~~
@@ -287,31 +302,44 @@ Multi-Indicator Strategy
 
 .. code-block:: python
 
+   import asyncio
    import polars as pl
    from project_x_py.indicators import *
+   from project_x_py import ProjectX
    
-   # Comprehensive technical analysis
-   analysis = (
-       data
-       # Trend indicators
-       .pipe(SMA, period=20)
-       .pipe(SMA, period=50)
-       .pipe(EMA, period=21)
-       .pipe(BBANDS, period=20, std_dev=2.0)
+   async def multi_indicator_analysis():
+       # Get data
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           data = await client.get_bars('MGC', days=60, interval=60)
        
-       # Momentum indicators  
-       .pipe(RSI, period=14)
-       .pipe(MACD, fast_period=12, slow_period=26, signal_period=9)
-       .pipe(STOCH, k_period=14, d_period=3)
+       # Comprehensive technical analysis
+       analysis = (
+           data
+           # Trend indicators
+           .pipe(SMA, period=20)
+           .pipe(SMA, period=50)
+           .pipe(EMA, period=21)
+           .pipe(BBANDS, period=20, std_dev=2.0)
+           
+           # Momentum indicators  
+           .pipe(RSI, period=14)
+           .pipe(MACD, fast_period=12, slow_period=26, signal_period=9)
+           .pipe(STOCH, k_period=14, d_period=3)
+           
+           # Volatility indicators
+           .pipe(ATR, period=14)
+           .pipe(ADX, period=14)
+           
+           # Volume indicators
+           .pipe(OBV)
+           .pipe(VWAP, period=20)
+       )
        
-       # Volatility indicators
-       .pipe(ATR, period=14)
-       .pipe(ADX, period=14)
-       
-       # Volume indicators
-       .pipe(OBV)
-       .pipe(VWAP, period=20)
-   )
+       return analysis
+   
+   # Run the strategy
+   result = asyncio.run(multi_indicator_analysis())
 
 Indicator Discovery
 ~~~~~~~~~~~~~~~~~~~
@@ -359,21 +387,30 @@ Performance Tips
 2. **Chain operations**: Use ``.pipe()`` for efficient chaining
 3. **Reuse instances**: Create indicator instances once and reuse them
 4. **Batch calculations**: Calculate multiple indicators in one pass when possible
+5. **Async data fetching**: Fetch data once and apply all indicators
 
 .. code-block:: python
 
-   # Efficient: Chain multiple indicators
-   data = (
-       data
-       .pipe(RSI, period=14)
-       .pipe(SMA, period=20)
-       .pipe(MACD)
-   )
-   
-   # Less efficient: Separate calculations
-   data = RSI(data, period=14)
-   data = SMA(data, period=20) 
-   data = MACD(data)
+   async def efficient_analysis():
+       # Fetch data once
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
+           data = await client.get_bars('MGC', days=30)
+       
+       # Efficient: Chain multiple indicators
+       data = (
+           data
+           .pipe(RSI, period=14)
+           .pipe(SMA, period=20)
+           .pipe(MACD)
+       )
+       
+       # Less efficient: Separate calculations
+       # data = RSI(data, period=14)
+       # data = SMA(data, period=20) 
+       # data = MACD(data)
+       
+       return data
 
 TA-Lib Compatibility
 --------------------

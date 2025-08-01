@@ -1,8 +1,22 @@
 """
 Market analytics for the async orderbook.
 
-This module provides advanced market analytics including imbalance detection,
-liquidity analysis, trade flow metrics, and cumulative delta calculations.
+This module provides advanced market analytics for the async orderbook implementation,
+focusing on quantitative analysis of market structure, liquidity, and order flow.
+It extracts actionable insights from the raw orderbook data through a variety of
+analytical methods.
+
+Key capabilities:
+- Market imbalance analysis: Detects and quantifies buy/sell pressure
+- Orderbook depth analysis: Evaluates liquidity distribution across price ranges
+- Cumulative delta calculations: Tracks aggressive buying vs. selling over time
+- Trade flow analytics: Analyzes market maker vs. taker behavior patterns
+- Liquidity level identification: Locates significant support/resistance zones
+- Comprehensive statistical analysis: Provides full orderbook metrics
+
+The analytics are designed to support trading strategy development, market
+microstructure analysis, and real-time trading decision support by extracting
+higher-level insights from the raw order book data.
 """
 
 import logging
@@ -15,7 +29,30 @@ from .base import AsyncOrderBookBase
 
 
 class MarketAnalytics:
-    """Provides market analytics for the async orderbook."""
+    """
+    Provides market analytics for the async orderbook.
+
+    This class implements advanced analytics methods for the AsyncOrderBook, focusing on
+    extracting actionable market insights from the raw orderbook data. It is designed as
+    a component that is injected into the main AsyncOrderBook to provide specialized
+    analytical capabilities while maintaining a clean separation of concerns.
+
+    The analytics methods focus on several key areas:
+    1. Market imbalance analysis - Detecting buy/sell pressure
+    2. Liquidity distribution analysis - Understanding depth across price levels
+    3. Trade flow analysis - Classifying aggressive vs. passive executions
+    4. Cumulative delta tracking - Measuring net buying/selling pressure over time
+    5. Significant liquidity levels - Identifying potential support/resistance
+
+    Each method follows a consistent pattern:
+    - Thread-safe execution through the orderbook lock
+    - Comprehensive error handling and logging
+    - Return of structured analysis results with multiple metrics
+    - Optional time filtering when appropriate
+
+    These analytics are designed to be used by trading strategies, market analysis tools,
+    and visualization components that need deeper insights beyond raw orderbook data.
+    """
 
     def __init__(self, orderbook: AsyncOrderBookBase):
         self.orderbook = orderbook
@@ -25,11 +62,46 @@ class MarketAnalytics:
         """
         Calculate order flow imbalance between bid and ask sides.
 
+        This method quantifies the imbalance between buying and selling pressure in the
+        orderbook by comparing the total volume on the bid side versus the ask side.
+        A positive imbalance ratio indicates stronger buying pressure, while a negative
+        ratio indicates stronger selling pressure.
+
+        The analysis includes:
+        - Imbalance ratio: (bid_volume - ask_volume) / total_volume
+        - Raw bid and ask volumes
+        - Number of populated price levels on each side
+        - Text analysis of market conditions based on the imbalance ratio
+        - Timestamp of the analysis
+
+        The method is thread-safe and acquires the orderbook lock during execution.
+
         Args:
-            levels: Number of price levels to analyze
+            levels: Number of price levels to analyze on each side of the book (default: 10).
+                Higher values analyze deeper into the orderbook but may include less
+                relevant levels.
 
         Returns:
-            Dict containing imbalance metrics and analysis
+            Dict containing:
+                imbalance_ratio: Float between -1.0 and 1.0 where:
+                    - Positive values indicate buying pressure
+                    - Negative values indicate selling pressure
+                    - Values near 0 indicate a balanced orderbook
+                bid_volume: Total volume on the bid side
+                ask_volume: Total volume on the ask side
+                bid_levels: Number of populated bid price levels analyzed
+                ask_levels: Number of populated ask price levels analyzed
+                analysis: Text description of market conditions
+                timestamp: Time of analysis
+
+        Example:
+            >>> imbalance = await orderbook.get_market_imbalance(levels=5)
+            >>> print(f"Imbalance ratio: {imbalance['imbalance_ratio']:.2f}")
+            >>> print(f"Analysis: {imbalance['analysis']}")
+            >>> print(
+            ...     f"Bid volume: {imbalance['bid_volume']}, "
+            ...     f"Ask volume: {imbalance['ask_volume']}"
+            ... )
         """
         async with self.orderbook.orderbook_lock:
             try:

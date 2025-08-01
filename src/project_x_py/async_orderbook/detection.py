@@ -1,8 +1,28 @@
 """
 Advanced detection algorithms for the async orderbook.
 
-This module provides iceberg order detection, order clustering analysis,
-and pattern recognition for market microstructure.
+This module implements sophisticated algorithms for detecting hidden market microstructure
+patterns that provide deeper insights into market participant behavior. It specializes in
+identifying patterns that may indicate institutional activity, hidden liquidity, and
+market manipulation attempts.
+
+Key detection capabilities:
+- Iceberg order detection: Identifies large hidden orders that only show a small portion
+  of their total size at any given time
+- Order clustering analysis: Detects clusters of orders at similar price levels that may
+  indicate coordinated market participant activity
+- Market microstructure metrics: Calculates advanced metrics that reveal hidden aspects
+  of market behavior
+- Confidence scoring: Assigns confidence levels to detections to distinguish between
+  high and low probability signals
+
+The detection algorithms use historical price level data, order refresh patterns, and
+trade execution analysis to infer the presence of hidden orders and market structures
+that are not directly visible in the raw orderbook data.
+
+All detection methods are optimized for real-time performance while maintaining
+accuracy, with configurable sensitivity parameters to adjust for different market
+conditions and instrument characteristics.
 """
 
 import logging
@@ -16,7 +36,33 @@ from project_x_py.async_orderbook.types import IcebergConfig
 
 
 class OrderDetection:
-    """Provides advanced order detection algorithms."""
+    """
+    Provides advanced order detection algorithms.
+
+    This class implements sophisticated algorithms for detecting hidden patterns in
+    orderbook data that may indicate specific trading behaviors, hidden liquidity,
+    or other market microstructure phenomena. It is designed as a specialized component
+    of the AsyncOrderBook that focuses solely on detection capabilities.
+
+    Key features:
+    1. Iceberg order detection - Identifies large orders that are deliberately split
+       into smaller pieces to hide their true size
+    2. Order clustering analysis - Detects groups of orders at similar price levels
+       that may represent coordinated activity or key liquidity zones
+    3. Advanced market metrics - Calculates metrics like book pressure and
+       price concentration to reveal hidden market dynamics
+
+    Each detection algorithm follows these principles:
+    - Configurable sensitivity with reasonable defaults
+    - Explicit confidence scoring to indicate detection reliability
+    - Comprehensive metadata to explain the reasoning behind detections
+    - Thread-safe implementation through orderbook lock usage
+    - Proper error handling with graceful degradation
+
+    The detection methods leverage the historical data accumulated by the orderbook
+    to identify patterns over time rather than just analyzing the current state,
+    allowing for more sophisticated and reliable detections.
+    """
 
     def __init__(self, orderbook: AsyncOrderBookBase):
         self.orderbook = orderbook

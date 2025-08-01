@@ -20,7 +20,41 @@ from project_x_py.async_orderbook.types import MemoryConfig
 
 
 class MemoryManager:
-    """Manages memory usage and cleanup for async orderbook."""
+    """
+    Manages memory usage and cleanup for async orderbook.
+
+    This class handles the memory lifecycle of the orderbook data structures, ensuring
+    that memory usage remains bounded during long-running sessions while maintaining
+    sufficient historical data for analysis. It implements automatic periodic cleanup
+    strategies and provides memory usage statistics.
+
+    Key responsibilities:
+    1. Periodic cleanup of old trade data based on configurable limits
+    2. Management of orderbook depth entries to prevent unbounded growth
+    3. Cleanup of price level history to maintain reasonable memory usage
+    4. Trimming of market data history (bids, asks, spreads, deltas)
+    5. Providing memory usage statistics for monitoring
+    6. Triggering garbage collection when appropriate
+
+    The memory manager runs as an asynchronous background task that periodically
+    checks and cleans up data structures based on the configured limits. It uses
+    a combination of time-based and count-based thresholds to determine what data
+    to retain and what to discard.
+
+    Thread safety:
+        All operations acquire appropriate locks before modifying shared data structures,
+        ensuring thread-safe operation in concurrent environments.
+
+    Configuration:
+        The memory management behavior is controlled through the MemoryConfig class,
+        which defines limits for various data structures:
+        - Maximum number of trades to retain
+        - Maximum number of depth entries per side
+        - Cleanup interval
+        - Maximum history entries per price level
+        - Time window for price history retention
+        - Maximum entries for various history trackers
+    """
 
     def __init__(self, orderbook: "AsyncOrderBookBase", config: MemoryConfig):
         self.orderbook = orderbook
@@ -191,7 +225,47 @@ class MemoryManager:
             self.memory_stats["history_cleaned"] += removed
 
     async def get_memory_stats(self) -> dict[str, Any]:
-        """Get comprehensive memory usage statistics."""
+        """
+        Get comprehensive memory usage statistics.
+
+        This method provides detailed statistics about the current memory usage of the
+        orderbook, including counts of various data structures, cleanup history, and
+        configuration settings. It's useful for monitoring memory usage over time,
+        debugging memory issues, and validating that the cleanup strategies are working
+        as expected.
+
+        The method is thread-safe and acquires the orderbook lock during execution.
+
+        Returns:
+            Dict containing comprehensive memory statistics including:
+                orderbook_bids_count: Number of bid price levels
+                orderbook_asks_count: Number of ask price levels
+                recent_trades_count: Number of trades in the recent trades cache
+                price_level_history_count: Number of price levels with history
+                best_bid_history_count: Length of best bid price history
+                best_ask_history_count: Length of best ask price history
+                spread_history_count: Length of spread history
+                delta_history_count: Length of cumulative delta history
+                support_levels_count: Number of tracked support levels
+                resistance_levels_count: Number of tracked resistance levels
+                last_cleanup: Timestamp of last cleanup operation
+                total_trades_processed: Total number of trades processed
+                trades_cleaned: Number of trades removed by cleanup
+                depth_cleaned: Number of depth entries removed by cleanup
+                history_cleaned: Number of history entries removed by cleanup
+                memory_config: Dictionary of current memory configuration settings
+
+        Example:
+            >>> stats = await orderbook.get_memory_stats()
+            >>> print(
+            ...     f"Orderbook size: {stats['orderbook_bids_count']} bids, "
+            ...     f"{stats['orderbook_asks_count']} asks"
+            ... )
+            >>> print(f"Recent trades: {stats['recent_trades_count']}")
+            >>> print(f"Last cleanup: {datetime.fromtimestamp(stats['last_cleanup'])}")
+            >>> print(f"Items cleaned: {stats['trades_cleaned'] + stats['depth_cleaned'] + "
+            ...       f"stats['history_cleaned']}")
+        """
         async with self.orderbook.orderbook_lock:
             return {
                 "orderbook_bids_count": self.orderbook.orderbook_bids.height,
