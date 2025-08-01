@@ -9,12 +9,12 @@ import asyncio
 from datetime import datetime
 
 from project_x_py import (
-    AsyncOrderBook,
-    AsyncOrderManager,
-    AsyncPositionManager,
-    AsyncRealtimeDataManager,
+    OrderBook,
+    OrderManager,
+    PositionManager,
     ProjectX,
     ProjectXRealtimeClient,
+    RealtimeDataManager,
 )
 
 
@@ -37,11 +37,14 @@ async def main():
     async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
+        if client.account_info is None:
+            print("❌ No account info found")
+            return
         print(f"✅ Authenticated as {client.account_info.name}")
 
         # Get JWT token and account ID
         jwt_token = client.session_token
-        account_id = client.account_info.id
+        account_id = str(client.account_info.id)
 
         # Create single async realtime client (shared across all managers)
         realtime_client = ProjectXRealtimeClient(
@@ -74,24 +77,24 @@ async def main():
 
         instrument = instruments[0]
         active_contract = instrument.activeContract
-        print(f"✅ Using instrument: {instrument.symbol} ({active_contract})")
+        print(f"✅ Using instrument: {instrument.symbolId} ({active_contract})")
 
         # Create managers with shared realtime client
         print("\n🏗️ Creating async managers with shared realtime client...")
 
         # 1. Position Manager
-        position_manager = AsyncPositionManager(client)
+        position_manager = PositionManager(client)
         await position_manager.initialize(realtime_client=realtime_client)
         print("  ✅ Position Manager initialized")
 
         # 2. Order Manager
-        order_manager = AsyncOrderManager(client)
+        order_manager = OrderManager(client)
         await order_manager.initialize(realtime_client=realtime_client)
         print("  ✅ Order Manager initialized")
 
         # 3. Realtime Data Manager
-        data_manager = AsyncRealtimeDataManager(
-            instrument=instrument.symbol,
+        data_manager = RealtimeDataManager(
+            instrument=instrument.id,
             project_x=client,
             realtime_client=realtime_client,
             timeframes=["5sec", "1min", "5min"],
@@ -100,9 +103,9 @@ async def main():
         print("  ✅ Realtime Data Manager initialized")
 
         # 4. OrderBook
-        orderbook = AsyncOrderBook(
-            instrument=instrument.symbol,
-            client=client,
+        orderbook = OrderBook(
+            instrument=instrument.id,
+            project_x=client,
         )
         await orderbook.initialize(realtime_client=realtime_client)
         print("  ✅ OrderBook initialized")
@@ -110,7 +113,7 @@ async def main():
         # Subscribe to real-time data
         print("\n📊 Subscribing to real-time updates...")
         await realtime_client.subscribe_user_updates()
-        await realtime_client.subscribe_market_data([active_contract])
+        await realtime_client.subscribe_market_data([instrument.id])
         await data_manager.start_realtime_feed()
         print("✅ Subscribed to all real-time feeds")
 
@@ -120,15 +123,15 @@ async def main():
         # Positions
         positions = await position_manager.get_all_positions()
         print(f"\n  Positions: {len(positions)} open")
-        for symbol, pos in positions.items():
-            print(f"    {symbol}: {pos.quantity} @ ${pos.averagePrice:.2f}")
+        for pos in positions:
+            print(f"    {pos.contractId}: {pos.size} @ ${pos.averagePrice:.2f}")
 
         # Orders
         orders = await order_manager.search_open_orders()
         print(f"\n  Orders: {len(orders)} open")
         for order in orders[:3]:  # Show first 3
             print(
-                f"    {order.contractId}: {order.side} {order.quantity} @ ${order.price:.2f}"
+                f"    {order.contractId}: {order.side} {order.size} @ ${order.filledPrice:.2f}"
             )
 
         # Market Data
@@ -144,9 +147,10 @@ async def main():
         snapshot = await orderbook.get_orderbook_snapshot()
         if snapshot:
             spread = await orderbook.get_bid_ask_spread()
-            print(
-                f"\n  OrderBook: Bid=${spread['bid']:.2f} Ask=${spread['ask']:.2f} Spread=${spread['spread']:.2f}"
-            )
+            if spread and isinstance(spread, dict):
+                print(
+                    f"\n  OrderBook: Bid=${spread.get('bid', 0):.2f} Ask=${spread.get('ask', 0):.2f} Spread=${spread.get('spread', 0):.2f}"
+                )
             print(
                 f"    Bid Levels: {len(snapshot.get('bids', []))}, Ask Levels: {len(snapshot.get('asks', []))}"
             )

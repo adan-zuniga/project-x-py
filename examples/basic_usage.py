@@ -8,6 +8,7 @@ import asyncio
 import os
 
 from project_x_py import ProjectX
+from project_x_py.models import Instrument, Position
 
 
 async def main():
@@ -25,30 +26,37 @@ async def main():
         # Create async client using environment variables
         async with ProjectX.from_env() as client:
             print("✅ Client created successfully")
+            if client.account_info is None:
+                print("❌ No account info found")
+                return
 
             # Authenticate
             print("\n🔐 Authenticating...")
             await client.authenticate()
-            print(f"✅ Authenticated as: {client.account_info.username}")
+            print(f"✅ Authenticated as: {client.account_info.name}")
             print(f"📊 Using account: {client.account_info.name}")
             print(f"💰 Balance: ${client.account_info.balance:,.2f}")
 
             # Get positions
             print("\n📈 Fetching positions...")
-            positions = await client.get_positions()
+            positions: list[Position] = await client.get_positions()
 
             if positions:
                 print(f"Found {len(positions)} position(s):")
                 for pos in positions:
                     side = "Long" if pos.type == "LONG" else "Short"
-                    print(f"  - {pos.symbol}: {side} {pos.size} @ ${pos.averagePrice}")
+                    print(
+                        f"  - {pos.contractId}: {side} {pos.size} @ ${pos.averagePrice}"
+                    )
             else:
                 print("No open positions")
 
             # Get instrument info
             print("\n🔍 Fetching instrument information...")
             # Run multiple instrument fetches concurrently
-            instruments = await asyncio.gather(
+            instruments: tuple[
+                Instrument, Instrument, Instrument
+            ] = await asyncio.gather(
                 client.get_instrument("NQ"),
                 client.get_instrument("ES"),
                 client.get_instrument("MGC"),
@@ -56,9 +64,9 @@ async def main():
 
             print("Instrument details:")
             for inst in instruments:
-                print(f"  - {inst.symbol}: {inst.name}")
-                print(f"    Tick size: ${inst.tick_size}")
-                print(f"    Contract size: {inst.contract_size}")
+                print(f"  - {inst.symbolId}: {inst.name}")
+                print(f"    Tick size: ${inst.tickSize}")
+                print(f"    Contract size: {inst.tickValue}")
 
             # Show performance stats
             print("\n📊 Performance Statistics:")
@@ -87,11 +95,6 @@ async def concurrent_example():
         import time
 
         start = time.time()
-
-        # Sequential (old way)
-        pos1 = await client.get_positions()
-        inst1 = await client.get_instrument("NQ")
-        inst2 = await client.get_instrument("ES")
 
         sequential_time = time.time() - start
         print(f"Sequential operations took: {sequential_time:.2f} seconds")

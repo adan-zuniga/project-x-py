@@ -28,8 +28,8 @@ from decimal import Decimal
 
 from project_x_py import (
     ProjectX,
-    create_async_order_manager,
-    create_async_realtime_client,
+    create_order_manager,
+    create_realtime_client,
     setup_logging,
 )
 
@@ -183,15 +183,13 @@ async def main():
             print("\n🏗️ Creating async order manager...")
             try:
                 jwt_token = client.session_token
-                realtime_client = create_async_realtime_client(
-                    jwt_token, str(account.id)
-                )
-                order_manager = create_async_order_manager(client, realtime_client)
+                realtime_client = create_realtime_client(jwt_token, str(account.id))
+                order_manager = create_order_manager(client, realtime_client)
                 await order_manager.initialize(realtime_client=realtime_client)
                 print("✅ Async order manager created with real-time tracking")
             except Exception as e:
                 print(f"⚠️  Real-time client failed, using basic order manager: {e}")
-                order_manager = create_async_order_manager(client, None)
+                order_manager = create_order_manager(client, None)
                 await order_manager.initialize()
 
             # Track orders placed in this demo for cleanup

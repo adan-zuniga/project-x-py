@@ -19,12 +19,14 @@ Key differences from sync version:
 
 import asyncio
 import sys
+from contextlib import suppress
 
 from project_x_py import ProjectX
 from project_x_py.exceptions import ProjectXError
+from project_x_py.models import Instrument
 
 
-def display_instrument(instrument, prefix=""):
+def display_instrument(instrument: Instrument, prefix: str = ""):
     """Display instrument details in a formatted way"""
     print(f"{prefix}┌─ Contract Details ─────────────────────────────")
     print(f"{prefix}│ ID:           {instrument.id}")
@@ -37,7 +39,7 @@ def display_instrument(instrument, prefix=""):
     print(f"{prefix}└" + "─" * 47)
 
 
-async def search_and_display(client, symbol):
+async def search_and_display(client: ProjectX, symbol: str):
     """Search for instruments and display results asynchronously"""
     print(f"\n{'=' * 60}")
     print(f"Searching for: '{symbol}'")
@@ -152,6 +154,9 @@ async def main():
         print("\nConnecting to ProjectX...")
         async with ProjectX.from_env() as client:
             await client.authenticate()
+            if client.account_info is None:
+                print("❌ No account info found")
+                return
             print("✓ Connected successfully!")
             print(f"✓ Using account: {client.account_info.name}")
 
@@ -174,7 +179,7 @@ async def main():
                 await run_interactive_search(client)
             finally:
                 stats_task.cancel()
-                with asyncio.suppress(asyncio.CancelledError):
+                with suppress(asyncio.CancelledError):
                     await stats_task
 
     except Exception as e:

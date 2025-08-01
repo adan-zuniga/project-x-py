@@ -34,8 +34,8 @@ from datetime import datetime
 
 from project_x_py import (
     ProjectX,
-    create_async_orderbook,
-    create_async_realtime_client,
+    create_orderbook,
+    create_realtime_client,
     setup_logging,
 )
 
@@ -642,9 +642,7 @@ async def main():
             print("\n🏗️ Creating async Level 2 orderbook...", flush=True)
             try:
                 jwt_token = client.session_token
-                realtime_client = create_async_realtime_client(
-                    jwt_token, str(account.id)
-                )
+                realtime_client = create_realtime_client(jwt_token, str(account.id))
 
                 # Connect the realtime client
                 print("   Connecting to real-time WebSocket feeds...", flush=True)
@@ -666,7 +664,7 @@ async def main():
                 print(f"   Contract ID: {contract_id}", flush=True)
 
                 # Note: We use the full contract ID for proper matching
-                orderbook = create_async_orderbook(
+                orderbook = create_orderbook(
                     instrument=contract_id,
                     realtime_client=realtime_client,
                     project_x=client,

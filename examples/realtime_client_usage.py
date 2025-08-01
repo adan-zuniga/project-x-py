@@ -12,8 +12,7 @@ import asyncio
 import json
 from datetime import datetime
 
-from project_x_py import ProjectX
-from project_x_py.async_realtime import ProjectXRealtimeClient
+from project_x_py import ProjectX, ProjectXRealtimeClient
 
 
 # Event handlers
@@ -90,11 +89,14 @@ async def main():
     async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
+        if client.account_info is None:
+            print("❌ No account info found")
+            return
         print(f"✅ Authenticated as {client.account_info.name}")
 
         # Get JWT token and account ID
         jwt_token = client.session_token
-        account_id = client.account_info.id
+        account_id = str(client.account_info.id)
 
         # Create async realtime client
         realtime_client = ProjectXRealtimeClient(
@@ -132,7 +134,7 @@ async def main():
         instruments = await client.search_instruments("MGC")
         if instruments:
             # Get the active contract ID
-            active_contract = instruments[0].activeContract
+            active_contract = instruments[0].id
             print(f"✅ Found active contract: {active_contract}")
 
             # Subscribe to market data

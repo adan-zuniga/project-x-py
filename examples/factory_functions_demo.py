@@ -8,12 +8,12 @@ async trading components with minimal boilerplate code.
 import asyncio
 
 from project_x_py import (
-    create_async_client,
-    create_async_data_manager,
-    create_async_order_manager,
-    create_async_orderbook,
-    create_async_position_manager,
-    create_async_realtime_client,
+    ProjectX,
+    create_data_manager,
+    create_order_manager,
+    create_orderbook,
+    create_position_manager,
+    create_realtime_client,
     create_trading_suite,
 )
 
@@ -25,8 +25,11 @@ async def simple_component_creation():
     print("=" * 60)
 
     # Create async client using factory
-    async with create_async_client() as client:
+    async with ProjectX.from_env() as client:
         await client.authenticate()
+        if client.account_info is None:
+            print("❌ No account info found")
+            return
         print(f"✅ Created client: {client.account_info.name}")
 
         # Get JWT token for real-time
@@ -34,15 +37,15 @@ async def simple_component_creation():
         account_id = client.account_info.id
 
         # Create async realtime client
-        realtime_client = create_async_realtime_client(jwt_token, account_id)
+        realtime_client = create_realtime_client(jwt_token, str(account_id))
         print("✅ Created realtime client")
 
         # Create individual managers
-        order_manager = create_async_order_manager(client, realtime_client)
+        order_manager = create_order_manager(client, realtime_client)
         await order_manager.initialize()
         print("✅ Created order manager")
 
-        position_manager = create_async_position_manager(client, realtime_client)
+        position_manager = create_position_manager(client, realtime_client)
         await position_manager.initialize()
         print("✅ Created position manager")
 
@@ -52,14 +55,14 @@ async def simple_component_creation():
             instrument = instruments[0]
 
             # Create data manager
-            data_manager = create_async_data_manager(
-                instrument.symbol, client, realtime_client, timeframes=["1min", "5min"]
+            _data_manager = create_data_manager(
+                instrument.id, client, realtime_client, timeframes=["1min", "5min"]
             )
             print("✅ Created data manager")
 
             # Create orderbook
-            orderbook = create_async_orderbook(
-                instrument.symbol, realtime_client=realtime_client, project_x=client
+            orderbook = create_orderbook(
+                instrument.id, realtime_client=realtime_client, project_x=client
             )
             await orderbook.initialize(realtime_client)
             print("✅ Created orderbook")
@@ -75,8 +78,11 @@ async def complete_suite_creation():
     print("=" * 60)
 
     # Create async client
-    async with create_async_client() as client:
+    async with ProjectX.from_env() as client:
         await client.authenticate()
+        if client.account_info is None:
+            print("❌ No account info found")
+            return
         print(f"✅ Authenticated: {client.account_info.name}")
 
         # Find instrument
@@ -89,10 +95,10 @@ async def complete_suite_creation():
 
         # Create complete trading suite with one function
         suite = await create_trading_suite(
-            instrument=instrument.symbol,
+            instrument=instrument.id,
             project_x=client,
             jwt_token=client.session_token,
-            account_id=client.account_info.id,
+            account_id=str(client.account_info.id),
             timeframes=["5sec", "1min", "5min", "15min"],
         )
 
@@ -167,12 +173,12 @@ async def main():
     print("  5. Easy to use for beginners")
 
     print("\n📚 Factory Functions Available:")
-    print("  - create_async_client() - Create ProjectX client")
-    print("  - create_async_realtime_client() - Create real-time WebSocket client")
-    print("  - create_async_order_manager() - Create order manager")
-    print("  - create_async_position_manager() - Create position manager")
-    print("  - create_async_data_manager() - Create OHLCV data manager")
-    print("  - create_async_orderbook() - Create market depth orderbook")
+    print("  - create_client() - Create ProjectX client")
+    print("  - create_realtime_client() - Create real-time WebSocket client")
+    print("  - create_order_manager() - Create order manager")
+    print("  - create_position_manager() - Create position manager")
+    print("  - create_data_manager() - Create OHLCV data manager")
+    print("  - create_orderbook() - Create market depth orderbook")
     print("  - create_trading_suite() - Create complete trading toolkit")
 
 

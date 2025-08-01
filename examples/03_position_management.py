@@ -24,10 +24,10 @@ from datetime import datetime
 
 from project_x_py import (
     ProjectX,
-    create_async_data_manager,
-    create_async_order_manager,
-    create_async_position_manager,
-    create_async_realtime_client,
+    create_data_manager,
+    create_order_manager,
+    create_position_manager,
+    create_realtime_client,
     setup_logging,
 )
 from project_x_py.async_realtime_data_manager import AsyncRealtimeDataManager
@@ -187,12 +187,12 @@ async def main():
                 return
 
             # Create real-time client for live updates
-            realtime_client = create_async_realtime_client(
+            realtime_client = create_realtime_client(
                 client.session_token, str(client.account_info.id)
             )
 
             # Create position manager with real-time integration
-            position_manager = create_async_position_manager(client, realtime_client)
+            position_manager = create_position_manager(client, realtime_client)
 
             # Connect real-time client first
             print("\n🔌 Connecting to real-time services...")
@@ -206,7 +206,7 @@ async def main():
                 # Create real-time data manager for MNQ
                 realtime_data_manager = None
                 try:
-                    realtime_data_manager = create_async_data_manager(
+                    realtime_data_manager = create_data_manager(
                         "MNQ",
                         client,
                         realtime_client,
@@ -300,7 +300,7 @@ async def main():
 
             # Create order manager for placing test position
             print("\n🏗️ Creating order manager for test position...")
-            order_manager = create_async_order_manager(client, realtime_client)
+            order_manager = create_order_manager(client, realtime_client)
             await order_manager.initialize(realtime_client=realtime_client)
 
             # Ask user if they want to place a test position

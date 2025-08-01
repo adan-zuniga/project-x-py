@@ -29,8 +29,8 @@ import polars as pl
 
 from project_x_py import (
     ProjectX,
-    create_async_data_manager,
-    create_async_realtime_client,
+    create_data_manager,
+    create_realtime_client,
     setup_logging,
 )
 
@@ -227,7 +227,7 @@ async def main():
 
             # Create async real-time client
             print("\n🌐 Creating async real-time client...")
-            realtime_client = create_async_realtime_client(
+            realtime_client = create_realtime_client(
                 client.session_token, str(client.account_info.id)
             )
             print("✅ Async real-time client created!")
@@ -249,7 +249,7 @@ async def main():
             timeframes = ["15sec", "1min", "5min", "15min", "1hr"]
 
             try:
-                data_manager = create_async_data_manager(
+                data_manager = create_data_manager(
                     instrument="MNQ",
                     project_x=client,
                     realtime_client=realtime_client,

@@ -7,7 +7,7 @@ calculating P&L, managing risk, and handling position monitoring with async/awai
 
 import asyncio
 
-from project_x_py import AsyncPositionManager, ProjectX
+from project_x_py import PositionManager, ProjectX
 
 
 async def main():
@@ -16,10 +16,13 @@ async def main():
     async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
+        if client.account_info is None:
+            print("❌ No account info found")
+            return
         print(f"✅ Authenticated as {client.account_info.name}")
 
         # Create position manager
-        position_manager = AsyncPositionManager(client)
+        position_manager = PositionManager(client)
         await position_manager.initialize()
 
         # 1. Get all positions

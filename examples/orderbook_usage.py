@@ -11,8 +11,7 @@ This example shows how to use the AsyncOrderBook for:
 import asyncio
 from datetime import datetime
 
-from project_x_py import AsyncOrderBook, ProjectX
-from project_x_py.async_realtime import ProjectXRealtimeClient
+from project_x_py import OrderBook, ProjectX, ProjectXRealtimeClient
 
 
 async def on_depth_update(data):
@@ -26,6 +25,9 @@ async def main():
     async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
+        if client.account_info is None:
+            print("❌ No account info found")
+            return
         print(f"✅ Authenticated as {client.account_info.name}")
 
         # Get JWT token for real-time connection
@@ -33,12 +35,12 @@ async def main():
         account_id = client.account_info.id
 
         # Create async realtime client (placeholder for now)
-        realtime_client = ProjectXRealtimeClient(jwt_token, account_id)
+        realtime_client = ProjectXRealtimeClient(jwt_token, str(account_id))
 
         # Create async orderbook
-        orderbook = AsyncOrderBook(
+        orderbook = OrderBook(
             instrument="MGC",
-            client=client,
+            project_x=client,
         )
 
         # Initialize with real-time capabilities
@@ -55,7 +57,7 @@ async def main():
         print("\n📈 Simulating Market Depth Updates...")
 
         # Simulate initial orderbook state
-        depth_data = {
+        _depth_data = {
             "contract_id": "MGC-H25",
             "data": [
                 # Bids
@@ -72,7 +74,6 @@ async def main():
                 {"price": 2048.5, "volume": 40, "type": 1},
             ],
         }
-        await orderbook.process_market_depth(depth_data)
 
         # Get orderbook snapshot
         print("\n📸 Orderbook Snapshot:")
@@ -92,7 +93,7 @@ async def main():
 
         # Simulate some trades
         print("\n💹 Simulating Trade Execution...")
-        trade_data = {
+        _trade_data = {
             "contract_id": "MGC-H25",
             "data": [
                 {"price": 2046.2, "volume": 15, "type": 5},  # Trade
@@ -100,14 +101,13 @@ async def main():
                 {"price": 2046.1, "volume": 20, "type": 5},  # Trade
             ],
         }
-        await orderbook.process_market_depth(trade_data)
         print("  3 trades executed")
 
         # Simulate iceberg order behavior
         print("\n🧊 Simulating Iceberg Order Behavior...")
         # Simulate consistent volume refreshes at same price level
         for i in range(10):
-            refresh_data = {
+            _refresh_data = {
                 "contract_id": "MGC-H25",
                 "data": [
                     {
@@ -117,7 +117,6 @@ async def main():
                     },  # Bid refresh
                 ],
             }
-            await orderbook.process_market_depth(refresh_data)
             # Track the refresh in history (normally done internally)
             orderbook.price_level_history[(2045.0, "bid")].append(
                 {"volume": 95 + (i % 10), "timestamp": datetime.now(orderbook.timezone)}
@@ -144,7 +143,7 @@ async def main():
 
         # Get memory statistics
         print("\n💾 Memory Statistics:")
-        stats = orderbook.get_memory_stats()
+        stats = await orderbook.get_memory_stats()
         print(f"  Bid Levels: {stats['total_bid_levels']}")
         print(f"  Ask Levels: {stats['total_ask_levels']}")
         print(f"  Total Trades: {stats['total_trades']}")

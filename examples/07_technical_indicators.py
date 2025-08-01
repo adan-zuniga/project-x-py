@@ -26,8 +26,8 @@ import polars as pl
 
 from project_x_py import (
     ProjectX,
-    create_async_data_manager,
-    create_async_realtime_client,
+    create_data_manager,
+    create_realtime_client,
     setup_logging,
 )
 from project_x_py.indicators import (
@@ -300,11 +300,11 @@ async def main():
             print("\n📊 Setting up real-time indicator monitoring...")
 
             # Create real-time components
-            realtime_client = create_async_realtime_client(
+            realtime_client = create_realtime_client(
                 client.session_token, str(client.account_info.id)
             )
 
-            data_manager = create_async_data_manager(
+            data_manager = create_data_manager(
                 "MNQ", client, realtime_client, timeframes=["5sec", "1min", "5min"]
             )
 
