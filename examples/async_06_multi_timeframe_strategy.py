@@ -22,13 +22,13 @@ Date: July 2025
 """
 
 import asyncio
+import logging
 import signal
 from datetime import datetime
 
 from project_x_py import (
     AsyncProjectX,
     create_async_trading_suite,
-    setup_logging,
 )
 from project_x_py.indicators import RSI, SMA
 
@@ -71,7 +71,7 @@ class AsyncMultiTimeframeStrategy:
         # Async lock for thread safety
         self.strategy_lock = asyncio.Lock()
 
-        self.logger = setup_logging(__name__)
+        self.logger = logging.getLogger(__name__)
 
     async def analyze_timeframes_concurrently(self):
         """Analyze all timeframes concurrently for maximum efficiency."""
