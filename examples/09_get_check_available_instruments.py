@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 """
-Interactive Instrument Search Demo for ProjectX
+Async Interactive Instrument Search Demo for ProjectX
 
-This demo showcases the instrument search functionality, including:
-- Searching for all contracts matching a symbol
-- Getting the best matching contract using smart selection
-- Understanding the contract naming patterns
+This async version demonstrates:
+- Using ProjectX client with async context manager
+- Async instrument search with await client.search_instruments()
+- Async best match selection with await client.get_instrument()
+- Non-blocking user input handling
+- Background performance stats monitoring
+- Proper async authentication flow
+
+Key differences from sync version:
+- Uses ProjectX instead of ProjectX
+- All API calls use await (search_instruments, get_instrument)
+- Async context manager (async with)
+- Can run background tasks while accepting user input
 """
 
+import asyncio
 import sys
+from contextlib import suppress
 
 from project_x_py import ProjectX
 from project_x_py.exceptions import ProjectXError
+from project_x_py.models import Instrument
 
 
-def display_instrument(instrument, prefix=""):
+def display_instrument(instrument: Instrument, prefix: str = ""):
     """Display instrument details in a formatted way"""
     print(f"{prefix}┌─ Contract Details ─────────────────────────────")
     print(f"{prefix}│ ID:           {instrument.id}")
@@ -27,8 +39,8 @@ def display_instrument(instrument, prefix=""):
     print(f"{prefix}└" + "─" * 47)
 
 
-def search_and_display(client, symbol):
-    """Search for instruments and display results"""
+async def search_and_display(client: ProjectX, symbol: str):
+    """Search for instruments and display results asynchronously"""
     print(f"\n{'=' * 60}")
     print(f"Searching for: '{symbol}'")
     print(f"{'=' * 60}")
@@ -38,7 +50,7 @@ def search_and_display(client, symbol):
         print(f"\n1. All contracts matching '{symbol}':")
         print("-" * 50)
 
-        instruments = client.search_instruments(symbol)
+        instruments = await client.search_instruments(symbol)
 
         if not instruments:
             print(f"   No instruments found for '{symbol}'")
@@ -56,7 +68,7 @@ def search_and_display(client, symbol):
         print(f"\n2. Best match using get_instrument('{symbol}'):")
         print("-" * 50)
 
-        best_instrument = client.get_instrument(symbol)
+        best_instrument = await client.get_instrument(symbol)
         if best_instrument:
             print(f"   Selected: {best_instrument.name}")
             display_instrument(best_instrument, "   ")
@@ -95,23 +107,14 @@ def show_common_symbols():
     print("└─────────┴──────────────────────────────────────────┘")
 
 
-def main():
-    print("╔═══════════════════════════════════════════════════════╗")
-    print("║     ProjectX Instrument Search Interactive Demo       ║")
-    print("╚═══════════════════════════════════════════════════════╝")
+async def get_user_input(prompt):
+    """Get user input asynchronously"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, input, prompt)
 
-    try:
-        print("\nConnecting to ProjectX...")
-        client = ProjectX.from_env()
-        print("✓ Connected successfully!")
 
-    except Exception as e:
-        print(f"✗ Failed to connect: {e}")
-        print("\nMake sure you have set the following environment variables:")
-        print("  - PROJECT_X_API_KEY")
-        print("  - PROJECT_X_USERNAME")
-        sys.exit(1)
-
+async def run_interactive_search(client):
+    """Run the interactive search loop"""
     show_common_symbols()
 
     print("\nHow the search works:")
@@ -123,7 +126,8 @@ def main():
 
     while True:
         print("\n" + "─" * 60)
-        symbol = input("Enter a symbol to search (or 'quit' to exit): ").strip()
+        symbol = await get_user_input("Enter a symbol to search (or 'quit' to exit): ")
+        symbol = symbol.strip()
 
         if symbol.lower() in ["quit", "exit", "q"]:
             print("\nGoodbye!")
@@ -137,8 +141,54 @@ def main():
             print("Please enter a valid symbol.")
             continue
 
-        search_and_display(client, symbol.upper())
+        await search_and_display(client, symbol.upper())
+
+
+async def main():
+    """Main async entry point"""
+    print("╔═══════════════════════════════════════════════════════╗")
+    print("║   Async ProjectX Instrument Search Interactive Demo   ║")
+    print("╚═══════════════════════════════════════════════════════╝")
+
+    try:
+        print("\nConnecting to ProjectX...")
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+            if client.account_info is None:
+                print("❌ No account info found")
+                return
+            print("✓ Connected successfully!")
+            print(f"✓ Using account: {client.account_info.name}")
+
+            # Show client performance stats periodically
+            async def show_stats():
+                while True:
+                    await asyncio.sleep(60)  # Every minute
+                    stats = await client.get_health_status()
+                    if stats["api_calls"] > 0:
+                        print(
+                            f"\n[Stats] API calls: {stats['api_calls']}, "
+                            f"Cache hits: {stats['cache_hits']} "
+                            f"({stats['cache_hit_rate']:.1%} hit rate)"
+                        )
+
+            # Run stats display in background
+            stats_task = asyncio.create_task(show_stats())
+
+            try:
+                await run_interactive_search(client)
+            finally:
+                stats_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await stats_task
+
+    except Exception as e:
+        print(f"✗ Failed to connect: {e}")
+        print("\nMake sure you have set the following environment variables:")
+        print("  - PROJECT_X_API_KEY")
+        print("  - PROJECT_X_USERNAME")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

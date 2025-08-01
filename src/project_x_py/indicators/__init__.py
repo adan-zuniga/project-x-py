@@ -886,6 +886,7 @@ __all__ = [
     "SAREXT",
     # Class-based indicators (import from modules)
     "SMA",
+    "STDDEV",
     "STOCH",
     "STOCHRSI",
     "T3",
@@ -924,6 +925,7 @@ __all__ = [
     "calculate_sar",
     # Function-based indicators (convenience functions)
     "calculate_sma",
+    "calculate_stddev",
     "calculate_stochastic",
     "calculate_t3",
     "calculate_tema",
@@ -939,6 +941,4 @@ __all__ = [
     "get_indicator_groups",
     "get_indicator_info",
     "safe_division",
-    "STDDEV",
-    "calculate_stddev",
 ]

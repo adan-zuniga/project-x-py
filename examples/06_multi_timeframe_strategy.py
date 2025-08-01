@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-Multi-Timeframe Trading Strategy Example
+Async Multi-Timeframe Trading Strategy Example
 
-Demonstrates a complete multi-timeframe trading strategy using:
-- Multiple timeframe analysis (15min, 1hr, 4hr)
-- Technical indicators across timeframes
-- Trend alignment analysis
-- Real-time signal generation
-- Order management integration
-- Position management and risk control
+Demonstrates a complete async multi-timeframe trading strategy using:
+- Concurrent analysis across multiple timeframes (15min, 1hr, 4hr)
+- Async technical indicator calculations
+- Real-time signal generation with async callbacks
+- Non-blocking order placement
+- Async position management and risk control
 
 ⚠️  WARNING: This example can place REAL ORDERS based on strategy signals!
 
@@ -16,866 +15,467 @@ Uses MNQ micro contracts for strategy testing.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/06_multi_timeframe_strategy.py
+    Or: uv run examples/async_06_multi_timeframe_strategy.py
 
 Author: TexasCoding
 Date: July 2025
 """
 
+import asyncio
+import logging
 import signal
-import sys
-import time
-from decimal import Decimal
+from datetime import datetime
 
 from project_x_py import (
     ProjectX,
     create_trading_suite,
-    setup_logging,
 )
-from project_x_py.models import Order, Position
-from project_x_py.order_manager import OrderManager
-from project_x_py.position_manager import PositionManager
-from project_x_py.realtime_data_manager import ProjectXRealtimeDataManager
+from project_x_py.indicators import RSI, SMA
 
 
-class MultiTimeframeStrategy:
+class AsyncMultiTimeframeStrategy:
     """
-    Simple multi-timeframe trend following strategy.
+    Async multi-timeframe trend following strategy.
 
     Strategy Logic:
     - Long-term trend: 4hr timeframe (50 SMA)
     - Medium-term trend: 1hr timeframe (20 SMA)
     - Entry timing: 15min timeframe (10 SMA crossover)
+    - All timeframes analyzed concurrently
     - Risk management: 2% account risk per trade
     """
 
-    def __init__(self, data_manager, order_manager, position_manager, client):
-        self.data_manager = data_manager
-        self.order_manager = order_manager
-        self.position_manager = position_manager
-        self.client = client
-        self.logger = setup_logging(level="INFO")
+    def __init__(
+        self,
+        trading_suite: dict,
+        symbol: str = "MNQ",
+        max_position_size: int = 2,
+        risk_percentage: float = 0.02,
+    ):
+        self.suite = trading_suite
+        self.symbol = symbol
+        self.max_position_size = max_position_size
+        self.risk_percentage = risk_percentage
 
-        # Strategy parameters
-        self.timeframes = {
-            "long_term": "4hr",
-            "medium_term": "1hr",
-            "short_term": "15min",
-        }
-
-        self.sma_periods = {"long_term": 50, "medium_term": 20, "short_term": 10}
-
-        # Risk management
-        self.max_risk_per_trade = 50.0  # $50 risk per trade
-        self.max_position_size = 2  # Max 2 contracts
+        # Extract components
+        self.data_manager = trading_suite["data_manager"]
+        self.order_manager = trading_suite["order_manager"]
+        self.position_manager = trading_suite["position_manager"]
+        self.orderbook = trading_suite["orderbook"]
 
         # Strategy state
-        self.signals = {}
+        self.is_running = False
+        self.signal_count = 0
         self.last_signal_time = None
-        self.active_position = None
 
-    def calculate_sma(self, data, period):
-        """Calculate Simple Moving Average."""
-        if data is None or data.is_empty() or len(data) < period:
+        # Async lock for thread safety
+        self.strategy_lock = asyncio.Lock()
+
+        self.logger = logging.getLogger(__name__)
+
+    async def analyze_timeframes_concurrently(self):
+        """Analyze all timeframes concurrently for maximum efficiency."""
+        # Create tasks for each timeframe analysis
+        tasks = {
+            "4hr": self._analyze_longterm_trend(),
+            "1hr": self._analyze_medium_trend(),
+            "15min": self._analyze_short_term(),
+            "orderbook": self._analyze_orderbook(),
+        }
+
+        # Run all analyses concurrently
+        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+
+        # Map results back to timeframes
+        analysis = {}
+        for (timeframe, _), result in zip(tasks.items(), results, strict=False):
+            if isinstance(result, Exception):
+                self.logger.error(f"Error analyzing {timeframe}: {result}")
+                analysis[timeframe] = None
+            else:
+                analysis[timeframe] = result
+
+        return analysis
+
+    async def _analyze_longterm_trend(self):
+        """Analyze 4hr timeframe for overall trend direction."""
+        data = await self.data_manager.get_data("4hr")
+        if data is None or len(data) < 50:
             return None
 
-        closes = data.select("close")
-        return float(closes.tail(period).mean().item())
+        # Calculate indicators
+        data = data.pipe(SMA, period=50)
 
-    def analyze_timeframe_trend(self, timeframe, sma_period):
-        """Analyze trend for a specific timeframe."""
-        try:
-            # Get sufficient data for SMA calculation
-            data = self.data_manager.get_data(timeframe, bars=sma_period + 10)
+        last_close = data["close"].tail(1).item()
+        last_sma = data["sma_50"].tail(1).item()
 
-            if data is None or data.is_empty() or len(data) < sma_period + 1:
-                return {"trend": "unknown", "strength": 0, "price": 0, "sma": 0}
+        return {
+            "trend": "bullish" if last_close > last_sma else "bearish",
+            "strength": abs(last_close - last_sma) / last_sma,
+            "close": last_close,
+            "sma": last_sma,
+        }
 
-            # Calculate current and previous SMA
-            current_sma = self.calculate_sma(data, sma_period)
-            previous_data = data.head(-1)  # Exclude last bar
-            previous_sma = self.calculate_sma(previous_data, sma_period)
+    async def _analyze_medium_trend(self):
+        """Analyze 1hr timeframe for medium-term trend."""
+        data = await self.data_manager.get_data("1hr")
+        if data is None or len(data) < 20:
+            return None
 
-            # Get current price
-            current_price = float(data.select("close").tail(1).item())
+        # Calculate indicators
+        data = data.pipe(SMA, period=20)
+        data = data.pipe(RSI, period=14)
 
-            if current_sma is None or previous_sma is None:
+        last_close = data["close"].tail(1).item()
+        last_sma = data["sma_20"].tail(1).item()
+        last_rsi = data["rsi_14"].tail(1).item()
+
+        return {
+            "trend": "bullish" if last_close > last_sma else "bearish",
+            "momentum": "strong" if last_rsi > 50 else "weak",
+            "rsi": last_rsi,
+            "close": last_close,
+            "sma": last_sma,
+        }
+
+    async def _analyze_short_term(self):
+        """Analyze 15min timeframe for entry signals."""
+        data = await self.data_manager.get_data("15min")
+        if data is None or len(data) < 20:
+            return None
+
+        # Calculate fast and slow SMAs
+        data = data.pipe(SMA, period=10)
+        data = data.rename({"sma_10": "sma_fast"})
+        data = data.pipe(SMA, period=20)
+        data = data.rename({"sma_20": "sma_slow"})
+
+        # Get last two bars for crossover detection
+        recent = data.tail(2)
+
+        prev_fast = recent["sma_fast"].item(0)
+        curr_fast = recent["sma_fast"].item(1)
+        prev_slow = recent["sma_slow"].item(0)
+        curr_slow = recent["sma_slow"].item(1)
+
+        # Detect crossovers
+        bullish_cross = prev_fast <= prev_slow and curr_fast > curr_slow
+        bearish_cross = prev_fast >= prev_slow and curr_fast < curr_slow
+
+        return {
+            "signal": "buy" if bullish_cross else ("sell" if bearish_cross else None),
+            "fast_sma": curr_fast,
+            "slow_sma": curr_slow,
+            "close": recent["close"].item(1),
+        }
+
+    async def _analyze_orderbook(self):
+        """Analyze orderbook for market microstructure."""
+        best_bid_ask = await self.orderbook.get_best_bid_ask()
+        imbalance = await self.orderbook.get_market_imbalance()
+
+        return {
+            "spread": best_bid_ask.get("spread", 0),
+            "spread_percentage": best_bid_ask.get("spread_percentage", 0),
+            "imbalance": imbalance.get("ratio", 0),
+            "imbalance_side": imbalance.get("side", "neutral"),
+        }
+
+    async def generate_trading_signal(self):
+        """Generate trading signal based on multi-timeframe analysis."""
+        async with self.strategy_lock:
+            # Analyze all timeframes concurrently
+            analysis = await self.analyze_timeframes_concurrently()
+
+            # Extract results
+            longterm = analysis.get("4hr")
+            medium = analysis.get("1hr")
+            shortterm = analysis.get("15min")
+            orderbook = analysis.get("orderbook")
+
+            # Check if we have all required data
+            if not longterm or not medium or not shortterm:
+                return None
+
+            # Strategy logic: All timeframes must align
+            signal = None
+            confidence = 0.0
+
+            if shortterm["signal"] == "buy":
+                if longterm["trend"] == "bullish" and medium["trend"] == "bullish":
+                    signal = "BUY"
+                    confidence = min(longterm["strength"] * 100, 100)
+
+                    # Boost confidence if momentum is strong
+                    if medium["momentum"] == "strong":
+                        confidence = min(confidence * 1.2, 100)
+
+            elif (
+                shortterm["signal"] == "sell"
+                and longterm["trend"] == "bearish"
+                and medium["trend"] == "bearish"
+            ):
+                signal = "SELL"
+                confidence = min(longterm["strength"] * 100, 100)
+
+                # Boost confidence if momentum is strong
+                if medium["momentum"] == "weak":
+                    confidence = min(confidence * 1.2, 100)
+
+            if signal:
+                self.signal_count += 1
+                self.last_signal_time = datetime.now()
+
                 return {
-                    "trend": "unknown",
-                    "strength": 0,
-                    "price": current_price,
-                    "sma": 0,
+                    "signal": signal,
+                    "confidence": confidence,
+                    "price": shortterm["close"],
+                    "spread": orderbook["spread"] if orderbook else None,
+                    "timestamp": self.last_signal_time,
+                    "analysis": {
+                        "longterm": longterm,
+                        "medium": medium,
+                        "shortterm": shortterm,
+                        "orderbook": orderbook,
+                    },
                 }
 
-            # Determine trend
-            if current_price > current_sma and current_sma > previous_sma:
-                trend = "bullish"
-                strength = min(
-                    abs(current_price - current_sma) / current_price * 100, 100
-                )
-            elif current_price < current_sma and current_sma < previous_sma:
-                trend = "bearish"
-                strength = min(
-                    abs(current_price - current_sma) / current_price * 100, 100
-                )
-            else:
-                trend = "neutral"
-                strength = 0
+            return None
 
-            return {
-                "trend": trend,
-                "strength": strength,
-                "price": current_price,
-                "sma": current_sma,
-                "previous_sma": previous_sma,
-            }
-
-        except Exception as e:
-            self.logger.error(f"Error analyzing {timeframe} trend: {e}")
-            return {"trend": "unknown", "strength": 0, "price": 0, "sma": 0}
-
-    def generate_signal(self):
-        """Generate trading signal based on multi-timeframe analysis."""
-        try:
-            # Analyze all timeframes
-            analysis = {}
-            for tf_name, tf in self.timeframes.items():
-                period = self.sma_periods[tf_name]
-                analysis[tf_name] = self.analyze_timeframe_trend(tf, period)
-
-            self.signals = analysis
-
-            # Check trend alignment
-            long_trend = analysis["long_term"]["trend"]
-            medium_trend = analysis["medium_term"]["trend"]
-            short_trend = analysis["short_term"]["trend"]
-
-            # Generate signal
-            signal = None
-            confidence = 0
-
-            # Long signal: All timeframes bullish or long/medium bullish with short neutral
-            if (
-                long_trend == "bullish"
-                and medium_trend == "bullish"
-                and short_trend == "bullish"
-            ):
-                signal = "LONG"
-                confidence = 100
-            elif (
-                long_trend == "bullish"
-                and medium_trend == "bullish"
-                and short_trend == "neutral"
-            ):
-                signal = "LONG"
-                confidence = 75
-            # Short signal: All timeframes bearish or long/medium bearish with short neutral
-            elif (
-                long_trend == "bearish"
-                and medium_trend == "bearish"
-                and short_trend == "bearish"
-            ):
-                signal = "SHORT"
-                confidence = 100
-            elif (
-                long_trend == "bearish"
-                and medium_trend == "bearish"
-                and short_trend == "neutral"
-            ):
-                signal = "SHORT"
-                confidence = 75
-            else:
-                signal = "NEUTRAL"
-                confidence = 0
-
-            return {
-                "signal": signal,
-                "confidence": confidence,
-                "analysis": analysis,
-                "timestamp": time.time(),
-            }
-
-        except Exception as e:
-            self.logger.error(f"Error generating signal: {e}")
-            return {
-                "signal": "NEUTRAL",
-                "confidence": 0,
-                "analysis": {},
-                "timestamp": time.time(),
-            }
-
-    def calculate_position_size(self, entry_price, stop_price):
-        """Calculate position size based on risk management."""
-        try:
-            # Get account balance for risk calculation
-            account = self.client.get_account_info()
-            if not account:
-                return 1
-
-            # Calculate risk per contract
-            risk_per_contract = abs(entry_price - stop_price)
-
-            # Calculate maximum position size based on risk
-            if risk_per_contract > 0:
-                max_size_by_risk = int(self.max_risk_per_trade / risk_per_contract)
-                position_size = min(max_size_by_risk, self.max_position_size)
-                return max(1, position_size)  # At least 1 contract
-            else:
-                return 1
-
-        except Exception as e:
-            self.logger.error(f"Error calculating position size: {e}")
-            return 1
-
-    def execute_signal(self, signal_data):
+    async def execute_signal(self, signal_data: dict):
         """Execute trading signal with proper risk management."""
-        signal = signal_data["signal"]
-        confidence = signal_data["confidence"]
+        # Check current position
+        positions = await self.position_manager.get_all_positions()
+        current_position = positions.get(self.symbol)
 
-        if signal == "NEUTRAL" or confidence < 75:
-            return False
+        # Position size limits
+        if (
+            current_position
+            and abs(current_position.quantity) >= self.max_position_size
+        ):
+            self.logger.info("Max position size reached, skipping signal")
+            return
+
+        # Get account info for position sizing
+        account_balance = float(self.order_manager.project_x.account_info.balance)
+
+        # Calculate position size based on risk
+        entry_price = signal_data["price"]
+        stop_distance = entry_price * 0.01  # 1% stop loss
+
+        if signal_data["signal"] == "BUY":
+            stop_price = entry_price - stop_distance
+            side = 0  # Buy
+        else:
+            stop_price = entry_price + stop_distance
+            side = 1  # Sell
+
+        position_size = await self.position_manager.calculate_position_size(
+            account_balance=account_balance,
+            risk_percentage=self.risk_percentage,
+            entry_price=entry_price,
+            stop_loss_price=stop_price,
+        )
+
+        # Limit position size
+        position_size = min(position_size, self.max_position_size)
+
+        if position_size == 0:
+            self.logger.warning("Position size calculated as 0, skipping order")
+            return
+
+        # Get active contract
+        instruments = await self.order_manager.project_x.search_instruments(self.symbol)
+        if not instruments:
+            return
+
+        contract_id = instruments[0].activeContract
+
+        # Place bracket order
+        self.logger.info(
+            f"Placing {signal_data['signal']} order: "
+            f"Size={position_size}, Entry=${entry_price:.2f}, Stop=${stop_price:.2f}"
+        )
+
+        # Calculate take profit (2:1 risk/reward)
+        if side == 0:  # Buy
+            take_profit = entry_price + (2 * stop_distance)
+        else:  # Sell
+            take_profit = entry_price - (2 * stop_distance)
 
         try:
-            # Check if we already have a position
-            positions = self.position_manager.get_all_positions()
-            mnq_positions = [p for p in positions if "MNQ" in p.contractId]
-
-            if mnq_positions:
-                print("   📊 Already have MNQ position, skipping signal")
-                return False
-
-            # Get current market price
-            current_price = self.data_manager.get_current_price()
-            if not current_price:
-                print("   ❌ No current price available")
-                return False
-
-            current_price = Decimal(str(current_price))
-
-            # Calculate entry and stop prices
-            if signal == "LONG":
-                entry_price = current_price + Decimal("0.25")  # Slightly above market
-                stop_price = current_price - Decimal("10.0")  # $10 stop loss
-                target_price = current_price + Decimal(
-                    "20.0"
-                )  # $20 profit target (2:1 R/R)
-                side = 0  # Buy
-            else:  # SHORT
-                entry_price = current_price - Decimal("0.25")  # Slightly below market
-                stop_price = current_price + Decimal("10.0")  # $10 stop loss
-                target_price = current_price - Decimal(
-                    "20.0"
-                )  # $20 profit target (2:1 R/R)
-                side = 1  # Sell
-
-            # Calculate position size
-            position_size = self.calculate_position_size(
-                float(entry_price), float(stop_price)
-            )
-
-            # Get contract ID
-            instrument = self.client.get_instrument("MNQ")
-            if not instrument:
-                print("   ❌ Could not get MNQ instrument")
-                return False
-
-            contract_id = instrument.id
-
-            print(f"   🎯 Executing {signal} signal:")
-            print(f"      Entry: ${entry_price:.2f}")
-            print(f"      Stop: ${stop_price:.2f}")
-            print(f"      Target: ${target_price:.2f}")
-            print(f"      Size: {position_size} contracts")
-            print(
-                f"      Risk: ${abs(float(entry_price) - float(stop_price)):.2f} per contract"
-            )
-            print(f"      Confidence: {confidence}%")
-
-            # Place bracket order
-            bracket_response = self.order_manager.place_bracket_order(
+            response = await self.order_manager.place_bracket_order(
                 contract_id=contract_id,
                 side=side,
                 size=position_size,
-                entry_price=float(entry_price),
-                stop_loss_price=float(stop_price),
-                take_profit_price=float(target_price),
-                entry_type="limit",
+                entry_price=entry_price,
+                stop_loss_price=stop_price,
+                take_profit_price=take_profit,
             )
 
-            if bracket_response.success:
-                print("   ✅ Bracket order placed successfully!")
-                print(f"      Entry Order: {bracket_response.entry_order_id}")
-                print(f"      Stop Order: {bracket_response.stop_order_id}")
-                print(f"      Target Order: {bracket_response.target_order_id}")
-
-                self.last_signal_time = time.time()
-                return True
+            if response and response.success:
+                self.logger.info(f"✅ Order placed successfully: {response.orderId}")
             else:
-                print(
-                    f"   ❌ Failed to place bracket order: {bracket_response.error_message}"
-                )
-                return False
+                self.logger.error("❌ Order placement failed")
 
         except Exception as e:
-            self.logger.error(f"Error executing signal: {e}")
-            print(f"   ❌ Signal execution error: {e}")
-            return False
+            self.logger.error(f"Error placing order: {e}")
 
-
-def display_strategy_analysis(strategy):
-    """Display current strategy analysis."""
-    signal_data = strategy.generate_signal()
-
-    print("\n📊 Multi-Timeframe Analysis:")
-    print(
-        f"   Signal: {signal_data['signal']} (Confidence: {signal_data['confidence']}%)"
-    )
-
-    analysis = signal_data.get("analysis", {})
-    for tf_name, tf_data in analysis.items():
-        tf = strategy.timeframes[tf_name]
-        trend = tf_data["trend"]
-        strength = tf_data["strength"]
-        price = tf_data["price"]
-        sma = tf_data["sma"]
-
-        trend_emoji = (
-            "📈" if trend == "bullish" else "📉" if trend == "bearish" else "➡️"
+    async def run_strategy_loop(self, check_interval: int = 60):
+        """Run the strategy loop with specified check interval."""
+        self.is_running = True
+        self.logger.info(
+            f"🚀 Strategy started, checking every {check_interval} seconds"
         )
 
-        print(f"   {tf_name.replace('_', ' ').title()} ({tf}):")
-        print(f"     {trend_emoji} Trend: {trend.upper()} (Strength: {strength:.1f}%)")
-        print(f"     Price: ${price:.2f}, SMA: ${sma:.2f}")
+        while self.is_running:
+            try:
+                # Generate signal
+                signal = await self.generate_trading_signal()
 
-    return signal_data
-
-
-# Global variables for cleanup
-_cleanup_managers = {}
-_cleanup_initiated = False
-
-
-def _emergency_cleanup(signum=None, frame=None):
-    """Emergency cleanup function called on signal interruption."""
-    global _cleanup_initiated
-    if _cleanup_initiated:
-        print("\n🚨 Already cleaning up, please wait...")
-        return
-
-    _cleanup_initiated = True
-
-    if signum:
-        signal_name = signal.Signals(signum).name
-        print(f"\n🚨 Received {signal_name} signal - initiating emergency cleanup!")
-    else:
-        print("\n🚨 Initiating emergency cleanup!")
-
-    if _cleanup_managers:
-        print("⚠️  Emergency position and order cleanup in progress...")
-
-        try:
-            order_manager: OrderManager | None = _cleanup_managers.get("order_manager")
-            position_manager: PositionManager | None = _cleanup_managers.get(
-                "position_manager"
-            )
-            data_manager: ProjectXRealtimeDataManager | None = _cleanup_managers.get(
-                "data_manager"
-            )
-
-            if order_manager and position_manager:
-                # Get current state
-                positions: list[Position] = position_manager.get_all_positions()
-                orders: list[Order] = order_manager.search_open_orders()
-
-                if positions or orders:
-                    print(
-                        f"🚫 Emergency: Cancelling {len(orders)} orders and closing {len(positions)} positions..."
+                if signal:
+                    self.logger.info(
+                        f"📊 Signal generated: {signal['signal']} "
+                        f"(Confidence: {signal['confidence']:.1f}%)"
                     )
 
-                    # Cancel all orders immediately
-                    for order in orders:
-                        try:
-                            order_manager.cancel_order(order.id)
-                            print(f"   ✅ Cancelled order {order.id}")
-                        except Exception:
-                            print(f"   ❌ Failed to cancel order {order.id}")
+                    # Execute if confidence is high enough
+                    if signal["confidence"] >= 70:
+                        await self.execute_signal(signal)
+                    else:
+                        self.logger.info("Signal confidence too low, skipping")
 
-                    # Close all positions with market orders
-                    for pos in positions:
-                        try:
-                            close_side = 1 if pos.type == 1 else 0
-                            close_response = order_manager.place_market_order(
-                                contract_id=pos.contractId,
-                                side=close_side,
-                                size=pos.size,
-                            )
-                            if close_response.success:
-                                print(
-                                    f"   ✅ Emergency close order: {close_response.order_id}"
-                                )
-                        except Exception as e:
-                            print(
-                                f"   ❌ Failed to close position {pos.contractId}: {e}"
-                            )
+                # Display strategy status
+                await self._display_status()
 
-                    print("⏳ Waiting 3 seconds for emergency orders to process...")
-                    time.sleep(3)
-                else:
-                    print("✅ No positions or orders to clean up")
+                # Wait for next check
+                await asyncio.sleep(check_interval)
 
-            # Stop data feed
-            if data_manager:
-                try:
-                    data_manager.stop_realtime_feed()
-                    print("🧹 Real-time feed stopped")
-                except Exception as e:
-                    print(f"❌ Error stopping real-time feed: {e}")
+            except Exception as e:
+                self.logger.error(f"Strategy error: {e}", exc_info=True)
+                await asyncio.sleep(check_interval)
 
-        except Exception as e:
-            print(f"❌ Emergency cleanup error: {e}")
+    async def _display_status(self):
+        """Display current strategy status."""
+        positions = await self.position_manager.get_all_positions()
+        portfolio_pnl = await self.position_manager.get_portfolio_pnl()
 
-    print("🚨 Emergency cleanup completed - check your trading platform!")
-    sys.exit(1)
+        print(f"\n📊 Strategy Status at {datetime.now().strftime('%H:%M:%S')}")
+        print(f"  Signals Generated: {self.signal_count}")
+        print(f"  Open Positions: {len(positions)}")
+        if isinstance(portfolio_pnl, dict):
+            total_pnl = portfolio_pnl.get("total_pnl", 0)
+            print(f"  Portfolio P&L: ${total_pnl:.2f}")
+        else:
+            print(f"  Portfolio P&L: ${portfolio_pnl:.2f}")
+
+        if self.last_signal_time:
+            time_since = (datetime.now() - self.last_signal_time).seconds
+            print(f"  Last Signal: {time_since}s ago")
+
+    def stop(self):
+        """Stop the strategy."""
+        self.is_running = False
+        self.logger.info("🛑 Strategy stopped")
 
 
-def wait_for_user_confirmation(message: str) -> bool:
-    """Wait for user confirmation before proceeding."""
-    print(f"\n⚠️  {message}")
-    try:
-        response = input("Continue? (y/N): ").strip().lower()
-        return response == "y"
-    except (EOFError, KeyboardInterrupt):
-        # Handle EOF when input is piped or Ctrl+C during input
-        print("\nN (Interrupted - defaulting to No for safety)")
-        return False
+async def main():
+    """Main async function for multi-timeframe strategy."""
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.info("🚀 Starting Async Multi-Timeframe Strategy")
 
+    # Signal handler for graceful shutdown
+    stop_event = asyncio.Event()
 
-def main():
-    """Demonstrate multi-timeframe trading strategy."""
-    global _cleanup_managers
+    def signal_handler(signum, frame):
+        print("\n⚠️  Shutdown signal received...")
+        stop_event.set()
 
-    # Register signal handlers for emergency cleanup
-    signal.signal(signal.SIGINT, _emergency_cleanup)  # Ctrl+C
-    signal.signal(signal.SIGTERM, _emergency_cleanup)  # Termination signal
-
-    logger = setup_logging(level="INFO")
-    print("🚀 Multi-Timeframe Trading Strategy Example")
-    print("=" * 60)
-    print("📋 Emergency cleanup registered (Ctrl+C will close positions/orders)")
-
-    # Safety warning
-    print("⚠️  WARNING: This strategy can place REAL ORDERS!")
-    print("   - Uses MNQ micro contracts")
-    print("   - Implements risk management")
-    print("   - Only use in simulated/demo accounts")
-    print("   - Monitor positions closely")
-
-    if not wait_for_user_confirmation("This strategy may place REAL ORDERS. Proceed?"):
-        print("❌ Strategy example cancelled for safety")
-        return False
+    signal.signal(signal.SIGINT, signal_handler)
 
     try:
-        # Initialize client
-        print("\n🔑 Initializing ProjectX client...")
-        client = ProjectX.from_env()
+        # Create async client
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
 
-        account = client.get_account_info()
-        if not account:
-            print("❌ Could not get account information")
-            return False
+            if client.account_info is None:
+                print("❌ No account info found")
+                return
 
-        print(f"✅ Connected to account: {account.name}")
-        print(f"   Balance: ${account.balance:,.2f}")
-        print(f"   Simulated: {account.simulated}")
+            print(f"✅ Connected as: {client.account_info.name}")
 
-        # Create trading suite (integrated components)
-        print("\n🏗️ Creating integrated trading suite...")
-        try:
-            jwt_token = client.get_session_token()
-
-            # Define strategy timeframes
-            timeframes = ["15min", "1hr", "4hr"]
-
-            trading_suite = create_trading_suite(
+            # Create trading suite with all components
+            print("\n🏗️ Creating async trading suite...")
+            suite = await create_trading_suite(
                 instrument="MNQ",
                 project_x=client,
-                jwt_token=jwt_token,
-                account_id=str(account.id),
-                timeframes=timeframes,
+                jwt_token=client.session_token,
+                account_id=str(client.account_info.id),
+                timeframes=["15min", "1hr", "4hr"],
             )
 
-            data_manager: ProjectXRealtimeDataManager = trading_suite["data_manager"]
-            order_manager: OrderManager = trading_suite["order_manager"]
-            position_manager: PositionManager = trading_suite["position_manager"]
+            # Connect and initialize
+            print("🔌 Connecting to real-time services...")
+            await suite["realtime_client"].connect()
+            await suite["realtime_client"].subscribe_user_updates()
 
-            # Store managers for emergency cleanup
-            _cleanup_managers["data_manager"] = data_manager
-            _cleanup_managers["order_manager"] = order_manager
-            _cleanup_managers["position_manager"] = position_manager
+            # Initialize data manager
+            print("📊 Loading historical data...")
+            await suite["data_manager"].initialize(initial_days=5)
 
-            print("✅ Trading suite created successfully")
-            print(f"   Timeframes: {', '.join(timeframes)}")
-            print("🛡️  Emergency cleanup protection activated")
+            # Subscribe to market data
+            instruments = await client.search_instruments("MNQ")
+            if instruments:
+                await suite["realtime_client"].subscribe_market_data(
+                    [instruments[0].activeContract]
+                )
+                await suite["data_manager"].start_realtime_feed()
 
-        except Exception as e:
-            print(f"❌ Failed to create trading suite: {e}")
-            return False
-
-        # Initialize with historical data (need enough for 50-period SMA on 4hr timeframe)
-        print("\n📚 Initializing with historical data...")
-        # 50 periods * 4 hours = 200 hours ≈ 8.3 days, so load 15 days to be safe
-        if data_manager.initialize(initial_days=15):
-            print("✅ Historical data loaded (15 days)")
-        else:
-            print("❌ Failed to load historical data")
-            return False
-
-        # Start real-time feed
-        print("\n🌐 Starting real-time data feed...")
-        if data_manager.start_realtime_feed():
-            print("✅ Real-time feed started")
-        else:
-            print("❌ Failed to start real-time feed")
-            return False
-
-        # Wait for data to stabilize
-        print("\n⏳ Waiting for data to stabilize...")
-        time.sleep(5)
-
-        # Create strategy instance
-        print("\n🧠 Initializing multi-timeframe strategy...")
-        strategy = MultiTimeframeStrategy(
-            data_manager, order_manager, position_manager, client
-        )
-        print("✅ Strategy initialized")
-
-        # Show initial portfolio state
-        print("\n" + "=" * 50)
-        print("📊 INITIAL PORTFOLIO STATE")
-        print("=" * 50)
-
-        positions = position_manager.get_all_positions()
-        print(f"Current Positions: {len(positions)}")
-        for pos in positions:
-            direction = "LONG" if pos.type == 1 else "SHORT"
-            print(
-                f"   {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f}"
+            # Create and configure strategy
+            strategy = AsyncMultiTimeframeStrategy(
+                trading_suite=suite,
+                symbol="MNQ",
+                max_position_size=2,
+                risk_percentage=0.02,
             )
 
-        # Show initial strategy analysis
-        print("\n" + "=" * 50)
-        print("🧠 INITIAL STRATEGY ANALYSIS")
-        print("=" * 50)
+            print("\n" + "=" * 60)
+            print("ASYNC MULTI-TIMEFRAME STRATEGY ACTIVE")
+            print("=" * 60)
+            print("\nStrategy Configuration:")
+            print("  Symbol: MNQ")
+            print("  Max Position Size: 2 contracts")
+            print("  Risk per Trade: 2%")
+            print("  Timeframes: 15min, 1hr, 4hr")
+            print("\n⚠️  This strategy can place REAL ORDERS!")
+            print("Press Ctrl+C to stop\n")
 
-        initial_signal = display_strategy_analysis(strategy)
-
-        # Strategy monitoring loop
-        print("\n" + "=" * 50)
-        print("👀 STRATEGY MONITORING")
-        print("=" * 50)
-
-        print("Monitoring strategy for signals...")
-        print("Strategy will analyze market every 30 seconds")
-        print("Press Ctrl+C to stop")
-
-        monitoring_cycles = 0
-        signals_generated = 0
-        orders_placed = 0
-
-        try:
-            # Run strategy for 5 minutes (10 cycles of 30 seconds)
-            for cycle in range(10):
-                cycle_start = time.time()
-
-                print(f"\n⏰ Strategy Cycle {cycle + 1}/10")
-                print("-" * 30)
-
-                # Generate and display current signal
-                signal_data = display_strategy_analysis(strategy)
-
-                # Check for high-confidence signals
-                if (
-                    signal_data["signal"] != "NEUTRAL"
-                    and signal_data["confidence"] >= 75
-                ):
-                    signals_generated += 1
-                    print("\n🚨 HIGH CONFIDENCE SIGNAL DETECTED!")
-                    print(f"   Signal: {signal_data['signal']}")
-                    print(f"   Confidence: {signal_data['confidence']}%")
-
-                    # Ask user before executing (safety)
-                    if wait_for_user_confirmation(
-                        f"Execute {signal_data['signal']} signal?"
-                    ):
-                        if strategy.execute_signal(signal_data):
-                            orders_placed += 1
-                            print("   ✅ Signal executed successfully")
-                        else:
-                            print("   ❌ Signal execution failed")
-                    else:
-                        print("      Signal execution skipped by user")
-
-                # Show current positions and orders
-                positions: list[Position] = position_manager.get_all_positions()
-                orders: list[Order] = order_manager.search_open_orders()
-
-                print("\n📊 Current Status:")
-                print(f"   Open Positions: {len(positions)}")
-                print(f"   Open Orders: {len(orders)}")
-
-                # Check for filled orders
-                filled_orders = []
-                for order in orders:
-                    if order_manager.is_order_filled(order.id):
-                        filled_orders.append(order.id)
-
-                if filled_orders:
-                    print(f"   🎯 Recently Filled Orders: {filled_orders}")
-
-                monitoring_cycles += 1
-
-                # Wait for next cycle
-                cycle_time = time.time() - cycle_start
-                remaining_time = max(0, 30 - cycle_time)
-
-                if cycle < 9:  # Don't sleep after last cycle
-                    print(f"\n⏳ Waiting {remaining_time:.1f}s for next cycle...")
-                    if remaining_time > 0:
-                        time.sleep(remaining_time)
-
-        except KeyboardInterrupt:
-            print("\n⏹️ Strategy monitoring stopped by user")
-            # Signal handler will take care of cleanup
-
-        # Final analysis and statistics
-        print("\n" + "=" * 50)
-        print("📊 STRATEGY PERFORMANCE SUMMARY")
-        print("=" * 50)
-
-        print("Strategy Statistics:")
-        print(f"   Monitoring Cycles: {monitoring_cycles}")
-        print(f"   Signals Generated: {signals_generated}")
-        print(f"   Orders Placed: {orders_placed}")
-
-        # Show final portfolio state
-        final_positions = position_manager.get_all_positions()
-        final_orders = order_manager.search_open_orders()
-
-        print("\nFinal Portfolio State:")
-        print(f"   Open Positions: {len(final_positions)}")
-        print(f"   Open Orders: {len(final_orders)}")
-
-        if final_positions:
-            print("   Position Details:")
-            for pos in final_positions:
-                direction = "LONG" if pos.type == 1 else "SHORT"
-
-                # Get current price for P&L calculation
-                try:
-                    current_price = data_manager.get_current_price()
-                    if current_price:
-                        pnl_info = position_manager.calculate_position_pnl(
-                            pos, current_price
-                        )
-                        pnl = pnl_info.get("unrealized_pnl", 0) if pnl_info else 0
-                        print(
-                            f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: ${pnl:+.2f})"
-                        )
-                    else:
-                        print(
-                            f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: N/A)"
-                        )
-                except Exception as e:
-                    print(
-                        f"     {pos.contractId}: {direction} {pos.size} @ ${pos.averagePrice:.2f} (P&L: Error - {e})"
-                    )
-
-        # Show final signal analysis
-        print("\n🧠 Final Strategy Analysis:")
-        final_signal = display_strategy_analysis(strategy)
-
-        # Risk metrics
-        try:
-            risk_metrics = position_manager.get_risk_metrics()
-            print("\n⚖️ Risk Metrics:")
-            print(f"   Total Exposure: ${risk_metrics['total_exposure']:.2f}")
-            print(
-                f"   Largest Position Risk: {risk_metrics['largest_position_risk']:.2%}"
+            # Run strategy until stopped
+            strategy_task = asyncio.create_task(
+                strategy.run_strategy_loop(check_interval=30)
             )
-        except Exception as e:
-            print(f"   ❌ Risk metrics error: {e}")
 
-        print("\n✅ Multi-timeframe strategy example completed!")
-        print("\n📝 Key Features Demonstrated:")
-        print("   ✅ Multi-timeframe trend analysis")
-        print("   ✅ Technical indicator integration")
-        print("   ✅ Signal generation and confidence scoring")
-        print("   ✅ Risk management and position sizing")
-        print("   ✅ Real-time strategy monitoring")
-        print("   ✅ Integrated order and position management")
+            # Wait for stop signal
+            await stop_event.wait()
 
-        print("\n📚 Next Steps:")
-        print("   - Try examples/07_technical_indicators.py for indicator details")
-        print("   - Review your positions in the trading platform")
-        print("   - Study strategy performance and refine parameters")
+            # Stop strategy
+            strategy.stop()
+            strategy_task.cancel()
 
-        return True
+            # Cleanup
+            await suite["data_manager"].stop_realtime_feed()
+            await suite["realtime_client"].cleanup()
 
-    except KeyboardInterrupt:
-        print("\n⏹️ Example interrupted by user")
-        # Signal handler will handle emergency cleanup
-        return False
+            print("\n✅ Strategy stopped successfully")
+
     except Exception as e:
-        logger.error(f"❌ Multi-timeframe strategy example failed: {e}")
-        print(f"❌ Error: {e}")
-        return False
-    finally:
-        # Comprehensive cleanup - close positions and cancel orders
-        cleanup_performed = False
-
-        if "order_manager" in locals() and "position_manager" in locals():
-            try:
-                print("\n" + "=" * 50)
-                print("🧹 STRATEGY CLEANUP")
-                print("=" * 50)
-
-                # Get current positions and orders
-                final_positions = position_manager.get_all_positions()
-                final_orders = order_manager.search_open_orders()
-
-                if final_positions or final_orders:
-                    print(
-                        f"⚠️  Found {len(final_positions)} open positions and {len(final_orders)} open orders"
-                    )
-                    print(
-                        "   For safety, all positions and orders should be closed when exiting."
-                    )
-
-                    # Ask for user confirmation to close everything
-                    if wait_for_user_confirmation(
-                        "Close all positions and cancel all orders?"
-                    ):
-                        cleanup_performed = True
-
-                        # Cancel all open orders first
-                        if final_orders:
-                            print(f"\n🚫 Cancelling {len(final_orders)} open orders...")
-                            cancelled_count = 0
-                            for order in final_orders:
-                                try:
-                                    if order_manager.cancel_order(order.id):
-                                        cancelled_count += 1
-                                        print(f"   ✅ Cancelled order {order.id}")
-                                    else:
-                                        print(
-                                            f"   ❌ Failed to cancel order {order.id}"
-                                        )
-                                except Exception as e:
-                                    print(
-                                        f"   ❌ Error cancelling order {order.id}: {e}"
-                                    )
-
-                            print(
-                                f"   📊 Successfully cancelled {cancelled_count}/{len(final_orders)} orders"
-                            )
-
-                        # Close all open positions
-                        if final_positions:
-                            print(
-                                f"\n📤 Closing {len(final_positions)} open positions..."
-                            )
-                            closed_count = 0
-
-                            for pos in final_positions:
-                                try:
-                                    direction = "LONG" if pos.type == 1 else "SHORT"
-                                    print(
-                                        f"   🎯 Closing {direction} {pos.size} {pos.contractId} @ ${pos.averagePrice:.2f}"
-                                    )
-
-                                    # Get current market price for market order
-                                    current_price = (
-                                        data_manager.get_current_price()
-                                        if "data_manager" in locals()
-                                        else None
-                                    )
-
-                                    # Close position with market order (opposite side)
-                                    close_side = (
-                                        1 if pos.type == 1 else 0
-                                    )  # Opposite of position type
-
-                                    close_response = order_manager.place_market_order(
-                                        contract_id=pos.contractId,
-                                        side=close_side,
-                                        size=pos.size,
-                                    )
-
-                                    if close_response.success:
-                                        closed_count += 1
-                                        print(
-                                            f"   ✅ Close order placed: {close_response.orderId}"
-                                        )
-                                    else:
-                                        print(
-                                            f"   ❌ Failed to place close order: {close_response.errorMessage}"
-                                        )
-
-                                except Exception as e:
-                                    print(
-                                        f"   ❌ Error closing position {pos.contractId}: {e}"
-                                    )
-
-                            print(
-                                f"   📊 Successfully placed {closed_count}/{len(final_positions)} close orders"
-                            )
-
-                            # Give orders time to fill
-                            if closed_count > 0:
-                                print("   ⏳ Waiting 5 seconds for orders to fill...")
-                                time.sleep(5)
-
-                                # Check final status
-                                remaining_positions = (
-                                    position_manager.get_all_positions()
-                                )
-                                if remaining_positions:
-                                    print(
-                                        f"   ⚠️  {len(remaining_positions)} positions still open - monitor manually"
-                                    )
-                                else:
-                                    print("   ✅ All positions successfully closed")
-                    else:
-                        print(
-                            "Cleanup skipped by user - positions and orders remain open"
-                        )
-                        print("   ⚠️  IMPORTANT: Monitor your positions manually!")
-                else:
-                    print("✅ No open positions or orders to clean up")
-                    cleanup_performed = True
-
-            except Exception as e:
-                print(f"❌ Error during cleanup: {e}")
-
-        # Stop real-time feed
-        if "data_manager" in locals():
-            try:
-                data_manager.stop_realtime_feed()
-                print("\n🧹 Real-time feed stopped")
-            except Exception as e:
-                print(f"⚠️  Feed stop warning: {e}")
-
-        # Final safety message
-        if not cleanup_performed:
-            print("\n" + "⚠️ " * 20)
-            print("🚨 IMPORTANT SAFETY NOTICE:")
-            print("   - Open positions and orders were NOT automatically closed")
-            print("   - Please check your trading platform immediately")
-            print("   - Manually close any unwanted positions or orders")
-            print("   - Monitor your account for any unexpected activity")
-            print("⚠️ " * 20)
+        logger.error(f"❌ Error: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    print("\n" + "=" * 60)
+    print("ASYNC MULTI-TIMEFRAME TRADING STRATEGY")
+    print("=" * 60 + "\n")
+
+    asyncio.run(main())

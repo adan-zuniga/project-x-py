@@ -13,6 +13,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [2.0.0] - 2025-01-30
+
+### Breaking Changes
+- **🚀 Complete Async Migration**: Entire SDK migrated from synchronous to asynchronous architecture
+  - All public methods now require `await` keyword
+  - Clients must use `async with` for proper resource management
+  - No backward compatibility - clean async-only implementation
+  - Aligns with CLAUDE.md directive for "No Backward Compatibility" during development
+
+### Added
+- **✨ AsyncProjectX Client**: New async-first client implementation
+  - HTTP/2 support via httpx for improved performance
+  - Concurrent API operations with proper connection pooling
+  - Non-blocking I/O for all operations
+  - Async context manager support for resource cleanup
+  
+- **📦 Dependencies**: Added modern async libraries
+  - `httpx[http2]>=0.27.0` for async HTTP with HTTP/2 support
+  - `pytest-asyncio>=0.23.0` for async testing
+  - `aioresponses>=0.7.6` for mocking async HTTP
+
+### Changed
+- **🔄 Migration Pattern**: From sync to async
+  ```python
+  # Old (Sync)
+  client = ProjectX(api_key, username)
+  client.authenticate()
+  positions = client.get_positions()
+  
+  # New (Async)
+  async with AsyncProjectX.from_env() as client:
+      await client.authenticate()
+      positions = await client.get_positions()
+  ```
+
+### Performance Improvements
+- **⚡ Concurrent Operations**: Multiple API calls can now execute simultaneously
+- **🚄 HTTP/2 Support**: Reduced connection overhead and improved throughput
+- **🔄 Non-blocking WebSocket**: Real-time data processing without blocking other operations
+
+### Migration Notes
+- This is a complete breaking change - all code using the SDK must be updated
+- See `tests/test_async_client.py` for usage examples
+- Phase 2-5 of async migration still pending (managers, real-time, etc.)
+
 ## [1.1.4] - 2025-01-30
 
 ### Fixed

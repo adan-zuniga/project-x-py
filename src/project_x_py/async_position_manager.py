@@ -1,11 +1,7 @@
-#!/usr/bin/env python3
 """
-PositionManager for Comprehensive Position Operations
+Async PositionManager for Comprehensive Position Operations
 
-Author: TexasCoding
-Date: June 2025
-
-This module provides comprehensive position management capabilities for the ProjectX API:
+This module provides async/await support for comprehensive position management with the ProjectX API:
 1. Position tracking and monitoring
 2. Real-time position updates and P&L calculation
 3. Portfolio-level position management
@@ -14,108 +10,97 @@ This module provides comprehensive position management capabilities for the Proj
 6. Automated position monitoring and alerts
 
 Key Features:
-- Thread-safe position operations
-- Dependency injection with ProjectX client
-- Integration with ProjectXRealtimeClient for live updates
+- Async/await patterns for all operations
+- Thread-safe position operations using asyncio locks
+- Dependency injection with AsyncProjectX client
+- Integration with AsyncProjectXRealtimeClient for live updates
 - Real-time P&L and risk calculations
 - Portfolio-level analytics and reporting
 - Position-based risk management
-
-Architecture:
-- Similar to OrderBook and OrderManager
-- Clean separation from main client class
-- Real-time position tracking capabilities
-- Event-driven position updates
 """
 
 import asyncio
-import json
 import logging
-import threading
 from collections import defaultdict
+from collections.abc import Callable, Coroutine
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-import requests
-
-from .exceptions import (
-    ProjectXError,
-)
-from .lock_coordinator import get_lock_coordinator
+from .exceptions import ProjectXError
 from .models import Position
 
 if TYPE_CHECKING:
-    from .client import ProjectX
-    from .order_manager import OrderManager
-    from .realtime import ProjectXRealtimeClient
+    from .async_client import AsyncProjectX
+    from .async_order_manager import AsyncOrderManager
+    from .async_realtime import AsyncProjectXRealtimeClient
 
 
-class PositionManager:
+class AsyncPositionManager:
     """
-    Comprehensive position management system for ProjectX trading operations.
+    Async comprehensive position management system for ProjectX trading operations.
 
     This class handles all position-related operations including tracking, monitoring,
-    analysis, and management. It integrates with both the ProjectX API client and
-    the real-time client for live position monitoring.
+    analysis, and management using async/await patterns. It integrates with both the
+    AsyncProjectX client and the async real-time client for live position monitoring.
 
     Features:
+        - Complete async position lifecycle management
         - Real-time position tracking and monitoring
         - Portfolio-level position management
         - Automated P&L calculation and risk metrics
         - Position sizing and risk management tools
         - Event-driven position updates (closures detected from type=0/size=0)
-        - Thread-safe operations for concurrent access
+        - Async-safe operations for concurrent access
 
     Example Usage:
-        >>> # Create position manager with dependency injection
-        >>> position_manager = PositionManager(project_x_client)
+        >>> # Create async position manager with dependency injection
+        >>> position_manager = AsyncPositionManager(async_project_x_client)
         >>> # Initialize with optional real-time client
-        >>> position_manager.initialize(realtime_client=realtime_client)
+        >>> await position_manager.initialize(realtime_client=async_realtime_client)
         >>> # Get current positions
-        >>> positions = position_manager.get_all_positions()
-        >>> mgc_position = position_manager.get_position("MGC")
+        >>> positions = await position_manager.get_all_positions()
+        >>> mgc_position = await position_manager.get_position("MGC")
         >>> # Portfolio analytics
-        >>> portfolio_pnl = position_manager.get_portfolio_pnl()
-        >>> risk_metrics = position_manager.get_risk_metrics()
+        >>> portfolio_pnl = await position_manager.get_portfolio_pnl()
+        >>> risk_metrics = await position_manager.get_risk_metrics()
         >>> # Position monitoring
-        >>> position_manager.add_position_alert("MGC", max_loss=-500.0)
-        >>> position_manager.start_monitoring()
+        >>> await position_manager.add_position_alert("MGC", max_loss=-500.0)
+        >>> await position_manager.start_monitoring()
         >>> # Position sizing
-        >>> suggested_size = position_manager.calculate_position_size(
+        >>> suggested_size = await position_manager.calculate_position_size(
         ...     "MGC", risk_amount=100.0, entry_price=2045.0, stop_price=2040.0
         ... )
     """
 
-    def __init__(self, project_x_client: "ProjectX"):
+    def __init__(self, project_x_client: "AsyncProjectX"):
         """
-        Initialize the PositionManager with a ProjectX client.
+        Initialize the AsyncPositionManager with an AsyncProjectX client.
 
         Args:
-            project_x_client: ProjectX client instance for API access
+            project_x_client: AsyncProjectX client instance for API access
         """
         self.project_x = project_x_client
         self.logger = logging.getLogger(__name__)
 
-        # Thread safety (coordinated with other components)
-        self.lock_coordinator = get_lock_coordinator()
-        self.position_lock = self.lock_coordinator.position_lock
+        # Async lock for thread safety
+        self.position_lock = asyncio.Lock()
 
         # Real-time integration (optional)
-        self.realtime_client: ProjectXRealtimeClient | None = None
+        self.realtime_client: AsyncProjectXRealtimeClient | None = None
         self._realtime_enabled = False
 
         # Order management integration (optional)
-        self.order_manager: OrderManager | None = None
+        self.order_manager: AsyncOrderManager | None = None
         self._order_sync_enabled = False
 
         # Position tracking (maintains local state for business logic)
         self.tracked_positions: dict[str, Position] = {}
         self.position_history: dict[str, list[dict]] = defaultdict(list)
-        self.position_callbacks: dict[str, list] = defaultdict(list)
+        self.position_callbacks: dict[str, list[Any]] = defaultdict(list)
 
         # Monitoring and alerts
         self._monitoring_active = False
-        self._monitoring_thread: threading.Thread | None = None
+        self._monitoring_task: asyncio.Task | None = None
         self.position_alerts: dict[str, dict] = {}
 
         # Statistics and metrics
@@ -138,19 +123,19 @@ class PositionManager:
             "alert_threshold": 0.005,  # 0.5% threshold for alerts
         }
 
-        self.logger.info("PositionManager initialized")
+        self.logger.info("AsyncPositionManager initialized")
 
-    def initialize(
+    async def initialize(
         self,
-        realtime_client: Optional["ProjectXRealtimeClient"] = None,
-        order_manager: Optional["OrderManager"] = None,
+        realtime_client: Optional["AsyncProjectXRealtimeClient"] = None,
+        order_manager: Optional["AsyncOrderManager"] = None,
     ) -> bool:
         """
-        Initialize the PositionManager with optional real-time capabilities and order synchronization.
+        Initialize the AsyncPositionManager with optional real-time capabilities and order synchronization.
 
         Args:
-            realtime_client: Optional ProjectXRealtimeClient for live position tracking
-            order_manager: Optional OrderManager for automatic order synchronization
+            realtime_client: Optional AsyncProjectXRealtimeClient for live position tracking
+            order_manager: Optional AsyncOrderManager for automatic order synchronization
 
         Returns:
             bool: True if initialization successful
@@ -159,60 +144,62 @@ class PositionManager:
             # Set up real-time integration if provided
             if realtime_client:
                 self.realtime_client = realtime_client
-                self._setup_realtime_callbacks()
+                await self._setup_realtime_callbacks()
                 self._realtime_enabled = True
                 self.logger.info(
-                    "✅ PositionManager initialized with real-time capabilities"
+                    "✅ AsyncPositionManager initialized with real-time capabilities"
                 )
             else:
-                self.logger.info("✅ PositionManager initialized (polling mode)")
+                self.logger.info("✅ AsyncPositionManager initialized (polling mode)")
 
             # Set up order management integration if provided
             if order_manager:
                 self.order_manager = order_manager
                 self._order_sync_enabled = True
                 self.logger.info(
-                    "✅ PositionManager initialized with order synchronization"
+                    "✅ AsyncPositionManager initialized with order synchronization"
                 )
 
             # Load initial positions
-            self.refresh_positions()
+            await self.refresh_positions()
 
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to initialize PositionManager: {e}")
+            self.logger.error(f"❌ Failed to initialize AsyncPositionManager: {e}")
             return False
 
-    def _setup_realtime_callbacks(self):
+    async def _setup_realtime_callbacks(self) -> None:
         """Set up callbacks for real-time position monitoring."""
         if not self.realtime_client:
             return
 
         # Register for position events (closures are detected from position updates)
-        self.realtime_client.add_callback("position_update", self._on_position_update)
-        self.realtime_client.add_callback("account_update", self._on_account_update)
+        await self.realtime_client.add_callback(
+            "position_update", self._on_position_update
+        )
+        await self.realtime_client.add_callback(
+            "account_update", self._on_account_update
+        )
 
         self.logger.info("🔄 Real-time position callbacks registered")
 
-    def _on_position_update(self, data: dict):
+    async def _on_position_update(self, data: dict) -> None:
         """Handle real-time position updates and detect position closures."""
         try:
-            with self.position_lock:
+            async with self.position_lock:
                 if isinstance(data, list):
                     for position_data in data:
-                        self._process_position_data(position_data)
+                        await self._process_position_data(position_data)
                 elif isinstance(data, dict):
-                    self._process_position_data(data)
-
-            # Note: No duplicate callback triggering - realtime client handles this
+                    await self._process_position_data(data)
 
         except Exception as e:
             self.logger.error(f"Error processing position update: {e}")
 
-    def _on_account_update(self, data: dict):
+    async def _on_account_update(self, data: dict) -> None:
         """Handle account-level updates that may affect positions."""
-        self._trigger_callbacks("account_update", data)
+        await self._trigger_callbacks("account_update", data)
 
     def _validate_position_payload(self, position_data: dict) -> bool:
         """
@@ -264,7 +251,7 @@ class PositionManager:
 
         return True
 
-    def _process_position_data(self, position_data: dict):
+    async def _process_position_data(self, position_data: dict) -> None:
         """
         Process individual position data update and detect position closures.
 
@@ -314,11 +301,12 @@ class PositionManager:
                     self.stats["positions_closed"] += 1
 
                 # Synchronize orders - cancel related orders when position is closed
-                if self._order_sync_enabled and self.order_manager:
-                    self.order_manager.on_position_closed(contract_id)
+                # Note: Order synchronization methods will be added to AsyncOrderManager
+                # if self._order_sync_enabled and self.order_manager:
+                #     await self.order_manager.on_position_closed(contract_id)
 
                 # Trigger position_closed callbacks with the closure data
-                self._trigger_callbacks(
+                await self._trigger_callbacks(
                     "position_closed", {"data": actual_position_data}
                 )
             else:
@@ -328,14 +316,15 @@ class PositionManager:
                 self.tracked_positions[contract_id] = position
 
                 # Synchronize orders - update order sizes if position size changed
-                if (
-                    self._order_sync_enabled
-                    and self.order_manager
-                    and old_size != position_size
-                ):
-                    self.order_manager.on_position_changed(
-                        contract_id, old_size, position_size
-                    )
+                # Note: Order synchronization methods will be added to AsyncOrderManager
+                # if (
+                #     self._order_sync_enabled
+                #     and self.order_manager
+                #     and old_size != position_size
+                # ):
+                #     await self.order_manager.on_position_changed(
+                #         contract_id, old_size, position_size
+                #     )
 
                 # Track position history
                 self.position_history[contract_id].append(
@@ -347,21 +336,28 @@ class PositionManager:
                 )
 
                 # Check alerts
-                self._check_position_alerts(contract_id, position, old_position)
+                await self._check_position_alerts(contract_id, position, old_position)
 
         except Exception as e:
             self.logger.error(f"Error processing position data: {e}")
             self.logger.debug(f"Position data that caused error: {position_data}")
 
-    def _trigger_callbacks(self, event_type: str, data: Any):
+    async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
         """Trigger registered callbacks for position events."""
         for callback in self.position_callbacks.get(event_type, []):
             try:
-                callback(data)
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(data)
+                else:
+                    callback(data)
             except Exception as e:
                 self.logger.error(f"Error in {event_type} callback: {e}")
 
-    def add_callback(self, event_type: str, callback):
+    async def add_callback(
+        self,
+        event_type: str,
+        callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None] | None],
+    ) -> None:
         """
         Register a callback function for specific position events.
 
@@ -374,20 +370,24 @@ class PositionManager:
                 - "position_closed": Position fully closed (size = 0)
                 - "account_update": Account-level changes
                 - "position_alert": Position alert triggered
-            callback: Function to call when event occurs
+            callback: Async function to call when event occurs
                 Should accept one argument: the event data dict
 
         Example:
-            >>> def on_position_update(data):
+            >>> async def on_position_update(data):
             ...     pos = data.get("data", {})
             ...     print(
             ...         f"Position updated: {pos.get('contractId')} size: {pos.get('size')}"
             ...     )
-            >>> position_manager.add_callback("position_update", on_position_update)
-            >>> def on_position_closed(data):
+            >>> await position_manager.add_callback(
+            ...     "position_update", on_position_update
+            ... )
+            >>> async def on_position_closed(data):
             ...     pos = data.get("data", {})
             ...     print(f"Position closed: {pos.get('contractId')}")
-            >>> position_manager.add_callback("position_closed", on_position_closed)
+            >>> await position_manager.add_callback(
+            ...     "position_closed", on_position_closed
+            ... )
         """
         self.position_callbacks[event_type].append(callback)
 
@@ -395,7 +395,7 @@ class PositionManager:
     # CORE POSITION RETRIEVAL METHODS
     # ================================================================================
 
-    def get_all_positions(self, account_id: int | None = None) -> list[Position]:
+    async def get_all_positions(self, account_id: int | None = None) -> list[Position]:
         """
         Get all current positions.
 
@@ -406,15 +406,17 @@ class PositionManager:
             List[Position]: List of all current positions
 
         Example:
-            >>> positions = position_manager.get_all_positions()
+            >>> positions = await position_manager.get_all_positions()
             >>> for pos in positions:
             ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice}")
         """
         try:
-            positions = self.project_x.search_open_positions(account_id=account_id)
+            positions = await self.project_x.search_open_positions(
+                account_id=account_id
+            )
 
             # Update tracked positions
-            with self.position_lock:
+            async with self.position_lock:
                 for position in positions:
                     self.tracked_positions[position.contractId] = position
 
@@ -428,7 +430,7 @@ class PositionManager:
             self.logger.error(f"❌ Failed to retrieve positions: {e}")
             return []
 
-    def get_position(
+    async def get_position(
         self, contract_id: str, account_id: int | None = None
     ) -> Position | None:
         """
@@ -442,26 +444,26 @@ class PositionManager:
             Position: Position object if found, None otherwise
 
         Example:
-            >>> mgc_position = position_manager.get_position("MGC")
+            >>> mgc_position = await position_manager.get_position("MGC")
             >>> if mgc_position:
             ...     print(f"MGC size: {mgc_position.size}")
         """
         # Try cached data first if real-time enabled
         if self._realtime_enabled:
-            with self.position_lock:
+            async with self.position_lock:
                 cached_position = self.tracked_positions.get(contract_id)
                 if cached_position:
                     return cached_position
 
         # Fallback to API search
-        positions = self.get_all_positions(account_id=account_id)
+        positions = await self.get_all_positions(account_id=account_id)
         for position in positions:
             if position.contractId == contract_id:
                 return position
 
         return None
 
-    def refresh_positions(self, account_id: int | None = None) -> bool:
+    async def refresh_positions(self, account_id: int | None = None) -> bool:
         """
         Refresh all position data from the API.
 
@@ -472,14 +474,16 @@ class PositionManager:
             bool: True if refresh successful
         """
         try:
-            positions = self.get_all_positions(account_id=account_id)
+            positions = await self.get_all_positions(account_id=account_id)
             self.logger.info(f"🔄 Refreshed {len(positions)} positions")
             return True
         except Exception as e:
             self.logger.error(f"❌ Failed to refresh positions: {e}")
             return False
 
-    def is_position_open(self, contract_id: str, account_id: int | None = None) -> bool:
+    async def is_position_open(
+        self, contract_id: str, account_id: int | None = None
+    ) -> bool:
         """
         Check if a position exists for the given contract.
 
@@ -490,15 +494,15 @@ class PositionManager:
         Returns:
             bool: True if position exists and size > 0
         """
-        position = self.get_position(contract_id, account_id)
+        position = await self.get_position(contract_id, account_id)
         return position is not None and position.size != 0
 
     # ================================================================================
     # P&L CALCULATION METHODS (requires market prices)
     # ================================================================================
 
-    def calculate_position_pnl(
-        self, position: Position, current_price: float
+    async def calculate_position_pnl(
+        self, position: Position, current_price: float, point_value: float | None = None
     ) -> dict[str, Any]:
         """
         Calculate P&L for a position given current market price.
@@ -506,19 +510,32 @@ class PositionManager:
         Args:
             position: Position object
             current_price: Current market price
+            point_value: Optional point value for the contract (dollar value per point)
+                        If not provided, P&L will be in points
 
         Returns:
             Dict with P&L calculations
 
         Example:
-            >>> pnl = position_manager.calculate_position_pnl(position, 2050.0)
+            >>> pnl = await position_manager.calculate_position_pnl(position, 2050.0)
+            >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
+            >>> # With point value for accurate dollar P&L
+            >>> pnl = await position_manager.calculate_position_pnl(
+            ...     position, 2050.0, point_value=2.0
+            ... )
             >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
         """
         # Calculate P&L based on position direction
         if position.type == 1:  # LONG
-            pnl_per_contract = current_price - position.averagePrice
+            price_change = current_price - position.averagePrice
         else:  # SHORT (type == 2)
-            pnl_per_contract = position.averagePrice - current_price
+            price_change = position.averagePrice - current_price
+
+        # Apply point value if provided (for accurate dollar P&L)
+        if point_value is not None:
+            pnl_per_contract = price_change * point_value
+        else:
+            pnl_per_contract = price_change
 
         unrealized_pnl = pnl_per_contract * position.size
         market_value = current_price * position.size
@@ -531,9 +548,10 @@ class PositionManager:
             "entry_price": position.averagePrice,
             "size": position.size,
             "direction": "LONG" if position.type == 1 else "SHORT",
+            "price_change": price_change,
         }
 
-    def calculate_portfolio_pnl(
+    async def calculate_portfolio_pnl(
         self, current_prices: dict[str, float], account_id: int | None = None
     ) -> dict[str, Any]:
         """
@@ -548,10 +566,10 @@ class PositionManager:
 
         Example:
             >>> prices = {"MGC": 2050.0, "NQ": 15500.0}
-            >>> pnl = position_manager.calculate_portfolio_pnl(prices)
+            >>> pnl = await position_manager.calculate_portfolio_pnl(prices)
             >>> print(f"Total P&L: ${pnl['total_pnl']:.2f}")
         """
-        positions = self.get_all_positions(account_id=account_id)
+        positions = await self.get_all_positions(account_id=account_id)
 
         total_pnl = 0.0
         position_breakdown = []
@@ -561,7 +579,7 @@ class PositionManager:
             current_price = current_prices.get(position.contractId)
 
             if current_price is not None:
-                pnl_data = self.calculate_position_pnl(position, current_price)
+                pnl_data = await self.calculate_position_pnl(position, current_price)
                 total_pnl += pnl_data["unrealized_pnl"]
                 positions_with_prices += 1
 
@@ -603,7 +621,7 @@ class PositionManager:
     # PORTFOLIO ANALYTICS AND REPORTING
     # ================================================================================
 
-    def get_portfolio_pnl(self, account_id: int | None = None) -> dict[str, Any]:
+    async def get_portfolio_pnl(self, account_id: int | None = None) -> dict[str, Any]:
         """
         Calculate comprehensive portfolio P&L metrics.
 
@@ -614,11 +632,11 @@ class PositionManager:
             Dict with portfolio P&L breakdown
 
         Example:
-            >>> pnl = position_manager.get_portfolio_pnl()
+            >>> pnl = await position_manager.get_portfolio_pnl()
             >>> print(f"Total P&L: ${pnl['total_pnl']:.2f}")
             >>> print(f"Unrealized: ${pnl['unrealized_pnl']:.2f}")
         """
-        positions = self.get_all_positions(account_id=account_id)
+        positions = await self.get_all_positions(account_id=account_id)
 
         position_breakdown = []
 
@@ -646,7 +664,7 @@ class PositionManager:
             "note": "For P&L calculations, use calculate_portfolio_pnl() with current market prices",
         }
 
-    def get_risk_metrics(self, account_id: int | None = None) -> dict[str, Any]:
+    async def get_risk_metrics(self, account_id: int | None = None) -> dict[str, Any]:
         """
         Calculate portfolio risk metrics.
 
@@ -657,10 +675,10 @@ class PositionManager:
             Dict with risk analysis
 
         Example:
-            >>> risk = position_manager.get_risk_metrics()
+            >>> risk = await position_manager.get_risk_metrics()
             >>> print(f"Portfolio risk: {risk['portfolio_risk']:.2%}")
         """
-        positions = self.get_all_positions(account_id=account_id)
+        positions = await self.get_all_positions(account_id=account_id)
 
         if not positions:
             return {
@@ -730,13 +748,13 @@ class PositionManager:
     # POSITION MONITORING AND ALERTS
     # ================================================================================
 
-    def add_position_alert(
+    async def add_position_alert(
         self,
         contract_id: str,
         max_loss: float | None = None,
         max_gain: float | None = None,
         pnl_threshold: float | None = None,
-    ):
+    ) -> None:
         """
         Add an alert for a specific position.
 
@@ -748,11 +766,11 @@ class PositionManager:
 
         Example:
             >>> # Alert if MGC loses more than $500
-            >>> position_manager.add_position_alert("MGC", max_loss=-500.0)
+            >>> await position_manager.add_position_alert("MGC", max_loss=-500.0)
             >>> # Alert if NQ gains more than $1000
-            >>> position_manager.add_position_alert("NQ", max_gain=1000.0)
+            >>> await position_manager.add_position_alert("NQ", max_gain=1000.0)
         """
-        with self.position_lock:
+        async with self.position_lock:
             self.position_alerts[contract_id] = {
                 "max_loss": max_loss,
                 "max_gain": max_gain,
@@ -763,7 +781,7 @@ class PositionManager:
 
         self.logger.info(f"📢 Position alert added for {contract_id}")
 
-    def remove_position_alert(self, contract_id: str):
+    async def remove_position_alert(self, contract_id: str) -> None:
         """
         Remove position alert for a specific contract.
 
@@ -771,19 +789,19 @@ class PositionManager:
             contract_id: Contract ID to remove alert for
 
         Example:
-            >>> position_manager.remove_position_alert("MGC")
+            >>> await position_manager.remove_position_alert("MGC")
         """
-        with self.position_lock:
+        async with self.position_lock:
             if contract_id in self.position_alerts:
                 del self.position_alerts[contract_id]
                 self.logger.info(f"🔕 Position alert removed for {contract_id}")
 
-    def _check_position_alerts(
+    async def _check_position_alerts(
         self,
         contract_id: str,
         current_position: Position,
         old_position: Position | None,
-    ):
+    ) -> None:
         """
         Check if position alerts should be triggered and handle alert notifications.
 
@@ -819,7 +837,7 @@ class PositionManager:
         if alert_triggered:
             alert["triggered"] = True
             self.logger.warning(f"🚨 POSITION ALERT: {alert_message}")
-            self._trigger_callbacks(
+            await self._trigger_callbacks(
                 "position_alert",
                 {
                     "contract_id": contract_id,
@@ -829,22 +847,22 @@ class PositionManager:
                 },
             )
 
-    async def _monitoring_loop(self, refresh_interval: int):
+    async def _monitoring_loop(self, refresh_interval: int) -> None:
         """Main monitoring loop for polling mode."""
         while self._monitoring_active:
             try:
-                self.refresh_positions()
+                await self.refresh_positions()
                 await asyncio.sleep(refresh_interval)
             except Exception as e:
                 self.logger.error(f"Error in monitoring loop: {e}")
                 await asyncio.sleep(refresh_interval)
 
-    def start_monitoring(self, refresh_interval: int = 30):
+    async def start_monitoring(self, refresh_interval: int = 30) -> None:
         """
         Start automated position monitoring for real-time updates and alerts.
 
         Enables continuous monitoring of positions with automatic alert checking.
-        In real-time mode (with ProjectXRealtimeClient), uses live WebSocket feeds.
+        In real-time mode (with AsyncProjectXRealtimeClient), uses live WebSocket feeds.
         In polling mode, periodically refreshes position data from the API.
 
         Args:
@@ -853,9 +871,9 @@ class PositionManager:
 
         Example:
             >>> # Start monitoring with real-time updates
-            >>> position_manager.start_monitoring()
+            >>> await position_manager.start_monitoring()
             >>> # Start monitoring with custom polling interval
-            >>> position_manager.start_monitoring(refresh_interval=60)
+            >>> await position_manager.start_monitoring(refresh_interval=60)
         """
         if self._monitoring_active:
             self.logger.warning("⚠️ Position monitoring already active")
@@ -875,17 +893,17 @@ class PositionManager:
         else:
             self.logger.info("📊 Position monitoring started (real-time mode)")
 
-    def stop_monitoring(self):
+    async def stop_monitoring(self) -> None:
         """
         Stop automated position monitoring and clean up monitoring resources.
 
         Cancels any active monitoring tasks and stops position update notifications.
 
         Example:
-            >>> position_manager.stop_monitoring()
+            >>> await position_manager.stop_monitoring()
         """
         self._monitoring_active = False
-        if hasattr(self, "_monitoring_task") and self._monitoring_task:
+        if self._monitoring_task:
             self._monitoring_task.cancel()
             self._monitoring_task = None
         self.logger.info("🛑 Position monitoring stopped")
@@ -894,7 +912,7 @@ class PositionManager:
     # POSITION SIZING AND RISK MANAGEMENT
     # ================================================================================
 
-    def calculate_position_size(
+    async def calculate_position_size(
         self,
         contract_id: str,
         risk_amount: float,
@@ -916,7 +934,7 @@ class PositionManager:
             Dict with position sizing recommendations
 
         Example:
-            >>> sizing = position_manager.calculate_position_size(
+            >>> sizing = await position_manager.calculate_position_size(
             ...     "MGC", risk_amount=100.0, entry_price=2045.0, stop_price=2040.0
             ... )
             >>> print(f"Suggested size: {sizing['suggested_size']} contracts")
@@ -924,10 +942,10 @@ class PositionManager:
         try:
             # Get account balance if not provided
             if account_balance is None:
-                account_info = self.project_x.get_account_info()
-                account_balance = (
-                    account_info.balance if account_info else 10000.0
-                )  # Default fallback
+                if self.project_x.account_info:
+                    account_balance = self.project_x.account_info.balance
+                else:
+                    account_balance = 10000.0  # Default fallback
 
             # Calculate risk per contract
             price_diff = abs(entry_price - stop_price)
@@ -935,7 +953,7 @@ class PositionManager:
                 return {"error": "Entry price and stop price cannot be the same"}
 
             # Get instrument details for contract multiplier
-            instrument = self.project_x.get_instrument(contract_id)
+            instrument = await self.project_x.get_instrument(contract_id)
             contract_multiplier = (
                 getattr(instrument, "contractMultiplier", 1.0) if instrument else 1.0
             )
@@ -995,7 +1013,7 @@ class PositionManager:
     # DIRECT POSITION MANAGEMENT METHODS (API-based)
     # ================================================================================
 
-    def close_position_direct(
+    async def close_position_direct(
         self, contract_id: str, account_id: int | None = None
     ) -> dict[str, Any]:
         """
@@ -1009,68 +1027,60 @@ class PositionManager:
             Dict with closure response details
 
         Example:
-            >>> result = position_manager.close_position_direct("MGC")
+            >>> result = await position_manager.close_position_direct("MGC")
             >>> if result["success"]:
             ...     print(f"Position closed: {result.get('orderId', 'N/A')}")
         """
-        self.project_x._ensure_authenticated()
+        await self.project_x._ensure_authenticated()
 
         if account_id is None:
-            if not self.project_x.account_info:
-                self.project_x.get_account_info()
             if not self.project_x.account_info:
                 raise ProjectXError("No account information available")
             account_id = self.project_x.account_info.id
 
-        url = f"{self.project_x.base_url}/Position/closeContract"
+        url = "/Position/closeContract"
         payload = {
             "accountId": account_id,
             "contractId": contract_id,
         }
 
         try:
-            response = requests.post(
-                url,
-                headers=self.project_x.headers,
-                json=payload,
-                timeout=self.project_x.timeout_seconds,
-            )
-            self.project_x._handle_response_errors(response)
+            response = await self.project_x._make_request("POST", url, data=payload)
 
-            data = response.json()
-            success = data.get("success", False)
+            if response:
+                success = response.get("success", False)
 
-            if success:
-                self.logger.info(f"✅ Position {contract_id} closed successfully")
-                # Remove from tracked positions if present
-                with self.position_lock:
-                    positions_to_remove = [
-                        contract_id
-                        for contract_id, pos in self.tracked_positions.items()
-                        if pos.contractId == contract_id
-                    ]
-                    for contract_id in positions_to_remove:
-                        del self.tracked_positions[contract_id]
+                if success:
+                    self.logger.info(f"✅ Position {contract_id} closed successfully")
+                    # Remove from tracked positions if present
+                    async with self.position_lock:
+                        positions_to_remove = [
+                            contract_id
+                            for contract_id, pos in self.tracked_positions.items()
+                            if pos.contractId == contract_id
+                        ]
+                        for contract_id in positions_to_remove:
+                            del self.tracked_positions[contract_id]
 
-                # Synchronize orders - cancel related orders when position is closed
-                if self._order_sync_enabled and self.order_manager:
-                    self.order_manager.on_position_closed(contract_id)
+                    # Synchronize orders - cancel related orders when position is closed
+                    # Note: Order synchronization methods will be added to AsyncOrderManager
+                    # if self._order_sync_enabled and self.order_manager:
+                    #     await self.order_manager.on_position_closed(contract_id)
 
-                self.stats["positions_closed"] += 1
-            else:
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.error(f"❌ Position closure failed: {error_msg}")
+                    self.stats["positions_closed"] += 1
+                else:
+                    error_msg = response.get("errorMessage", "Unknown error")
+                    self.logger.error(f"❌ Position closure failed: {error_msg}")
 
-            return data
+                return response
 
-        except requests.RequestException as e:
+            return {"success": False, "error": "No response from server"}
+
+        except Exception as e:
             self.logger.error(f"❌ Position closure request failed: {e}")
             return {"success": False, "error": str(e)}
-        except (KeyError, json.JSONDecodeError) as e:
-            self.logger.error(f"❌ Invalid position closure response: {e}")
-            return {"success": False, "error": str(e)}
 
-    def partially_close_position(
+    async def partially_close_position(
         self, contract_id: str, close_size: int, account_id: int | None = None
     ) -> dict[str, Any]:
         """
@@ -1086,15 +1096,13 @@ class PositionManager:
 
         Example:
             >>> # Close 5 contracts from a 10 contract position
-            >>> result = position_manager.partially_close_position("MGC", 5)
+            >>> result = await position_manager.partially_close_position("MGC", 5)
             >>> if result["success"]:
             ...     print(f"Partially closed: {result.get('orderId', 'N/A')}")
         """
-        self.project_x._ensure_authenticated()
+        await self.project_x._ensure_authenticated()
 
         if account_id is None:
-            if not self.project_x.account_info:
-                self.project_x.get_account_info()
             if not self.project_x.account_info:
                 raise ProjectXError("No account information available")
             account_id = self.project_x.account_info.id
@@ -1103,7 +1111,7 @@ class PositionManager:
         if close_size <= 0:
             raise ProjectXError("Close size must be positive")
 
-        url = f"{self.project_x.base_url}/Position/partialCloseContract"
+        url = "/Position/partialCloseContract"
         payload = {
             "accountId": account_id,
             "contractId": contract_id,
@@ -1111,45 +1119,41 @@ class PositionManager:
         }
 
         try:
-            response = requests.post(
-                url,
-                headers=self.project_x.headers,
-                json=payload,
-                timeout=self.project_x.timeout_seconds,
-            )
-            self.project_x._handle_response_errors(response)
+            response = await self.project_x._make_request("POST", url, data=payload)
 
-            data = response.json()
-            success = data.get("success", False)
+            if response:
+                success = response.get("success", False)
 
-            if success:
-                self.logger.info(
-                    f"✅ Position {contract_id} partially closed: {close_size} contracts"
-                )
-                # Trigger position refresh to get updated sizes
-                self.refresh_positions(account_id=account_id)
+                if success:
+                    self.logger.info(
+                        f"✅ Position {contract_id} partially closed: {close_size} contracts"
+                    )
+                    # Trigger position refresh to get updated sizes
+                    await self.refresh_positions(account_id=account_id)
 
-                # Synchronize orders - update order sizes after partial close
-                if self._order_sync_enabled and self.order_manager:
-                    self.order_manager.sync_orders_with_position(
-                        contract_id, account_id
+                    # Synchronize orders - update order sizes after partial close
+                    # Note: Order synchronization methods will be added to AsyncOrderManager
+                    # if self._order_sync_enabled and self.order_manager:
+                    #     await self.order_manager.sync_orders_with_position(
+                    #         contract_id, account_id
+                    #     )
+
+                    self.stats["positions_partially_closed"] += 1
+                else:
+                    error_msg = response.get("errorMessage", "Unknown error")
+                    self.logger.error(
+                        f"❌ Partial position closure failed: {error_msg}"
                     )
 
-                self.stats["positions_partially_closed"] += 1
-            else:
-                error_msg = data.get("errorMessage", "Unknown error")
-                self.logger.error(f"❌ Partial position closure failed: {error_msg}")
+                return response
 
-            return data
+            return {"success": False, "error": "No response from server"}
 
-        except requests.RequestException as e:
+        except Exception as e:
             self.logger.error(f"❌ Partial position closure request failed: {e}")
             return {"success": False, "error": str(e)}
-        except (KeyError, json.JSONDecodeError) as e:
-            self.logger.error(f"❌ Invalid partial closure response: {e}")
-            return {"success": False, "error": str(e)}
 
-    def close_all_positions(
+    async def close_all_positions(
         self, contract_id: str | None = None, account_id: int | None = None
     ) -> dict[str, Any]:
         """
@@ -1164,11 +1168,11 @@ class PositionManager:
 
         Example:
             >>> # Close all positions
-            >>> result = position_manager.close_all_positions()
+            >>> result = await position_manager.close_all_positions()
             >>> # Close all MGC positions
-            >>> result = position_manager.close_all_positions(contract_id="MGC")
+            >>> result = await position_manager.close_all_positions(contract_id="MGC")
         """
-        positions = self.get_all_positions(account_id=account_id)
+        positions = await self.get_all_positions(account_id=account_id)
 
         # Filter by contract if specified
         if contract_id:
@@ -1183,7 +1187,7 @@ class PositionManager:
 
         for position in positions:
             try:
-                close_result = self.close_position_direct(
+                close_result = await self.close_position_direct(
                     position.contractId, account_id
                 )
                 if close_result.get("success", False):
@@ -1203,7 +1207,7 @@ class PositionManager:
         )
         return results
 
-    def close_position_by_contract(
+    async def close_position_by_contract(
         self,
         contract_id: str,
         close_size: int | None = None,
@@ -1222,14 +1226,14 @@ class PositionManager:
 
         Example:
             >>> # Close entire MGC position
-            >>> result = position_manager.close_position_by_contract("MGC")
+            >>> result = await position_manager.close_position_by_contract("MGC")
             >>> # Close 3 contracts from MGC position
-            >>> result = position_manager.close_position_by_contract(
+            >>> result = await position_manager.close_position_by_contract(
             ...     "MGC", close_size=3
             ... )
         """
         # Find the position
-        position = self.get_position(contract_id, account_id)
+        position = await self.get_position(contract_id, account_id)
         if not position:
             return {
                 "success": False,
@@ -1239,10 +1243,10 @@ class PositionManager:
         # Determine if full or partial close
         if close_size is None or close_size >= position.size:
             # Full close
-            return self.close_position_direct(position.contractId, account_id)
+            return await self.close_position_direct(position.contractId, account_id)
         else:
             # Partial close
-            return self.partially_close_position(
+            return await self.partially_close_position(
                 position.contractId, close_size, account_id
             )
 
@@ -1258,46 +1262,35 @@ class PositionManager:
         performance metrics, and system health for debugging and monitoring.
 
         Returns:
-            Dict with complete statistics including:
-                - statistics: Core tracking metrics (positions tracked, P&L, etc.)
-                - realtime_enabled: Whether real-time updates are active
-                - order_sync_enabled: Whether order synchronization is active
-                - monitoring_active: Whether automated monitoring is running
-                - tracked_positions: Number of positions currently tracked
-                - active_alerts: Number of active position alerts
-                - callbacks_registered: Number of callbacks per event type
-                - risk_settings: Current risk management settings
-                - health_status: Overall system health status
+            Dict with complete statistics
 
         Example:
             >>> stats = position_manager.get_position_statistics()
             >>> print(f"Tracking {stats['tracked_positions']} positions")
             >>> print(f"Real-time enabled: {stats['realtime_enabled']}")
-            >>> print(f"Active alerts: {stats['active_alerts']}")
-            >>> if stats["health_status"] != "active":
-            ...     print("Warning: Position manager not fully active")
         """
-        with self.position_lock:
-            return {
-                "statistics": self.stats.copy(),
-                "realtime_enabled": self._realtime_enabled,
-                "order_sync_enabled": self._order_sync_enabled,
-                "monitoring_active": self._monitoring_active,
-                "tracked_positions": len(self.tracked_positions),
-                "active_alerts": len(
-                    [a for a in self.position_alerts.values() if not a["triggered"]]
-                ),
-                "callbacks_registered": {
-                    event: len(callbacks)
-                    for event, callbacks in self.position_callbacks.items()
-                },
-                "risk_settings": self.risk_settings.copy(),
-                "health_status": "active"
-                if self.project_x._authenticated
-                else "inactive",
-            }
+        return {
+            "statistics": self.stats.copy(),
+            "realtime_enabled": self._realtime_enabled,
+            "order_sync_enabled": self._order_sync_enabled,
+            "monitoring_active": self._monitoring_active,
+            "tracked_positions": len(self.tracked_positions),
+            "active_alerts": len(
+                [a for a in self.position_alerts.values() if not a["triggered"]]
+            ),
+            "callbacks_registered": {
+                event: len(callbacks)
+                for event, callbacks in self.position_callbacks.items()
+            },
+            "risk_settings": self.risk_settings.copy(),
+            "health_status": (
+                "active" if self.project_x._authenticated else "inactive"
+            ),
+        }
 
-    def get_position_history(self, contract_id: str, limit: int = 100) -> list[dict]:
+    async def get_position_history(
+        self, contract_id: str, limit: int = 100
+    ) -> list[dict]:
         """
         Get historical position data for a specific contract.
 
@@ -1309,25 +1302,18 @@ class PositionManager:
             limit: Maximum number of history entries to return (default: 100)
 
         Returns:
-            List[dict]: Historical position data entries, each containing:
-                - timestamp: When the position change occurred
-                - position: Position data snapshot at that time
-                - size_change: Change in position size from previous state
+            List[dict]: Historical position data entries
 
         Example:
-            >>> history = position_manager.get_position_history("MGC", limit=50)
+            >>> history = await position_manager.get_position_history("MGC", limit=50)
             >>> for entry in history[-5:]:  # Last 5 changes
             ...     print(f"{entry['timestamp']}: Size change {entry['size_change']}")
-            ...     pos = entry["position"]
-            ...     print(
-            ...         f"  New size: {pos.get('size', 0)} @ ${pos.get('averagePrice', 0):.2f}"
-            ...     )
         """
-        with self.position_lock:
+        async with self.position_lock:
             history = self.position_history.get(contract_id, [])
             return history[-limit:] if history else []
 
-    def export_portfolio_report(self) -> dict[str, Any]:
+    async def export_portfolio_report(self) -> dict[str, Any]:
         """
         Generate a comprehensive portfolio report with complete analysis.
 
@@ -1336,29 +1322,19 @@ class PositionManager:
         and system statistics.
 
         Returns:
-            Dict with complete portfolio analysis including:
-                - report_timestamp: When the report was generated
-                - portfolio_summary: High-level portfolio metrics
-                - positions: Detailed position information with P&L
-                - risk_analysis: Portfolio risk metrics and warnings
-                - statistics: System performance and tracking statistics
-                - alerts: Active and triggered alert counts
+            Dict with complete portfolio analysis
 
         Example:
-            >>> report = position_manager.export_portfolio_report()
+            >>> report = await position_manager.export_portfolio_report()
             >>> print(f"Portfolio Report - {report['report_timestamp']}")
-            >>> summary = report["portfolio_summary"]
-            >>> print(f"Total Positions: {summary['total_positions']}")
-            >>> print(f"Total P&L: ${summary['total_pnl']:.2f}")
-            >>> print(f"Portfolio Risk: {summary['portfolio_risk']:.2%}")
             >>> # Save report to file
             >>> import json
             >>> with open("portfolio_report.json", "w") as f:
             ...     json.dump(report, f, indent=2, default=str)
         """
-        positions = self.get_all_positions()
-        pnl_data = self.get_portfolio_pnl()
-        risk_data = self.get_risk_metrics()
+        positions = await self.get_all_positions()
+        pnl_data = await self.get_portfolio_pnl()
+        risk_data = await self.get_risk_metrics()
         stats = self.get_position_statistics()
 
         return {
@@ -1391,24 +1367,14 @@ class PositionManager:
         and system validation.
 
         Returns:
-            Dict with comprehensive validation status including:
-                - realtime_enabled: Whether real-time updates are active
-                - tracked_positions_count: Number of positions being tracked
-                - position_callbacks_registered: Number of position update callbacks
-                - payload_validation: Settings for validating ProjectX position payloads
-                - projectx_compliance: Compliance status with ProjectX API format
-                - statistics: Current tracking statistics
+            Dict with comprehensive validation status
 
         Example:
             >>> status = position_manager.get_realtime_validation_status()
             >>> print(f"Real-time enabled: {status['realtime_enabled']}")
-            >>> print(f"Tracking {status['tracked_positions_count']} positions")
             >>> compliance = status["projectx_compliance"]
             >>> for check, result in compliance.items():
             ...     print(f"{check}: {result}")
-            >>> # Check if validation is working correctly
-            >>> if "✅" not in str(status["projectx_compliance"].values()):
-            ...     print("Warning: ProjectX compliance issues detected")
         """
         return {
             "realtime_enabled": self._realtime_enabled,
@@ -1439,21 +1405,21 @@ class PositionManager:
             "statistics": self.stats.copy(),
         }
 
-    def cleanup(self):
+    async def cleanup(self) -> None:
         """
         Clean up resources and connections when shutting down.
 
         Properly shuts down monitoring, clears tracked data, and releases
-        resources to prevent memory leaks when the PositionManager is no
+        resources to prevent memory leaks when the AsyncPositionManager is no
         longer needed.
 
         Example:
             >>> # Proper shutdown
-            >>> position_manager.cleanup()
+            >>> await position_manager.cleanup()
         """
-        self.stop_monitoring()
+        await self.stop_monitoring()
 
-        with self.position_lock:
+        async with self.position_lock:
             self.tracked_positions.clear()
             self.position_history.clear()
             self.position_callbacks.clear()
@@ -1463,4 +1429,4 @@ class PositionManager:
         self.order_manager = None
         self._order_sync_enabled = False
 
-        self.logger.info("✅ PositionManager cleanup completed")
+        self.logger.info("✅ AsyncPositionManager cleanup completed")
