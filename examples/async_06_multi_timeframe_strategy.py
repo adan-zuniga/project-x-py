@@ -372,7 +372,8 @@ class AsyncMultiTimeframeStrategy:
 
 async def main():
     """Main async function for multi-timeframe strategy."""
-    logger = setup_logging(level="INFO")
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
     logger.info("🚀 Starting Async Multi-Timeframe Strategy")
 
     # Signal handler for graceful shutdown
@@ -396,7 +397,7 @@ async def main():
                 instrument="MNQ",
                 project_x=client,
                 jwt_token=client.session_token,
-                account_id=client.account_info.id,
+                account_id=str(client.account_info.id),
                 timeframes=["15min", "1hr", "4hr"],
             )
 
