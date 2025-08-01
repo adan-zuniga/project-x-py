@@ -323,8 +323,8 @@ def diagnose_issues() -> dict:
 
     # Check dependencies
     try:
-        import polars  # noqa: F401
-        import pytz  # noqa: F401
+        import polars
+        import pytz
         import requests
     except ImportError as e:
         diagnostics["issues"].append(f"Missing dependency: {e.name}")
@@ -1041,8 +1041,8 @@ async def create_async_trading_suite(
     # Create async orderbook for market depth analysis with automatic real-time integration
     orderbook = AsyncOrderBook(
         instrument=instrument,
-        timezone=config.timezone,
-        client=project_x,
+        timezone_str=config.timezone,
+        project_x=project_x,
     )
     await orderbook.initialize(realtime_client=realtime_client)
 
