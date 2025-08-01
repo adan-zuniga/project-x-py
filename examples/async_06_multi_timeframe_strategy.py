@@ -146,9 +146,9 @@ class AsyncMultiTimeframeStrategy:
 
         # Calculate fast and slow SMAs
         data = data.pipe(SMA, period=10)
-        data = data.rename({"SMA_10": "sma_fast"})
+        data = data.rename({"sma_10": "sma_fast"})
         data = data.pipe(SMA, period=20)
-        data = data.rename({"SMA_20": "sma_slow"})
+        data = data.rename({"sma_20": "sma_slow"})
 
         # Get last two bars for crossover detection
         recent = data.tail(2)
