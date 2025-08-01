@@ -627,6 +627,14 @@ class AsyncProjectXRealtimeClient:
 
     def _on_connection_error(self, hub: str, error):
         """Handle connection errors."""
+        # Check if this is a SignalR CompletionMessage (not an error)
+        error_type = type(error).__name__
+        if "CompletionMessage" in error_type:
+            # This is a normal SignalR protocol message, not an error
+            self.logger.debug(f"SignalR completion message from {hub} hub: {error}")
+            return
+
+        # Log actual errors
         self.logger.error(f"❌ {hub.capitalize()} hub error: {error}")
         self.stats["connection_errors"] += 1
 
