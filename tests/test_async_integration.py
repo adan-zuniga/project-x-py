@@ -7,21 +7,18 @@ and demonstrate the performance benefits of concurrent operations.
 
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from project_x_py import (
     AsyncProjectX,
-    create_async_data_manager,
     create_async_order_manager,
-    create_async_orderbook,
     create_async_position_manager,
-    create_async_realtime_client,
     create_async_trading_suite,
 )
-from project_x_py.models import Account, Instrument, Order, Position
+from project_x_py.models import Account, Instrument
 
 
 @pytest.fixture

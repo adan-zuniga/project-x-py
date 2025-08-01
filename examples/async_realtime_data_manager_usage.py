@@ -6,7 +6,6 @@ multi-timeframe OHLCV data with real-time updates via WebSocket.
 """
 
 import asyncio
-import os
 from datetime import datetime
 
 from project_x_py import AsyncProjectX, AsyncRealtimeDataManager

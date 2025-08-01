@@ -1,16 +1,13 @@
 """Tests for AsyncOrderManager."""
 
 import asyncio
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
 
 from project_x_py import AsyncProjectX
 from project_x_py.async_order_manager import AsyncOrderManager
 from project_x_py.exceptions import ProjectXOrderError
-from project_x_py.models import BracketOrderResponse, OrderPlaceResponse
 
 
 def mock_instrument(id, tick_size=0.1):

@@ -625,12 +625,13 @@ class AsyncProjectX:
 
         return [Position(**pos) for pos in response]
 
-    async def get_instrument(self, symbol: str) -> Instrument:
+    async def get_instrument(self, symbol: str, live: bool = False) -> Instrument:
         """
         Get detailed instrument information with caching.
 
         Args:
             symbol: Trading symbol (e.g., 'NQ', 'ES', 'MGC')
+            live: If True, only return live/active contracts (default: False)
 
         Returns:
             Instrument object with complete contract details
@@ -651,7 +652,7 @@ class AsyncProjectX:
                 return self._instrument_cache[cache_key]
 
         # Search for instrument
-        payload = {"searchText": symbol, "live": False}
+        payload = {"searchText": symbol, "live": live}
         response = await self._make_request("POST", "/Contract/search", data=payload)
 
         if not response or not response.get("success", False):

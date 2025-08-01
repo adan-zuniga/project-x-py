@@ -1,16 +1,13 @@
 """Tests for AsyncProjectX client."""
 
 import asyncio
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from project_x_py import (
     AsyncProjectX,
-    ProjectXAuthenticationError,
     ProjectXConfig,
     ProjectXConnectionError,
 )
@@ -463,7 +460,7 @@ async def test_rate_limiting():
         with patch.object(
             client._client, "request", new_callable=AsyncMock
         ) as mock_request:
-            mock_request.return_value = AsyncMock(status_code=200, json=lambda: {})
+            mock_request.return_value = AsyncMock(status_code=200, json=dict)
 
             start = time.time()
 

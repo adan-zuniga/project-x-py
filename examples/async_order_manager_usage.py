@@ -6,8 +6,6 @@ managing brackets, and handling order modifications with async/await.
 """
 
 import asyncio
-import os
-from decimal import Decimal
 
 from project_x_py import AsyncOrderManager, AsyncProjectX
 
@@ -56,7 +54,7 @@ async def main():
             take_profit_offset=20.0,  # 20 points above entry
         )
         if bracket and bracket.success:
-            print(f"✅ Bracket order placed:")
+            print("✅ Bracket order placed:")
             print(f"   Entry: {bracket.entry_order_id}")
             print(f"   Stop Loss: {bracket.stop_order_id}")
             print(f"   Take Profit: {bracket.target_order_id}")
@@ -84,7 +82,7 @@ async def main():
             print(f"\n❌ Cancelling order {open_orders[1].id}...")
             success = await order_manager.cancel_order(open_orders[1].id)
             if success:
-                print(f"✅ Order cancelled")
+                print("✅ Order cancelled")
 
         # 7. Display statistics
         stats = order_manager.get_stats()

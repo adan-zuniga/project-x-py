@@ -2,11 +2,10 @@
 
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
-import pytz
 
 from project_x_py.async_orderbook import AsyncOrderBook
 

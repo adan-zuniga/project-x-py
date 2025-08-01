@@ -1,16 +1,12 @@
 """Tests for AsyncPositionManager."""
 
 import asyncio
-from datetime import datetime
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
 
 from project_x_py import AsyncProjectX
 from project_x_py.async_position_manager import AsyncPositionManager
-from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Position
 
 

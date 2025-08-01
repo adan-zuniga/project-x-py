@@ -6,7 +6,6 @@ connection, ensuring efficient resource usage and coordinated event handling.
 """
 
 import asyncio
-import json
 from datetime import datetime
 
 from project_x_py import (
@@ -177,7 +176,7 @@ async def main():
         print(
             f"  Connection Errors: {final_stats['connection_errors'] - initial_stats['connection_errors']}"
         )
-        print(f"  Managers Sharing Connection: 4 (Position, Order, Data, OrderBook)")
+        print("  Managers Sharing Connection: 4 (Position, Order, Data, OrderBook)")
 
         # Clean up
         print("\n🧹 Cleaning up...")

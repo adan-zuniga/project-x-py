@@ -18,11 +18,8 @@ from project_x_py import (
     create_async_position_manager,
     create_async_trading_suite,
     create_order_manager,
-    create_position_manager,
-    create_trading_suite,
 )
-from project_x_py.exceptions import ProjectXError
-from project_x_py.models import Instrument, Order, Position
+from project_x_py.models import Instrument
 
 
 class TestAsyncEndToEndWorkflows:
@@ -458,7 +455,6 @@ class TestSyncAsyncWorkflowCompatibility:
     @pytest.mark.asyncio
     async def test_model_compatibility_across_workflows(self):
         """Test that models work consistently across sync and async workflows."""
-        from project_x_py.models import Instrument, Order, Position
 
         # Create model instances
         instrument = Instrument(

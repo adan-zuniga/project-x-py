@@ -6,8 +6,6 @@ async trading components with minimal boilerplate code.
 """
 
 import asyncio
-import json
-from datetime import datetime
 
 from project_x_py import (
     create_async_client,

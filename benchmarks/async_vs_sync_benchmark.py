@@ -15,9 +15,7 @@ Date: July 2025
 import asyncio
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from statistics import mean, stdev
-from typing import Any, Dict, List
 
 from project_x_py import (
     AsyncProjectX,
@@ -31,12 +29,12 @@ class BenchmarkResults:
 
     def __init__(self, name: str):
         self.name = name
-        self.times: List[float] = []
+        self.times: list[float] = []
 
     def add_time(self, duration: float):
         self.times.append(duration)
 
-    def get_stats(self) -> Dict[str, float]:
+    def get_stats(self) -> dict[str, float]:
         if not self.times:
             return {"mean": 0, "stdev": 0, "min": 0, "max": 0}
 

@@ -161,7 +161,7 @@ async def main():
 
             # Show final stats
             final_stats = realtime_client.get_stats()
-            print(f"\n📊 Final Statistics:")
+            print("\n📊 Final Statistics:")
             print(f"  Events Received: {final_stats['events_received']}")
             print(f"  Connection Errors: {final_stats['connection_errors']}")
 

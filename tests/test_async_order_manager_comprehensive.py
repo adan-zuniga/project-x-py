@@ -18,7 +18,6 @@ from project_x_py import (
     create_order_manager,
 )
 from project_x_py.async_realtime import AsyncProjectXRealtimeClient
-from project_x_py.realtime import ProjectXRealtimeClient
 
 
 class TestAsyncOrderManagerInitialization:

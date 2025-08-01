@@ -194,7 +194,7 @@ class AsyncMultiTimeframeStrategy:
             orderbook = analysis.get("orderbook")
 
             # Check if we have all required data
-            if not all([longterm, medium, shortterm]):
+            if not longterm or not medium or not shortterm:
                 return None
 
             # Strategy logic: All timeframes must align
@@ -210,14 +210,17 @@ class AsyncMultiTimeframeStrategy:
                     if medium["momentum"] == "strong":
                         confidence = min(confidence * 1.2, 100)
 
-            elif shortterm["signal"] == "sell":
-                if longterm["trend"] == "bearish" and medium["trend"] == "bearish":
-                    signal = "SELL"
-                    confidence = min(longterm["strength"] * 100, 100)
+            elif (
+                shortterm["signal"] == "sell"
+                and longterm["trend"] == "bearish"
+                and medium["trend"] == "bearish"
+            ):
+                signal = "SELL"
+                confidence = min(longterm["strength"] * 100, 100)
 
-                    # Boost confidence if momentum is strong
-                    if medium["momentum"] == "weak":
-                        confidence = min(confidence * 1.2, 100)
+                # Boost confidence if momentum is strong
+                if medium["momentum"] == "weak":
+                    confidence = min(confidence * 1.2, 100)
 
             if signal:
                 self.signal_count += 1
@@ -395,6 +398,11 @@ async def main():
         # Create async client
         async with AsyncProjectX.from_env() as client:
             await client.authenticate()
+
+            if client.account_info is None:
+                print("❌ No account info found")
+                return
+
             print(f"✅ Connected as: {client.account_info.name}")
 
             # Create trading suite with all components

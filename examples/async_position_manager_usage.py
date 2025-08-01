@@ -6,8 +6,6 @@ calculating P&L, managing risk, and handling position monitoring with async/awai
 """
 
 import asyncio
-import os
-from decimal import Decimal
 
 from project_x_py import AsyncPositionManager, AsyncProjectX
 

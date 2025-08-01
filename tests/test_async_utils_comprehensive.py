@@ -6,14 +6,12 @@ Tests both sync and async utility functions to ensure compatibility.
 
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock
 
 import polars as pl
 import pytest
 
 from project_x_py.utils import (
     calculate_position_value,
-    calculate_tick_value,
     extract_symbol_from_contract_id,
     format_price,
     format_volume,
@@ -249,7 +247,7 @@ class TestAsyncUtilityCompatibility:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                return f"Error: {str(e)}"
+                return f"Error: {e!s}"
 
         # Test with valid and invalid inputs
         results = await asyncio.gather(
