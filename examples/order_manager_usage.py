@@ -7,13 +7,13 @@ managing brackets, and handling order modifications with async/await.
 
 import asyncio
 
-from project_x_py import AsyncOrderManager, AsyncProjectX
+from project_x_py import AsyncOrderManager, ProjectX
 
 
 async def main():
     """Main async function demonstrating order management."""
     # Create async client
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
         print(f"✅ Authenticated as {client.account_info.name}")

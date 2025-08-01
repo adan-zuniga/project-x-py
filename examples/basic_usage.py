@@ -7,7 +7,7 @@ This example demonstrates the new async/await patterns introduced in v2.0.0.
 import asyncio
 import os
 
-from project_x_py import AsyncProjectX
+from project_x_py import ProjectX
 
 
 async def main():
@@ -23,7 +23,7 @@ async def main():
 
     try:
         # Create async client using environment variables
-        async with AsyncProjectX.from_env() as client:
+        async with ProjectX.from_env() as client:
             print("✅ Client created successfully")
 
             # Authenticate
@@ -80,7 +80,7 @@ async def concurrent_example():
     print("\n🚀 Concurrent Operations Example")
     print("=" * 50)
 
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         await client.authenticate()
 
         # Time sequential operations

@@ -11,8 +11,8 @@ This example shows how to use the AsyncOrderBook for:
 import asyncio
 from datetime import datetime
 
-from project_x_py import AsyncOrderBook, AsyncProjectX
-from project_x_py.async_realtime import AsyncProjectXRealtimeClient
+from project_x_py import AsyncOrderBook, ProjectX
+from project_x_py.async_realtime import ProjectXRealtimeClient
 
 
 async def on_depth_update(data):
@@ -23,7 +23,7 @@ async def on_depth_update(data):
 async def main():
     """Main async function demonstrating orderbook analysis."""
     # Create async client
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
         print(f"✅ Authenticated as {client.account_info.name}")
@@ -33,7 +33,7 @@ async def main():
         account_id = client.account_info.id
 
         # Create async realtime client (placeholder for now)
-        realtime_client = AsyncProjectXRealtimeClient(jwt_token, account_id)
+        realtime_client = ProjectXRealtimeClient(jwt_token, account_id)
 
         # Create async orderbook
         orderbook = AsyncOrderBook(

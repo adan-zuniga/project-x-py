@@ -1,7 +1,7 @@
 """
-Example demonstrating AsyncProjectXRealtimeClient usage for WebSocket connections.
+Example demonstrating ProjectXRealtimeClient usage for WebSocket connections.
 
-This example shows how to use the AsyncProjectXRealtimeClient for:
+This example shows how to use the ProjectXRealtimeClient for:
 - Connecting to ProjectX Gateway SignalR hubs
 - Subscribing to user updates (positions, orders, trades)
 - Subscribing to market data (quotes, trades, depth)
@@ -12,8 +12,8 @@ import asyncio
 import json
 from datetime import datetime
 
-from project_x_py import AsyncProjectX
-from project_x_py.async_realtime import AsyncProjectXRealtimeClient
+from project_x_py import ProjectX
+from project_x_py.async_realtime import ProjectXRealtimeClient
 
 
 # Event handlers
@@ -87,7 +87,7 @@ async def on_market_depth(data):
 async def main():
     """Main async function demonstrating real-time WebSocket usage."""
     # Create async client
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
         print(f"✅ Authenticated as {client.account_info.name}")
@@ -97,7 +97,7 @@ async def main():
         account_id = client.account_info.id
 
         # Create async realtime client
-        realtime_client = AsyncProjectXRealtimeClient(
+        realtime_client = ProjectXRealtimeClient(
             jwt_token=jwt_token,
             account_id=account_id,
         )

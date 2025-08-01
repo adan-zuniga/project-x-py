@@ -8,8 +8,8 @@ multi-timeframe OHLCV data with real-time updates via WebSocket.
 import asyncio
 from datetime import datetime
 
-from project_x_py import AsyncProjectX, AsyncRealtimeDataManager
-from project_x_py.async_realtime import AsyncProjectXRealtimeClient
+from project_x_py import AsyncRealtimeDataManager, ProjectX
+from project_x_py.async_realtime import ProjectXRealtimeClient
 
 
 async def on_new_bar(data):
@@ -28,7 +28,7 @@ async def on_data_update(data):
 async def main():
     """Main async function demonstrating real-time data management."""
     # Create async client
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
         print(f"✅ Authenticated as {client.account_info.name}")
@@ -38,7 +38,7 @@ async def main():
         account_id = client.account_info.id
 
         # Create async realtime client (placeholder for now)
-        realtime_client = AsyncProjectXRealtimeClient(jwt_token, account_id)
+        realtime_client = ProjectXRealtimeClient(jwt_token, account_id)
 
         # Create data manager for multiple timeframes
         data_manager = AsyncRealtimeDataManager(

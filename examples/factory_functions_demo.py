@@ -14,7 +14,7 @@ from project_x_py import (
     create_async_orderbook,
     create_async_position_manager,
     create_async_realtime_client,
-    create_async_trading_suite,
+    create_trading_suite,
 )
 
 
@@ -88,7 +88,7 @@ async def complete_suite_creation():
         instrument = instruments[0]
 
         # Create complete trading suite with one function
-        suite = await create_async_trading_suite(
+        suite = await create_trading_suite(
             instrument=instrument.symbol,
             project_x=client,
             jwt_token=client.session_token,
@@ -167,13 +167,13 @@ async def main():
     print("  5. Easy to use for beginners")
 
     print("\n📚 Factory Functions Available:")
-    print("  - create_async_client() - Create AsyncProjectX client")
+    print("  - create_async_client() - Create ProjectX client")
     print("  - create_async_realtime_client() - Create real-time WebSocket client")
     print("  - create_async_order_manager() - Create order manager")
     print("  - create_async_position_manager() - Create position manager")
     print("  - create_async_data_manager() - Create OHLCV data manager")
     print("  - create_async_orderbook() - Create market depth orderbook")
-    print("  - create_async_trading_suite() - Create complete trading toolkit")
+    print("  - create_trading_suite() - Create complete trading toolkit")
 
 
 if __name__ == "__main__":

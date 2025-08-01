@@ -1,5 +1,5 @@
 """
-Example demonstrating integrated async trading suite with shared AsyncProjectXRealtimeClient.
+Example demonstrating integrated async trading suite with shared ProjectXRealtimeClient.
 
 This example shows how multiple async managers can share a single real-time WebSocket
 connection, ensuring efficient resource usage and coordinated event handling.
@@ -12,9 +12,9 @@ from project_x_py import (
     AsyncOrderBook,
     AsyncOrderManager,
     AsyncPositionManager,
-    AsyncProjectX,
-    AsyncProjectXRealtimeClient,
     AsyncRealtimeDataManager,
+    ProjectX,
+    ProjectXRealtimeClient,
 )
 
 
@@ -34,7 +34,7 @@ async def log_event(event_type: str, data: dict):
 async def main():
     """Main async function demonstrating integrated trading suite."""
     # Create async client
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
         print(f"✅ Authenticated as {client.account_info.name}")
@@ -44,7 +44,7 @@ async def main():
         account_id = client.account_info.id
 
         # Create single async realtime client (shared across all managers)
-        realtime_client = AsyncProjectXRealtimeClient(
+        realtime_client = ProjectXRealtimeClient(
             jwt_token=jwt_token,
             account_id=account_id,
         )
@@ -185,7 +185,7 @@ async def main():
         print("✅ Cleanup completed")
 
         print("\n🎯 Key Integration Points Demonstrated:")
-        print("  1. Single AsyncProjectXRealtimeClient shared by all managers")
+        print("  1. Single ProjectXRealtimeClient shared by all managers")
         print("  2. Each manager registers its own async callbacks")
         print("  3. Events flow efficiently through one WebSocket connection")
         print("  4. No duplicate subscriptions or connections")

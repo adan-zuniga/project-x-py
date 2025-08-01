@@ -7,13 +7,13 @@ calculating P&L, managing risk, and handling position monitoring with async/awai
 
 import asyncio
 
-from project_x_py import AsyncPositionManager, AsyncProjectX
+from project_x_py import AsyncPositionManager, ProjectX
 
 
 async def main():
     """Main async function demonstrating position management."""
     # Create async client
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         # Authenticate
         await client.authenticate()
         print(f"✅ Authenticated as {client.account_info.name}")
