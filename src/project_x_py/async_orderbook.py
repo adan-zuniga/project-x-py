@@ -319,46 +319,51 @@ class AsyncOrderBook:
             self.logger.error(f"Error processing market depth update: {e}")
 
     async def _on_quote_update(self, data: dict):
-        """Handle real-time quote updates."""
+        """Handle real-time quote updates for best bid/ask tracking."""
         try:
             # Filter for this instrument
-            contract_id = data.get("contractId", "")
+            contract_id = data.get("contract_id", "")
             if not self._symbol_matches_instrument(contract_id):
                 return
 
             # Extract quote data
-            bid_price = data.get("bidPrice", 0)
-            ask_price = data.get("askPrice", 0)
-            bid_volume = data.get("bidVolume", 0)
-            ask_volume = data.get("askVolume", 0)
+            quote_data = data.get("data", {})
+            if not quote_data:
+                return
 
-            if bid_price > 0 and ask_price > 0:
-                # Update best bid/ask in orderbook
-                async with self.orderbook_lock:
-                    timestamp = datetime.now(self.timezone).replace(tzinfo=None)
-
-                    # Update bid side
-                    if bid_volume > 0:
-                        self.orderbook_bids = self._update_price_level(
-                            self.orderbook_bids, bid_price, bid_volume, timestamp, "bid"
-                        )
-
-                    # Update ask side
-                    if ask_volume > 0:
-                        self.orderbook_asks = self._update_price_level(
-                            self.orderbook_asks, ask_price, ask_volume, timestamp, "ask"
-                        )
+            # Trigger callbacks for quote processing
+            await self._trigger_callbacks(
+                "quote_processed",
+                {
+                    "contract_id": contract_id,
+                    "quote_data": quote_data,
+                    "timestamp": datetime.now(self.timezone),
+                },
+            )
 
         except Exception as e:
             self.logger.error(f"Error processing quote update: {e}")
 
     def _symbol_matches_instrument(self, contract_id: str) -> bool:
-        """Check if a contract ID matches this orderbook's instrument."""
-        if not contract_id:
+        """
+        Check if a contract_id matches this orderbook's instrument.
+
+        Uses simplified symbol matching logic for ProjectX contract IDs.
+        For example: "CON.F.US.MNQ.U25" should match instrument "MNQ"
+        """
+        if not contract_id or not self.instrument:
             return False
-        # Extract base symbol from contract ID (e.g., "MGC-H25" -> "MGC")
-        base_symbol = contract_id.split("-")[0]
-        return base_symbol.upper() == self.instrument.upper()
+
+        try:
+            instrument_upper = self.instrument.upper()
+            contract_upper = contract_id.upper()
+
+            # Simple check: instrument symbol should appear in contract ID
+            # For "CON.F.US.MNQ.U25" and "MNQ", this should match
+            return instrument_upper in contract_upper
+
+        except Exception:
+            return False
 
     def _update_price_level(
         self,
@@ -487,6 +492,12 @@ class AsyncOrderBook:
                 self.last_orderbook_update = current_time
                 self.last_level2_data = data
 
+                # Log processing summary
+                if self.level2_update_count % 10 == 1:
+                    self.logger.info(
+                        f"Processed {self.level2_update_count} updates, bids={len(self.orderbook_bids)}, asks={len(self.orderbook_asks)}"
+                    )
+
                 # Cleanup old data periodically
                 if current_time.timestamp() - self.last_cleanup > self.cleanup_interval:
                     await self._cleanup_old_data()
@@ -499,7 +510,16 @@ class AsyncOrderBook:
     ) -> None:
         """Process a trade execution."""
         # Get current best bid/ask for context
-        best_bid, best_ask = await self.get_best_bid_ask()
+        # NOTE: We're already inside the orderbook_lock, so we can access directly
+        best_bid = None
+        best_ask = None
+
+        if len(self.orderbook_bids) > 0:
+            best_bid = self.orderbook_bids["price"].max()
+
+        if len(self.orderbook_asks) > 0:
+            best_ask = self.orderbook_asks["price"].min()
+
         spread = best_ask - best_bid if best_bid and best_ask else 0
         mid_price = (best_bid + best_ask) / 2 if best_bid and best_ask else price
 
