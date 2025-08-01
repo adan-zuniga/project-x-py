@@ -104,7 +104,7 @@ class AsyncMultiTimeframeStrategy:
             return None
 
         # Calculate indicators
-        data = data.pipe(SMA, period=50, column_name="sma_50")
+        data = data.pipe(SMA, period=50)
 
         last_close = data["close"].tail(1).item()
         last_sma = data["sma_50"].tail(1).item()
@@ -123,12 +123,12 @@ class AsyncMultiTimeframeStrategy:
             return None
 
         # Calculate indicators
-        data = data.pipe(SMA, period=20, column_name="sma_20")
-        data = data.pipe(RSI, period=14, column_name="rsi")
+        data = data.pipe(SMA, period=20)
+        data = data.pipe(RSI, period=14)
 
         last_close = data["close"].tail(1).item()
         last_sma = data["sma_20"].tail(1).item()
-        last_rsi = data["rsi"].tail(1).item()
+        last_rsi = data["rsi_14"].tail(1).item()
 
         return {
             "trend": "bullish" if last_close > last_sma else "bearish",
