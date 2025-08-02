@@ -2,17 +2,8 @@
 
 import pytest
 import asyncio
-
-from order_manager.position_orders import PositionOrderMixin
-
-@pytest.mark.asyncio
-async def test_track_and_untrack_order():
-    mixin = PositionOrderMixin()
-    # Use a real asyncio.Lock for order_lock in the test
-    mixin.order_lock = asyncio.Lock()
-    # ... test implementation ...
 from unittest.mock import AsyncMock, MagicMock
-
+from project_x_py.order_manager.position_orders import PositionOrderMixin
 from project_x_py.models import OrderPlaceResponse
 
 @pytest.mark.asyncio
@@ -21,15 +12,10 @@ class TestPositionOrderMixin:
 
     async def test_track_and_untrack_order(self):
         """track_order_for_position and untrack_order mutate position_orders/order_to_position correctly."""
-        from project_x_py.order_manager.position_orders import PositionOrderMixin
         mixin = PositionOrderMixin()
-        mixin.order_lock = MagicMock()
+        mixin.order_lock = asyncio.Lock()
         mixin.position_orders = {}
         mixin.order_to_position = {}
-        # Simulate coroutine context for order_lock
-        async def dummy_ctx_mgr(): yield
-        mixin.order_lock.__aenter__ = dummy_ctx_mgr
-        mixin.order_lock.__aexit__ = lambda *a, **k: None
 
         await mixin.track_order_for_position("BAZ", 1001, "entry")
         assert 1001 in mixin.order_to_position
@@ -42,7 +28,6 @@ class TestPositionOrderMixin:
 
     async def test_add_stop_loss_success(self):
         """add_stop_loss places stop order and tracks it."""
-        from project_x_py.order_manager.position_orders import PositionOrderMixin
         mixin = PositionOrderMixin()
         mixin.project_x = MagicMock()
         position = MagicMock(contractId="QWE", size=2)
@@ -59,7 +44,6 @@ class TestPositionOrderMixin:
 
     async def test_add_stop_loss_no_position(self):
         """add_stop_loss returns None if no position found."""
-        from project_x_py.order_manager.position_orders import PositionOrderMixin
         mixin = PositionOrderMixin()
         mixin.project_x = MagicMock()
         mixin.project_x.search_open_positions = AsyncMock(return_value=[])
@@ -69,7 +53,6 @@ class TestPositionOrderMixin:
 
     async def test_add_take_profit_success(self):
         """add_take_profit places limit order and tracks it."""
-        from project_x_py.order_manager.position_orders import PositionOrderMixin
         mixin = PositionOrderMixin()
         mixin.project_x = MagicMock()
         position = MagicMock(contractId="ZXC", size=3)
@@ -86,7 +69,6 @@ class TestPositionOrderMixin:
 
     async def test_add_take_profit_no_position(self):
         """add_take_profit returns None if no position found."""
-        from project_x_py.order_manager.position_orders import PositionOrderMixin
         mixin = PositionOrderMixin()
         mixin.project_x = MagicMock()
         mixin.project_x.search_open_positions = AsyncMock(return_value=[])
