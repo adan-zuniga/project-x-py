@@ -84,7 +84,7 @@ class WAE(BaseIndicator):
         dead_zone_period = kwargs.get("dead_zone_period", 100)
         dead_zone_mult = kwargs.get("dead_zone_mult", 3.6)
 
-        required_cols = [close_column, high_column, low_column]
+        required_cols: list[str] = [close_column, high_column, low_column]
         self.validate_data(data, required_cols)
         self.validate_data_length(data, max(slow_period, bb_period, dead_zone_period))
 
@@ -203,7 +203,7 @@ class WAE(BaseIndicator):
         )
 
         # Clean up intermediate columns
-        columns_to_drop = [
+        columns_to_drop: list[str] = [
             "ema_fast",
             "ema_slow",
             "macd_line",
