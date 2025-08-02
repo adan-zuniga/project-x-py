@@ -23,7 +23,7 @@ Date: January 2025
 
 from typing import Any
 
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names

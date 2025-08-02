@@ -13,6 +13,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [2.0.4] - 2025-08-02
+
+### Changed
+- **🏗️ Major Architecture Refactoring**: Converted all large monolithic modules into multi-file packages
+  - **client.py** → `client/` package (8 specialized modules)
+    - `rate_limiter.py`: Async rate limiting functionality
+    - `auth.py`: Authentication and token management
+    - `http.py`: HTTP client and request handling
+    - `cache.py`: Intelligent caching for instruments and market data
+    - `market_data.py`: Market data operations (instruments, bars)
+    - `trading.py`: Trading operations (positions, trades)
+    - `base.py`: Base class combining all mixins
+    - `__init__.py`: Main ProjectX class export
+  - **order_manager.py** → `order_manager/` package (10 modules)
+  - **position_manager.py** → `position_manager/` package (12 modules)  
+  - **realtime_data_manager.py** → `realtime_data_manager/` package (9 modules)
+  - **realtime.py** → `realtime/` package (8 modules)
+  - **utils.py** → `utils/` package (10 modules)
+
+### Improved
+- **📁 Code Organization**: Separated concerns into logical modules for better maintainability
+- **🚀 Developer Experience**: Easier navigation and understanding of codebase structure
+- **✅ Testing**: Improved testability with smaller, focused modules
+- **🔧 Maintainability**: Each module now has a single, clear responsibility
+
+### Technical Details
+- **Backward Compatibility**: All existing imports continue to work without changes
+- **No API Changes**: Public interfaces remain identical
+- **Import Optimization**: Reduced circular dependency risks
+- **Memory Efficiency**: Better module loading with focused imports
+
 ## [2.0.2] - 2025-08-02
 
 ### Added
