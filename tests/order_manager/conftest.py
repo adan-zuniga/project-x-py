@@ -1,10 +1,12 @@
 """OrderManager test-specific fixtures."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-from project_x_py.models import Account, OrderPlaceResponse
+import pytest
+
+from project_x_py.models import Account
 from project_x_py.order_manager.core import OrderManager
+
 
 @pytest.fixture
 def order_manager(initialized_client):
@@ -46,6 +48,7 @@ def make_order_response():
     """
     Helper to build a dict compatible with OrderPlaceResponse.
     """
+
     def _make(order_id, success=True, error_code=0, error_msg=None):
         return {
             "orderId": order_id,
@@ -53,4 +56,5 @@ def make_order_response():
             "errorCode": error_code,
             "errorMessage": error_msg,
         }
+
     return _make

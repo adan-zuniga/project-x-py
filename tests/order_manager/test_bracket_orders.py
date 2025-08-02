@@ -1,10 +1,12 @@
 """Tests for BracketOrderMixin (validation and successful flows)."""
 
-import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
-from project_x_py.models import OrderPlaceResponse, BracketOrderResponse
+import pytest
+
 from project_x_py.exceptions import ProjectXOrderError
+from project_x_py.models import BracketOrderResponse, OrderPlaceResponse
+
 
 @pytest.mark.asyncio
 class TestBracketOrderMixin:
@@ -17,16 +19,19 @@ class TestBracketOrderMixin:
             (0, 100.0, 99.0, 99.0, "take profit (99.0) must be above entry (100.0)"),
             (1, 100.0, 99.0, 98.0, "stop loss (99.0) must be above entry (100.0)"),
             (1, 100.0, 101.0, 101.0, "take profit (101.0) must be below entry (100.0)"),
-        ]
+        ],
     )
     async def test_bracket_order_validation_fails(self, side, entry, stop, target, err):
         """BracketOrderMixin validates stop/take_profit price relationships."""
         from project_x_py.order_manager.bracket_orders import BracketOrderMixin
+
         mixin = BracketOrderMixin()
         mixin.place_market_order = AsyncMock()
         mixin.place_limit_order = AsyncMock()
         mixin.place_stop_order = AsyncMock()
-        mixin.position_orders = {"FOO": {"entry_orders": [], "stop_orders": [], "target_orders": []}}
+        mixin.position_orders = {
+            "FOO": {"entry_orders": [], "stop_orders": [], "target_orders": []}
+        }
         mixin.stats = {"bracket_orders_placed": 0}
         with pytest.raises(ProjectXOrderError) as exc:
             await mixin.place_bracket_order(
@@ -37,14 +42,31 @@ class TestBracketOrderMixin:
     async def test_bracket_order_success_flow(self):
         """Successful bracket order path places all three orders and updates stats/caches."""
         from project_x_py.order_manager.bracket_orders import BracketOrderMixin
+
         mixin = BracketOrderMixin()
-        mixin.place_market_order = AsyncMock(return_value=OrderPlaceResponse(orderId=1, success=True, errorCode=0, errorMessage=None))
-        mixin.place_limit_order = AsyncMock(side_effect=[
-            OrderPlaceResponse(orderId=2, success=True, errorCode=0, errorMessage=None),
-            OrderPlaceResponse(orderId=3, success=True, errorCode=0, errorMessage=None),
-        ])
-        mixin.place_stop_order = AsyncMock(return_value=OrderPlaceResponse(orderId=4, success=True, errorCode=0, errorMessage=None))
-        mixin.position_orders = {"BAR": {"entry_orders": [], "stop_orders": [], "target_orders": []}}
+        mixin.place_market_order = AsyncMock(
+            return_value=OrderPlaceResponse(
+                orderId=1, success=True, errorCode=0, errorMessage=None
+            )
+        )
+        mixin.place_limit_order = AsyncMock(
+            side_effect=[
+                OrderPlaceResponse(
+                    orderId=2, success=True, errorCode=0, errorMessage=None
+                ),
+                OrderPlaceResponse(
+                    orderId=3, success=True, errorCode=0, errorMessage=None
+                ),
+            ]
+        )
+        mixin.place_stop_order = AsyncMock(
+            return_value=OrderPlaceResponse(
+                orderId=4, success=True, errorCode=0, errorMessage=None
+            )
+        )
+        mixin.position_orders = {
+            "BAR": {"entry_orders": [], "stop_orders": [], "target_orders": []}
+        }
         mixin.stats = {"bracket_orders_placed": 0}
 
         # Entry type = limit

@@ -1,10 +1,11 @@
 """Tests for OrderManager core API."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-from project_x_py.models import Order, OrderPlaceResponse
+import pytest
+
 from project_x_py.exceptions import ProjectXOrderError
+from project_x_py.models import Order, OrderPlaceResponse
 
 
 class TestOrderManagerCore:
@@ -40,12 +41,20 @@ class TestOrderManagerCore:
             await order_manager.place_order("MGC", 2, 0, 1)
 
     @pytest.mark.asyncio
-    async def test_search_open_orders_populates_cache(self, order_manager, make_order_response):
+    async def test_search_open_orders_populates_cache(
+        self, order_manager, make_order_response
+    ):
         """search_open_orders converts API dicts to Order objects and populates cache."""
         resp_order = {
-            "id": 101, "accountId": 12345, "contractId": "MGC",
-            "creationTimestamp": "2024-01-01T01:00:00Z", "updateTimestamp": None,
-            "status": 1, "type": 1, "side": 0, "size": 2
+            "id": 101,
+            "accountId": 12345,
+            "contractId": "MGC",
+            "creationTimestamp": "2024-01-01T01:00:00Z",
+            "updateTimestamp": None,
+            "status": 1,
+            "type": 1,
+            "side": 0,
+            "size": 2,
         }
         order_manager.project_x.account_info.id = 12345
         order_manager.project_x._make_request = AsyncMock(
@@ -71,9 +80,15 @@ class TestOrderManagerCore:
         """is_order_filled falls back to get_order_by_id when not cached."""
         order_manager._realtime_enabled = False
         dummy_order = Order(
-            id=55, accountId=12345, contractId="CL",
-            creationTimestamp="2024-01-01T01:00:00Z", updateTimestamp=None,
-            status=2, type=1, side=0, size=1
+            id=55,
+            accountId=12345,
+            contractId="CL",
+            creationTimestamp="2024-01-01T01:00:00Z",
+            updateTimestamp=None,
+            status=2,
+            type=1,
+            side=0,
+            size=1,
         )
         order_manager.get_order_by_id = AsyncMock(return_value=dummy_order)
         result = await order_manager.is_order_filled(55)
@@ -86,28 +101,42 @@ class TestOrderManagerCore:
         order_manager.tracked_orders["888"] = {"status": 1}
         order_manager.order_status_cache["888"] = 1
         start = order_manager.stats["orders_cancelled"]
-        order_manager.project_x._make_request = AsyncMock(return_value={"success": True})
+        order_manager.project_x._make_request = AsyncMock(
+            return_value={"success": True}
+        )
         assert await order_manager.cancel_order(888) is True
         assert order_manager.tracked_orders["888"]["status"] == 3
         assert order_manager.order_status_cache["888"] == 3
         assert order_manager.stats["orders_cancelled"] == start + 1
 
-        order_manager.project_x._make_request = AsyncMock(return_value={"success": False, "errorMessage": "fail"})
+        order_manager.project_x._make_request = AsyncMock(
+            return_value={"success": False, "errorMessage": "fail"}
+        )
         assert await order_manager.cancel_order(888) is False
 
     @pytest.mark.asyncio
     async def test_modify_order_success_and_aligns(self, order_manager):
         """modify_order aligns prices, makes API call, returns True on success."""
         dummy_order = Order(
-            id=12, accountId=12345, contractId="MGC",
-            creationTimestamp="2024-01-01T01:00:00Z", updateTimestamp=None,
-            status=1, type=1, side=0, size=1
+            id=12,
+            accountId=12345,
+            contractId="MGC",
+            creationTimestamp="2024-01-01T01:00:00Z",
+            updateTimestamp=None,
+            status=1,
+            type=1,
+            side=0,
+            size=1,
         )
         order_manager.get_order_by_id = AsyncMock(return_value=dummy_order)
-        order_manager.project_x._make_request = AsyncMock(return_value={"success": True})
+        order_manager.project_x._make_request = AsyncMock(
+            return_value={"success": True}
+        )
         assert await order_manager.modify_order(12, limit_price=2000.5) is True
 
-        order_manager.project_x._make_request = AsyncMock(return_value={"success": False})
+        order_manager.project_x._make_request = AsyncMock(
+            return_value={"success": False}
+        )
         assert await order_manager.modify_order(12, limit_price=2001.5) is False
 
     @pytest.mark.asyncio

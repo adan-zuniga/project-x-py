@@ -1,13 +1,14 @@
 """Tests for OrderTypesMixin helpers (market/limit/stop/trailing-stop)."""
 
-import pytest
 from unittest.mock import AsyncMock
 
-from project_x_py.models import OrderPlaceResponse
+import pytest
+
 
 class DummyOrderManager:
     def __init__(self):
         self.place_order = AsyncMock()
+
 
 @pytest.mark.asyncio
 class TestOrderTypesMixin:
@@ -17,6 +18,7 @@ class TestOrderTypesMixin:
         """place_market_order delegates to place_order with order_type=2."""
         dummy = DummyOrderManager()
         from project_x_py.order_manager.order_types import OrderTypesMixin
+
         mixin = OrderTypesMixin()
         mixin.place_order = dummy.place_order
         await mixin.place_market_order("MGC", 0, 1)
@@ -28,6 +30,7 @@ class TestOrderTypesMixin:
         """place_limit_order delegates to place_order with order_type=1 and passes limit_price."""
         dummy = DummyOrderManager()
         from project_x_py.order_manager.order_types import OrderTypesMixin
+
         mixin = OrderTypesMixin()
         mixin.place_order = dummy.place_order
         await mixin.place_limit_order("MGC", 1, 2, 2040.0)
@@ -39,6 +42,7 @@ class TestOrderTypesMixin:
         """place_stop_order delegates to place_order with order_type=4 and passes stop_price."""
         dummy = DummyOrderManager()
         from project_x_py.order_manager.order_types import OrderTypesMixin
+
         mixin = OrderTypesMixin()
         mixin.place_order = dummy.place_order
         await mixin.place_stop_order("MGC", 1, 2, 2030.0)
@@ -50,6 +54,7 @@ class TestOrderTypesMixin:
         """place_trailing_stop_order delegates to place_order with order_type=5 and passes trail_price."""
         dummy = DummyOrderManager()
         from project_x_py.order_manager.order_types import OrderTypesMixin
+
         mixin = OrderTypesMixin()
         mixin.place_order = dummy.place_order
         await mixin.place_trailing_stop_order("MGC", 1, 2, 5.0)

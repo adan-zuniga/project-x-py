@@ -1,10 +1,13 @@
 """Tests for PositionOrderMixin helpers and tracking."""
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
-from project_x_py.order_manager.position_orders import PositionOrderMixin
+
+import pytest
+
 from project_x_py.models import OrderPlaceResponse
+from project_x_py.order_manager.position_orders import PositionOrderMixin
+
 
 @pytest.mark.asyncio
 class TestPositionOrderMixin:
@@ -32,9 +35,11 @@ class TestPositionOrderMixin:
         mixin.project_x = MagicMock()
         position = MagicMock(contractId="QWE", size=2)
         mixin.project_x.search_open_positions = AsyncMock(return_value=[position])
-        mixin.place_stop_order = AsyncMock(return_value=OrderPlaceResponse(
-            orderId=201, success=True, errorCode=0, errorMessage=None
-        ))
+        mixin.place_stop_order = AsyncMock(
+            return_value=OrderPlaceResponse(
+                orderId=201, success=True, errorCode=0, errorMessage=None
+            )
+        )
         mixin.track_order_for_position = AsyncMock()
         resp = await mixin.add_stop_loss("QWE", 99.0)
         assert resp.orderId == 201
@@ -57,9 +62,11 @@ class TestPositionOrderMixin:
         mixin.project_x = MagicMock()
         position = MagicMock(contractId="ZXC", size=3)
         mixin.project_x.search_open_positions = AsyncMock(return_value=[position])
-        mixin.place_limit_order = AsyncMock(return_value=OrderPlaceResponse(
-            orderId=301, success=True, errorCode=0, errorMessage=None
-        ))
+        mixin.place_limit_order = AsyncMock(
+            return_value=OrderPlaceResponse(
+                orderId=301, success=True, errorCode=0, errorMessage=None
+            )
+        )
         mixin.track_order_for_position = AsyncMock()
         resp = await mixin.add_take_profit("ZXC", 120.0)
         assert resp.orderId == 301
