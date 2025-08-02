@@ -31,8 +31,8 @@ from typing import Any
 
 import polars as pl
 
-from project_x_py.async_orderbook.base import AsyncOrderBookBase
-from project_x_py.async_orderbook.types import IcebergConfig
+from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.orderbook.types import IcebergConfig
 
 
 class OrderDetection:
@@ -42,7 +42,7 @@ class OrderDetection:
     This class implements sophisticated algorithms for detecting hidden patterns in
     orderbook data that may indicate specific trading behaviors, hidden liquidity,
     or other market microstructure phenomena. It is designed as a specialized component
-    of the AsyncOrderBook that focuses solely on detection capabilities.
+    of the OrderBook that focuses solely on detection capabilities.
 
     Key features:
     1. Iceberg order detection - Identifies large orders that are deliberately split
@@ -64,7 +64,7 @@ class OrderDetection:
     allowing for more sophisticated and reliable detections.
     """
 
-    def __init__(self, orderbook: AsyncOrderBookBase):
+    def __init__(self, orderbook: OrderBookBase):
         self.orderbook = orderbook
         self.logger = logging.getLogger(__name__)
         self.iceberg_config = IcebergConfig()

@@ -15,7 +15,7 @@ Uses MNQ micro contracts for strategy testing.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_06_multi_timeframe_strategy.py
+    Or: uv run examples/06_multi_timeframe_strategy.py
 
 Author: TexasCoding
 Date: July 2025
@@ -33,7 +33,7 @@ from project_x_py import (
 from project_x_py.indicators import RSI, SMA
 
 
-class AsyncMultiTimeframeStrategy:
+class MultiTimeframeStrategy:
     """
     Async multi-timeframe trend following strategy.
 
@@ -433,7 +433,7 @@ async def main():
                 await suite["data_manager"].start_realtime_feed()
 
             # Create and configure strategy
-            strategy = AsyncMultiTimeframeStrategy(
+            strategy = MultiTimeframeStrategy(
                 trading_suite=suite,
                 symbol="MNQ",
                 max_position_size=2,

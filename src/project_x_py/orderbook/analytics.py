@@ -25,16 +25,16 @@ from typing import Any
 
 import polars as pl
 
-from .base import AsyncOrderBookBase
+from .base import OrderBookBase
 
 
 class MarketAnalytics:
     """
-    Provides market analytics for the async orderbook.
+    Provides market analytics for the orderbook.
 
-    This class implements advanced analytics methods for the AsyncOrderBook, focusing on
+    This class implements advanced analytics methods for the OrderBook, focusing on
     extracting actionable market insights from the raw orderbook data. It is designed as
-    a component that is injected into the main AsyncOrderBook to provide specialized
+    a component that is injected into the main OrderBook to provide specialized
     analytical capabilities while maintaining a clean separation of concerns.
 
     The analytics methods focus on several key areas:
@@ -54,7 +54,7 @@ class MarketAnalytics:
     and visualization components that need deeper insights beyond raw orderbook data.
     """
 
-    def __init__(self, orderbook: AsyncOrderBookBase):
+    def __init__(self, orderbook: OrderBookBase):
         self.orderbook = orderbook
         self.logger = logging.getLogger(__name__)
 

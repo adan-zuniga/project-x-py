@@ -6,7 +6,7 @@ Shows how to connect to ProjectX asynchronously, authenticate, and verify accoun
 This is the foundation for all other async examples.
 
 Usage:
-    Run with: uv run examples/async_01_basic_client_connection.py
+    Run with: uv run examples/01_basic_client_connection.py
     Or use test.sh which sets environment variables: ./test.sh
 
 Author: TexasCoding

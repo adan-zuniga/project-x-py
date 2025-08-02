@@ -16,7 +16,7 @@ Key features:
 - Configurable memory management
 - Event-driven architecture with customizable callbacks
 
-The AsyncOrderBookBase class serves as the foundation for the complete AsyncOrderBook
+The OrderBookBase class serves as the foundation for the complete OrderBook
 implementation, providing the essential infrastructure while delegating specialized
 functionality to dedicated component classes.
 """
@@ -31,21 +31,21 @@ import polars as pl
 import pytz  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
-    from project_x_py.async_client import AsyncProjectX
+    from project_x_py.client import ProjectX
 
 import logging
 
-from project_x_py.async_orderbook.memory import MemoryManager
-from project_x_py.async_orderbook.types import (
+from project_x_py.exceptions import ProjectXError
+from project_x_py.orderbook.memory import MemoryManager
+from project_x_py.orderbook.types import (
     DEFAULT_TIMEZONE,
     CallbackType,
     DomType,
     MemoryConfig,
 )
-from project_x_py.exceptions import ProjectXError
 
 
-class AsyncOrderBookBase:
+class OrderBookBase:
     """
     Base class for async orderbook with core functionality.
 
@@ -62,7 +62,7 @@ class AsyncOrderBookBase:
     5. Implement the callback registration system
     6. Support price level history tracking for advanced analytics
 
-    This base class is designed to be extended by the full AsyncOrderBook implementation,
+    This base class is designed to be extended by the full OrderBook implementation,
     which adds specialized components for analytics, detection algorithms, and real-time
     data handling.
 
@@ -74,7 +74,7 @@ class AsyncOrderBookBase:
     def __init__(
         self,
         instrument: str,
-        project_x: "AsyncProjectX | None" = None,
+        project_x: "ProjectX | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
     ):
         """
@@ -558,4 +558,4 @@ class AsyncOrderBookBase:
         await self.memory_manager.stop()
         async with self._callback_lock:
             self.callbacks.clear()
-        self.logger.info("AsyncOrderBook cleanup completed")
+        self.logger.info("OrderBook cleanup completed")

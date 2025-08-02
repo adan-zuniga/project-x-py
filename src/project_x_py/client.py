@@ -58,7 +58,7 @@ from .models import (
 )
 
 
-class AsyncRateLimiter:
+class RateLimiter:
     """Simple async rate limiter using sliding window."""
 
     def __init__(self, max_requests: int, window_seconds: int):
@@ -90,7 +90,7 @@ class AsyncRateLimiter:
             self.requests.append(now)
 
 
-class AsyncProjectX:
+class ProjectX:
     """
     Async core ProjectX client for the ProjectX Python SDK.
 
@@ -127,10 +127,10 @@ class AsyncProjectX:
     Example:
         >>> # Basic async SDK usage with environment variables (recommended)
         >>> import asyncio
-        >>> from project_x_py import AsyncProjectX
+        >>> from project_x_py import ProjectX
         >>>
         >>> async def main():
-        >>>     async with AsyncProjectX.from_env() as client:
+        >>>     async with ProjectX.from_env() as client:
         >>>         await client.authenticate()
         >>>         positions = await client.get_positions()
         >>>         print(f"Found {len(positions)} positions")
@@ -191,11 +191,11 @@ class AsyncProjectX:
         self.cache_hit_count = 0
 
         # Rate limiting - 100 requests per minute by default
-        self.rate_limiter = AsyncRateLimiter(max_requests=100, window_seconds=60)
+        self.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
 
         self.logger = logging.getLogger(__name__)
 
-    async def __aenter__(self) -> "AsyncProjectX":
+    async def __aenter__(self) -> "ProjectX":
         """Async context manager entry."""
         self._client = await self._create_client()
         return self
@@ -210,7 +210,7 @@ class AsyncProjectX:
     @asynccontextmanager
     async def from_env(
         cls, config: ProjectXConfig | None = None, account_name: str | None = None
-    ) -> AsyncGenerator["AsyncProjectX", None]:
+    ) -> AsyncGenerator["ProjectX", None]:
         """
         Create async ProjectX client using environment variables (recommended approach).
 
@@ -229,7 +229,7 @@ class AsyncProjectX:
             account_name: Optional account name (overrides environment variable)
 
         Yields:
-            AsyncProjectX: Configured async client instance ready for building trading applications
+            ProjectX: Configured async client instance ready for building trading applications
 
         Raises:
             ValueError: If required environment variables are not set
@@ -245,10 +245,10 @@ class AsyncProjectX:
             >>>
             >>> # Create async client (recommended approach)
             >>> import asyncio
-            >>> from project_x_py import AsyncProjectX
+            >>> from project_x_py import ProjectX
             >>>
             >>> async def main():
-            >>>     async with AsyncProjectX.from_env() as client:
+            >>>     async with ProjectX.from_env() as client:
             >>>         await client.authenticate()
             >>> # Use the client...
             >>>
@@ -275,7 +275,7 @@ class AsyncProjectX:
     @asynccontextmanager
     async def from_config_file(
         cls, config_file: str, account_name: str | None = None
-    ) -> AsyncGenerator["AsyncProjectX", None]:
+    ) -> AsyncGenerator["ProjectX", None]:
         """Create async ProjectX client using a configuration file.
 
         Alternative initialization method that loads configuration and credentials
@@ -294,7 +294,7 @@ class AsyncProjectX:
                 specified in the config file.
 
         Yields:
-            AsyncProjectX: Configured client instance ready for trading operations
+            ProjectX: Configured client instance ready for trading operations
 
         Raises:
             FileNotFoundError: If config file doesn't exist
@@ -312,7 +312,7 @@ class AsyncProjectX:
             ... }
             >>>
             >>> # Use client with config file
-            >>> async with AsyncProjectX.from_config_file("config.json") as client:
+            >>> async with ProjectX.from_config_file("config.json") as client:
             ...     await client.authenticate()
             ...     # Client is ready for trading
 

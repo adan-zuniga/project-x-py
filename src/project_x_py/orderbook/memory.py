@@ -11,12 +11,12 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.async_orderbook.base import AsyncOrderBookBase
+    from project_x_py.orderbook.base import OrderBookBase
 
 import contextlib
 import logging
 
-from project_x_py.async_orderbook.types import MemoryConfig
+from project_x_py.orderbook.types import MemoryConfig
 
 
 class MemoryManager:
@@ -56,7 +56,7 @@ class MemoryManager:
         - Maximum entries for various history trackers
     """
 
-    def __init__(self, orderbook: "AsyncOrderBookBase", config: MemoryConfig):
+    def __init__(self, orderbook: "OrderBookBase", config: MemoryConfig):
         self.orderbook = orderbook
         self.config = config
         self.logger = logging.getLogger(__name__)

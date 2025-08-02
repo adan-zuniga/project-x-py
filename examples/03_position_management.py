@@ -13,7 +13,7 @@ Uses MNQ micro contracts for testing safety.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_03_position_management.py
+    Or: uv run examples/03_position_management.py
 
 Author: TexasCoding
 Date: July 2025
@@ -30,13 +30,13 @@ from project_x_py import (
     create_realtime_client,
     setup_logging,
 )
-from project_x_py.async_realtime_data_manager import AsyncRealtimeDataManager
+from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
 async def get_current_market_price(
     client: ProjectX,
     symbol="MNQ",
-    realtime_data_manager: AsyncRealtimeDataManager | None = None,
+    realtime_data_manager: RealtimeDataManager | None = None,
 ):
     """Get current market price with async fallback for closed markets."""
     # Try to get real-time price first if available

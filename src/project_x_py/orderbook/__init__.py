@@ -25,16 +25,16 @@ Technical Features:
 Example:
     Basic usage with real-time data::
 
-        >>> from project_x_py import AsyncProjectX, create_async_orderbook
+        >>> from project_x_py import ProjectX, create_orderbook
         >>> import asyncio
         >>>
         >>> async def main():
         ...     # Initialize client and connect
-        ...     client = AsyncProjectX()
+        ...     client = ProjectX()
         ...     await client.connect()
         ...
         ...     # Create orderbook with factory function
-        ...     orderbook = create_async_orderbook(
+        ...     orderbook = create_orderbook(
         ...         instrument="MNQ",  # Micro Nasdaq futures
         ...         project_x=client,
         ...         timezone_str="America/Chicago"
@@ -81,13 +81,13 @@ Example:
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.async_client import AsyncProjectX
-    from project_x_py.async_realtime import AsyncProjectXRealtimeClient
+    from project_x_py.client import ProjectX
+    from project_x_py.realtime import ProjectXRealtimeClient
 
 import logging
 
 from .analytics import MarketAnalytics
-from .base import AsyncOrderBookBase
+from .base import OrderBookBase
 from .detection import OrderDetection
 from .memory import MemoryManager
 from .profile import VolumeProfile
@@ -110,22 +110,22 @@ from .types import (
 __all__ = [
     # Types
     "AsyncCallback",
-    "AsyncOrderBook",
     "CallbackType",
     "DomType",
     "IcebergConfig",
     "MarketDataDict",
     "MemoryConfig",
+    "OrderBook",
     "OrderbookSide",
     "OrderbookSnapshot",
     "PriceLevelDict",
     "SyncCallback",
     "TradeDict",
-    "create_async_orderbook",
+    "create_orderbook",
 ]
 
 
-class AsyncOrderBook(AsyncOrderBookBase):
+class OrderBook(OrderBookBase):
     """
     Async Level 2 Orderbook with comprehensive market analysis.
 
@@ -152,7 +152,7 @@ class AsyncOrderBook(AsyncOrderBookBase):
         parameters to prevent memory leaks during long-running sessions.
 
     Example:
-        >>> orderbook = AsyncOrderBook("ES", project_x_client)
+        >>> orderbook = OrderBook("ES", project_x_client)
         >>> await orderbook.initialize(realtime_client)
         >>>
         >>> # Get basic orderbook data
@@ -174,11 +174,11 @@ class AsyncOrderBook(AsyncOrderBookBase):
     def __init__(
         self,
         instrument: str,
-        project_x: "AsyncProjectX | None" = None,
+        project_x: "ProjectX | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
     ):
         """
-        Initialize the async orderbook.
+        Initialize the orderbook.
 
         Args:
             instrument: Trading instrument symbol
@@ -197,7 +197,7 @@ class AsyncOrderBook(AsyncOrderBookBase):
 
     async def initialize(
         self,
-        realtime_client: "AsyncProjectXRealtimeClient | None" = None,
+        realtime_client: "ProjectXRealtimeClient | None" = None,
         subscribe_to_depth: bool = True,
         subscribe_to_quotes: bool = True,
     ) -> bool:
@@ -206,7 +206,7 @@ class AsyncOrderBook(AsyncOrderBookBase):
 
         This method configures the orderbook for operation, sets up the memory manager,
         and optionally connects to the real-time data feed. It must be called after
-        creating an AsyncOrderBook instance and before using any other methods.
+        creating an OrderBook instance and before using any other methods.
 
         The initialization process performs the following steps:
         1. Starts the memory manager for automatic cleanup
@@ -229,7 +229,7 @@ class AsyncOrderBook(AsyncOrderBookBase):
                 initialization failed.
 
         Example:
-            >>> orderbook = AsyncOrderBook("MNQ", client)
+            >>> orderbook = OrderBook("MNQ", client)
             >>> success = await orderbook.initialize(
             ...     realtime_client=client.realtime_client,
             ...     subscribe_to_depth=True,
@@ -253,11 +253,11 @@ class AsyncOrderBook(AsyncOrderBookBase):
                     self.logger.error("Failed to initialize real-time connection")
                     return False
 
-            self.logger.info(f"AsyncOrderBook initialized for {self.instrument}")
+            self.logger.info(f"OrderBook initialized for {self.instrument}")
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize AsyncOrderBook: {e}")
+            self.logger.error(f"Failed to initialize OrderBook: {e}")
             return False
 
     # Delegate analytics methods
@@ -353,16 +353,16 @@ class AsyncOrderBook(AsyncOrderBookBase):
         await super().cleanup()
 
 
-def create_async_orderbook(
+def create_orderbook(
     instrument: str,
-    project_x: "AsyncProjectX | None" = None,
-    realtime_client: "AsyncProjectXRealtimeClient | None" = None,
+    project_x: "ProjectX | None" = None,
+    realtime_client: "ProjectXRealtimeClient | None" = None,
     timezone_str: str = DEFAULT_TIMEZONE,
-) -> AsyncOrderBook:
+) -> OrderBook:
     """
-    Factory function to create an async orderbook.
+    Factory function to create an orderbook.
 
-    This factory function creates and returns an AsyncOrderBook instance for the specified
+    This factory function creates and returns an OrderBook instance for the specified
     instrument. It simplifies the process of creating an orderbook by handling the initial
     configuration. Note that the returned orderbook is not yet initialized - you must call
     the initialize() method separately to start the orderbook's functionality.
@@ -384,12 +384,12 @@ def create_async_orderbook(
             All timestamps in the orderbook will be converted to this timezone.
 
     Returns:
-        AsyncOrderBook: Orderbook instance that must be initialized with a call
+        OrderBook: Orderbook instance that must be initialized with a call
         to initialize() before use.
 
     Example:
         >>> # Create an orderbook for E-mini S&P 500 futures
-        >>> orderbook = create_async_orderbook(
+        >>> orderbook = create_orderbook(
         ...     instrument="ES",  # E-mini S&P 500
         ...     project_x=client,
         ...     timezone_str="America/New_York",
@@ -404,4 +404,4 @@ def create_async_orderbook(
     # Note: realtime_client is passed to initialize() separately to allow
     # for async initialization
     _ = realtime_client  # Mark as intentionally unused
-    return AsyncOrderBook(instrument, project_x, timezone_str)
+    return OrderBook(instrument, project_x, timezone_str)

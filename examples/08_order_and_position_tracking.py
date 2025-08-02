@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Async Order and Position Tracking Demo
+Order and Position Tracking Demo
 
 This demo script demonstrates the automatic order cleanup functionality when positions are closed,
 using proper async components (AsyncOrderManager, AsyncPositionManager, AsyncRealtimeDataManager).
@@ -17,7 +17,7 @@ Features demonstrated:
 - Concurrent operations for improved performance
 
 Usage:
-    python examples/async_08_order_and_position_tracking.py
+    python examples/08_order_and_position_tracking.py
 
 Manual Testing:
     - Let the script create a bracket order
@@ -37,8 +37,8 @@ from datetime import datetime
 from project_x_py import ProjectX, create_trading_suite
 
 
-class AsyncOrderPositionDemo:
-    """Async demo class for order and position tracking with automatic cleanup."""
+class OrderPositionDemo:
+    """Demo class for order and position tracking with automatic cleanup."""
 
     def __init__(self):
         self.client = None
@@ -443,7 +443,7 @@ class AsyncOrderPositionDemo:
 
 async def main():
     """Main async entry point."""
-    demo = AsyncOrderPositionDemo()
+    demo = OrderPositionDemo()
     try:
         async with ProjectX.from_env() as client:
             success = await demo.run(client)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Async Technical Indicators Analysis Example
+Technical Indicators Analysis Example
 
 Demonstrates concurrent technical analysis using async patterns:
 - Concurrent calculation of multiple indicators
@@ -12,7 +12,7 @@ Uses the built-in TA-Lib compatible indicators with Polars DataFrames.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_07_technical_indicators.py
+    Or: uv run examples/07_technical_indicators.py
 
 Author: TexasCoding
 Date: July 2025

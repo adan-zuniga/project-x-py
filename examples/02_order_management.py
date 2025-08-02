@@ -17,7 +17,7 @@ This example uses MNQ (Micro E-mini NASDAQ) to minimize risk during testing.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_02_order_management.py
+    Or: uv run examples/02_order_management.py
 
 Author: TexasCoding
 Date: July 2025

@@ -34,7 +34,7 @@ async def main():
 
     # Create and initialize order manager
     order_manager = AsyncOrderManager(client)
-    realtime_client = AsyncProjectXRealtimeClient(client.config)
+    realtime_client = ProjectXRealtimeClient(client.config)
     await order_manager.initialize(realtime_client=realtime_client)
 
     # Place a simple market order
@@ -79,8 +79,8 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from .async_client import AsyncProjectX
-    from .async_realtime import AsyncProjectXRealtimeClient
+    from .client import ProjectX
+    from .realtime import ProjectXRealtimeClient
 
 
 class OrderStats(TypedDict):
@@ -93,7 +93,7 @@ class OrderStats(TypedDict):
     last_order_time: datetime | None
 
 
-class AsyncOrderManager:
+class OrderManager:
     """
     Async comprehensive order management system for ProjectX trading operations.
 
@@ -136,7 +136,7 @@ class AsyncOrderManager:
     Example Usage:
         ```python
         # Create async order manager with dependency injection
-        order_manager = AsyncOrderManager(async_project_x_client)
+        order_manager = OrderManager(async_project_x_client)
 
         # Initialize with optional real-time client
         await order_manager.initialize(realtime_client=async_realtime_client)
@@ -188,28 +188,28 @@ class AsyncOrderManager:
         ```
     """
 
-    def __init__(self, project_x_client: "AsyncProjectX"):
+    def __init__(self, project_x_client: "ProjectX"):
         """
-        Initialize the AsyncOrderManager with an AsyncProjectX client.
+        Initialize the OrderManager with an ProjectX client.
 
-        Creates a new instance of the AsyncOrderManager that uses the provided AsyncProjectX client
+        Creates a new instance of the OrderManager that uses the provided ProjectX client
         for API access. This establishes the foundation for order operations but does not
         set up real-time capabilities. To enable real-time order tracking, call the `initialize`
         method with a real-time client after initialization.
 
         Args:
-            project_x_client: AsyncProjectX client instance for API access. This client
+            project_x_client: ProjectX client instance for API access. This client
                 should already be authenticated or authentication should be handled
                 separately before attempting order operations.
 
         Example:
             ```python
             # Create the AsyncProjectX client first
-            client = AsyncProjectX()
+            client = ProjectX()
             await client.authenticate()
 
             # Then create the order manager
-            order_manager = AsyncOrderManager(client)
+            order_manager = OrderManager(client)
             ```
         """
         self.project_x = project_x_client
@@ -219,7 +219,7 @@ class AsyncOrderManager:
         self.order_lock = asyncio.Lock()
 
         # Real-time integration (optional)
-        self.realtime_client: AsyncProjectXRealtimeClient | None = None
+        self.realtime_client: ProjectXRealtimeClient | None = None
         self._realtime_enabled = False
 
         # Internal order state tracking (for realtime optimization)
@@ -247,7 +247,7 @@ class AsyncOrderManager:
         self.logger.info("AsyncOrderManager initialized")
 
     async def initialize(
-        self, realtime_client: Optional["AsyncProjectXRealtimeClient"] = None
+        self, realtime_client: Optional["ProjectXRealtimeClient"] = None
     ) -> bool:
         """
         Initialize the AsyncOrderManager with optional real-time capabilities.
@@ -274,11 +274,11 @@ class AsyncOrderManager:
         Example:
             ```python
             # Create and set up the required components
-            px_client = AsyncProjectX()
+            px_client = ProjectX()
             await px_client.authenticate()
 
             # Create the realtime client
-            realtime = AsyncProjectXRealtimeClient(px_client.config)
+            realtime = ProjectXRealtimeClient(px_client.config)
 
             # Initialize order manager with realtime capabilities
             order_manager = AsyncOrderManager(px_client)

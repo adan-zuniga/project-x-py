@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from .models import ProjectXConfig
 
 
-class AsyncProjectXRealtimeClient:
+class ProjectXRealtimeClient:
     """
     Async real-time client for ProjectX Gateway API WebSocket connections.
 
@@ -57,7 +57,7 @@ class AsyncProjectXRealtimeClient:
 
     Example:
         >>> # Create async client with ProjectX Gateway URLs
-        >>> client = AsyncProjectXRealtimeClient(jwt_token, account_id)
+        >>> client = ProjectXRealtimeClient(jwt_token, account_id)
         >>> # Register async managers for event handling
         >>> await client.add_callback("position_update", position_manager.handle_update)
         >>> await client.add_callback("order_update", order_manager.handle_update)
@@ -115,17 +115,17 @@ class AsyncProjectXRealtimeClient:
 
         Example:
             >>> # Using default TopStepX endpoints
-            >>> client = AsyncProjectXRealtimeClient(jwt_token, "12345")
+            >>> client = ProjectXRealtimeClient(jwt_token, "12345")
             >>>
             >>> # Using custom config
             >>> config = ProjectXConfig(
             ...     user_hub_url="https://custom.api.com/hubs/user",
             ...     market_hub_url="https://custom.api.com/hubs/market",
             ... )
-            >>> client = AsyncProjectXRealtimeClient(jwt_token, "12345", config=config)
+            >>> client = ProjectXRealtimeClient(jwt_token, "12345", config=config)
             >>>
             >>> # Override specific URL
-            >>> client = AsyncProjectXRealtimeClient(
+            >>> client = ProjectXRealtimeClient(
             ...     jwt_token,
             ...     "12345",
             ...     market_hub_url="https://test.api.com/hubs/market",
@@ -343,7 +343,7 @@ class AsyncProjectXRealtimeClient:
             6. Updates connection statistics
 
         Example:
-            >>> client = AsyncProjectXRealtimeClient(jwt_token, account_id)
+            >>> client = ProjectXRealtimeClient(jwt_token, account_id)
             >>> if await client.connect():
             ...     print("Connected to ProjectX Gateway")
             ...     # Subscribe to updates
@@ -489,8 +489,8 @@ class AsyncProjectXRealtimeClient:
             >>> await client.add_callback("position_update", on_position_update)
             >>> await client.subscribe_user_updates()
             >>> # Multiple accounts (if supported)
-            >>> client1 = AsyncProjectXRealtimeClient(jwt, "12345")
-            >>> client2 = AsyncProjectXRealtimeClient(jwt, "67890")
+            >>> client1 = ProjectXRealtimeClient(jwt, "12345")
+            >>> client2 = ProjectXRealtimeClient(jwt, "67890")
             >>> await client1.connect()
             >>> await client2.connect()
             >>> await client1.subscribe_user_updates()  # Account 12345 events
