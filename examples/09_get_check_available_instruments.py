@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Async Interactive Instrument Search Demo for ProjectX
+Interactive Instrument Search Demo for ProjectX
 
-This async version demonstrates:
+This version demonstrates:
 - Using ProjectX client with async context manager
 - Async instrument search with await client.search_instruments()
 - Async best match selection with await client.get_instrument()
 - Non-blocking user input handling
 - Background performance stats monitoring
-- Proper async authentication flow
+- Proper authentication flow
 
 Key differences from sync version:
 - Uses ProjectX instead of ProjectX
 - All API calls use await (search_instruments, get_instrument)
-- Async context manager (async with)
+- Context manager (with)
 - Can run background tasks while accepting user input
 """
 
@@ -108,13 +108,13 @@ def show_common_symbols():
 
 
 async def get_user_input(prompt):
-    """Get user input asynchronously"""
+    """Get user input"""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, input, prompt)
 
 
 async def run_interactive_search(client):
-    """Run the interactive search loop"""
+    """Run the interactive search loop."""
     show_common_symbols()
 
     print("\nHow the search works:")
@@ -145,7 +145,7 @@ async def run_interactive_search(client):
 
 
 async def main():
-    """Main async entry point"""
+    """Main entry point."""
     print("╔═══════════════════════════════════════════════════════╗")
     print("║   Async ProjectX Instrument Search Interactive Demo   ║")
     print("╚═══════════════════════════════════════════════════════╝")

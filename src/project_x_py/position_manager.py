@@ -30,12 +30,12 @@ from .exceptions import ProjectXError
 from .models import Position
 
 if TYPE_CHECKING:
-    from .async_client import AsyncProjectX
-    from .async_order_manager import AsyncOrderManager
-    from .async_realtime import AsyncProjectXRealtimeClient
+    from .client import ProjectX
+    from .order_manager import OrderManager
+    from .realtime import ProjectXRealtimeClient
 
 
-class AsyncPositionManager:
+class PositionManager:
     """
     Async comprehensive position management system for ProjectX trading operations.
 
@@ -54,7 +54,7 @@ class AsyncPositionManager:
 
     Example Usage:
         >>> # Create async position manager with dependency injection
-        >>> position_manager = AsyncPositionManager(async_project_x_client)
+        >>> position_manager = PositionManager(async_project_x_client)
         >>> # Initialize with optional real-time client
         >>> await position_manager.initialize(realtime_client=async_realtime_client)
         >>> # Get current positions
@@ -72,23 +72,23 @@ class AsyncPositionManager:
         ... )
     """
 
-    def __init__(self, project_x_client: "AsyncProjectX"):
+    def __init__(self, project_x_client: "ProjectX"):
         """
-        Initialize the AsyncPositionManager with an AsyncProjectX client.
+        Initialize the PositionManager with an ProjectX client.
 
         Creates a comprehensive position management system with tracking, monitoring,
         alerts, risk management, and optional real-time/order synchronization.
 
         Args:
-            project_x_client (AsyncProjectX): The authenticated AsyncProjectX client instance
+            project_x_client (ProjectX): The authenticated ProjectX client instance
                 used for all API operations. Must be properly authenticated before use.
 
         Attributes:
-            project_x (AsyncProjectX): Reference to the ProjectX client
+            project_x (ProjectX): Reference to the ProjectX client
             logger (logging.Logger): Logger instance for this manager
             position_lock (asyncio.Lock): Thread-safe lock for position operations
-            realtime_client (AsyncProjectXRealtimeClient | None): Optional real-time client
-            order_manager (AsyncOrderManager | None): Optional order manager for sync
+            realtime_client (ProjectXRealtimeClient | None): Optional real-time client
+            order_manager (OrderManager | None): Optional order manager for sync
             tracked_positions (dict[str, Position]): Current positions by contract ID
             position_history (dict[str, list[dict]]): Historical position changes
             position_callbacks (dict[str, list[Any]]): Event callbacks by type
@@ -97,9 +97,9 @@ class AsyncPositionManager:
             risk_settings (dict): Risk management configuration
 
         Example:
-            >>> async with AsyncProjectX.from_env() as client:
+            >>> async with ProjectX.from_env() as client:
             ...     await client.authenticate()
-            ...     position_manager = AsyncPositionManager(client)
+            ...     position_manager = PositionManager(client)
         """
         self.project_x = project_x_client
         self.logger = logging.getLogger(__name__)
@@ -108,11 +108,11 @@ class AsyncPositionManager:
         self.position_lock = asyncio.Lock()
 
         # Real-time integration (optional)
-        self.realtime_client: AsyncProjectXRealtimeClient | None = None
+        self.realtime_client: ProjectXRealtimeClient | None = None
         self._realtime_enabled = False
 
         # Order management integration (optional)
-        self.order_manager: AsyncOrderManager | None = None
+        self.order_manager: OrderManager | None = None
         self._order_sync_enabled = False
 
         # Position tracking (maintains local state for business logic)
@@ -145,24 +145,24 @@ class AsyncPositionManager:
             "alert_threshold": 0.005,  # 0.5% threshold for alerts
         }
 
-        self.logger.info("AsyncPositionManager initialized")
+        self.logger.info("PositionManager initialized")
 
     async def initialize(
         self,
-        realtime_client: Optional["AsyncProjectXRealtimeClient"] = None,
-        order_manager: Optional["AsyncOrderManager"] = None,
+        realtime_client: Optional["ProjectXRealtimeClient"] = None,
+        order_manager: Optional["OrderManager"] = None,
     ) -> bool:
         """
-        Initialize the AsyncPositionManager with optional real-time capabilities and order synchronization.
+        Initialize the PositionManager with optional real-time capabilities and order synchronization.
 
         This method sets up advanced features including real-time position tracking via WebSocket
         and automatic order synchronization. Must be called before using real-time features.
 
         Args:
-            realtime_client (AsyncProjectXRealtimeClient, optional): Real-time client instance
+            realtime_client (ProjectXRealtimeClient, optional): Real-time client instance
                 for WebSocket-based position updates. When provided, enables live position
                 tracking without polling. Defaults to None (polling mode).
-            order_manager (AsyncOrderManager, optional): Order manager instance for automatic
+            order_manager (OrderManager, optional): Order manager instance for automatic
                 order synchronization. When provided, orders are automatically updated when
                 positions change. Defaults to None (no order sync).
 
@@ -174,11 +174,11 @@ class AsyncPositionManager:
 
         Example:
             >>> # Initialize with real-time tracking
-            >>> rt_client = create_async_realtime_client(jwt_token)
+            >>> rt_client = create_realtime_client(jwt_token)
             >>> success = await position_manager.initialize(realtime_client=rt_client)
             >>>
             >>> # Initialize with both real-time and order sync
-            >>> order_mgr = AsyncOrderManager(client, rt_client)
+            >>> order_mgr = OrderManager(client, rt_client)
             >>> success = await position_manager.initialize(
             ...     realtime_client=rt_client, order_manager=order_mgr
             ... )
@@ -195,17 +195,17 @@ class AsyncPositionManager:
                 await self._setup_realtime_callbacks()
                 self._realtime_enabled = True
                 self.logger.info(
-                    "✅ AsyncPositionManager initialized with real-time capabilities"
+                    "✅ PositionManager initialized with real-time capabilities"
                 )
             else:
-                self.logger.info("✅ AsyncPositionManager initialized (polling mode)")
+                self.logger.info("✅ PositionManager initialized (polling mode)")
 
             # Set up order management integration if provided
             if order_manager:
                 self.order_manager = order_manager
                 self._order_sync_enabled = True
                 self.logger.info(
-                    "✅ AsyncPositionManager initialized with order synchronization"
+                    "✅ PositionManager initialized with order synchronization"
                 )
 
             # Load initial positions
@@ -214,7 +214,7 @@ class AsyncPositionManager:
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Failed to initialize AsyncPositionManager: {e}")
+            self.logger.error(f"❌ Failed to initialize PositionManager: {e}")
             return False
 
     async def _setup_realtime_callbacks(self) -> None:

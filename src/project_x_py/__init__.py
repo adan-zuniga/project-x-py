@@ -27,15 +27,7 @@ __version__ = "2.0.2"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
-from .async_client import AsyncProjectX as ProjectX
-from .async_order_manager import AsyncOrderManager as OrderManager
-from .async_orderbook import (
-    AsyncOrderBook as OrderBook,
-    create_async_orderbook as create_orderbook,
-)
-from .async_position_manager import AsyncPositionManager as PositionManager
-from .async_realtime import AsyncProjectXRealtimeClient as ProjectXRealtimeClient
-from .async_realtime_data_manager import AsyncRealtimeDataManager as RealtimeDataManager
+from .client import ProjectX
 
 # Configuration management
 from .config import (
@@ -88,6 +80,14 @@ from .models import (
     ProjectXConfig,
     Trade,
 )
+from .order_manager import OrderManager
+from .orderbook import (
+    OrderBook,
+    create_orderbook,
+)
+from .position_manager import PositionManager
+from .realtime import ProjectXRealtimeClient as ProjectXRealtimeClient
+from .realtime_data_manager import RealtimeDataManager
 
 # Utility functions
 from .utils import (

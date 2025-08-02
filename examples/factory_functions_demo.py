@@ -1,8 +1,8 @@
 """
-Example demonstrating the async factory functions for creating trading components.
+Example demonstrating the factory functions for creating trading components.
 
 This example shows how to use the convenient factory functions to create
-async trading components with minimal boilerplate code.
+trading components with minimal boilerplate code.
 """
 
 import asyncio
@@ -19,7 +19,7 @@ from project_x_py import (
 
 
 async def simple_component_creation():
-    """Demonstrate creating individual async components."""
+    """Demonstrate creating individual components."""
     print("=" * 60)
     print("SIMPLE COMPONENT CREATION")
     print("=" * 60)

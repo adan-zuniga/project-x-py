@@ -1,7 +1,7 @@
 """
-Example demonstrating AsyncOrderManager usage for order operations.
+Example demonstrating OrderManager usage for order operations.
 
-This example shows how to use the AsyncOrderManager for placing orders,
+This example shows how to use the OrderManager for placing orders,
 managing brackets, and handling order modifications with async/await.
 """
 

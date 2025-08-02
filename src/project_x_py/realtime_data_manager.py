@@ -108,11 +108,11 @@ import polars as pl
 import pytz
 
 if TYPE_CHECKING:
-    from .async_client import AsyncProjectX
-    from .async_realtime import AsyncProjectXRealtimeClient
+    from .client import ProjectX
+    from .realtime import ProjectXRealtimeClient
 
 
-class AsyncRealtimeDataManager:
+class RealtimeDataManager:
     """
     Async optimized real-time OHLCV data manager for efficient multi-timeframe trading data.
 
@@ -154,11 +154,11 @@ class AsyncRealtimeDataManager:
     Example Usage:
         ```python
         # Create shared async realtime client
-        async_realtime_client = AsyncProjectXRealtimeClient(config)
+        async_realtime_client = ProjectXRealtimeClient(config)
         await async_realtime_client.connect()
 
         # Initialize async data manager with dependency injection
-        manager = AsyncRealtimeDataManager(
+        manager = RealtimeDataManager(
             instrument="MGC",  # Mini Gold futures
             project_x=async_project_x_client,  # For historical data loading
             realtime_client=async_realtime_client,
@@ -206,27 +206,27 @@ class AsyncRealtimeDataManager:
     def __init__(
         self,
         instrument: str,
-        project_x: "AsyncProjectX",
-        realtime_client: "AsyncProjectXRealtimeClient",
+        project_x: "ProjectX",
+        realtime_client: "ProjectXRealtimeClient",
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
     ):
         """
-        Initialize the async optimized real-time OHLCV data manager with dependency injection.
+        Initialize the optimized real-time OHLCV data manager with dependency injection.
 
-        Creates a new instance of the AsyncRealtimeDataManager that manages real-time market data
+        Creates a new instance of the RealtimeDataManager that manages real-time market data
         for a specific trading instrument across multiple timeframes. The manager uses dependency
-        injection with AsyncProjectX for historical data loading and AsyncProjectXRealtimeClient
+        injection with ProjectX for historical data loading and ProjectXRealtimeClient
         for live WebSocket market data.
 
         Args:
             instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES").
                 This should be the base symbol, not a specific contract.
 
-            project_x: AsyncProjectX client instance for initial historical data loading.
+            project_x: ProjectX client instance for initial historical data loading.
                 This client should already be authenticated before passing to this constructor.
 
-            realtime_client: AsyncProjectXRealtimeClient instance for live market data.
+            realtime_client: ProjectXRealtimeClient instance for live market data.
                 The client does not need to be connected yet, as the manager will handle
                 connection when start_realtime_feed() is called.
 
@@ -247,14 +247,14 @@ class AsyncRealtimeDataManager:
         Example:
             ```python
             # Create the required clients first
-            px_client = AsyncProjectX()
+            px_client = ProjectX()
             await px_client.authenticate()
 
             # Create and connect realtime client
-            realtime_client = AsyncProjectXRealtimeClient(px_client.config)
+            realtime_client = ProjectXRealtimeClient(px_client.config)
 
             # Create data manager with multiple timeframes for Gold mini futures
-            data_manager = AsyncRealtimeDataManager(
+            data_manager = RealtimeDataManager(
                 instrument="MGC",  # Gold mini futures
                 project_x=px_client,
                 realtime_client=realtime_client,
@@ -343,7 +343,7 @@ class AsyncRealtimeDataManager:
         # Background cleanup task
         self._cleanup_task: asyncio.Task | None = None
 
-        self.logger.info(f"AsyncRealtimeDataManager initialized for {instrument}")
+        self.logger.info(f"RealtimeDataManager initialized for {instrument}")
 
     async def _cleanup_old_data(self) -> None:
         """
@@ -487,7 +487,7 @@ class AsyncRealtimeDataManager:
         """
         try:
             self.logger.info(
-                f"Initializing AsyncRealtimeDataManager for {self.instrument}..."
+                f"Initializing RealtimeDataManager for {self.instrument}..."
             )
 
             # Get the contract ID for the instrument
@@ -518,7 +518,7 @@ class AsyncRealtimeDataManager:
                         self.logger.warning(f"⚠️ No data loaded for {tf_key} timeframe")
 
             self.logger.info(
-                f"✅ AsyncRealtimeDataManager initialized for {self.instrument}"
+                f"✅ RealtimeDataManager initialized for {self.instrument}"
             )
             return True
 
@@ -644,7 +644,7 @@ class AsyncRealtimeDataManager:
                 self._cleanup_task = None
 
             # Unsubscribe from market data
-            # Note: unsubscribe_market_data will be implemented in AsyncProjectXRealtimeClient
+            # Note: unsubscribe_market_data will be implemented in ProjectXRealtimeClient
             if self.contract_id:
                 self.logger.info(f"📉 Unsubscribing from {self.contract_id}")
 
@@ -1276,7 +1276,7 @@ class AsyncRealtimeDataManager:
             self.callbacks.clear()
             self.indicator_cache.clear()
 
-        self.logger.info("✅ AsyncRealtimeDataManager cleanup completed")
+        self.logger.info("✅ RealtimeDataManager cleanup completed")
 
     def _parse_and_validate_trade_payload(self, trade_data):
         """Parse and validate trade payload, returning the parsed data or None if invalid."""

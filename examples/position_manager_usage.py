@@ -1,7 +1,7 @@
 """
-Example demonstrating AsyncPositionManager usage for position operations.
+Example demonstrating PositionManager usage for position operations.
 
-This example shows how to use the AsyncPositionManager for tracking positions,
+This example shows how to use the PositionManager for tracking positions,
 calculating P&L, managing risk, and handling position monitoring with async/await.
 """
 

@@ -11,21 +11,21 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 if TYPE_CHECKING:
-    from project_x_py.async_realtime import AsyncProjectXRealtimeClient
+    from project_x_py.realtime import ProjectXRealtimeClient
 
 import logging
 
-from .base import AsyncOrderBookBase
+from .base import OrderBookBase
 from .types import DomType
 
 
 class RealtimeHandler:
     """Handles real-time data updates for the async orderbook."""
 
-    def __init__(self, orderbook: AsyncOrderBookBase):
+    def __init__(self, orderbook: OrderBookBase):
         self.orderbook = orderbook
         self.logger = logging.getLogger(__name__)
-        self.realtime_client: AsyncProjectXRealtimeClient | None = None
+        self.realtime_client: ProjectXRealtimeClient | None = None
 
         # Track connection state
         self.is_connected = False
@@ -33,7 +33,7 @@ class RealtimeHandler:
 
     async def initialize(
         self,
-        realtime_client: "AsyncProjectXRealtimeClient",
+        realtime_client: "ProjectXRealtimeClient",
         subscribe_to_depth: bool = True,
         subscribe_to_quotes: bool = True,
     ) -> bool:
@@ -41,7 +41,7 @@ class RealtimeHandler:
         Initialize real-time data feed connection.
 
         Args:
-            realtime_client: Async real-time client instance
+            realtime_client: real-time client instance
             subscribe_to_depth: Subscribe to market depth updates
             subscribe_to_quotes: Subscribe to quote updates
 
@@ -60,16 +60,16 @@ class RealtimeHandler:
             self.is_connected = True
 
             self.logger.info(
-                f"AsyncOrderBook initialized successfully for {self.orderbook.instrument}"
+                f"OrderBook initialized successfully for {self.orderbook.instrument}"
             )
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize AsyncOrderBook: {e}")
+            self.logger.error(f"Failed to initialize OrderBook: {e}")
             return False
 
     async def _setup_realtime_callbacks(self) -> None:
-        """Setup async callbacks for real-time data processing."""
+        """Setup callbacks for real-time data processing."""
         if not self.realtime_client:
             return
 
@@ -82,7 +82,7 @@ class RealtimeHandler:
         await self.realtime_client.add_callback("quote_update", self._on_quote_update)
 
     async def _on_market_depth_update(self, data: dict[str, Any]) -> None:
-        """Async callback for market depth updates (Level 2 data)."""
+        """Callback for market depth updates (Level 2 data)."""
         try:
             self.logger.debug(f"Market depth callback received: {list(data.keys())}")
             # The data comes structured as {"contract_id": ..., "data": ...}
@@ -109,7 +109,7 @@ class RealtimeHandler:
             self.logger.error(f"Error processing market depth update: {e}")
 
     async def _on_quote_update(self, data: dict[str, Any]) -> None:
-        """Async callback for quote updates."""
+        """Callback for quote updates."""
         try:
             # The data comes structured as {"contract_id": ..., "data": ...}
             contract_id = data.get("contract_id", "")

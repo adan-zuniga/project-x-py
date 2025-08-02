@@ -14,7 +14,7 @@ Uses MNQ for real-time market data streaming with async processing.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_04_realtime_data.py
+    Or: uv run examples/04_realtime_data.py
 
 Author: TexasCoding
 Date: July 2025
@@ -35,10 +35,10 @@ from project_x_py import (
 )
 
 if TYPE_CHECKING:
-    from project_x_py.async_realtime_data_manager import AsyncRealtimeDataManager
+    from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
-async def display_current_prices(data_manager: AsyncRealtimeDataManager):
+async def display_current_prices(data_manager: RealtimeDataManager):
     """Display current prices across all timeframes asynchronously."""
     print("\n📊 Current Prices:")
 

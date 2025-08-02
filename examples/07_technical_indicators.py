@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Async Technical Indicators Analysis Example
+Technical Indicators Analysis Example
 
 Demonstrates concurrent technical analysis using async patterns:
 - Concurrent calculation of multiple indicators
@@ -12,7 +12,7 @@ Uses the built-in TA-Lib compatible indicators with Polars DataFrames.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_07_technical_indicators.py
+    Or: uv run examples/07_technical_indicators.py
 
 Author: TexasCoding
 Date: July 2025
@@ -179,7 +179,7 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
         update_count += 1
 
         # Get latest data
-        data = await data_manager.get_data(timeframe)
+        data: pl.DataFrame | None = await data_manager.get_data(timeframe)
         if data is None:
             return
 
@@ -189,8 +189,7 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
             return
 
         # Calculate key indicators
-        data = data.pipe(RSI, period=14)
-        data = data.pipe(SMA, period=20)
+        data = data.pipe(RSI, period=14).pipe(SMA, period=20)
 
         last_row = data.tail(1)
         timestamp = datetime.now().strftime("%H:%M:%S")

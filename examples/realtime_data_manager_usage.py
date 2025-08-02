@@ -1,7 +1,7 @@
 """
-Example demonstrating AsyncRealtimeDataManager usage for real-time OHLCV data.
+Example demonstrating RealtimeDataManager usage for real-time OHLCV data.
 
-This example shows how to use the AsyncRealtimeDataManager for managing
+This example shows how to use the RealtimeDataManager for managing
 multi-timeframe OHLCV data with real-time updates via WebSocket.
 """
 

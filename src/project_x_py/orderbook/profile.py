@@ -29,7 +29,7 @@ from typing import Any
 
 import polars as pl
 
-from .base import AsyncOrderBookBase
+from .base import OrderBookBase
 
 
 class VolumeProfile:
@@ -38,7 +38,7 @@ class VolumeProfile:
 
     This class implements advanced market structure analysis methods focusing on volume
     distribution and key price level identification. It is designed as a specialized
-    component of the AsyncOrderBook that reveals deeper insights into market structure
+    component of the OrderBook that reveals deeper insights into market structure
     and participant behavior patterns.
 
     Key functionalities:
@@ -60,7 +60,7 @@ class VolumeProfile:
     focus analysis on the most relevant recent market activity.
     """
 
-    def __init__(self, orderbook: AsyncOrderBookBase):
+    def __init__(self, orderbook: OrderBookBase):
         self.orderbook = orderbook
         self.logger = logging.getLogger(__name__)
 

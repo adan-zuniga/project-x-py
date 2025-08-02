@@ -11,11 +11,11 @@ Demonstrates comprehensive Level 2 orderbook analysis using async/await:
 - Market imbalance monitoring
 - Best bid/ask tracking
 
-Uses MNQ for Level 2 orderbook data with AsyncOrderBook.
+Uses MNQ for Level 2 orderbook data with OrderBook.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_05_orderbook_analysis.py
+    Or: uv run examples/05_orderbook_analysis.py
 
 Note: This example includes several wait periods:
     - 5 seconds for initial data population
@@ -38,6 +38,7 @@ from project_x_py import (
     create_realtime_client,
     setup_logging,
 )
+from project_x_py.orderbook import OrderBook
 
 
 async def display_best_prices(orderbook):
@@ -259,9 +260,9 @@ async def monitor_orderbook_feed(orderbook, duration_seconds=60):
     print(f"   Update Cycles: {update_count}", flush=True)
 
 
-async def demonstrate_all_orderbook_methods(orderbook):
-    """Comprehensive demonstration of all AsyncOrderBook methods."""
-    print("\n🔍 Testing all available AsyncOrderBook methods...", flush=True)
+async def demonstrate_all_orderbook_methods(orderbook: OrderBook):
+    """Comprehensive demonstration of all OrderBook methods."""
+    print("\n🔍 Testing all available OrderBook methods...", flush=True)
     print(
         "📝 Note: Some methods may show zero values without live market data connection"
     )

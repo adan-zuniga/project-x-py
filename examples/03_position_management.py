@@ -13,7 +13,7 @@ Uses MNQ micro contracts for testing safety.
 
 Usage:
     Run with: ./test.sh (sets environment variables)
-    Or: uv run examples/async_03_position_management.py
+    Or: uv run examples/03_position_management.py
 
 Author: TexasCoding
 Date: July 2025
@@ -30,13 +30,14 @@ from project_x_py import (
     create_realtime_client,
     setup_logging,
 )
-from project_x_py.async_realtime_data_manager import AsyncRealtimeDataManager
+from project_x_py.position_manager import PositionManager
+from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
 async def get_current_market_price(
     client: ProjectX,
     symbol="MNQ",
-    realtime_data_manager: AsyncRealtimeDataManager | None = None,
+    realtime_data_manager: RealtimeDataManager | None = None,
 ):
     """Get current market price with async fallback for closed markets."""
     # Try to get real-time price first if available
@@ -74,7 +75,7 @@ async def get_current_market_price(
     return None
 
 
-async def display_positions(position_manager):
+async def display_positions(position_manager: PositionManager):
     """Display current positions with detailed information."""
     print("\n📊 Current Positions:")
     print("-" * 80)
@@ -88,29 +89,24 @@ async def display_positions(position_manager):
     # Get portfolio P&L concurrently with position display
     pnl_task = asyncio.create_task(position_manager.get_portfolio_pnl())
 
+    portfolio_pnl = await pnl_task
     # Display each position
-    for symbol, position in positions.items():
-        print(f"\n{symbol}:")
-        print(f"  Quantity: {position.quantity}")
+    for position in positions:
+        print(f"\n{position.contractId}:")
+        print(f"  Quantity: {position.size}")
         print(f"  Average Price: ${position.averagePrice:.2f}")
-        print(f"  Position Value: ${position.positionValue:.2f}")
-        print(f"  Unrealized P&L: ${position.unrealizedPnl:.2f}")
-
-        # Show percentage change
-        if position.averagePrice > 0:
-            pnl_pct = (
-                position.unrealizedPnl / (position.quantity * position.averagePrice)
-            ) * 100
-            print(f"  P&L %: {pnl_pct:+.2f}%")
+        print(f"  Position Value: ${position.averagePrice:.2f}")
+        print(f"  Unrealized P&L: ${portfolio_pnl.get('unrealized_pnl', 0):.2f}")
 
     # Show portfolio totals
-    portfolio_pnl = await pnl_task
     print("\n" + "=" * 40)
-    print(f"Portfolio Total P&L: ${portfolio_pnl:.2f}")
+    print(f"Portfolio Total P&L: ${portfolio_pnl.get('net_pnl', 0):.2f}")
     print("=" * 40)
 
 
-async def monitor_positions_realtime(position_manager, duration_seconds=30):
+async def monitor_positions_realtime(
+    position_manager: PositionManager, duration_seconds: int = 30
+):
     """Monitor positions with real-time updates."""
     print(f"\n🔄 Monitoring positions for {duration_seconds} seconds...")
 
