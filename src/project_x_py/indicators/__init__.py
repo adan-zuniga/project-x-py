@@ -31,7 +31,7 @@ from .base import (
     safe_division,
 )
 
-# Fair Value Gap Indicator
+# Pattern Indicators
 from .fvg import FVG as FVGIndicator, calculate_fvg
 
 # Momentum Indicators
@@ -79,6 +79,7 @@ from .momentum import (
     calculate_ultimate_oscillator,
     calculate_williams_r,
 )
+from .order_block import OrderBlock as OrderBlockIndicator, calculate_order_block
 
 # Overlap Studies (Trend Indicators)
 from .overlap import (
@@ -726,7 +727,7 @@ def ADOSC(
     )
 
 
-# Fair Value Gap Indicator
+# Pattern Indicators
 def FVG(
     data,
     high_column="high",
@@ -745,6 +746,35 @@ def FVG(
         min_gap_size=min_gap_size,
         check_mitigation=check_mitigation,
         mitigation_threshold=mitigation_threshold,
+    )
+
+
+def ORDERBLOCK(
+    data,
+    open_column="open",
+    high_column="high",
+    low_column="low",
+    close_column="close",
+    volume_column="volume",
+    min_volume_percentile=50,
+    check_mitigation=False,
+    mitigation_threshold=0.5,
+    lookback_periods=3,
+    use_wicks=True,
+):
+    """Order Block (TA-Lib style)."""
+    return calculate_order_block(
+        data,
+        open_column=open_column,
+        high_column=high_column,
+        low_column=low_column,
+        close_column=close_column,
+        volume_column=volume_column,
+        min_volume_percentile=min_volume_percentile,
+        check_mitigation=check_mitigation,
+        mitigation_threshold=mitigation_threshold,
+        lookback_periods=lookback_periods,
+        use_wicks=use_wicks,
     )
 
 
@@ -805,7 +835,7 @@ def get_indicator_groups():
         ],
         "volatility": ["ATR", "NATR", "TRANGE", "STDDEV"],
         "volume": ["OBV", "VWAP", "AD", "ADOSC"],
-        "patterns": ["FVG"],
+        "patterns": ["FVG", "ORDERBLOCK"],
     }
 
 
@@ -882,6 +912,7 @@ def get_indicator_info(indicator_name):
         "ADOSC": "Accumulation/Distribution Oscillator - difference between fast and slow A/D Line EMAs",
         # Pattern Indicators
         "FVG": "Fair Value Gap - identifies price imbalance areas that may act as support/resistance",
+        "ORDERBLOCK": "Order Block - identifies institutional order zones based on price action patterns",
     }
 
     return indicator_map.get(indicator_name.upper(), "Indicator not found")
@@ -909,6 +940,7 @@ __all__ = [
     "MOM",
     "NATR",
     "OBV",
+    "ORDERBLOCK",
     "ROC",
     "RSI",
     "SAR",
@@ -950,6 +982,7 @@ __all__ = [
     "calculate_midprice",
     "calculate_money_flow_index",
     "calculate_obv",
+    "calculate_order_block",
     "calculate_ppo",
     "calculate_rsi",
     "calculate_sar",
