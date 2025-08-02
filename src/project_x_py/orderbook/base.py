@@ -28,10 +28,10 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
-import pytz  # type: ignore[import-untyped]
+import pytz
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
 
 import logging
 
@@ -74,7 +74,7 @@ class OrderBookBase:
     def __init__(
         self,
         instrument: str,
-        project_x: "ProjectX | None" = None,
+        project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
     ):
         """

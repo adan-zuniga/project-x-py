@@ -81,7 +81,7 @@ Example:
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.realtime import ProjectXRealtimeClient
 
 import logging
@@ -174,7 +174,7 @@ class OrderBook(OrderBookBase):
     def __init__(
         self,
         instrument: str,
-        project_x: "ProjectX | None" = None,
+        project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
     ):
         """
@@ -355,7 +355,7 @@ class OrderBook(OrderBookBase):
 
 def create_orderbook(
     instrument: str,
-    project_x: "ProjectX | None" = None,
+    project_x: "ProjectXBase | None" = None,
     realtime_client: "ProjectXRealtimeClient | None" = None,
     timezone_str: str = DEFAULT_TIMEZONE,
 ) -> OrderBook:

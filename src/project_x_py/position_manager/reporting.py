@@ -149,10 +149,11 @@ class PositionReportingMixin:
             >>> print(
             ...     f"Exposure: ${report['portfolio_summary']['total_exposure']:,.2f}"
             ... )
-            >>> # Save report to file
+            >>> # Save report to file (async)
             >>> import json
-            >>> with open("portfolio_report.json", "w") as f:
-            ...     json.dump(report, f, indent=2, default=str)
+            >>> import aiofiles
+            >>> async with aiofiles.open("portfolio_report.json", "w") as f:
+            ...     await f.write(json.dumps(report, indent=2, default=str))
             >>> # Send key metrics
             >>> summary = report["portfolio_summary"]
             >>> alerts = report["alerts"]

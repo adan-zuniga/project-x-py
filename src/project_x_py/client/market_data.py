@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 import pytz
 
-from ..exceptions import ProjectXInstrumentError
-from ..models import Instrument
+from project_x_py.exceptions import ProjectXInstrumentError
+from project_x_py.models import Instrument
 
 if TYPE_CHECKING:
-    from .base import ProjectXBase
+    from .protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class MarketDataMixin:
     """Mixin class providing market data functionality."""
 
     async def get_instrument(
-        self: "ProjectXBase", symbol: str, live: bool = False
+        self: "ProjectXClientProtocol", symbol: str, live: bool = False
     ) -> Instrument:
         """
         Get detailed instrument information with caching.
@@ -71,7 +71,9 @@ class MarketDataMixin:
         return instrument
 
     def _select_best_contract(
-        self: "ProjectXBase", instruments: list[dict[str, Any]], search_symbol: str
+        self: "ProjectXClientProtocol",
+        instruments: list[dict[str, Any]],
+        search_symbol: str,
     ) -> dict[str, Any]:
         """
         Select the best matching contract from search results.
@@ -130,7 +132,7 @@ class MarketDataMixin:
         return instruments[0]
 
     async def search_instruments(
-        self: "ProjectXBase", query: str, live: bool = False
+        self: "ProjectXClientProtocol", query: str, live: bool = False
     ) -> list[Instrument]:
         """
         Search for instruments by symbol or name.
@@ -159,7 +161,7 @@ class MarketDataMixin:
         return [Instrument(**contract) for contract in contracts_data]
 
     async def get_bars(
-        self: "ProjectXBase",
+        self: "ProjectXClientProtocol",
         symbol: str,
         days: int = 8,
         interval: int = 5,

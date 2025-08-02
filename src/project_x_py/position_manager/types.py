@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     import asyncio
 
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.models import Position
     from project_x_py.order_manager import OrderManager
     from project_x_py.realtime import ProjectXRealtimeClient
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class PositionManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from PositionManager."""
 
-    project_x: "ProjectX"
+    project_x: "ProjectXBase"
     logger: Any
     position_lock: "asyncio.Lock"
     realtime_client: "ProjectXRealtimeClient | None"

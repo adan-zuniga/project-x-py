@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING
 
 import pytz
 
-from ..exceptions import ProjectXError
-from ..models import Position, Trade
+from project_x_py.exceptions import ProjectXError
+from project_x_py.models import Position, Trade
 
 if TYPE_CHECKING:
-    from .base import ProjectXBase
+    from .protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class TradingMixin:
     """Mixin class providing trading functionality."""
 
-    async def get_positions(self: "ProjectXBase") -> list[Position]:
+    async def get_positions(self: "ProjectXClientProtocol") -> list[Position]:
         """
         Get all open positions for the authenticated account.
 
@@ -46,7 +46,7 @@ class TradingMixin:
         return [Position(**pos) for pos in response]
 
     async def search_open_positions(
-        self: "ProjectXBase", account_id: int | None = None
+        self: "ProjectXClientProtocol", account_id: int | None = None
     ) -> list[Position]:
         """
         Search for open positions across accounts.
@@ -83,7 +83,7 @@ class TradingMixin:
         return [Position(**pos) for pos in positions_data]
 
     async def search_trades(
-        self: "ProjectXBase",
+        self: "ProjectXClientProtocol",
         start_date: datetime.datetime | None = None,
         end_date: datetime.datetime | None = None,
         contract_id: str | None = None,

@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from project_x_py.client.base import ProjectXBase
 from project_x_py.models import Position
 
 from .analytics import PositionAnalyticsMixin
@@ -20,7 +21,7 @@ from .risk import RiskManagementMixin
 from .tracking import PositionTrackingMixin
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.order_manager import OrderManager
     from project_x_py.realtime import ProjectXRealtimeClient
 
@@ -69,7 +70,7 @@ class PositionManager(
         ... )
     """
 
-    def __init__(self, project_x_client: "ProjectX"):
+    def __init__(self, project_x_client: "ProjectXBase"):
         """
         Initialize the PositionManager with an ProjectX client.
 

@@ -11,7 +11,7 @@ import pytz
 if TYPE_CHECKING:
     from collections import defaultdict
 
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.realtime import ProjectXRealtimeClient
 
 
@@ -20,7 +20,7 @@ class RealtimeDataManagerProtocol(Protocol):
 
     # Core attributes
     instrument: str
-    project_x: "ProjectX"
+    project_x: "ProjectXBase"
     realtime_client: "ProjectXRealtimeClient"
     logger: Any
     timezone: pytz.tzinfo.BaseTzInfo

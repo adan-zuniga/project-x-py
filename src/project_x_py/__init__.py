@@ -23,6 +23,8 @@ Date: January 2025
 
 from typing import Any
 
+from project_x_py.client.base import ProjectXBase
+
 __version__ = "2.0.4"
 __author__ = "TexasCoding"
 
@@ -174,7 +176,7 @@ __all__ = [
 # Factory functions - Updated to be async-only
 async def create_trading_suite(
     instrument: str,
-    project_x: ProjectX,
+    project_x: ProjectXBase,
     jwt_token: str | None = None,
     account_id: str | None = None,
     timeframes: list[str] | None = None,
@@ -284,7 +286,7 @@ async def create_trading_suite(
 
 
 def create_order_manager(
-    project_x: ProjectX,
+    project_x: ProjectXBase,
     realtime_client: ProjectXRealtimeClient | None = None,
 ) -> OrderManager:
     """
@@ -314,7 +316,7 @@ def create_order_manager(
 
 
 def create_position_manager(
-    project_x: ProjectX,
+    project_x: ProjectXBase,
     realtime_client: ProjectXRealtimeClient | None = None,
     order_manager: OrderManager | None = None,
 ) -> PositionManager:
@@ -380,7 +382,7 @@ def create_realtime_client(
 
 def create_data_manager(
     instrument: str,
-    project_x: ProjectX,
+    project_x: ProjectXBase,
     realtime_client: ProjectXRealtimeClient,
     timeframes: list[str] | None = None,
 ) -> RealtimeDataManager:

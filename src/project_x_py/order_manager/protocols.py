@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from project_x_py.models import Order, OrderPlaceResponse
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.realtime import ProjectXRealtimeClient
 
     from .types import OrderStats
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class OrderManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from OrderManager."""
 
-    project_x: "ProjectX"
+    project_x: "ProjectXBase"
     realtime_client: "ProjectXRealtimeClient | None"
     order_lock: asyncio.Lock
     _realtime_enabled: bool

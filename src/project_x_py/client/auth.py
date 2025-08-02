@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 
 import pytz
 
-from ..exceptions import ProjectXAuthenticationError
-from ..models import Account
+from project_x_py.exceptions import ProjectXAuthenticationError
+from project_x_py.models import Account
 
 if TYPE_CHECKING:
-    from .base import ProjectXBase
+    from .protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,12 @@ class AuthenticationMixin:
         self.token_expiry: datetime.datetime | None = None
         self._authenticated = False
 
-    async def _refresh_authentication(self: "ProjectXBase") -> None:
+    async def _refresh_authentication(self: "ProjectXClientProtocol") -> None:
         """Refresh authentication if token is expired or about to expire."""
         if self._should_refresh_token():
             await self.authenticate()
 
-    def _should_refresh_token(self: "ProjectXBase") -> bool:
+    def _should_refresh_token(self: "ProjectXClientProtocol") -> bool:
         """Check if token should be refreshed."""
         if not self.token_expiry:
             return True
@@ -41,7 +41,7 @@ class AuthenticationMixin:
         buffer_time = timedelta(minutes=5)
         return datetime.datetime.now(pytz.UTC) >= (self.token_expiry - buffer_time)
 
-    async def authenticate(self: "ProjectXBase") -> None:
+    async def authenticate(self: "ProjectXClientProtocol") -> None:
         """
         Authenticate with ProjectX API and select account.
 
@@ -133,12 +133,12 @@ class AuthenticationMixin:
             f"Authenticated successfully. Using account: {selected_account.name}"
         )
 
-    async def _ensure_authenticated(self: "ProjectXBase") -> None:
+    async def _ensure_authenticated(self: "ProjectXClientProtocol") -> None:
         """Ensure client is authenticated before making API calls."""
         if not self._authenticated or self._should_refresh_token():
             await self.authenticate()
 
-    async def list_accounts(self: "ProjectXBase") -> list[Account]:
+    async def list_accounts(self: "ProjectXClientProtocol") -> list[Account]:
         """
         List all accounts available to the authenticated user.
 

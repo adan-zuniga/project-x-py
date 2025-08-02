@@ -25,9 +25,11 @@ import asyncio
 import logging
 import signal
 from datetime import datetime
+from typing import Any
 
 from project_x_py import (
     ProjectX,
+    ProjectXBase,
     create_trading_suite,
 )
 from project_x_py.indicators import RSI, SMA
@@ -48,8 +50,8 @@ class MultiTimeframeStrategy:
 
     def __init__(
         self,
-        client: ProjectX,
-        trading_suite: dict,
+        client: ProjectXBase,
+        trading_suite: dict[str, Any],
         symbol: str = "MNQ",
         max_position_size: int = 2,
         risk_percentage: float = 0.02,

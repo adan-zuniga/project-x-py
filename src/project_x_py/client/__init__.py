@@ -99,7 +99,5 @@ class ProjectX(ProjectXBase):
         >>> # ... trading logic ...
     """
 
-    pass
-
 
 __all__ = ["ProjectX", "RateLimiter"]

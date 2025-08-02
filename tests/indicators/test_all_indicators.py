@@ -44,10 +44,11 @@ def _concrete_indicator_classes():
     return sorted(set(result), key=lambda cls: cls.__name__)
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "indicator_cls", _concrete_indicator_classes(), ids=lambda cls: cls.__name__
 )
-def test_indicator_calculate_adds_new_column(indicator_cls, sample_ohlcv_df):
+async def test_indicator_calculate_adds_new_column(indicator_cls, sample_ohlcv_df):
     """
     For every indicator class: instantiate with default ctor, call .calculate() or __call__ on sample data.
     - No exception is raised.
@@ -76,10 +77,11 @@ def _get_new_column_names(indicator_cls, input_cols, df):
     return set(df.columns) - set(input_cols)
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "indicator_cls", _concrete_indicator_classes(), ids=lambda cls: cls.__name__
 )
-def test_indicator_caching_returns_same_object(indicator_cls, sample_ohlcv_df):
+async def test_indicator_caching_returns_same_object(indicator_cls, sample_ohlcv_df):
     """
     Calling the indicator twice with the same df on the same instance should return the exact same DataFrame object (proves internal cache).
     """

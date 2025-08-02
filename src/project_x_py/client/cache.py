@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from ..models import Instrument
+from project_x_py.models import Instrument
 
 if TYPE_CHECKING:
-    from .base import ProjectXBase
+    from .protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class CacheMixin:
         # Performance monitoring
         self.cache_hit_count = 0
 
-    async def _cleanup_cache(self: "ProjectXBase") -> None:
+    async def _cleanup_cache(self: "ProjectXClientProtocol") -> None:
         """Clean up expired cache entries."""
         current_time = time.time()
 

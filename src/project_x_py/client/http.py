@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from ..exceptions import (
+from project_x_py.exceptions import (
     ProjectXAuthenticationError,
     ProjectXConnectionError,
     ProjectXDataError,
@@ -16,7 +16,7 @@ from ..exceptions import (
 )
 
 if TYPE_CHECKING:
-    from .base import ProjectXBase
+    from .protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class HttpMixin:
         self._client: httpx.AsyncClient | None = None
         self.api_call_count = 0
 
-    async def _create_client(self: "ProjectXBase") -> httpx.AsyncClient:
+    async def _create_client(self: "ProjectXClientProtocol") -> httpx.AsyncClient:
         """
         Create an optimized httpx async client with connection pooling and retries.
 
@@ -73,14 +73,14 @@ class HttpMixin:
 
         return client
 
-    async def _ensure_client(self: "ProjectXBase") -> httpx.AsyncClient:
+    async def _ensure_client(self: "ProjectXClientProtocol") -> httpx.AsyncClient:
         """Ensure HTTP client is initialized."""
         if self._client is None:
             self._client = await self._create_client()
         return self._client
 
     async def _make_request(
-        self: "ProjectXBase",
+        self: "ProjectXClientProtocol",
         method: str,
         endpoint: str,
         data: dict[str, Any] | None = None,
@@ -137,7 +137,12 @@ class HttpMixin:
                     )
                     await asyncio.sleep(retry_after)
                     return await self._make_request(
-                        method, endpoint, data, params, headers, retry_count + 1
+                        method=method,
+                        endpoint=endpoint,
+                        data=data,
+                        params=params,
+                        headers=headers,
+                        retry_count=retry_count + 1,
                     )
                 raise ProjectXRateLimitError("Rate limit exceeded after retries")
 
@@ -153,7 +158,12 @@ class HttpMixin:
                     # Try to refresh authentication
                     await self._refresh_authentication()
                     return await self._make_request(
-                        method, endpoint, data, params, headers, retry_count + 1
+                        method=method,
+                        endpoint=endpoint,
+                        data=data,
+                        params=params,
+                        headers=headers,
+                        retry_count=retry_count + 1,
                     )
                 raise ProjectXAuthenticationError("Authentication failed")
 
@@ -183,7 +193,12 @@ class HttpMixin:
                     )
                     await asyncio.sleep(wait_time)
                     return await self._make_request(
-                        method, endpoint, data, params, headers, retry_count + 1
+                        method=method,
+                        endpoint=endpoint,
+                        data=data,
+                        params=params,
+                        headers=headers,
+                        retry_count=retry_count + 1,
                     )
                 raise ProjectXServerError(
                     f"Server error: {response.status_code} - {response.text}"
@@ -212,7 +227,7 @@ class HttpMixin:
                 raise ProjectXError(f"Unexpected error: {e}") from e
             raise
 
-    async def get_health_status(self: "ProjectXBase") -> dict[str, Any]:
+    async def get_health_status(self: "ProjectXClientProtocol") -> dict[str, Any]:
         """
         Get API health status and client statistics.
 

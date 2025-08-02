@@ -4,11 +4,13 @@ import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
 
-from ..config import ConfigManager
-from ..exceptions import ProjectXAuthenticationError
-from ..models import Account, ProjectXConfig
+import httpx
+
+from project_x_py.config import ConfigManager
+from project_x_py.exceptions import ProjectXAuthenticationError
+from project_x_py.models import Account, ProjectXConfig
+
 from .auth import AuthenticationMixin
 from .cache import CacheMixin
 from .http import HttpMixin
@@ -48,6 +50,9 @@ class ProjectXBase(
         self.username = username
         self.api_key = api_key
         self.account_name = account_name
+
+        # Ensure _client is properly typed
+        self._client: httpx.AsyncClient | None = None
 
         # Use provided config or create default
         self.config = config or ProjectXConfig()

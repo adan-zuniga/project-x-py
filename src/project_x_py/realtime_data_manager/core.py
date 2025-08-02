@@ -15,7 +15,13 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 import pytz
 
-from ..exceptions import ProjectXDataError, ProjectXError, ProjectXInstrumentError
+from project_x_py.client.base import ProjectXBase
+from project_x_py.exceptions import (
+    ProjectXDataError,
+    ProjectXError,
+    ProjectXInstrumentError,
+)
+
 from .callbacks import CallbackMixin
 from .data_access import DataAccessMixin
 from .data_processing import DataProcessingMixin
@@ -23,7 +29,7 @@ from .memory_management import MemoryManagementMixin
 from .validation import ValidationMixin
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.realtime import ProjectXRealtimeClient
 
 
@@ -127,7 +133,7 @@ class RealtimeDataManager(
     def __init__(
         self,
         instrument: str,
-        project_x: "ProjectX",
+        project_x: "ProjectXBase",
         realtime_client: "ProjectXRealtimeClient",
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
@@ -144,7 +150,7 @@ class RealtimeDataManager(
             instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES").
                 This should be the base symbol, not a specific contract.
 
-            project_x: ProjectX client instance for initial historical data loading.
+            project_x: ProjectXBase client instance for initial historical data loading.
                 This client should already be authenticated before passing to this constructor.
 
             realtime_client: ProjectXRealtimeClient instance for live market data.
@@ -457,7 +463,7 @@ class RealtimeDataManager(
         except RuntimeError as e:
             self.logger.error(f"❌ Failed to start real-time feed - runtime error: {e}")
             return False
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             self.logger.error(f"❌ Failed to start real-time feed - timeout: {e}")
             return False
 

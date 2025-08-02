@@ -5,7 +5,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def align_price_to_tick(price: float, tick_size: float) -> float:
 
 
 async def align_price_to_tick_size(
-    price: float | None, contract_id: str, project_x: "ProjectX"
+    price: float | None, contract_id: str, project_x: "ProjectXBase"
 ) -> float | None:
     """
     Align a price to the instrument's tick size.
@@ -110,7 +110,7 @@ async def align_price_to_tick_size(
 
 
 async def resolve_contract_id(
-    contract_id: str, project_x: "ProjectX"
+    contract_id: str, project_x: "ProjectXBase"
 ) -> dict[str, Any] | None:
     """Resolve a contract ID to its full contract details."""
     try:

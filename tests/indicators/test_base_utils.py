@@ -11,27 +11,31 @@ from project_x_py.indicators.volatility import calculate_atr
 from project_x_py.indicators.volume import calculate_obv
 
 
-def test_validate_data_missing_column(sample_ohlcv_df):
+@pytest.mark.asyncio
+async def test_validate_data_missing_column(sample_ohlcv_df):
     df_missing = sample_ohlcv_df.drop("open")
     sma = SMA()
     with pytest.raises(IndicatorError, match="Required column"):
         sma.validate_data(df_missing, required_columns=["open", "close"])
 
 
-def test_validate_data_length_too_short(small_ohlcv_df):
+@pytest.mark.asyncio
+async def test_validate_data_length_too_short(small_ohlcv_df):
     sma = SMA()
     with pytest.raises(IndicatorError, match="at least"):
         sma.validate_data_length(small_ohlcv_df, min_length=10)
 
 
-def test_validate_period_negative_or_zero():
+@pytest.mark.asyncio
+async def test_validate_period_negative_or_zero():
     sma = SMA()
     for val in [0, -1, -10]:
         with pytest.raises(IndicatorError, match="Period must be an integer"):
             sma.validate_period(val)
 
 
-def test_safe_division_behavior():
+@pytest.mark.asyncio
+async def test_safe_division_behavior():
     df = pl.DataFrame({"numerator": [1, 2], "denominator": [0, 2]})
     out = df.with_columns(
         result=safe_division(pl.col("numerator"), pl.col("denominator"), default=-1)
@@ -42,6 +46,7 @@ def test_safe_division_behavior():
     )
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("func", "kwargs", "exp_col"),
     [
@@ -51,7 +56,7 @@ def test_safe_division_behavior():
         (calculate_obv, {}, "obv"),
     ],
 )
-def test_convenience_functions_expected_column_and_shape(
+async def test_convenience_functions_expected_column_and_shape(
     sample_ohlcv_df, func, kwargs, exp_col
 ):
     """

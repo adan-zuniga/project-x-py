@@ -21,7 +21,7 @@ from .types import OrderStats
 from .utils import align_price_to_tick_size, resolve_contract_id
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
+    from project_x_py.client import ProjectXBase
     from project_x_py.realtime import ProjectXRealtimeClient
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class OrderManager(
         - 7: JoinAsk
     """
 
-    def __init__(self, project_x_client: "ProjectX"):
+    def __init__(self, project_x_client: "ProjectXBase"):
         """
         Initialize the OrderManager with an ProjectX client.
 
