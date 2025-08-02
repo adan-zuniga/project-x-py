@@ -136,6 +136,7 @@ from .volume import (
     calculate_obv,
     calculate_vwap,
 )
+from .waddah_attar import WAE as WAEIndicator, calculate_wae
 
 # Version info
 __version__ = "2.0.1"
@@ -778,6 +779,35 @@ def ORDERBLOCK(
     )
 
 
+def WAE(
+    data,
+    close_column="close",
+    high_column="high",
+    low_column="low",
+    fast_period=20,
+    slow_period=40,
+    bb_period=20,
+    bb_mult=2.0,
+    sensitivity=150,
+    dead_zone_period=100,
+    dead_zone_mult=3.6,
+):
+    """Waddah Attar Explosion (TA-Lib style)."""
+    return calculate_wae(
+        data,
+        close_column=close_column,
+        high_column=high_column,
+        low_column=low_column,
+        fast_period=fast_period,
+        slow_period=slow_period,
+        bb_period=bb_period,
+        bb_mult=bb_mult,
+        sensitivity=sensitivity,
+        dead_zone_period=dead_zone_period,
+        dead_zone_mult=dead_zone_mult,
+    )
+
+
 # Helper functions for indicator discovery
 def get_indicator_groups():
     """Get available indicator groups."""
@@ -835,7 +865,7 @@ def get_indicator_groups():
         ],
         "volatility": ["ATR", "NATR", "TRANGE", "STDDEV"],
         "volume": ["OBV", "VWAP", "AD", "ADOSC"],
-        "patterns": ["FVG", "ORDERBLOCK"],
+        "patterns": ["FVG", "ORDERBLOCK", "WAE"],
     }
 
 
@@ -913,6 +943,7 @@ def get_indicator_info(indicator_name):
         # Pattern Indicators
         "FVG": "Fair Value Gap - identifies price imbalance areas that may act as support/resistance",
         "ORDERBLOCK": "Order Block - identifies institutional order zones based on price action patterns",
+        "WAE": "Waddah Attar Explosion - identifies strong trends and breakouts using MACD and Bollinger Bands",
     }
 
     return indicator_map.get(indicator_name.upper(), "Indicator not found")
@@ -956,6 +987,7 @@ __all__ = [
     "TRIMA",
     "ULTOSC",
     "VWAP",
+    "WAE",
     "WILLR",
     "WMA",
     # Base classes
@@ -995,6 +1027,7 @@ __all__ = [
     "calculate_trima",
     "calculate_ultimate_oscillator",
     "calculate_vwap",
+    "calculate_wae",
     "calculate_williams_r",
     "calculate_wma",
     # Utilities
