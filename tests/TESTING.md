@@ -147,3 +147,20 @@ The test suite is designed to integrate with CI/CD pipelines. Tests run automati
 - Pull requests
 - Main branch changes
 - Release tags
+
+## Order Manager Tests
+
+To run just the Order Manager test suite:
+
+```bash
+pytest tests/order_manager/
+```
+
+This suite covers:
+- `OrderManager` core API (place/search/cancel/modify)
+- Order type helpers (market, limit, stop, trailing-stop)
+- Bracket order validation and flows
+- Position order tracking and helpers
+- Utility price alignment functions
+
+All network and API interactions are fully mocked using pytest and unittest.mock. Test execution is fast (<50ms per test).
