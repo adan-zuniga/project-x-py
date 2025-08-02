@@ -61,10 +61,10 @@ The current synchronous architecture has several limitations:
 - Converted all managers to async: OrderManager, PositionManager, RealtimeDataManager, OrderBook
 - Implemented proper async locking and thread safety
 - Created comprehensive test suites for all managers (62 tests total)
-- Ensured all managers can share AsyncProjectXRealtimeClient instance
+- Ensured all managers can share ProjectXRealtimeClient instance
 
 **Phase 4 (SignalR/WebSocket Integration) - COMPLETED on 2025-07-31**
-- Created AsyncProjectXRealtimeClient with async wrapper around SignalR
+- Created ProjectXRealtimeClient with async wrapper around SignalR
 - Implemented async event handling and callback system
 - Added JWT token refresh and reconnection support
 - Created async factory functions for all components
@@ -153,14 +153,14 @@ The current synchronous architecture has several limitations:
 - Thread-safe operations using asyncio.Lock
 - Runs synchronous SignalR operations in executor for compatibility
 
-**Async Factory Functions Created:**
-- `create_async_client()` - Create AsyncProjectX client
-- `create_async_realtime_client()` - Create async real-time WebSocket client
-- `create_async_order_manager()` - Create async order manager
-- `create_async_position_manager()` - Create async position manager
-- `create_async_data_manager()` - Create async OHLCV data manager
-- `create_async_orderbook()` - Create async market depth orderbook
-- `create_async_trading_suite()` - Create complete async trading toolkit
+**Async Factory Functions Created (now canonical, async-ready by default):**
+- `create_client()` - Create ProjectX client
+- `create_realtime_client()` - Create real-time WebSocket client
+- `create_order_manager()` - Create order manager
+- `create_position_manager()` - Create position manager
+- `create_data_manager()` - Create OHLCV data manager
+- `create_orderbook()` - Create market depth orderbook
+- `create_trading_suite()` - Create complete async trading toolkit
 
 **Integration Features:**
 - All async managers share single AsyncProjectXRealtimeClient instance
@@ -205,7 +205,7 @@ This refactoring will introduce breaking changes:
 3. Event handlers must be async functions
 4. Example code and integrations need updates
 
-## Migration Guide (Draft)
+## Migration Guide
 
 ```python
 # Old (Sync)
@@ -213,8 +213,8 @@ client = ProjectX(api_key, username)
 client.authenticate()
 positions = client.get_positions()
 
-# New (Async)
-async with AsyncProjectX(api_key, username) as client:
+# New (Async-ready, canonical names)
+async with ProjectX(api_key, username) as client:
     await client.authenticate()
     positions = await client.get_positions()
 ```
@@ -257,14 +257,14 @@ aioresponses = ">=0.7.6"  # For mocking async HTTP
 
 ```python
 import asyncio
-from project_x_py import AsyncProjectX, create_async_trading_suite
+from project_x_py import ProjectX, create_trading_suite
 
 async def trading_bot():
-    async with AsyncProjectX(api_key, username) as client:
+    async with ProjectX(api_key, username) as client:
         await client.authenticate()
         
-        # Create async trading suite
-        suite = await create_async_trading_suite(
+        # Create trading suite (now async-ready by default)
+        suite = await create_trading_suite(
             instrument="MGC",
             project_x=client,
             jwt_token=client.session_token,
@@ -324,5 +324,7 @@ if __name__ == "__main__":
 - [SignalR Protocol Specification](https://github.com/dotnet/aspnetcore/tree/main/src/SignalR/docs/specs)
 
 ---
+
+**Note:** All public classes and factory functions are now async-ready by default. The Async* prefix is no longer used—simply use the canonical names shown in the latest examples above.
 
 **Note**: This refactoring aligns with the CLAUDE.md directive for "No Backward Compatibility" and "Clean Code Priority" during active development.
