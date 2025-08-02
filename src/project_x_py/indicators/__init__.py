@@ -139,7 +139,7 @@ from .volume import (
 from .waddah_attar import WAE as WAEIndicator, calculate_wae
 
 # Version info
-__version__ = "2.0.2"
+__version__ = "2.0.3"
 __author__ = "TexasCoding"
 
 
