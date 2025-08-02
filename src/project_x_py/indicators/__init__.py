@@ -31,6 +31,9 @@ from .base import (
     safe_division,
 )
 
+# Fair Value Gap Indicator
+from .fvg import FVG as FVGIndicator, calculate_fvg
+
 # Momentum Indicators
 from .momentum import (
     # NEW MOMENTUM INDICATORS
@@ -723,6 +726,28 @@ def ADOSC(
     )
 
 
+# Fair Value Gap Indicator
+def FVG(
+    data,
+    high_column="high",
+    low_column="low",
+    close_column="close",
+    min_gap_size=0.0,
+    check_mitigation=False,
+    mitigation_threshold=0.5,
+):
+    """Fair Value Gap (TA-Lib style)."""
+    return calculate_fvg(
+        data,
+        high_column=high_column,
+        low_column=low_column,
+        close_column=close_column,
+        min_gap_size=min_gap_size,
+        check_mitigation=check_mitigation,
+        mitigation_threshold=mitigation_threshold,
+    )
+
+
 # Helper functions for indicator discovery
 def get_indicator_groups():
     """Get available indicator groups."""
@@ -780,6 +805,7 @@ def get_indicator_groups():
         ],
         "volatility": ["ATR", "NATR", "TRANGE", "STDDEV"],
         "volume": ["OBV", "VWAP", "AD", "ADOSC"],
+        "patterns": ["FVG"],
     }
 
 
@@ -854,6 +880,8 @@ def get_indicator_info(indicator_name):
         "VWAP": "Volume Weighted Average Price - average price weighted by volume",
         "AD": "Accumulation/Distribution Line - volume-based indicator showing money flow",
         "ADOSC": "Accumulation/Distribution Oscillator - difference between fast and slow A/D Line EMAs",
+        # Pattern Indicators
+        "FVG": "Fair Value Gap - identifies price imbalance areas that may act as support/resistance",
     }
 
     return indicator_map.get(indicator_name.upper(), "Indicator not found")
@@ -869,6 +897,7 @@ __all__ = [
     "CCI",
     "DEMA",
     "EMA",
+    "FVG",
     "HT_TRENDLINE",
     "KAMA",
     "MA",
@@ -911,6 +940,7 @@ __all__ = [
     "calculate_commodity_channel_index",
     "calculate_dema",
     "calculate_ema",
+    "calculate_fvg",
     "calculate_ht_trendline",
     "calculate_kama",
     "calculate_ma",
