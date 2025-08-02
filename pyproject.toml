@@ -32,6 +32,7 @@ classifiers = [
 requires-python = ">=3.12"
 dependencies = [
     "polars>=1.31.0", # TODO: Update to 1.31.0
+    "numpy>=2.3.2",
     "pytz>=2025.2",
     "requests>=2.32.4",
     "httpx[http2]>=0.27.0",
