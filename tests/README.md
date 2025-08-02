@@ -76,3 +76,14 @@ Areas for future test improvements:
 - Property-based testing for complex scenarios
 - Performance benchmarks
 - Snapshot testing for response structures
+
+## Order Manager Tests
+
+The `order_manager` test suite provides high-coverage, unit-level tests for all major flows in `src/project_x_py/order_manager/`. Coverage includes order placement, bracket/position helpers, utils, and price alignment logic.
+
+**To run only Order Manager tests:**
+```bash
+pytest tests/order_manager/
+```
+
+All network/API operations are mocked for speed and determinism. See `tests/order_manager/conftest.py` for local fixtures and helpers.
