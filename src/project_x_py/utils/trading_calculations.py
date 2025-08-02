@@ -22,8 +22,13 @@ def calculate_tick_value(
         >>> calculate_tick_value(0.5, 0.1, 1.0)
         5.0
     """
+    # Validate inputs
     if tick_size <= 0:
-        return 0.0
+        raise ValueError(f"tick_size must be positive, got {tick_size}")
+    if tick_value < 0:
+        raise ValueError(f"tick_value cannot be negative, got {tick_value}")
+    if not isinstance(price_change, (int, float)):
+        raise TypeError(f"price_change must be numeric, got {type(price_change)}")
 
     num_ticks = abs(price_change) / tick_size
     return num_ticks * tick_value
@@ -49,8 +54,15 @@ def calculate_position_value(
         >>> calculate_position_value(5, 2050.0, 1.0, 0.1)
         102500.0
     """
+    # Validate inputs
     if tick_size <= 0:
-        return 0.0
+        raise ValueError(f"tick_size must be positive, got {tick_size}")
+    if tick_value < 0:
+        raise ValueError(f"tick_value cannot be negative, got {tick_value}")
+    if price < 0:
+        raise ValueError(f"price cannot be negative, got {price}")
+    if not isinstance(size, int):
+        raise TypeError(f"size must be an integer, got {type(size)}")
 
     ticks_per_point = 1.0 / tick_size
     value_per_point = ticks_per_point * tick_value
@@ -68,12 +80,18 @@ def round_to_tick_size(price: float, tick_size: float) -> float:
     Returns:
         float: Price rounded to nearest tick
 
+    Raises:
+        ValueError: If tick_size is not positive or price is negative
+
     Example:
         >>> round_to_tick_size(2050.37, 0.1)
         2050.4
     """
+    # Validate inputs
     if tick_size <= 0:
-        return price
+        raise ValueError(f"tick_size must be positive, got {tick_size}")
+    if price < 0:
+        raise ValueError(f"price cannot be negative, got {price}")
 
     return round(price / tick_size) * tick_size
 
@@ -142,6 +160,20 @@ def calculate_position_sizing(
         >>> sizing = calculate_position_sizing(50000, 0.02, 2050, 2040, 1.0)
         >>> print(f"Position size: {sizing['position_size']} contracts")
     """
+    # Validate inputs
+    if account_balance <= 0:
+        raise ValueError(f"account_balance must be positive, got {account_balance}")
+    if not 0 < risk_per_trade <= 1:
+        raise ValueError(
+            f"risk_per_trade must be between 0 and 1, got {risk_per_trade}"
+        )
+    if entry_price <= 0:
+        raise ValueError(f"entry_price must be positive, got {entry_price}")
+    if stop_loss_price <= 0:
+        raise ValueError(f"stop_loss_price must be positive, got {stop_loss_price}")
+    if tick_value <= 0:
+        raise ValueError(f"tick_value must be positive, got {tick_value}")
+
     try:
         # Calculate risk per share/contract
         price_risk = abs(entry_price - stop_loss_price)

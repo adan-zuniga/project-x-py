@@ -133,7 +133,7 @@ class ProjectXRealtimeClient(
             ... )
 
         Note:
-            - JWT token is appended as access_token query parameter
+            - JWT token is passed securely via Authorization header
             - Both hubs must connect successfully for full functionality
             - SignalR connections are established lazily on connect()
         """
@@ -152,9 +152,9 @@ class ProjectXRealtimeClient(
         final_user_url = user_hub_url or default_user_url
         final_market_url = market_hub_url or default_market_url
 
-        # Build complete URLs with authentication
-        self.user_hub_url = f"{final_user_url}?access_token={jwt_token}"
-        self.market_hub_url = f"{final_market_url}?access_token={jwt_token}"
+        # Store URLs without tokens (tokens will be passed in headers)
+        self.user_hub_url = final_user_url
+        self.market_hub_url = final_market_url
 
         # Set up base URLs for token refresh
         if config:

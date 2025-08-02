@@ -57,10 +57,15 @@ class ConnectionManagementMixin:
                 raise ImportError("signalrcore is required for real-time functionality")
 
             async with self._connection_lock:
-                # Build user hub connection
+                # Build user hub connection with JWT in headers
                 self.user_connection = (
                     HubConnectionBuilder()
-                    .with_url(self.user_hub_url)
+                    .with_url(
+                        self.user_hub_url,
+                        options={
+                            "headers": {"Authorization": f"Bearer {self.jwt_token}"}
+                        },
+                    )
                     .configure_logging(
                         logging.INFO,
                         socket_trace=False,
@@ -76,10 +81,15 @@ class ConnectionManagementMixin:
                     .build()
                 )
 
-                # Build market hub connection
+                # Build market hub connection with JWT in headers
                 self.market_connection = (
                     HubConnectionBuilder()
-                    .with_url(self.market_hub_url)
+                    .with_url(
+                        self.market_hub_url,
+                        options={
+                            "headers": {"Authorization": f"Bearer {self.jwt_token}"}
+                        },
+                    )
                     .configure_logging(
                         logging.INFO,
                         socket_trace=False,
@@ -425,12 +435,8 @@ class ConnectionManagementMixin:
         # Disconnect existing connections
         await self.disconnect()
 
-        # Update token
+        # Update JWT token for header authentication
         self.jwt_token = new_jwt_token
-
-        # Update URLs with new token
-        self.user_hub_url = f"{self.base_user_url}?access_token={new_jwt_token}"
-        self.market_hub_url = f"{self.base_market_url}?access_token={new_jwt_token}"
 
         # Reset setup flag to force new connection setup
         self.setup_complete = False

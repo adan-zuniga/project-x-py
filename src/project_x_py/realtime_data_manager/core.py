@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 import pytz
 
+from ..exceptions import ProjectXDataError, ProjectXError, ProjectXInstrumentError
 from .callbacks import CallbackMixin
 from .data_access import DataAccessMixin
 from .data_processing import DataProcessingMixin
@@ -350,8 +351,14 @@ class RealtimeDataManager(
             )
             return True
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to initialize: {e}")
+        except ProjectXInstrumentError as e:
+            self.logger.error(f"❌ Failed to initialize - instrument error: {e}")
+            return False
+        except ProjectXDataError as e:
+            self.logger.error(f"❌ Failed to initialize - data error: {e}")
+            return False
+        except ProjectXError as e:
+            self.logger.error(f"❌ Failed to initialize - ProjectX error: {e}")
             return False
 
     async def start_realtime_feed(self) -> bool:
@@ -447,8 +454,11 @@ class RealtimeDataManager(
             self.logger.info(f"✅ Real-time OHLCV feed started for {self.instrument}")
             return True
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to start real-time feed: {e}")
+        except RuntimeError as e:
+            self.logger.error(f"❌ Failed to start real-time feed - runtime error: {e}")
+            return False
+        except asyncio.TimeoutError as e:
+            self.logger.error(f"❌ Failed to start real-time feed - timeout: {e}")
             return False
 
     async def stop_realtime_feed(self) -> None:
@@ -474,7 +484,7 @@ class RealtimeDataManager(
 
             self.logger.info(f"✅ Real-time feed stopped for {self.instrument}")
 
-        except Exception as e:
+        except RuntimeError as e:
             self.logger.error(f"❌ Error stopping real-time feed: {e}")
 
     async def cleanup(self) -> None:

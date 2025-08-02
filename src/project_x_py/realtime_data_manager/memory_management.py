@@ -72,8 +72,19 @@ class MemoryManagementMixin:
             try:
                 await asyncio.sleep(self.cleanup_interval)
                 await self._cleanup_old_data()
-            except Exception as e:
-                self.logger.error(f"Error in periodic cleanup: {e}")
+            except asyncio.CancelledError:
+                # Task cancellation is expected during shutdown
+                self.logger.debug("Periodic cleanup task cancelled")
+                raise
+            except MemoryError as e:
+                self.logger.error(f"Memory error during cleanup: {e}")
+                # Force immediate garbage collection
+                import gc
+
+                gc.collect()
+            except RuntimeError as e:
+                self.logger.error(f"Runtime error in periodic cleanup: {e}")
+                # Don't re-raise runtime errors to keep the cleanup task running
 
     def get_memory_stats(self: "RealtimeDataManagerProtocol") -> dict:
         """
