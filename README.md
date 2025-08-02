@@ -21,7 +21,7 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v2.0.0 - Async-First Architecture
+## 🚀 v2.0.2 - Async-First Architecture with Enhanced Indicators
 
 **BREAKING CHANGE**: Version 2.0.0 is a complete rewrite with async-only architecture. All synchronous APIs have been removed in favor of high-performance async implementations.
 
@@ -58,10 +58,11 @@ async with ProjectX.from_env() as client:
 - **Risk Management**: Portfolio analytics and risk metrics
 
 ### Advanced Features
-- **55+ Technical Indicators**: Full TA-Lib compatibility with Polars optimization
+- **58+ Technical Indicators**: Full TA-Lib compatibility with Polars optimization including new pattern indicators
 - **Level 2 OrderBook**: Depth analysis, iceberg detection, market microstructure
 - **Real-time WebSockets**: Async streaming for quotes, trades, and account updates
 - **Performance Optimized**: Connection pooling, intelligent caching, memory management
+- **Pattern Recognition**: Fair Value Gaps, Order Blocks, and Waddah Attar Explosion indicators
 
 ## 📦 Installation
 
@@ -230,22 +231,32 @@ icebergs = await orderbook.detect_iceberg_orders()
 
 ### Technical Indicators
 
-All 55+ indicators work with async data pipelines:
+All 58+ indicators work with async data pipelines:
 ```python
 import polars as pl
-from project_x_py.indicators import RSI, SMA, MACD
+from project_x_py.indicators import RSI, SMA, MACD, FVG, ORDERBLOCK, WAE
 
 # Get data
 data = await client.get_bars("ES", days=30)
 
-# Apply indicators
+# Apply traditional indicators
 data = data.pipe(SMA, period=20).pipe(RSI, period=14)
 
-# Or use TA-Lib style functions
-from project_x_py import SMA, RSI, MACD
-data_with_sma = SMA(data, period=50)
-data_with_rsi = RSI(data, period=14)
+# Apply pattern recognition indicators
+data_with_fvg = FVG(data, min_gap_size=0.001, check_mitigation=True)
+data_with_ob = ORDERBLOCK(data, min_volume_percentile=70)
+data_with_wae = WAE(data, sensitivity=150)
+
+# Or use class-based interface
+from project_x_py.indicators import OrderBlock, FVG, WAE
+ob = OrderBlock()
+data_with_ob = ob.calculate(data, use_wicks=True)
 ```
+
+#### New Pattern Indicators (v2.0.2)
+- **Fair Value Gap (FVG)**: Identifies price imbalance areas
+- **Order Block**: Detects institutional order zones
+- **Waddah Attar Explosion (WAE)**: Strong trend and breakout detection
 
 ## 🏗️ Examples
 

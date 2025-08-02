@@ -13,6 +13,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [2.0.2] - 2025-08-02
+
+### Added
+- **📊 Pattern Recognition Indicators**: Three new market structure indicators for advanced trading analysis
+  - **Fair Value Gap (FVG)**: Identifies price imbalance areas in 3-candle patterns
+    - Detects bullish gaps (current low > previous high AND previous low > two candles ago high)
+    - Detects bearish gaps (inverse pattern for downward moves)
+    - Configurable minimum gap size filter to reduce noise
+    - Optional mitigation tracking to identify when gaps have been "filled"
+    - Customizable mitigation threshold (default 50% of gap)
+  
+  - **Order Block**: Identifies institutional order zones based on price action
+    - Detects bullish order blocks (down candle followed by bullish break)
+    - Detects bearish order blocks (up candle followed by bearish break)
+    - Volume-based filtering using percentile thresholds
+    - Strength scoring based on volume and price movement
+    - Optional mitigation tracking for tested zones
+    - Configurable lookback periods and zone definition (wicks vs bodies)
+  
+  - **Waddah Attar Explosion (WAE)**: Volatility-based trend strength indicator
+    - Combines MACD and Bollinger Bands for explosion calculation
+    - Dead zone filter using ATR to eliminate ranging markets
+    - Separate bullish/bearish signal detection
+    - Configurable sensitivity and dead zone parameters
+    - Helps identify strong breakouts and trending conditions
+
+### Enhanced
+- **🎯 Indicator Count**: Now 58+ indicators (up from 55+)
+  - Added 3 new pattern recognition indicators
+  - All indicators support both class-based and function-based interfaces
+  - Full TA-Lib style compatibility for consistency
+
+### Technical Details
+- **Pattern Indicators Integration**: New indicators work seamlessly with existing async architecture
+- **Confluence Trading**: Indicators designed to work together for higher probability setups
+  - FVG + Order Block = High-probability support/resistance zones
+  - WAE confirms momentum for FVG/OB trades
+- **Performance**: All new indicators use efficient Polars operations for speed
+
+## [2.0.1] - 2025-01-31
+
+### Fixed
+- **🐛 Import Organization**: Reorganized indicator imports to resolve circular dependencies
+- **📦 Package Structure**: Improved module organization for better maintainability
+
 ## [2.0.0] - 2025-01-30
 
 ### Breaking Changes

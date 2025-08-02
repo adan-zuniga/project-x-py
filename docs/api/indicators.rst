@@ -1,7 +1,7 @@
 Technical Indicators
 ===================
 
-Comprehensive technical analysis library with 25+ TA-Lib compatible indicators built specifically for Polars DataFrames.
+Comprehensive technical analysis library with 58+ TA-Lib compatible indicators built specifically for Polars DataFrames, including advanced pattern recognition indicators.
 
 Overview
 --------
@@ -205,6 +205,24 @@ Volume Indicators
    :undoc-members:
    :show-inheritance:
 
+Pattern Recognition Indicators
+------------------------------
+
+.. autoclass:: FVG
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: OrderBlock
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: WAE
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Convenience Functions
 --------------------
 
@@ -235,6 +253,13 @@ Volume Indicators
 
 .. autofunction:: calculate_obv
 .. autofunction:: calculate_vwap
+
+Pattern Recognition
+~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calculate_fvg
+.. autofunction:: calculate_order_block
+.. autofunction:: calculate_wae
 
 Discovery Functions
 -------------------
@@ -334,12 +359,66 @@ Multi-Indicator Strategy
            # Volume indicators
            .pipe(OBV)
            .pipe(VWAP, period=20)
+           
+           # Pattern recognition
+           .pipe(FVG, min_gap_size=0.001, check_mitigation=True)
+           .pipe(ORDERBLOCK, min_volume_percentile=70)
+           .pipe(WAE, sensitivity=150)
        )
        
        return analysis
    
    # Run the strategy
    result = asyncio.run(multi_indicator_analysis())
+
+Pattern Recognition Examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from project_x_py.indicators import FVG, OrderBlock, WAE
+   
+   # Fair Value Gap Detection
+   fvg = FVG()
+   data_with_fvg = fvg.calculate(
+       data,
+       min_gap_size=0.001,  # 0.1% minimum gap
+       check_mitigation=True,  # Track if gaps get filled
+       mitigation_threshold=0.5  # 50% fill threshold
+   )
+   
+   # Order Block Identification
+   ob = OrderBlock()
+   data_with_ob = ob.calculate(
+       data,
+       min_volume_percentile=70,  # Top 30% volume
+       lookback_periods=3,  # Look for 3-candle patterns
+       use_wicks=True  # Consider wicks in patterns
+   )
+   
+   # Waddah Attar Explosion
+   wae = WAE()
+   data_with_wae = wae.calculate(
+       data,
+       sensitivity=150,  # Trend sensitivity
+       dead_zone_period=100,  # ATR period for filtering
+       dead_zone_mult=3.6  # Dead zone multiplier
+   )
+   
+   # Confluence Trading: Combine all three
+   confluence_data = (
+       data
+       .pipe(FVG, check_mitigation=True)
+       .pipe(ORDERBLOCK, min_volume_percentile=80)
+       .pipe(WAE, sensitivity=150)
+   )
+   
+   # Find strong signals where patterns align
+   strong_bullish = confluence_data.filter(
+       (pl.col("fvg_bullish") == True) & 
+       (pl.col("ob_bullish") == True) & 
+       (pl.col("wae_explosion_up") > 0)
+   )
 
 Indicator Discovery
 ~~~~~~~~~~~~~~~~~~~
