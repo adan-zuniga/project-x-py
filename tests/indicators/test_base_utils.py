@@ -31,7 +31,7 @@ def test_validate_period_negative_or_zero():
 def test_safe_division_behavior():
     df = pl.DataFrame({"numerator": [1, 2], "denominator": [0, 2]})
     out = df.with_columns(
-        result=safe_division(pl.col("numerator"), pl.col("denominator"), default_value=-1)
+        result=safe_division(pl.col("numerator"), pl.col("denominator"), default=-1)
     )
     # Should be Series [-1, 1]
     assert out["result"].to_list() == [-1, 1], f"safe_division gave {out['result'].to_list()}"
