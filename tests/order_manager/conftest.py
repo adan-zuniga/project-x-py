@@ -12,12 +12,17 @@ def order_manager(initialized_client):
     Fixture for an OrderManager wired to a mocked ProjectX client.
     Also patches align_price_to_tick_size to return the input price for determinism.
     """
-    # Patch align_price_to_tick_size globally for all tests in this module
-    patcher = patch(
+    # Patch align_price_to_tick_size in both utils and core to return input price for determinism
+    patch_utils = patch(
         "project_x_py.order_manager.utils.align_price_to_tick_size",
         new=AsyncMock(side_effect=lambda price, *_args, **_kwargs: price),
     )
-    patcher.start()
+    patch_core = patch(
+        "project_x_py.order_manager.core.align_price_to_tick_size",
+        new=AsyncMock(side_effect=lambda price, *_args, **_kwargs: price),
+    )
+    patch_utils.start()
+    patch_core.start()
 
     # Set up a dummy account
     initialized_client.account_info = Account(
@@ -32,7 +37,8 @@ def order_manager(initialized_client):
     om = OrderManager(initialized_client)
     yield om
 
-    patcher.stop()
+    patch_utils.stop()
+    patch_core.stop()
 
 
 @pytest.fixture
