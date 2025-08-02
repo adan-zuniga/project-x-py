@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Status: v2.0.4 - Async Architecture
+
+**IMPORTANT**: This project has migrated to a fully asynchronous architecture as of v2.0.0. All APIs are now async-only with no backward compatibility to synchronous versions.
+
 ## Development Phase Guidelines
 
 **IMPORTANT**: This project is in active development. When making changes:
@@ -12,12 +16,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. **Breaking Changes Allowed**: Make breaking changes freely to improve architecture
 5. **Modern Patterns**: Use the latest Python patterns and best practices
 6. **Simplify Aggressively**: Remove complexity rather than adding compatibility layers
+7. **Async-First**: All new code must use async/await patterns
 
 Example approach:
 - ❌ DON'T: Keep old method signatures with deprecation warnings
 - ✅ DO: Replace methods entirely with better implementations
 - ❌ DON'T: Add compatibility shims or adapters
 - ✅ DO: Update all callers to use new patterns
+- ❌ DON'T: Create synchronous wrappers for async methods
+- ✅ DO: Use async/await throughout the entire call stack
 
 ## Development Commands
 
@@ -35,6 +42,20 @@ uv run pytest                # Run all tests
 uv run pytest tests/test_client.py  # Run specific test file
 uv run pytest -m "not slow"  # Run tests excluding slow ones
 uv run pytest --cov=project_x_py --cov-report=html  # Generate coverage report
+uv run pytest -k "async"     # Run only async tests
+```
+
+### Async Testing Patterns
+```python
+# Test async methods with pytest-asyncio
+import pytest
+
+@pytest.mark.asyncio
+async def test_async_method():
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        result = await client.get_bars("MNQ", days=1)
+        assert result is not None
 ```
 
 ### Code Quality
@@ -53,23 +74,52 @@ uv run python -m build       # Alternative build command
 
 ## Project Architecture
 
-### Core Components
+### Core Components (v2.0.4 - Multi-file Packages)
 
-**ProjectX Client (`src/project_x_py/client.py`)**
-- Main API client for TopStepX ProjectX Gateway
-- Handles authentication, market data, account management
-- Uses dependency injection pattern with specialized managers
+**ProjectX Client (`src/project_x_py/client/`)**
+- Main async API client for TopStepX ProjectX Gateway
+- Modular architecture with specialized modules:
+  - `auth.py`: Authentication and JWT token management
+  - `http.py`: Async HTTP client with retry logic
+  - `cache.py`: Intelligent caching for instruments
+  - `market_data.py`: Market data operations
+  - `trading.py`: Trading operations
+  - `rate_limiter.py`: Async rate limiting
+  - `base.py`: Base class combining all mixins
 
-**Specialized Managers**
-- `OrderManager`: Comprehensive order operations (placement, modification, cancellation)
-- `PositionManager`: Position tracking and portfolio risk management  
-- `ProjectXRealtimeDataManager`: Real-time OHLCV data with WebSocket integration
-- `OrderBook`: Level 2 market depth analysis and iceberg detection
+**Specialized Managers (All Async)**
+- `OrderManager` (`order_manager/`): Comprehensive async order operations
+  - `core.py`: Main order operations
+  - `bracket_orders.py`: OCO and bracket order logic
+  - `position_orders.py`: Position-based order management
+  - `tracking.py`: Order state tracking
+- `PositionManager` (`position_manager/`): Async position tracking and risk management
+  - `core.py`: Position management core
+  - `risk.py`: Risk calculations and limits
+  - `analytics.py`: Performance analytics
+  - `monitoring.py`: Real-time position monitoring
+- `ProjectXRealtimeDataManager` (`realtime_data_manager/`): Async WebSocket data
+  - `core.py`: Main data manager
+  - `callbacks.py`: Event callback handling
+  - `data_processing.py`: OHLCV bar construction
+  - `memory_management.py`: Efficient data storage
+- `OrderBook` (`orderbook/`): Async Level 2 market depth
+  - `base.py`: Core orderbook functionality
+  - `analytics.py`: Market microstructure analysis
+  - `detection.py`: Iceberg and spoofing detection
+  - `profile.py`: Volume profile analysis
 
 **Technical Indicators (`src/project_x_py/indicators/`)**
 - TA-Lib compatible indicator library built on Polars
-- Class-based and function-based interfaces
-- Categories: momentum, overlap, volatility, volume
+- 58+ indicators including pattern recognition:
+  - **Momentum**: RSI, MACD, Stochastic, etc.
+  - **Overlap**: SMA, EMA, Bollinger Bands, etc.
+  - **Volatility**: ATR, Keltner Channels, etc.
+  - **Volume**: OBV, VWAP, Money Flow, etc.
+  - **Pattern Recognition** (NEW):
+    - Fair Value Gap (FVG): Price imbalance detection
+    - Order Block: Institutional order zone identification
+    - Waddah Attar Explosion: Volatility-based trend strength
 - All indicators work with Polars DataFrames for performance
 
 **Configuration System**
@@ -79,16 +129,43 @@ uv run python -m build       # Alternative build command
 
 ### Architecture Patterns
 
-**Factory Functions**: Use `create_*` functions from `__init__.py` for component initialization:
+**Async Factory Functions**: Use async `create_*` functions for component initialization:
 ```python
-# Recommended approach
-order_manager = create_order_manager(project_x, realtime_client)
-trading_suite = create_trading_suite(instrument, project_x, jwt_token, account_id)
+# Async factory pattern (v2.0.0+)
+async def setup_trading():
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        # Create managers with async patterns
+        realtime_client = await create_realtime_client(
+            client.jwt_token, 
+            str(client.account_id)
+        )
+        
+        order_manager = create_order_manager(client, realtime_client)
+        position_manager = create_position_manager(client, realtime_client)
+        
+        # Or use the all-in-one factory
+        suite = await create_trading_suite(
+            instrument="MNQ",
+            project_x=client,
+            jwt_token=client.jwt_token,
+            account_id=client.account_id
+        )
+        
+        return suite
 ```
 
 **Dependency Injection**: Managers receive their dependencies (ProjectX client, realtime client) rather than creating them.
 
 **Real-time Integration**: Single `ProjectXRealtimeClient` instance shared across managers for WebSocket connection efficiency.
+
+**Context Managers**: Always use async context managers for proper resource cleanup:
+```python
+async with ProjectX.from_env() as client:
+    # Client automatically handles auth, cleanup
+    pass
+```
 
 ### Data Flow
 
@@ -153,16 +230,23 @@ Optional configuration:
 - **Vectorized operations** in orderbook analysis
 
 ### Performance Monitoring
-Use built-in methods to monitor performance:
+Use async built-in methods to monitor performance:
 ```python
-# Client performance stats
-client.api_call_count  # Total API calls made
-client.cache_hit_count  # Cache hits vs misses
-client.get_health_status()  # Overall client health
-
-# Memory usage monitoring
-orderbook.get_memory_stats()  # OrderBook memory usage
-data_manager.get_memory_stats()  # Real-time data memory
+# Client performance stats (async)
+async with ProjectX.from_env() as client:
+    await client.authenticate()
+    
+    # Check performance metrics
+    stats = await client.get_performance_stats()
+    print(f"API calls: {stats['api_calls']}")
+    print(f"Cache hits: {stats['cache_hits']}")
+    
+    # Health check
+    health = await client.get_health_status()
+    
+    # Memory usage monitoring
+    orderbook_stats = await orderbook.get_memory_stats()
+    data_manager_stats = await data_manager.get_memory_stats()
 ```
 
 ### Expected Performance Improvements
@@ -179,16 +263,51 @@ data_manager.get_memory_stats()  # Real-time data memory
 - `tick_buffer_size = 1000` (Tick data buffer)
 - `cache_max_size = 100` (Indicator cache entries)
 
-## Recent Changes (v1.1.3)
+## Recent Changes
 
-### Contract Selection Fix
-The `_select_best_contract` method now properly handles futures contract naming:
-- Uses regex to extract base symbols by removing month/year suffixes
-- Handles both single-digit (U5) and double-digit (H25) year codes
-- Pattern: `^(.+?)([FGHJKMNQUVXZ]\d{1,2})$` where letters are futures month codes
+### v2.0.4 - Package Refactoring
+- **Major Architecture Change**: Converted monolithic modules to multi-file packages
+- All core modules now organized as packages with focused submodules
+- Improved code organization, maintainability, and testability
+- Backward compatible - all imports work as before
 
-### Interactive Demo
-Added `examples/09_get_check_available_instruments.py`:
-- Interactive command-line tool for testing instrument search
-- Shows difference between `search_instruments()` and `get_instrument()`
-- Includes visual indicators and continuous search loop
+### v2.0.2 - Pattern Recognition Indicators
+- Added Fair Value Gap (FVG) indicator for price imbalance detection
+- Added Order Block indicator for institutional zone identification  
+- Added Waddah Attar Explosion for volatility-based trend strength
+- All indicators support async data processing
+
+### v2.0.0 - Complete Async Migration
+- **Breaking Change**: Entire SDK migrated to async-only architecture
+- All methods now require `await` keyword
+- Context managers for proper resource management
+- No synchronous fallbacks or compatibility layers
+
+### Key Async Examples
+```python
+# Basic usage
+async with ProjectX.from_env() as client:
+    await client.authenticate()
+    bars = await client.get_bars("MNQ", days=5)
+    
+# Real-time data
+async def stream_data():
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        realtime = await create_realtime_client(
+            client.jwt_token,
+            str(client.account_id)
+        )
+        
+        data_manager = create_realtime_data_manager(
+            "MNQ", client, realtime
+        )
+        
+        # Set up callbacks
+        data_manager.on_bar_received = handle_bar
+        
+        # Start streaming
+        await realtime.connect()
+        await data_manager.start_realtime_feed()
+```

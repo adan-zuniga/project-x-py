@@ -1,9 +1,11 @@
 # ProjectX Python SDK - Cursor AI Rules
 
 ## Project Overview
-This is a Python SDK/client library for the ProjectX Trading Platform (https://www.projectx.com/) Gateway API. It provides developers with tools to build sophisticated trading strategies and applications by offering comprehensive access to real-time market data, order management, and market analysis. The SDK uses Polars for data processing and emphasizes performance, accuracy, and real-time capabilities.
+This is an **async-first Python SDK** (v2.0.4) for the ProjectX Trading Platform (https://www.projectx.com/) Gateway API. It provides developers with tools to build sophisticated trading strategies and applications by offering comprehensive async access to real-time market data, order management, and market analysis. The SDK uses Polars for data processing and emphasizes performance, accuracy, and real-time capabilities.
 
 **Important**: This is NOT a trading strategy itself - it's a development toolkit that enables the creation of trading strategies that integrate with the ProjectX platform.
+
+**Architecture**: As of v2.0.0, this SDK is fully asynchronous with no synchronous APIs. All operations use async/await patterns for optimal performance and concurrency.
 
 ## ProjectX API Integration Rules
 
@@ -41,11 +43,20 @@ This is a Python SDK/client library for the ProjectX Trading Platform (https://w
 
 ## Code Style & Formatting Rules
 
+### Async Patterns (v2.0.0+)
+- **ALWAYS** use `async def` for methods that perform I/O operations
+- **ALWAYS** use `await` when calling async methods
+- **ALWAYS** use `async with` for context managers
+- **NEVER** create synchronous wrappers around async methods
+- **ALWAYS** propagate async patterns through the entire call stack
+- **PREFER** `asyncio.gather()` for concurrent operations
+
 ### Type Hints
 - **ALWAYS** use modern Python 3.10+ union syntax: `int | None` instead of `Optional[int]`
 - **ALWAYS** use `X | Y` in isinstance calls instead of `(X, Y)` tuples
 - **ALWAYS** include comprehensive type hints for all method parameters and return values
 - **PREFER** `dict[str, Any]` over `Dict[str, Any]`
+- **ALWAYS** use proper async type hints: `Coroutine`, `AsyncIterator`, etc.
 
 ### Error Handling
 - **ALWAYS** wrap ProjectX API calls in try-catch blocks
@@ -76,12 +87,15 @@ This is a Python SDK/client library for the ProjectX Trading Platform (https://w
 
 ## Testing & Validation Rules
 
-### Test Methods
+### Async Test Methods
+- **ALWAYS** use `@pytest.mark.asyncio` for async test methods
+- **ALWAYS** use `async def test_*` for testing async functionality
 - **ALWAYS** include comprehensive test methods for new features
 - **ALWAYS** test both success and failure scenarios
 - **ALWAYS** validate prerequisites before running tests
 - **ALWAYS** return structured test results with `validation`, `performance_metrics`, and `recommendations`
 - **PREFER** internal test methods over external test files for component validation
+- **ALWAYS** use `aioresponses` for mocking async HTTP calls
 
 ### Validation Patterns
 - **ALWAYS** implement `_validate_*_payload()` methods for API data
@@ -96,6 +110,8 @@ This is a Python SDK/client library for the ProjectX Trading Platform (https://w
 - **ALWAYS** implement time filtering for all analysis methods
 - **ALWAYS** return comprehensive analysis with metadata
 - **PREFER** confidence scores and statistical validation over simple thresholds
+- **SUPPORT** pattern recognition indicators (FVG, Order Block, WAE)
+- **ENSURE** all indicators work with async data pipelines
 
 ### Data Consistency
 - **ALWAYS** ensure consistent time windows across related analysis methods
@@ -119,17 +135,30 @@ This is a Python SDK/client library for the ProjectX Trading Platform (https://w
 
 ## Architecture Rules
 
+### Package Structure (v2.0.4+)
+- **ORGANIZED** as multi-file packages for better maintainability:
+  - `client/`: Auth, HTTP, caching, rate limiting modules
+  - `order_manager/`: Core, bracket orders, position orders, tracking
+  - `position_manager/`: Core, risk, analytics, monitoring
+  - `realtime_data_manager/`: Core, callbacks, data processing
+  - `orderbook/`: Base, analytics, detection, profile
+  - `utils/`: Market utils, formatting, calculations
+  - `indicators/`: Momentum, overlap, volatility, volume, patterns
+
 ### Dependency Management
 - **ALWAYS** use `uv` as the package manager
 - **NEVER** require backwards compatibility (new project)
 - **PREFER** modern Python features and syntax
 - **ALWAYS** specify exact versions for critical dependencies
+- **REQUIRE** Python 3.12+ for async performance
 
 ### Real-time Integration
-- **ALWAYS** implement callback patterns for real-time updates
-- **ALWAYS** handle connection failures gracefully
-- **ALWAYS** implement proper cleanup for resources
+- **ALWAYS** implement async callback patterns for real-time updates
+- **ALWAYS** handle connection failures gracefully with exponential backoff
+- **ALWAYS** implement proper cleanup with `async with` contexts
 - **PREFER** event-driven architecture over polling
+- **ALWAYS** use WebSocket for real-time data feeds
+- **ENSURE** single WebSocket connection shared across managers
 
 ### Thread Safety
 - **ALWAYS** use appropriate locking mechanisms
@@ -174,28 +203,61 @@ This is a Python SDK/client library for the ProjectX Trading Platform (https://w
 
 ## Example Patterns
 
-### Payload Validation
+### Async Context Manager Usage
 ```python
-def _validate_quote_payload(self, quote_data: dict) -> bool:
+async def main():
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        # Use the client
+        bars = await client.get_bars("MNQ", days=5)
+        positions = await client.get_positions()
+```
+
+### Async Payload Validation
+```python
+async def _validate_quote_payload(self, quote_data: dict) -> bool:
     required_fields = ["symbol", "lastPrice", "bestBid", "bestAsk", "timestamp"]
     return all(field in quote_data for field in required_fields)
 ```
 
-### Time Filtering
+### Concurrent Operations
 ```python
-def get_analysis(self, time_window_minutes: int | None = None) -> dict[str, Any]:
-    trades_to_analyze = self.recent_trades
+async def fetch_multiple_instruments(symbols: list[str]):
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        # Fetch all instruments concurrently
+        tasks = [client.get_instrument(symbol) for symbol in symbols]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        return {
+            symbol: result 
+            for symbol, result in zip(symbols, results)
+            if not isinstance(result, Exception)
+        }
+```
+
+### Time Filtering with Async
+```python
+async def get_analysis(self, time_window_minutes: int | None = None) -> dict[str, Any]:
+    trades_to_analyze = await self.get_recent_trades()
     if time_window_minutes is not None:
         cutoff_time = datetime.now(self.timezone) - timedelta(minutes=time_window_minutes)
         trades_to_analyze = trades_to_analyze.filter(pl.col("timestamp") >= cutoff_time)
+    return await self._analyze_trades(trades_to_analyze)
 ```
 
-### Test Method Structure
+### Async Test Method Structure
 ```python
-def test_feature(self, test_params: dict[str, Any] | None = None) -> dict[str, Any]:
-    # Validate prerequisites
-    # Run tests with error handling
-    # Return structured results with validation, performance, recommendations
+@pytest.mark.asyncio
+async def test_feature(test_params: dict[str, Any] | None = None) -> dict[str, Any]:
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        # Validate prerequisites
+        # Run tests with error handling
+        # Return structured results
 ```
 
 These rules ensure consistent ProjectX integration, maintain code quality, and provide clear guidance for future development. 
