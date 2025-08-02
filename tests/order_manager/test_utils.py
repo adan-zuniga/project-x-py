@@ -1,6 +1,14 @@
 """Unit tests for order_manager.utils."""
 
 import pytest
+from unittest.mock import MagicMock
+
+from order_manager.utils import some_async_util
+
+@pytest.mark.asyncio
+async def test_some_async_util_behavior():
+    """Test that some_async_util returns expected result using a MagicMock."""
+    # ... test implementation ...
 from project_x_py.order_manager import utils
 
 class TestAlignPriceToTick:

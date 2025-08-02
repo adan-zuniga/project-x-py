@@ -1,6 +1,16 @@
 """Tests for PositionOrderMixin helpers and tracking."""
 
 import pytest
+import asyncio
+
+from order_manager.position_orders import PositionOrderMixin
+
+@pytest.mark.asyncio
+async def test_track_and_untrack_order():
+    mixin = PositionOrderMixin()
+    # Use a real asyncio.Lock for order_lock in the test
+    mixin.order_lock = asyncio.Lock()
+    # ... test implementation ...
 from unittest.mock import AsyncMock, MagicMock
 
 from project_x_py.models import OrderPlaceResponse
