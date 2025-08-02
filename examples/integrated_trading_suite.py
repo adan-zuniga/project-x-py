@@ -1,7 +1,7 @@
 """
-Example demonstrating integrated async trading suite with shared ProjectXRealtimeClient.
+Example demonstrating integrated trading suite with shared ProjectXRealtimeClient.
 
-This example shows how multiple async managers can share a single real-time WebSocket
+This example shows how multiple managers can share a single real-time WebSocket
 connection, ensuring efficient resource usage and coordinated event handling.
 """
 

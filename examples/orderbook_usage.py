@@ -1,7 +1,7 @@
 """
-Example demonstrating AsyncOrderBook usage for market depth analysis.
+Example demonstrating OrderBook usage for market depth analysis.
 
-This example shows how to use the AsyncOrderBook for:
+This example shows how to use the OrderBook for:
 - Real-time Level 2 market depth processing
 - Trade flow analysis
 - Iceberg order detection
@@ -45,7 +45,7 @@ async def main():
 
         # Initialize with real-time capabilities
         if await orderbook.initialize(realtime_client):
-            print("✅ AsyncOrderBook initialized with real-time data")
+            print("✅ OrderBook initialized with real-time data")
         else:
             print("❌ Failed to initialize orderbook")
             return
@@ -168,7 +168,7 @@ async def main():
 
         # Clean up
         await orderbook.cleanup()
-        print("\n✅ AsyncOrderBook cleanup completed")
+        print("\n✅ OrderBook cleanup completed")
 
 
 if __name__ == "__main__":

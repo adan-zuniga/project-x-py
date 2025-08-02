@@ -38,6 +38,7 @@ from project_x_py import (
     create_realtime_client,
     setup_logging,
 )
+from project_x_py.orderbook import OrderBook
 
 
 async def display_best_prices(orderbook):
@@ -259,7 +260,7 @@ async def monitor_orderbook_feed(orderbook, duration_seconds=60):
     print(f"   Update Cycles: {update_count}", flush=True)
 
 
-async def demonstrate_all_orderbook_methods(orderbook):
+async def demonstrate_all_orderbook_methods(orderbook: OrderBook):
     """Comprehensive demonstration of all OrderBook methods."""
     print("\n🔍 Testing all available OrderBook methods...", flush=True)
     print(

@@ -179,7 +179,7 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
         update_count += 1
 
         # Get latest data
-        data = await data_manager.get_data(timeframe)
+        data: pl.DataFrame | None = await data_manager.get_data(timeframe)
         if data is None:
             return
 
@@ -189,8 +189,7 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
             return
 
         # Calculate key indicators
-        data = data.pipe(RSI, period=14)
-        data = data.pipe(SMA, period=20)
+        data = data.pipe(RSI, period=14).pipe(SMA, period=20)
 
         last_row = data.tail(1)
         timestamp = datetime.now().strftime("%H:%M:%S")

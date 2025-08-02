@@ -1,7 +1,7 @@
 """
-Basic async usage example for the ProjectX Python SDK v2.0.0
+Basic usage example for the ProjectX Python SDK v2.0.0
 
-This example demonstrates the new async/await patterns introduced in v2.0.0.
+This example demonstrates the new patterns introduced in v2.0.0.
 """
 
 import asyncio
@@ -12,7 +12,7 @@ from project_x_py.models import Instrument, Position
 
 
 async def main():
-    """Main async function demonstrating basic SDK usage."""
+    """Main function demonstrating basic SDK usage."""
 
     # Method 1: Using environment variables (recommended)
     # Set these environment variables:
@@ -23,7 +23,7 @@ async def main():
     print("=" * 50)
 
     try:
-        # Create async client using environment variables
+        # Create client using environment variables
         async with ProjectX.from_env() as client:
             print("✅ Client created successfully")
             if client.account_info is None:

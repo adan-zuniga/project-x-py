@@ -3,17 +3,17 @@
 Order and Position Tracking Demo
 
 This demo script demonstrates the automatic order cleanup functionality when positions are closed,
-using proper async components (AsyncOrderManager, AsyncPositionManager, AsyncRealtimeDataManager).
+using proper components (OrderManager, PositionManager, RealtimeDataManager).
 
 It creates a bracket order and monitors positions and orders in real-time, showing how the system
 automatically cancels remaining orders when a position is closed (either by stop loss, take profit,
 or manual closure from the broker).
 
 Features demonstrated:
-- Proper async components for all operations
+- Proper components for all operations
 - Automatic order cleanup when positions close
 - Non-blocking real-time monitoring with clear status updates
-- Proper async cleanup on exit (cancels open orders and closes positions)
+- Proper cleanup on exit (cancels open orders and closes positions)
 - Concurrent operations for improved performance
 
 Usage:
@@ -35,6 +35,7 @@ from contextlib import suppress
 from datetime import datetime
 
 from project_x_py import ProjectX, create_trading_suite
+from project_x_py.models import BracketOrderResponse, Order, Position
 
 
 class OrderPositionDemo:
@@ -113,6 +114,10 @@ class OrderPositionDemo:
                 account_id=account_info.id,
             )
 
+            if not isinstance(bracket_response, BracketOrderResponse):
+                print(f"❌ Unexpected bracket order type: {type(bracket_response)}")
+                return False
+
             if bracket_response and bracket_response.success:
                 print("✅ Bracket order created successfully!")
                 print(f"   Entry Order ID: {bracket_response.entry_order_id}")
@@ -171,6 +176,8 @@ class OrderPositionDemo:
             if positions:
                 print("\n🏦 Position Details:")
                 for pos in positions:
+                    if not isinstance(pos, Position):
+                        continue
                     direction = (
                         "LONG"
                         if pos.type == 1
@@ -200,6 +207,9 @@ class OrderPositionDemo:
             if orders:
                 print("\n📝 Order Details:")
                 for order in orders:
+                    if not isinstance(order, Order):
+                        print(f"   ❌ Unexpected order type: {type(order)}")
+                        continue
                     order_type = "UNKNOWN"
                     if hasattr(order, "type"):
                         order_type = order.type
@@ -303,13 +313,20 @@ class OrderPositionDemo:
                 print(f"📋 Cancelling {len(orders)} open orders...")
                 cancel_tasks = []
                 for order in orders:
+                    if not isinstance(order, Order):
+                        continue
                     cancel_tasks.append(
                         self.suite["order_manager"].cancel_order(order.id)
                     )
 
                 # Wait for all cancellations to complete
-                results = await asyncio.gather(*cancel_tasks, return_exceptions=True)
-                for order, result in zip(orders, results, strict=False):
+                cancel_results: list[Order | BaseException] = await asyncio.gather(
+                    *cancel_tasks, return_exceptions=True
+                )
+                for order, result in zip(orders, cancel_results, strict=False):
+                    if not isinstance(order, Order):
+                        print(f"   ❌ Unexpected order type: {type(order)}")
+                        continue
                     if isinstance(result, Exception):
                         print(f"   ❌ Error cancelling order {order.id}: {result}")
                     elif result:
@@ -318,7 +335,9 @@ class OrderPositionDemo:
                         print(f"   ⚠️ Failed to cancel order {order.id}")
 
             # Close all open positions
-            positions = await self.suite["position_manager"].get_all_positions()
+            positions: list[Position] = await self.suite[
+                "position_manager"
+            ].get_all_positions()
             if positions:
                 print(f"🏦 Closing {len(positions)} open positions...")
                 close_tasks = []
@@ -330,7 +349,9 @@ class OrderPositionDemo:
                     )
 
                 # Wait for all positions to close
-                results = await asyncio.gather(*close_tasks, return_exceptions=True)
+                results: list[Position | BaseException] = await asyncio.gather(
+                    *close_tasks, return_exceptions=True
+                )
                 for position, result in zip(positions, results, strict=False):
                     if isinstance(result, Exception):
                         print(
@@ -355,7 +376,7 @@ class OrderPositionDemo:
             print(f"❌ Error during cleanup: {e}")
 
     async def run(self, client: ProjectX):
-        """Main async demo execution."""
+        """Main demo execution."""
         self.setup_signal_handlers()
         self.client = client
 
@@ -376,9 +397,9 @@ class OrderPositionDemo:
             print(f"❌ Failed to authenticate: {e}")
             return False
 
-        # Create async trading suite
+        # Create trading suite
         try:
-            print("\n🔧 Setting up async trading suite...")
+            print("\n🔧 Setting up trading suite...")
             jwt_token = self.client.session_token
             self.suite = await create_trading_suite(
                 instrument="MNQ",
@@ -388,10 +409,10 @@ class OrderPositionDemo:
                 timeframes=["5min"],  # Minimal timeframes for demo
             )
 
-            print("✅ Async trading suite created with automatic order cleanup enabled")
+            print("✅ Trading suite created with automatic order cleanup enabled")
 
         except Exception as e:
-            print(f"❌ Failed to create async trading suite: {e}")
+            print(f"❌ Failed to create trading suite: {e}")
             return False
 
         # Connect real-time client and initialize data feed
@@ -442,7 +463,7 @@ class OrderPositionDemo:
 
 
 async def main():
-    """Main async entry point."""
+    """Main entry point."""
     demo = OrderPositionDemo()
     try:
         async with ProjectX.from_env() as client:

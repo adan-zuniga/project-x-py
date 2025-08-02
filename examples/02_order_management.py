@@ -32,6 +32,7 @@ from project_x_py import (
     create_realtime_client,
     setup_logging,
 )
+from project_x_py.models import Order
 
 
 async def wait_for_user_confirmation(message: str) -> bool:
@@ -80,7 +81,11 @@ async def show_order_status(order_manager, order_id: int, description: str):
     else:
         # Fall back to API check for status
         print(f"   Order {order_id} not in real-time cache, checking API...")
-        api_order = await order_manager.get_order_by_id(order_id)
+        api_order: Order | None = await order_manager.get_order_by_id(order_id)
+        if not isinstance(api_order, Order):
+            print(f"   Order {order_id} not found in API either")
+            return
+
         if api_order:
             status_map = {1: "Open", 2: "Filled", 3: "Cancelled", 4: "Partially Filled"}
             status = status_map.get(api_order.status, f"Unknown ({api_order.status})")

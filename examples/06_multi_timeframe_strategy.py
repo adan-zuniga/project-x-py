@@ -31,6 +31,7 @@ from project_x_py import (
     create_trading_suite,
 )
 from project_x_py.indicators import RSI, SMA
+from project_x_py.models import BracketOrderResponse, Position
 
 
 class MultiTimeframeStrategy:
@@ -47,11 +48,13 @@ class MultiTimeframeStrategy:
 
     def __init__(
         self,
+        client: ProjectX,
         trading_suite: dict,
         symbol: str = "MNQ",
         max_position_size: int = 2,
         risk_percentage: float = 0.02,
     ):
+        self.client = client
         self.suite = trading_suite
         self.symbol = symbol
         self.max_position_size = max_position_size
@@ -245,19 +248,20 @@ class MultiTimeframeStrategy:
     async def execute_signal(self, signal_data: dict):
         """Execute trading signal with proper risk management."""
         # Check current position
-        positions = await self.position_manager.get_all_positions()
-        current_position = positions.get(self.symbol)
+        positions: list[Position] = await self.position_manager.get_all_positions()
+        current_position = next(
+            (pos for pos in positions if pos.contractId == self.symbol), None
+        )
 
         # Position size limits
-        if (
-            current_position
-            and abs(current_position.quantity) >= self.max_position_size
-        ):
+        if current_position and abs(current_position.size) >= self.max_position_size:
             self.logger.info("Max position size reached, skipping signal")
             return
 
         # Get account info for position sizing
-        account_balance = float(self.order_manager.project_x.account_info.balance)
+        account_balance = (
+            float(self.client.account_info.balance) if self.client.account_info else 0
+        )
 
         # Calculate position size based on risk
         entry_price = signal_data["price"]
@@ -285,11 +289,11 @@ class MultiTimeframeStrategy:
             return
 
         # Get active contract
-        instruments = await self.order_manager.project_x.search_instruments(self.symbol)
+        instruments = await self.client.search_instruments(self.symbol)
         if not instruments:
             return
 
-        contract_id = instruments[0].activeContract
+        contract_id = instruments[0].id
 
         # Place bracket order
         self.logger.info(
@@ -313,8 +317,14 @@ class MultiTimeframeStrategy:
                 take_profit_price=take_profit,
             )
 
+            if not isinstance(response, BracketOrderResponse):
+                self.logger.error(f"❌ Unexpected order type: {type(response)}")
+                return
+
             if response and response.success:
-                self.logger.info(f"✅ Order placed successfully: {response.orderId}")
+                self.logger.info(
+                    f"✅ Order placed successfully: {response.entry_order_id}"
+                )
             else:
                 self.logger.error("❌ Order placement failed")
 
@@ -434,6 +444,7 @@ async def main():
 
             # Create and configure strategy
             strategy = MultiTimeframeStrategy(
+                client=client,
                 trading_suite=suite,
                 symbol="MNQ",
                 max_position_size=2,
