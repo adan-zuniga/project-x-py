@@ -312,7 +312,7 @@ async def main():
                 await realtime_client.subscribe_user_updates()
 
                 # Initialize data manager
-                await data_manager.initialize(initial_days=1)
+                await data_manager.initialize(initial_days=4)
 
                 # Subscribe to market data
                 instruments = await client.search_instruments("MNQ")

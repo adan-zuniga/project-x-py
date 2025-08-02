@@ -26,20 +26,21 @@ async def main():
         # Create client using environment variables
         async with ProjectX.from_env() as client:
             print("✅ Client created successfully")
-            if client.account_info is None:
-                print("❌ No account info found")
-                return
 
             # Authenticate
             print("\n🔐 Authenticating...")
             await client.authenticate()
+            if client.account_info is None:
+                print("❌ No account info found")
+                raise ValueError("No account info found")
+
             print(f"✅ Authenticated as: {client.account_info.name}")
             print(f"📊 Using account: {client.account_info.name}")
             print(f"💰 Balance: ${client.account_info.balance:,.2f}")
 
             # Get positions
             print("\n📈 Fetching positions...")
-            positions: list[Position] = await client.get_positions()
+            positions: list[Position] = await client.search_open_positions()
 
             if positions:
                 print(f"Found {len(positions)} position(s):")
@@ -71,10 +72,13 @@ async def main():
             # Show performance stats
             print("\n📊 Performance Statistics:")
             health = await client.get_health_status()
-            print(f"  - API calls made: {health['api_calls']}")
-            print(f"  - Cache hits: {health['cache_hits']}")
-            print(f"  - Cache hit rate: {health['cache_hit_rate']:.1%}")
-            print(f"  - Token expires in: {health['token_expires_in']:.0f} seconds")
+            print(f"  - API Status: {health['api_status']}")
+            print(f"  - API Version: {health['api_version']}")
+
+            client_stats = health["client_stats"]
+            print(f"  - API calls made: {client_stats['api_calls']}")
+            print(f"  - Cache hits: {client_stats['cache_hits']}")
+            print(f"  - Cache hit rate: {client_stats['cache_hit_rate']:.1%}")
 
     except Exception as e:
         print(f"\n❌ Error: {type(e).__name__}: {e}")

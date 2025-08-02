@@ -108,7 +108,6 @@ async def complete_suite_creation():
         print(f"  ✅ OrderBook: {suite['orderbook'].__class__.__name__}")
         print(f"  ✅ Order Manager: {suite['order_manager'].__class__.__name__}")
         print(f"  ✅ Position Manager: {suite['position_manager'].__class__.__name__}")
-        print(f"  ✅ Config: {suite['config'].__class__.__name__}")
 
         # Connect and initialize
         print("\n🔌 Connecting to real-time services...")
