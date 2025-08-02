@@ -20,22 +20,11 @@ Example usage:
 """
 
 # Base classes and utilities
-from .base import (
-    BaseIndicator,
-    IndicatorError,
-    MomentumIndicator,
-    OverlapIndicator,
-    VolatilityIndicator,
-    VolumeIndicator,
-    ema_alpha,
-    safe_division,
-)
-
 # Pattern Indicators
-from .fvg import FVG as FVGIndicator, calculate_fvg
+from project_x_py.indicators.fvg import FVG as FVGIndicator, calculate_fvg
 
 # Momentum Indicators
-from .momentum import (
+from project_x_py.indicators.momentum import (
     # NEW MOMENTUM INDICATORS
     ADX as ADXIndicator,
     ADXR as ADXRIndicator,
@@ -79,10 +68,13 @@ from .momentum import (
     calculate_ultimate_oscillator,
     calculate_williams_r,
 )
-from .order_block import OrderBlock as OrderBlockIndicator, calculate_order_block
+from project_x_py.indicators.order_block import (
+    OrderBlock as OrderBlockIndicator,
+    calculate_order_block,
+)
 
 # Overlap Studies (Trend Indicators)
-from .overlap import (
+from project_x_py.indicators.overlap import (
     BBANDS as BBANDSIndicator,
     DEMA as DEMAIndicator,
     EMA as EMAIndicator,
@@ -118,7 +110,7 @@ from .overlap import (
 )
 
 # Volatility Indicators
-from .volatility import (
+from project_x_py.indicators.volatility import (
     ATR as ATRIndicator,
     NATR as NATRIndicator,
     STDDEV as STDDEVIndicator,
@@ -128,7 +120,7 @@ from .volatility import (
 )
 
 # Volume Indicators
-from .volume import (
+from project_x_py.indicators.volume import (
     AD as ADIndicator,
     ADOSC as ADOSCIndicator,
     OBV as OBVIndicator,
@@ -136,7 +128,18 @@ from .volume import (
     calculate_obv,
     calculate_vwap,
 )
-from .waddah_attar import WAE as WAEIndicator, calculate_wae
+from project_x_py.indicators.waddah_attar import WAE as WAEIndicator, calculate_wae
+
+from .base import (
+    BaseIndicator,
+    IndicatorError,
+    MomentumIndicator,
+    OverlapIndicator,
+    VolatilityIndicator,
+    VolumeIndicator,
+    ema_alpha,
+    safe_division,
+)
 
 # Version info
 __version__ = "2.0.4"

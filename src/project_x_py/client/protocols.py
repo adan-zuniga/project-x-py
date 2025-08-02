@@ -8,9 +8,8 @@ import httpx
 import polars as pl
 
 if TYPE_CHECKING:
+    from project_x_py.client.rate_limiter import RateLimiter
     from project_x_py.models import Account, Instrument, Position, ProjectXConfig, Trade
-
-    from .rate_limiter import RateLimiter
 
 
 class ProjectXClientProtocol(Protocol):

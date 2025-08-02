@@ -27,7 +27,7 @@ def calculate_tick_value(
         raise ValueError(f"tick_size must be positive, got {tick_size}")
     if tick_value < 0:
         raise ValueError(f"tick_value cannot be negative, got {tick_value}")
-    if not isinstance(price_change, (int, float)):
+    if not isinstance(price_change, int | float):
         raise TypeError(f"price_change must be numeric, got {type(price_change)}")
 
     num_ticks = abs(price_change) / tick_size

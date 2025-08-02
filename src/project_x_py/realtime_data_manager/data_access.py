@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 if TYPE_CHECKING:
-    from .types import RealtimeDataManagerProtocol
+    from project_x_py.realtime_data_manager.types import RealtimeDataManagerProtocol
 
 logger = logging.getLogger(__name__)
 

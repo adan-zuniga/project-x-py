@@ -15,8 +15,8 @@ if TYPE_CHECKING:
 
 import logging
 
-from .base import OrderBookBase
-from .types import DomType
+from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.orderbook.types import DomType
 
 
 class RealtimeHandler:

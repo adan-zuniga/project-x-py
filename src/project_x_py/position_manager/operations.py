@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from project_x_py.exceptions import ProjectXError
 
 if TYPE_CHECKING:
-    from .types import PositionManagerProtocol
+    from project_x_py.position_manager.types import PositionManagerProtocol
 
 logger = logging.getLogger(__name__)
 

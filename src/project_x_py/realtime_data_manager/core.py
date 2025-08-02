@@ -21,12 +21,11 @@ from project_x_py.exceptions import (
     ProjectXError,
     ProjectXInstrumentError,
 )
-
-from .callbacks import CallbackMixin
-from .data_access import DataAccessMixin
-from .data_processing import DataProcessingMixin
-from .memory_management import MemoryManagementMixin
-from .validation import ValidationMixin
+from project_x_py.realtime_data_manager.callbacks import CallbackMixin
+from project_x_py.realtime_data_manager.data_access import DataAccessMixin
+from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
+from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
+from project_x_py.realtime_data_manager.validation import ValidationMixin
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase

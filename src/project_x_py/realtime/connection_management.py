@@ -11,7 +11,7 @@ except ImportError:
     HubConnectionBuilder = None
 
 if TYPE_CHECKING:
-    from .types import ProjectXRealtimeClientProtocol
+    from project_x_py.realtime.types import ProjectXRealtimeClientProtocol
 
 
 class ConnectionManagementMixin:

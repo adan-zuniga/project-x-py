@@ -7,16 +7,15 @@ from contextlib import asynccontextmanager
 
 import httpx
 
+from project_x_py.client.auth import AuthenticationMixin
+from project_x_py.client.cache import CacheMixin
+from project_x_py.client.http import HttpMixin
+from project_x_py.client.market_data import MarketDataMixin
+from project_x_py.client.rate_limiter import RateLimiter
+from project_x_py.client.trading import TradingMixin
 from project_x_py.config import ConfigManager
 from project_x_py.exceptions import ProjectXAuthenticationError
 from project_x_py.models import Account, ProjectXConfig
-
-from .auth import AuthenticationMixin
-from .cache import CacheMixin
-from .http import HttpMixin
-from .market_data import MarketDataMixin
-from .rate_limiter import RateLimiter
-from .trading import TradingMixin
 
 
 class ProjectXBase(

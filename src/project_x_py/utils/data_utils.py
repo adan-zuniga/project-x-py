@@ -80,11 +80,20 @@ def create_data_snapshot(data: pl.DataFrame, description: str = "") -> dict[str,
         stats = {}
         for col in numeric_cols:
             try:
+
+                def safe_float(val: Any) -> float | None:
+                    if val is None:
+                        return None
+                    try:
+                        return float(val)
+                    except (TypeError, ValueError):
+                        return None
+
                 stats[col] = {
-                    "min": float(data[col].min()),
-                    "max": float(data[col].max()),
-                    "mean": float(data[col].mean()),
-                    "std": float(data[col].std()),
+                    "min": safe_float(data[col].min()),
+                    "max": safe_float(data[col].max()),
+                    "mean": safe_float(data[col].mean()),
+                    "std": safe_float(data[col].std()),
                 }
             except Exception:
                 stats[col] = None

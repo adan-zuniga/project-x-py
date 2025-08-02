@@ -7,9 +7,8 @@ from project_x_py.models import Order, OrderPlaceResponse
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
+    from project_x_py.order_manager.types import OrderStats
     from project_x_py.realtime import ProjectXRealtimeClient
-
-    from .types import OrderStats
 
 
 class OrderManagerProtocol(Protocol):

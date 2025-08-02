@@ -11,7 +11,7 @@ from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Position, Trade
 
 if TYPE_CHECKING:
-    from .protocols import ProjectXClientProtocol
+    from project_x_py.client.protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 

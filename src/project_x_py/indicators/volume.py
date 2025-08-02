@@ -10,7 +10,7 @@ and identify potential trend reversals or continuations.
 
 import polars as pl
 
-from .base import VolumeIndicator, ema_alpha
+from project_x_py.indicators.base import VolumeIndicator, ema_alpha
 
 
 class OBV(VolumeIndicator):

@@ -10,7 +10,7 @@ helping identify overbought/oversold conditions and trend strength.
 
 import polars as pl
 
-from .base import (
+from project_x_py.indicators.base import (
     MomentumIndicator,
     ema_alpha,
     safe_division,

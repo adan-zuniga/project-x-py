@@ -29,7 +29,7 @@ from typing import Any
 
 import polars as pl
 
-from .base import OrderBookBase
+from project_x_py.orderbook.base import OrderBookBase
 
 
 class VolumeProfile:

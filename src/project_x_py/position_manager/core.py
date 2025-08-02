@@ -12,13 +12,12 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.client.base import ProjectXBase
 from project_x_py.models import Position
-
-from .analytics import PositionAnalyticsMixin
-from .monitoring import PositionMonitoringMixin
-from .operations import PositionOperationsMixin
-from .reporting import PositionReportingMixin
-from .risk import RiskManagementMixin
-from .tracking import PositionTrackingMixin
+from project_x_py.position_manager.analytics import PositionAnalyticsMixin
+from project_x_py.position_manager.monitoring import PositionMonitoringMixin
+from project_x_py.position_manager.operations import PositionOperationsMixin
+from project_x_py.position_manager.reporting import PositionReportingMixin
+from project_x_py.position_manager.risk import RiskManagementMixin
+from project_x_py.position_manager.tracking import PositionTrackingMixin
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase

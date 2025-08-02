@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .types import ProjectXRealtimeClientProtocol
+    from project_x_py.realtime.types import ProjectXRealtimeClientProtocol
 
 
 class EventHandlingMixin:

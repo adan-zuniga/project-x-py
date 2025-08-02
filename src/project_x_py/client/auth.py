@@ -13,7 +13,7 @@ from project_x_py.exceptions import ProjectXAuthenticationError
 from project_x_py.models import Account
 
 if TYPE_CHECKING:
-    from .protocols import ProjectXClientProtocol
+    from project_x_py.client.protocols import ProjectXClientProtocol
 
 logger = logging.getLogger(__name__)
 

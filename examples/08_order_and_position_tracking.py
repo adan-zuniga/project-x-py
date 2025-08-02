@@ -34,7 +34,7 @@ import signal
 from contextlib import suppress
 from datetime import datetime
 
-from project_x_py import ProjectX, create_trading_suite
+from project_x_py import ProjectX, ProjectXBase, create_trading_suite
 from project_x_py.models import BracketOrderResponse, Order, Position
 
 
@@ -375,7 +375,7 @@ class OrderPositionDemo:
         except Exception as e:
             print(f"❌ Error during cleanup: {e}")
 
-    async def run(self, client: ProjectX):
+    async def run(self, client: ProjectXBase):
         """Main demo execution."""
         self.setup_signal_handlers()
         self.client = client

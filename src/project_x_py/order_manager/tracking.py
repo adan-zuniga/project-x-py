@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .protocols import OrderManagerProtocol
+    from project_x_py.order_manager.protocols import OrderManagerProtocol
 
 logger = logging.getLogger(__name__)
 

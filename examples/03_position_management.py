@@ -24,6 +24,7 @@ from datetime import datetime
 
 from project_x_py import (
     ProjectX,
+    ProjectXBase,
     create_data_manager,
     create_order_manager,
     create_position_manager,
@@ -35,7 +36,7 @@ from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
 async def get_current_market_price(
-    client: ProjectX,
+    client: ProjectXBase,
     symbol="MNQ",
     realtime_data_manager: RealtimeDataManager | None = None,
 ):

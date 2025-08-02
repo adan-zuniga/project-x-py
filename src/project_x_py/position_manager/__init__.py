@@ -10,6 +10,6 @@ This module provides comprehensive position management functionality including:
 - Statistics, history, and report generation
 """
 
-from .core import PositionManager
+from project_x_py.position_manager.core import PositionManager
 
 __all__ = ["PositionManager"]

@@ -10,7 +10,7 @@ over the main price chart.
 
 import polars as pl
 
-from .base import OverlapIndicator, ema_alpha
+from project_x_py.indicators.base import OverlapIndicator, ema_alpha
 
 
 class SMA(OverlapIndicator):

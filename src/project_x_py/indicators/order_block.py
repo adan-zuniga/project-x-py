@@ -12,7 +12,7 @@ from typing import Any
 
 import polars as pl
 
-from .base import BaseIndicator
+from project_x_py.indicators.base import BaseIndicator
 
 
 class OrderBlock(BaseIndicator):

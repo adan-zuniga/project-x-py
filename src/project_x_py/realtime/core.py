@@ -16,11 +16,10 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from project_x_py.realtime.connection_management import ConnectionManagementMixin
+from project_x_py.realtime.event_handling import EventHandlingMixin
+from project_x_py.realtime.subscriptions import SubscriptionsMixin
 from project_x_py.utils import RateLimiter
-
-from .connection_management import ConnectionManagementMixin
-from .event_handling import EventHandlingMixin
-from .subscriptions import SubscriptionsMixin
 
 if TYPE_CHECKING:
     from project_x_py.models import ProjectXConfig

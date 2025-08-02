@@ -29,10 +29,10 @@ __version__ = "2.0.4"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
-from .client import ProjectX
+from project_x_py.client import ProjectX
 
 # Configuration management
-from .config import (
+from project_x_py.config import (
     ConfigManager,
     create_custom_config,
     load_default_config,
@@ -40,7 +40,7 @@ from .config import (
 )
 
 # Exceptions
-from .exceptions import (
+from project_x_py.exceptions import (
     ProjectXAuthenticationError,
     ProjectXConnectionError,
     ProjectXDataError,
@@ -53,7 +53,7 @@ from .exceptions import (
 )
 
 # Technical Analysis - Import from indicators module for backward compatibility
-from .indicators import (
+from project_x_py.indicators import (
     calculate_adx,
     calculate_atr,
     calculate_bollinger_bands,
@@ -70,7 +70,7 @@ from .indicators import (
 )
 
 # Data models
-from .models import (
+from project_x_py.models import (
     Account,
     BracketOrderResponse,
     # Trading entities
@@ -82,17 +82,17 @@ from .models import (
     ProjectXConfig,
     Trade,
 )
-from .order_manager import OrderManager
-from .orderbook import (
+from project_x_py.order_manager import OrderManager
+from project_x_py.orderbook import (
     OrderBook,
     create_orderbook,
 )
-from .position_manager import PositionManager
-from .realtime import ProjectXRealtimeClient as ProjectXRealtimeClient
-from .realtime_data_manager import RealtimeDataManager
+from project_x_py.position_manager import PositionManager
+from project_x_py.realtime import ProjectXRealtimeClient as ProjectXRealtimeClient
+from project_x_py.realtime_data_manager import RealtimeDataManager
 
 # Utility functions
-from .utils import (
+from project_x_py.utils import (
     RateLimiter,
     # Market analysis utilities
     analyze_bid_ask_spread,

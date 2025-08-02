@@ -86,13 +86,13 @@ if TYPE_CHECKING:
 
 import logging
 
-from .analytics import MarketAnalytics
-from .base import OrderBookBase
-from .detection import OrderDetection
-from .memory import MemoryManager
-from .profile import VolumeProfile
-from .realtime import RealtimeHandler
-from .types import (
+from project_x_py.orderbook.analytics import MarketAnalytics
+from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.orderbook.detection import OrderDetection
+from project_x_py.orderbook.memory import MemoryManager
+from project_x_py.orderbook.profile import VolumeProfile
+from project_x_py.orderbook.realtime import RealtimeHandler
+from project_x_py.orderbook.types import (
     DEFAULT_TIMEZONE,
     AsyncCallback,
     CallbackType,

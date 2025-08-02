@@ -5,6 +5,6 @@ This module provides the ProjectXRealtimeClient class for managing real-time
 connections to ProjectX SignalR hubs.
 """
 
-from .core import ProjectXRealtimeClient
+from project_x_py.realtime.core import ProjectXRealtimeClient
 
 __all__ = ["ProjectXRealtimeClient"]

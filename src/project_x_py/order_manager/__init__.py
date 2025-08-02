@@ -9,7 +9,7 @@ This module provides comprehensive order management functionality including:
 - Real-time order tracking and monitoring
 """
 
-from .core import OrderManager
-from .types import OrderStats
+from project_x_py.order_manager.core import OrderManager
+from project_x_py.order_manager.types import OrderStats
 
 __all__ = ["OrderManager", "OrderStats"]

@@ -16,8 +16,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from .models import ProjectXConfig
-from .utils import get_env_var
+from project_x_py.models import ProjectXConfig
+from project_x_py.utils import get_env_var
 
 logger = logging.getLogger(__name__)
 
