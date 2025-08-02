@@ -1,0 +1,495 @@
+"""Tests for the market data functionality of ProjectX client."""
+
+import time
+from unittest.mock import patch
+
+import polars as pl
+import pytest
+
+from project_x_py import ProjectX
+from project_x_py.client.rate_limiter import RateLimiter
+from project_x_py.exceptions import ProjectXInstrumentError
+
+
+class TestMarketData:
+    """Tests for the market data functionality of the ProjectX client."""
+
+    @pytest.mark.asyncio
+    async def test_get_instrument(
+        self, mock_httpx_client, mock_auth_response, mock_instrument_response
+    ):
+        """Test getting instrument data."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                instrument = await client.get_instrument("MGC")
+
+                assert instrument is not None
+                assert instrument.id == "123"
+                assert instrument.name == "Micro Gold Futures"
+
+                # Should have cached the result
+                assert "MGC" in client._instrument_cache
+
+    @pytest.mark.asyncio
+    async def test_get_instrument_from_cache(
+        self, mock_httpx_client, mock_auth_response, mock_instrument
+    ):
+        """Test getting instrument data from cache."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Add to cache
+                client.cache_instrument("MGC", mock_instrument)
+
+                # Should get from cache without API call
+                instrument = await client.get_instrument("MGC")
+
+                assert instrument is not None
+                assert instrument.id == "123"
+
+                # Should only have made the auth calls
+                assert mock_httpx_client.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_instrument_not_found(
+        self, mock_httpx_client, mock_auth_response, mock_response
+    ):
+        """Test error handling when instrument not found."""
+        auth_response, accounts_response = mock_auth_response
+        not_found_response = mock_response(
+            json_data={"success": False, "message": "No instruments found"}
+        )
+
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            not_found_response,  # Instrument search
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                with pytest.raises(ProjectXInstrumentError) as exc_info:
+                    await client.get_instrument("INVALID")
+
+                assert "No instruments found" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_instruments(
+        self, mock_httpx_client, mock_auth_response, mock_instrument_response
+    ):
+        """Test searching for instruments."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                instruments = await client.search_instruments("gold")
+
+                assert len(instruments) == 1
+                assert instruments[0].id == "123"
+                assert instruments[0].name == "Micro Gold Futures"
+
+    @pytest.mark.asyncio
+    async def test_search_instruments_empty_result(
+        self, mock_httpx_client, mock_auth_response, mock_response
+    ):
+        """Test searching for instruments with empty result."""
+        auth_response, accounts_response = mock_auth_response
+        empty_response = mock_response(json_data={"success": True, "contracts": []})
+
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            empty_response,  # Instrument search
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                instruments = await client.search_instruments("nonexistent")
+
+                assert len(instruments) == 0
+
+    @pytest.mark.asyncio
+    async def test_select_best_contract(self, mock_httpx_client):
+        """Test selecting best contract from search results."""
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                # Test with empty list
+                with pytest.raises(ProjectXInstrumentError):
+                    client._select_best_contract([], "MGC")
+
+                # Test with exact match
+                contracts = [
+                    {"symbol": "ES", "name": "E-mini S&P 500"},
+                    {"symbol": "MGC", "name": "Micro Gold"},
+                    {"symbol": "MNQ", "name": "Micro Nasdaq"},
+                ]
+
+                result = client._select_best_contract(contracts, "MGC")
+                assert result["symbol"] == "MGC"
+
+                # Test with futures contracts
+                futures_contracts = [
+                    {"symbol": "MGC", "name": "Micro Gold Front Month"},
+                    {"symbol": "MGCM23", "name": "Micro Gold June 2023"},
+                    {"symbol": "MGCZ23", "name": "Micro Gold December 2023"},
+                ]
+
+                result = client._select_best_contract(futures_contracts, "MGC")
+                assert result["symbol"] == "MGC"
+
+                # When no exact match, should pick first one
+                result = client._select_best_contract(contracts, "unknown")
+                assert result["symbol"] == "ES"
+
+    @pytest.mark.asyncio
+    async def test_get_bars(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_bars_response,
+    ):
+        """Test getting market data bars."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            mock_bars_response,  # Bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                bars = await client.get_bars("MGC", days=5, interval=5)
+
+                # Verify dataframe structure
+                assert not bars.is_empty()
+                assert "timestamp" in bars.columns
+                assert "open" in bars.columns
+                assert "high" in bars.columns
+                assert "low" in bars.columns
+                assert "close" in bars.columns
+                assert "volume" in bars.columns
+
+                # Verify timestamp conversion to time_zone
+                assert bars["timestamp"].dtype.time_zone == "America/Chicago"
+
+                # Should cache the result
+                cache_key = "MGC_5_5_2_True"
+                assert cache_key in client._market_data_cache
+
+    @pytest.mark.asyncio
+    async def test_get_bars_from_cache(self, mock_httpx_client, mock_auth_response):
+        """Test getting bars from cache."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Add to cache
+                test_bars = pl.DataFrame(
+                    {
+                        "timestamp": pl.datetime_range(
+                            start=pl.datetime(2023, 1, 1),
+                            end=pl.datetime(2023, 1, 2),
+                            interval="1h",
+                            time_zone="UTC",
+                            eager=True,
+                        ),
+                        "open": [1900.0] * 25,
+                        "high": [1910.0] * 25,
+                        "low": [1890.0] * 25,
+                        "close": [1905.0] * 25,
+                        "volume": [100] * 25,
+                    }
+                )
+
+                cache_key = "MGC_5_5_2_True"
+                client.cache_market_data(cache_key, test_bars)
+
+                # Should get from cache without API call
+                bars = await client.get_bars("MGC", days=5, interval=5)
+
+                assert bars is not None
+                assert bars.equals(test_bars)
+
+                # Should only have made the auth calls
+                assert mock_httpx_client.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_bars_empty_response(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_response,
+    ):
+        """Test handling empty bar data response."""
+        auth_response, accounts_response = mock_auth_response
+        empty_bars_response = mock_response(json_data={"success": True, "bars": []})
+
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            empty_bars_response,  # Empty bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                bars = await client.get_bars("MGC", days=1, interval=1)
+
+                # Should return empty dataframe
+                assert bars.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_get_bars_error_response(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_response,
+    ):
+        """Test handling error in bar data response."""
+        auth_response, accounts_response = mock_auth_response
+        error_response = mock_response(
+            json_data={
+                "success": False,
+                "errorMessage": "Historical data not available",
+            }
+        )
+
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            error_response,  # Error response
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Should handle error gracefully and return empty dataframe
+                bars = await client.get_bars("MGC", days=1, interval=1)
+                assert bars.is_empty()
+
+    @pytest.mark.asyncio
+    async def test_get_bars_with_different_parameters(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_response,
+        mock_bars_data,
+    ):
+        """Test getting bars with different time parameters."""
+        auth_response, accounts_response = mock_auth_response
+        daily_bars_response = mock_response(
+            json_data={"success": True, "bars": mock_bars_data}
+        )
+        hourly_bars_response = mock_response(
+            json_data={
+                "success": True,
+                "bars": mock_bars_data,  # Same data but used for hourly bars
+            }
+        )
+
+        # Define a request counter and a matcher function to handle different types of bar requests
+        request_counter = 0
+
+        def request_matcher(**kwargs):
+            nonlocal request_counter
+
+            # For bar data requests, check the request structure
+            method = kwargs.get("method", "")
+            url = kwargs.get("url", "")
+            json_data = kwargs.get("json", {})
+
+            if method == "POST" and "/History/retrieveBars" in url:
+                unit = json_data.get("unit")
+
+                if unit == 4:  # Daily bars
+                    return daily_bars_response
+                elif unit == 3:  # Hourly bars
+                    return hourly_bars_response
+
+            # For other requests, use sequence
+            responses = [
+                auth_response,  # Initial auth
+                accounts_response,  # Initial accounts
+                mock_instrument_response,  # First instrument search
+                mock_instrument_response,  # Second instrument search
+            ]
+
+            if request_counter < len(responses):
+                response = responses[request_counter]
+                request_counter += 1
+                return response
+
+            # Fallback for any other requests
+            return mock_response(json_data={"success": True})
+
+        mock_httpx_client.request.side_effect = request_matcher
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._instrument_cache = {}
+                client._instrument_cache_time = {}
+                client._market_data_cache = {}
+                client._market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Daily bars
+                daily_bars = await client.get_bars("MGC", days=30, interval=1, unit=4)
+                assert not daily_bars.is_empty()
+
+                # Hourly bars
+                hourly_bars = await client.get_bars("MGC", days=7, interval=1, unit=3)
+                assert not hourly_bars.is_empty()
+
+                # Different cache keys should be used
+                assert "MGC_30_1_4_True" in client._market_data_cache
+                assert "MGC_7_1_3_True" in client._market_data_cache
