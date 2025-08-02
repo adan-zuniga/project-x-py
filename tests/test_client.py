@@ -1,7 +1,5 @@
 """Main test entry point for ProjectX client module tests."""
 
-import pytest
-
 from project_x_py import ProjectX
 
 # This file serves as a main entry point for running client tests.
