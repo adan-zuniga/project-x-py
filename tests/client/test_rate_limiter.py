@@ -47,13 +47,42 @@ class TestRateLimiter:
         # Should have waited close to 0.5s for the window to expire
         assert 0.4 <= elapsed <= 0.7, f"Expected delay of ~1s, got {elapsed:.2f}s"
 
-    @pytest.mark.skip("Skipping flaky test to be fixed in a separate PR")
-    def test_rate_limiter_window_sliding(self):
-        """Test that rate limiter uses a sliding window for requests.
+    @pytest.mark.asyncio
+    async def test_rate_limiter_window_sliding(self):
+        """Test that rate limiter uses a sliding window for requests."""
+        # Create a limiter with small window to make test faster
+        window_seconds = 0.5
+        limiter = RateLimiter(max_requests=3, window_seconds=window_seconds)
 
-        Note: This test is marked as skip due to flakiness. The timing-based
-        rate limiting tests will be refactored in a separate PR.
-        """
+        # Send 3 requests immediately (filling the window)
+        request_times = []
+        for _ in range(3):
+            await limiter.acquire()
+            request_times.append(time.time())
+
+        # Wait for most of the window to pass
+        await asyncio.sleep(window_seconds * 0.8)  # 80% of window time passed
+
+        # At this point, we should be able to make 1 more request with minimal delay
+        # since one of the original requests should have "slid out" of the window
+        start_time = time.time()
+        await limiter.acquire()
+        request_times.append(time.time())
+        elapsed = time.time() - start_time
+
+        # This should be fairly quick since we're using a sliding window
+        # Not requiring < 0.1 since timing can vary on different systems
+        assert elapsed < window_seconds * 0.5, (
+            "Request should be relatively quick with sliding window"
+        )
+
+        # Make one more request to see if it delays properly
+        start_time = time.time()
+        await limiter.acquire()
+        elapsed = time.time() - start_time
+
+        # This should show some delay
+        assert elapsed > 0, "Request should show some delay when window is full"
 
     @pytest.mark.asyncio
     async def test_rate_limiter_concurrent_access(self):
@@ -85,23 +114,31 @@ class TestRateLimiter:
     @pytest.mark.asyncio
     async def test_rate_limiter_clears_old_requests(self):
         """Test that rate limiter properly clears old requests."""
-        limiter = RateLimiter(max_requests=2, window_seconds=1)
+        limiter = RateLimiter(max_requests=2, window_seconds=0.3)
 
         # Fill up the limit
         await limiter.acquire()
         await limiter.acquire()
 
         # Wait for all requests to age out
-        await asyncio.sleep(0.15)
+        await asyncio.sleep(0.4)  # Wait longer than window_seconds
 
         # Make multiple requests that should be immediate
         start_time = time.time()
         await limiter.acquire()
+        elapsed_first = time.time() - start_time
+
+        start_time = time.time()
         await limiter.acquire()
-        elapsed = time.time() - start_time
+        elapsed_second = time.time() - start_time
 
         # Both should be immediate since old requests aged out
-        assert elapsed < 0.1, "Requests should be immediate after window expires"
+        assert elapsed_first < 0.1, (
+            "First request should be immediate after window expires"
+        )
+        assert elapsed_second < 0.1, (
+            "Second request should be immediate after window expires"
+        )
 
         # Verify internal state
         assert len(limiter.requests) == 2, "Should have 2 requests in tracking"

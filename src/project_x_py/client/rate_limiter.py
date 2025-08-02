@@ -23,10 +23,18 @@ class RateLimiter:
         # Remove old requests outside the window
         self.requests = [t for t in self.requests if t > now - self.window_seconds]
 
+        # Sort the requests to ensure we're using the oldest first
+        self.requests.sort()
+
         if len(self.requests) >= self.max_requests:
-            # Calculate wait time
-            oldest_request = self.requests[0]
-            wait_time = (oldest_request + self.window_seconds) - now
+            # Calculate wait time based on the oldest request that would make room for a new one
+            # Oldest request would be at index: len(self.requests) - self.max_requests
+            if len(self.requests) > self.max_requests:
+                oldest_relevant = self.requests[len(self.requests) - self.max_requests]
+            else:
+                oldest_relevant = self.requests[0]
+
+            wait_time = (oldest_relevant + self.window_seconds) - now
             return max(0.0, wait_time)
 
         return 0.0
@@ -49,3 +57,7 @@ class RateLimiter:
 
             # Record this request
             self.requests.append(now)
+
+            # Ensure we don't keep more requests than needed
+            if len(self.requests) > self.max_requests * 2:
+                self.requests = self.requests[-self.max_requests :]
