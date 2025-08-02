@@ -160,6 +160,12 @@ class PositionTrackingMixin:
             self.logger.warning(f"Invalid position type: {position_type}")
             return False
 
+        # Validate that size is a number
+        size = position_data.get("size")
+        if not isinstance(size, int | float):
+            self.logger.warning(f"Invalid position size type: {type(size)}")
+            return False
+
         return True
 
     async def _process_position_data(
@@ -244,9 +250,7 @@ class PositionTrackingMixin:
                 #     await self.order_manager.on_position_closed(contract_id)
 
                 # Trigger position_closed callbacks with the closure data
-                await self._trigger_callbacks(
-                    "position_closed", {"data": actual_position_data}
-                )
+                await self._trigger_callbacks("position_closed", actual_position_data)
             else:
                 # Position is open/updated - create or update position
                 # ProjectX payload structure matches our Position model fields
