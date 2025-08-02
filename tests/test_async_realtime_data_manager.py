@@ -8,9 +8,9 @@ import polars as pl
 import pytest
 import pytz
 
-from project_x_py import AsyncProjectX
-from project_x_py.async_realtime_data_manager import AsyncRealtimeDataManager
+from project_x_py import ProjectX
 from project_x_py.models import Instrument
+from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
 def mock_instrument(id="MGC-123", name="MGC"):
@@ -37,7 +37,7 @@ def mock_instrument(id="MGC-123", name="MGC"):
 @pytest.fixture
 def mock_async_client():
     """Create a mock AsyncProjectX client."""
-    client = MagicMock(spec=AsyncProjectX)
+    client = MagicMock(spec=ProjectX)
     client.get_instrument = AsyncMock()
     client.get_bars = AsyncMock()
     return client
@@ -56,7 +56,7 @@ def mock_realtime_client():
 @pytest.fixture
 def data_manager(mock_async_client, mock_realtime_client):
     """Create an AsyncRealtimeDataManager instance."""
-    return AsyncRealtimeDataManager(
+    return RealtimeDataManager(
         instrument="MGC",
         project_x=mock_async_client,
         realtime_client=mock_realtime_client,
@@ -67,7 +67,7 @@ def data_manager(mock_async_client, mock_realtime_client):
 @pytest.mark.asyncio
 async def test_data_manager_initialization(mock_async_client, mock_realtime_client):
     """Test AsyncRealtimeDataManager initialization."""
-    manager = AsyncRealtimeDataManager(
+    manager = RealtimeDataManager(
         instrument="MGC",
         project_x=mock_async_client,
         realtime_client=mock_realtime_client,

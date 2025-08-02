@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from project_x_py import AsyncProjectX
-from project_x_py.async_order_manager import AsyncOrderManager
+from project_x_py import ProjectX
 from project_x_py.exceptions import ProjectXOrderError
+from project_x_py.order_manager import OrderManager
 
 
 def mock_instrument(id, tick_size=0.1):
@@ -20,7 +20,7 @@ def mock_instrument(id, tick_size=0.1):
 @pytest.fixture
 def mock_async_client():
     """Create a mock AsyncProjectX client."""
-    client = MagicMock(spec=AsyncProjectX)
+    client = MagicMock(spec=ProjectX)
     client.account_info = MagicMock()
     client.account_info.id = 123
     client._make_request = AsyncMock()
@@ -31,13 +31,13 @@ def mock_async_client():
 @pytest.fixture
 def order_manager(mock_async_client):
     """Create an AsyncOrderManager instance."""
-    return AsyncOrderManager(mock_async_client)
+    return OrderManager(mock_async_client)
 
 
 @pytest.mark.asyncio
 async def test_order_manager_initialization(mock_async_client):
     """Test AsyncOrderManager initialization."""
-    manager = AsyncOrderManager(mock_async_client)
+    manager = OrderManager(mock_async_client)
 
     assert manager.project_x == mock_async_client
     assert manager.realtime_client is None
@@ -282,7 +282,7 @@ async def test_modify_order(order_manager, mock_async_client):
 @pytest.mark.asyncio
 async def test_price_alignment():
     """Test price alignment to tick size."""
-    manager = AsyncOrderManager(MagicMock())
+    manager = OrderManager(MagicMock())
 
     # Test various alignments
     assert manager._align_price_to_tick(100.12, 0.25) == 100.0

@@ -11,7 +11,6 @@ import httpx
 import pytest
 
 from project_x_py import (
-    AsyncProjectX,
     ProjectX,
     ProjectXAuthenticationError,
     ProjectXConfig,
@@ -24,7 +23,7 @@ class TestAsyncProjectXClient:
     @pytest.mark.asyncio
     async def test_async_init_with_credentials(self):
         """Test async client initialization with explicit credentials."""
-        client = AsyncProjectX(username="test_user", api_key="test_key")
+        client = ProjectX(username="test_user", api_key="test_key")
 
         assert client.username == "test_user"
         assert client.api_key == "test_key"
@@ -36,7 +35,7 @@ class TestAsyncProjectXClient:
         """Test async client initialization with custom configuration."""
         config = ProjectXConfig(timeout_seconds=60, retry_attempts=5)
 
-        client = AsyncProjectX(username="test_user", api_key="test_key", config=config)
+        client = ProjectX(username="test_user", api_key="test_key", config=config)
 
         assert client.config.timeout_seconds == 60
         assert client.config.retry_attempts == 5
@@ -45,8 +44,8 @@ class TestAsyncProjectXClient:
     async def test_async_init_missing_credentials(self):
         """Test async client initialization with missing credentials."""
         # AsyncProjectX doesn't validate credentials at init time
-        client1 = AsyncProjectX(username="", api_key="test_key")
-        client2 = AsyncProjectX(username="test_user", api_key="")
+        client1 = ProjectX(username="", api_key="test_key")
+        client2 = ProjectX(username="test_user", api_key="")
 
         # Validation happens during authentication
         assert client1.username == ""
@@ -69,9 +68,7 @@ class TestAsyncProjectXClient:
             mock_response.raise_for_status.return_value = None
             mock_client.post.return_value = mock_response
 
-            async with AsyncProjectX(
-                username="test_user", api_key="test_key"
-            ) as client:
+            async with ProjectX(username="test_user", api_key="test_key") as client:
                 await client.authenticate()
 
                 assert client.session_token == "test_jwt_token"
@@ -98,9 +95,7 @@ class TestAsyncProjectXClient:
             )
             mock_client.post.return_value = mock_response
 
-            async with AsyncProjectX(
-                username="test_user", api_key="test_key"
-            ) as client:
+            async with ProjectX(username="test_user", api_key="test_key") as client:
                 with pytest.raises(ProjectXAuthenticationError):
                     await client.authenticate()
 
@@ -167,9 +162,7 @@ class TestAsyncProjectXClient:
             mock_client.post = mock_response_func
             mock_client.get = mock_response_func
 
-            async with AsyncProjectX(
-                username="test_user", api_key="test_key"
-            ) as client:
+            async with ProjectX(username="test_user", api_key="test_key") as client:
                 await client.authenticate()
 
                 # Test concurrent operations
@@ -203,9 +196,7 @@ class TestAsyncProjectXClient:
                 return response
 
         with patch("httpx.AsyncClient", MockAsyncClient):
-            async with AsyncProjectX(
-                username="test_user", api_key="test_key"
-            ) as client:
+            async with ProjectX(username="test_user", api_key="test_key") as client:
                 pass
 
         assert cleanup_called
@@ -240,9 +231,7 @@ class TestAsyncProjectXClient:
 
             mock_client.get = mock_get
 
-            async with AsyncProjectX(
-                username="test_user", api_key="test_key"
-            ) as client:
+            async with ProjectX(username="test_user", api_key="test_key") as client:
                 await client.authenticate()
 
                 # Use gather with return_exceptions=True
@@ -315,7 +304,7 @@ async def mock_async_client():
         mock_client.post.return_value = auth_response
         mock_client.get.return_value = account_response
 
-        client = AsyncProjectX(username="test_user", api_key="test_key")
+        client = ProjectX(username="test_user", api_key="test_key")
         # Simulate authentication
         client.session_token = "test_token"
         client.account_info = Mock(id="12345", name="Test Account")
@@ -335,9 +324,9 @@ class TestAsyncProjectXIntegration:
     @pytest.mark.asyncio
     async def test_async_rate_limiting(self):
         """Test async rate limiting functionality."""
-        from project_x_py.utils import AsyncRateLimiter
+        from project_x_py import RateLimiter
 
-        rate_limiter = AsyncRateLimiter(requests_per_minute=120)  # 2 per second
+        rate_limiter = RateLimiter(requests_per_minute=120)  # 2 per second
 
         request_count = 0
 
@@ -369,7 +358,7 @@ class TestSyncAsyncCompatibility:
         assert sync_client.config.timeout_seconds == 45
 
         # Test with async client
-        async_client = AsyncProjectX(username="test", api_key="test", config=config)
+        async_client = ProjectX(username="test", api_key="test", config=config)
         assert async_client.config.timeout_seconds == 45
 
     @pytest.mark.asyncio

@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from project_x_py import AsyncProjectX
-from project_x_py.async_position_manager import AsyncPositionManager
+from project_x_py import ProjectX
 from project_x_py.models import Position
+from project_x_py.position_manager import PositionManager
 
 
 def mock_position(contract_id, size, avg_price, position_type=1):
@@ -26,7 +26,7 @@ def mock_position(contract_id, size, avg_price, position_type=1):
 @pytest.fixture
 def mock_async_client():
     """Create a mock AsyncProjectX client."""
-    client = MagicMock(spec=AsyncProjectX)
+    client = MagicMock(spec=ProjectX)
     client.account_info = MagicMock()
     client.account_info.id = 123
     client.account_info.balance = 10000.0
@@ -42,13 +42,13 @@ def mock_async_client():
 @pytest.fixture
 def position_manager(mock_async_client):
     """Create an AsyncPositionManager instance."""
-    return AsyncPositionManager(mock_async_client)
+    return PositionManager(mock_async_client)
 
 
 @pytest.mark.asyncio
 async def test_position_manager_initialization(mock_async_client):
     """Test AsyncPositionManager initialization."""
-    manager = AsyncPositionManager(mock_async_client)
+    manager = PositionManager(mock_async_client)
 
     assert manager.project_x == mock_async_client
     assert manager.realtime_client is None

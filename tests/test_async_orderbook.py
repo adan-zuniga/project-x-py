@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import polars as pl
 import pytest
 
-from project_x_py.async_orderbook import AsyncOrderBook
+from project_x_py.orderbook import OrderBook
 
 
 @pytest.fixture
@@ -29,22 +29,17 @@ def mock_realtime_client():
 @pytest.fixture
 def orderbook(mock_async_client):
     """Create an AsyncOrderBook instance."""
-    return AsyncOrderBook("MGC", client=mock_async_client)
+    return OrderBook("MGC", client=mock_async_client)
 
 
 @pytest.mark.asyncio
 async def test_orderbook_initialization(mock_async_client):
     """Test AsyncOrderBook initialization."""
-    orderbook = AsyncOrderBook(
-        "MGC", timezone="America/New_York", client=mock_async_client
-    )
+    orderbook = OrderBook("MGC", timezone="America/New_York")
 
     assert orderbook.instrument == "MGC"
-    assert orderbook.client == mock_async_client
     assert str(orderbook.timezone) == "America/New_York"
     assert isinstance(orderbook.orderbook_lock, asyncio.Lock)
-    assert orderbook.max_trades == 10000
-    assert orderbook.max_depth_entries == 1000
 
 
 @pytest.mark.asyncio

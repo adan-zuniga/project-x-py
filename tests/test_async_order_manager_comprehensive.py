@@ -10,14 +10,11 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from project_x_py import (
-    AsyncOrderManager,
-    AsyncProjectX,
     OrderManager,
     ProjectX,
-    create_async_order_manager,
     create_order_manager,
 )
-from project_x_py.async_realtime import AsyncProjectXRealtimeClient
+from project_x_py.realtime import RealtimeClient
 
 
 class TestAsyncOrderManagerInitialization:
@@ -26,15 +23,15 @@ class TestAsyncOrderManagerInitialization:
     @pytest.fixture
     async def mock_async_client(self):
         """Create a mock AsyncProjectX client."""
-        client = AsyncMock(spec=AsyncProjectX)
+        client = AsyncMock(spec=ProjectX)
         client.account_info = Mock(id="1001", name="Demo Account")
-        client.jwt_token = "test_token"
+        client.session_token = "test_token"
         return client
 
     @pytest.mark.asyncio
     async def test_async_basic_initialization(self, mock_async_client):
         """Test basic AsyncOrderManager initialization."""
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
 
         assert order_manager.project_x == mock_async_client
         assert order_manager.realtime_client is None
@@ -45,7 +42,7 @@ class TestAsyncOrderManagerInitialization:
     @pytest.mark.asyncio
     async def test_async_initialize_without_realtime(self, mock_async_client):
         """Test AsyncOrderManager initialization without real-time."""
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
 
         # Initialize without real-time
         result = await order_manager.initialize()
@@ -58,10 +55,10 @@ class TestAsyncOrderManagerInitialization:
     async def test_async_initialize_with_realtime(self, mock_async_client):
         """Test AsyncOrderManager initialization with real-time integration."""
         # Mock async real-time client
-        mock_realtime = AsyncMock(spec=AsyncProjectXRealtimeClient)
+        mock_realtime = AsyncMock(spec=RealtimeClient)
         mock_realtime.add_callback = AsyncMock()
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
 
         # Initialize with real-time
         result = await order_manager.initialize(realtime_client=mock_realtime)
@@ -83,10 +80,10 @@ class TestAsyncOrderManagerInitialization:
     async def test_async_initialize_with_realtime_exception(self, mock_async_client):
         """Test AsyncOrderManager initialization when real-time setup fails."""
         # Mock real-time client that raises exception
-        mock_realtime = AsyncMock(spec=AsyncProjectXRealtimeClient)
+        mock_realtime = AsyncMock(spec=RealtimeClient)
         mock_realtime.add_callback.side_effect = Exception("Connection error")
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
 
         # Initialize with real-time that fails
         result = await order_manager.initialize(realtime_client=mock_realtime)
@@ -98,7 +95,7 @@ class TestAsyncOrderManagerInitialization:
     @pytest.mark.asyncio
     async def test_async_reinitialize_order_manager(self, mock_async_client):
         """Test that AsyncOrderManager can be reinitialized."""
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
 
         # First initialization
         result1 = await order_manager.initialize()
@@ -116,10 +113,10 @@ class TestAsyncOrderManagerInitialization:
             mock_order_manager.initialize.return_value = True
             mock_order_manager_class.return_value = mock_order_manager
 
-            client = AsyncMock(spec=AsyncProjectX)
+            client = AsyncMock(spec=ProjectX)
 
             # Test without real-time
-            order_manager = create_async_order_manager(client)
+            order_manager = create_order_manager(client)
 
             assert order_manager == mock_order_manager
             mock_order_manager_class.assert_called_once_with(client)
@@ -133,11 +130,11 @@ class TestAsyncOrderManagerInitialization:
             mock_order_manager.initialize.return_value = True
             mock_order_manager_class.return_value = mock_order_manager
 
-            client = AsyncMock(spec=AsyncProjectX)
-            realtime_client = AsyncMock(spec=AsyncProjectXRealtimeClient)
+            client = AsyncMock(spec=ProjectX)
+            realtime_client = AsyncMock(spec=RealtimeClient)
 
             # Test with real-time
-            order_manager = create_async_order_manager(
+            order_manager = create_order_manager(
                 client, realtime_client=realtime_client
             )
 
@@ -147,10 +144,10 @@ class TestAsyncOrderManagerInitialization:
     @pytest.mark.asyncio
     async def test_async_order_manager_without_account_info(self):
         """Test AsyncOrderManager behavior when client has no account info."""
-        client = AsyncMock(spec=AsyncProjectX)
+        client = AsyncMock(spec=ProjectX)
         client.account_info = None
 
-        order_manager = AsyncOrderManager(client)
+        order_manager = OrderManager(client)
         result = await order_manager.initialize()
 
         # Should initialize successfully
@@ -159,7 +156,7 @@ class TestAsyncOrderManagerInitialization:
     @pytest.mark.asyncio
     async def test_async_order_manager_attributes(self, mock_async_client):
         """Test AsyncOrderManager has expected attributes after initialization."""
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
         await order_manager.initialize()
 
         # Check expected attributes exist
@@ -187,7 +184,7 @@ class TestAsyncOrderManagerInitialization:
             return_value=[Mock(activeContract="MGC.TEST")]
         )
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
         await order_manager.initialize()
 
         # Test placing an order
@@ -209,7 +206,7 @@ class TestAsyncOrderManagerInitialization:
             return_value={"status": "filled"}
         )
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
         await order_manager.initialize()
 
         # Execute operations concurrently
@@ -240,9 +237,9 @@ class TestSyncAsyncOrderManagerCompatibility:
     @pytest.fixture
     async def mock_async_client(self):
         """Create a mock async ProjectX client."""
-        client = AsyncMock(spec=AsyncProjectX)
+        client = AsyncMock(spec=ProjectX)
         client.account_info = Mock(id="1001", name="Demo Account")
-        client.jwt_token = "test_token"
+        client.session_token = "test_token"
         return client
 
     def test_sync_order_manager_still_works(self, mock_sync_client):
@@ -258,7 +255,7 @@ class TestSyncAsyncOrderManagerCompatibility:
         """Test that both sync and async managers can coexist."""
         # Create both managers
         sync_manager = OrderManager(mock_sync_client)
-        async_manager = AsyncOrderManager(mock_async_client)
+        async_manager = OrderManager(mock_async_client)
 
         # Initialize both
         sync_result = sync_manager.initialize()
@@ -279,8 +276,8 @@ class TestSyncAsyncOrderManagerCompatibility:
         assert isinstance(sync_manager, OrderManager)
 
         # Test async factory
-        async_manager = create_async_order_manager(mock_async_client)
-        assert isinstance(async_manager, AsyncOrderManager)
+        async_manager = create_order_manager(mock_async_client)
+        assert isinstance(async_manager, OrderManager)
 
     @pytest.mark.asyncio
     async def test_async_error_handling(self, mock_async_client):
@@ -290,7 +287,7 @@ class TestSyncAsyncOrderManagerCompatibility:
             side_effect=Exception("Network error")
         )
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
         await order_manager.initialize()
 
         # Should handle errors gracefully (implementation dependent)
@@ -300,10 +297,10 @@ class TestSyncAsyncOrderManagerCompatibility:
     @pytest.mark.asyncio
     async def test_async_realtime_callback_handling(self, mock_async_client):
         """Test async real-time callback handling."""
-        mock_realtime = AsyncMock(spec=AsyncProjectXRealtimeClient)
+        mock_realtime = AsyncMock(spec=RealtimeClient)
         mock_realtime.add_callback = AsyncMock()
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
         await order_manager.initialize(realtime_client=mock_realtime)
 
         # Simulate callback execution
@@ -330,7 +327,7 @@ class TestSyncAsyncOrderManagerCompatibility:
             side_effect=lambda: asyncio.sleep(0.1) or []
         )
 
-        order_manager = AsyncOrderManager(mock_async_client)
+        order_manager = OrderManager(mock_async_client)
         await order_manager.initialize()
 
         # Time concurrent execution

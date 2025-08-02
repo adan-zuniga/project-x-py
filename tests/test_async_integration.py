@@ -13,10 +13,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from project_x_py import (
-    AsyncProjectX,
-    create_async_order_manager,
-    create_async_position_manager,
-    create_async_trading_suite,
+    ProjectX,
+    create_order_manager,
+    create_position_manager,
+    create_trading_suite,
 )
 from project_x_py.models import Account, Instrument
 
@@ -81,7 +81,7 @@ async def test_concurrent_api_calls(mock_account, mock_instrument):
             delayed_response(),
         ]
 
-        async with AsyncProjectX("test_user", "test_key") as client:
+        async with ProjectX("test_user", "test_key") as client:
             client.account_info = mock_account
 
             # Sequential calls
@@ -114,15 +114,15 @@ async def test_concurrent_api_calls(mock_account, mock_instrument):
 @pytest.mark.asyncio
 async def test_trading_suite_integration():
     """Test complete trading suite with all components integrated."""
-    with patch("project_x_py.AsyncProjectX") as mock_client_class:
+    with patch("project_x_py.ProjectX") as mock_client_class:
         # Create mock client
-        mock_client = AsyncMock(spec=AsyncProjectX)
-        mock_client.jwt_token = "test_jwt"
+        mock_client = AsyncMock(spec=ProjectX)
+        mock_client.session_token = "test_jwt"
         mock_client.account_info = MagicMock(id="12345")
         mock_client_class.return_value = mock_client
 
         # Create trading suite
-        suite = await create_async_trading_suite(
+        suite = await create_trading_suite(
             instrument="MGC",
             project_x=mock_client,
             jwt_token="test_jwt",
@@ -150,13 +150,13 @@ async def test_trading_suite_integration():
 @pytest.mark.asyncio
 async def test_concurrent_order_placement():
     """Test placing multiple orders concurrently."""
-    with patch("project_x_py.AsyncProjectX") as mock_client_class:
-        mock_client = AsyncMock(spec=AsyncProjectX)
+    with patch("project_x_py.ProjectX") as mock_client_class:
+        mock_client = AsyncMock(spec=ProjectX)
         mock_client.place_order = AsyncMock(
             side_effect=[MagicMock(success=True, orderId=f"ORD{i}") for i in range(5)]
         )
 
-        order_manager = create_async_order_manager(mock_client)
+        order_manager = create_order_manager(mock_client)
         await order_manager.initialize()
 
         # Place 5 orders concurrently
@@ -193,13 +193,13 @@ async def test_realtime_event_propagation():
     realtime_client.add_callback = mock_add_callback
 
     # Create managers with shared realtime client
-    with patch("project_x_py.AsyncProjectX") as mock_client_class:
+    with patch("project_x_py.ProjectX") as mock_client_class:
         mock_client = AsyncMock()
 
-        order_manager = create_async_order_manager(mock_client, realtime_client)
+        order_manager = create_order_manager(mock_client, realtime_client)
         await order_manager.initialize()
 
-        position_manager = create_async_position_manager(mock_client, realtime_client)
+        position_manager = create_position_manager(mock_client, realtime_client)
         await position_manager.initialize()
 
         # Verify callbacks are registered
@@ -211,7 +211,7 @@ async def test_realtime_event_propagation():
 @pytest.mark.asyncio
 async def test_concurrent_data_analysis():
     """Test analyzing multiple timeframes concurrently."""
-    with patch("project_x_py.AsyncProjectX") as mock_client_class:
+    with patch("project_x_py.ProjectX") as mock_client_class:
         mock_client = AsyncMock()
 
         # Mock data retrieval with different delays
@@ -249,7 +249,7 @@ async def test_concurrent_data_analysis():
 @pytest.mark.asyncio
 async def test_error_handling_in_concurrent_operations():
     """Test that errors in concurrent operations are handled properly."""
-    with patch("project_x_py.AsyncProjectX") as mock_client_class:
+    with patch("project_x_py.ProjectX") as mock_client_class:
         mock_client = AsyncMock()
 
         # Mix successful and failing operations
@@ -330,16 +330,15 @@ async def test_background_task_management():
 @pytest.mark.asyncio
 async def test_rate_limiting_with_concurrent_requests():
     """Test that rate limiting works correctly with concurrent requests."""
-    from project_x_py.utils import AsyncRateLimiter
+    from project_x_py import RateLimiter
 
-    rate_limiter = AsyncRateLimiter(requests_per_minute=60)  # 1 per second
+    rate_limiter = RateLimiter(requests_per_minute=60)  # 1 per second
 
     request_times = []
 
     async def make_request(i):
-        async with rate_limiter:
-            request_times.append(time.time())
-            await asyncio.sleep(0.01)  # Simulate work
+        request_times.append(time.time())
+        await asyncio.sleep(0.01)  # Simulate work
 
     # Try to make 5 requests concurrently
     start_time = time.time()

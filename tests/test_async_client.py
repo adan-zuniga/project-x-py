@@ -7,11 +7,11 @@ import httpx
 import pytest
 
 from project_x_py import (
-    AsyncProjectX,
+    ProjectX,
     ProjectXConfig,
     ProjectXConnectionError,
+    RateLimiter,
 )
-from project_x_py.async_client import AsyncRateLimiter
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def mock_env_vars(monkeypatch):
 @pytest.mark.asyncio
 async def test_async_client_creation():
     """Test async client can be created."""
-    client = AsyncProjectX(
+    client = ProjectX(
         username="test_user",
         api_key="test_key",
     )
@@ -37,7 +37,7 @@ async def test_async_client_creation():
 @pytest.mark.asyncio
 async def test_async_client_from_env(mock_env_vars):
     """Test creating async client from environment variables."""
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         assert client.username == "test_username"
         assert client.api_key == "test_api_key"
         assert client._client is not None  # Client should be initialized
@@ -46,7 +46,7 @@ async def test_async_client_from_env(mock_env_vars):
 @pytest.mark.asyncio
 async def test_async_context_manager():
     """Test async client works as context manager."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     # Client should not be initialized yet
     assert client._client is None
@@ -63,7 +63,7 @@ async def test_async_context_manager():
 @pytest.mark.asyncio
 async def test_http2_support():
     """Test that HTTP/2 is enabled."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     async with client:
         # Check HTTP/2 is enabled
@@ -73,7 +73,7 @@ async def test_http2_support():
 @pytest.mark.asyncio
 async def test_authentication_flow():
     """Test authentication flow with mocked responses."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     # Mock responses
     mock_login_response = {
@@ -113,7 +113,7 @@ async def test_authentication_flow():
 @pytest.mark.asyncio
 async def test_concurrent_requests():
     """Test that async client can handle concurrent requests."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     # Mock responses
     positions_response = [
@@ -175,7 +175,7 @@ async def test_concurrent_requests():
 @pytest.mark.asyncio
 async def test_cache_functionality():
     """Test that caching works for instruments."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     instrument_response = [
         {
@@ -222,7 +222,7 @@ async def test_cache_functionality():
 @pytest.mark.asyncio
 async def test_error_handling():
     """Test error handling and retries."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     async with client:
         # Test connection error with retries
@@ -240,7 +240,7 @@ async def test_error_handling():
 @pytest.mark.asyncio
 async def test_health_status():
     """Test health status reporting."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
     client.account_info = MagicMock()
     client.account_info.name = "Test Account"
 
@@ -269,7 +269,7 @@ async def test_health_status():
 @pytest.mark.asyncio
 async def test_list_accounts():
     """Test listing accounts."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     mock_accounts = [
         {
@@ -307,7 +307,7 @@ async def test_list_accounts():
 @pytest.mark.asyncio
 async def test_search_instruments():
     """Test searching for instruments."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
 
     mock_instruments = [
         {
@@ -349,7 +349,7 @@ async def test_search_instruments():
 @pytest.mark.asyncio
 async def test_get_bars():
     """Test getting market data bars."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
     client.account_info = MagicMock()
     client.account_info.id = 123
 
@@ -399,7 +399,7 @@ async def test_get_bars():
 @pytest.mark.asyncio
 async def test_search_trades():
     """Test searching trade history."""
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
     client.account_info = MagicMock()
     client.account_info.id = 123
 
@@ -452,9 +452,10 @@ async def test_rate_limiting():
     """Test rate limiting functionality."""
     import time
 
-    client = AsyncProjectX(username="test", api_key="key")
+    client = ProjectX(username="test", api_key="key")
     # Set aggressive rate limit for testing
-    client.rate_limiter = AsyncRateLimiter(max_requests=2, window_seconds=1)
+    rate_limiter = RateLimiter(requests_per_minute=2)
+    client.rate_limiter = rate_limiter
 
     async with client:
         with patch.object(

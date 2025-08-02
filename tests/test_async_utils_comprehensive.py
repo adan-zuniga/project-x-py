@@ -22,7 +22,7 @@ from project_x_py.utils import (
 
 # Test async rate limiter if it exists
 try:
-    from project_x_py.async_client import AsyncRateLimiter
+    from project_x_py.utils import RateLimiter
 
     HAS_ASYNC_RATE_LIMITER = True
 except ImportError:
@@ -133,7 +133,7 @@ class TestAsyncRateLimiter:
     @pytest.mark.asyncio
     async def test_async_rate_limiter_basic(self):
         """Test basic AsyncRateLimiter functionality."""
-        limiter = AsyncRateLimiter(max_requests=3, window_seconds=2)
+        limiter = RateLimiter(max_requests=3, window_seconds=2)
 
         request_count = 0
 
@@ -160,7 +160,7 @@ class TestAsyncRateLimiter:
     @pytest.mark.asyncio
     async def test_async_rate_limiter_with_delay(self):
         """Test AsyncRateLimiter with rate limiting."""
-        limiter = AsyncRateLimiter(max_requests=2, window_seconds=1)
+        limiter = RateLimiter(requests_per_minute=2)
 
         request_times = []
 

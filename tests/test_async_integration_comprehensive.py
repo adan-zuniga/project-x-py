@@ -12,12 +12,10 @@ import polars as pl
 import pytest
 
 from project_x_py import (
-    AsyncProjectX,
     ProjectX,
-    create_async_order_manager,
-    create_async_position_manager,
-    create_async_trading_suite,
     create_order_manager,
+    create_position_manager,
+    create_trading_suite,
 )
 from project_x_py.models import Instrument
 
@@ -109,16 +107,14 @@ class TestAsyncEndToEndWorkflows:
             )
 
             # Act - Complete async workflow
-            async with AsyncProjectX(
-                username="test_user", api_key="test_key"
-            ) as client:
+            async with ProjectX(username="test_user", api_key="test_key") as client:
                 # 1. Authenticate
                 await client.authenticate()
-                assert client.jwt_token == "test_jwt_token"
+                assert client.session_token == "test_jwt_token"
 
                 # 2. Initialize managers
-                order_manager = create_async_order_manager(client)
-                position_manager = create_async_position_manager(client)
+                order_manager = create_order_manager(client)
+                position_manager = create_position_manager(client)
 
                 await order_manager.initialize()
                 await position_manager.initialize()
@@ -136,7 +132,7 @@ class TestAsyncEndToEndWorkflows:
 
                 # 4. Place order asynchronously
                 response = await order_manager.place_market_order(
-                    contract_id=instrument.activeContract,
+                    contract_id=instrument.id,
                     side=0,  # Buy
                     size=1,
                 )
@@ -200,9 +196,9 @@ class TestAsyncEndToEndWorkflows:
             # Mock client methods
             mock_http_client.get = AsyncMock(side_effect=mock_instruments_response)
 
-            async with AsyncProjectX(username="test", api_key="test") as client:
+            async with ProjectX(username="test", api_key="test") as client:
                 # Mock authenticate
-                client.jwt_token = "test_token"
+                client.session_token = "test_token"
                 client.account_info = Mock(id="test_account", name="Test")
 
                 # Mock get_data method directly on client
@@ -231,13 +227,13 @@ class TestAsyncEndToEndWorkflows:
         """Test complete async trading suite integration."""
         with patch("project_x_py.AsyncProjectX") as mock_client_class:
             # Create mock async client
-            mock_client = AsyncMock(spec=AsyncProjectX)
-            mock_client.jwt_token = "test_jwt"
+            mock_client = AsyncMock(spec=ProjectX)
+            mock_client.session_token = "test_jwt"
             mock_client.account_info = Mock(id="test_account", name="Test Account")
             mock_client_class.return_value = mock_client
 
             # Create complete trading suite
-            suite = await create_async_trading_suite(
+            suite = await create_trading_suite(
                 instrument="MGC",
                 project_x=mock_client,
                 jwt_token="test_jwt",
@@ -300,8 +296,8 @@ class TestAsyncEndToEndWorkflows:
 
             mock_http_client.get = failing_then_success
 
-            async with AsyncProjectX(username="test", api_key="test") as client:
-                client.jwt_token = "test_token"
+            async with ProjectX(username="test", api_key="test") as client:
+                client.session_token = "test_token"
 
                 # Test retry logic with gather and exception handling
                 tasks = [
@@ -323,7 +319,7 @@ class TestAsyncEndToEndWorkflows:
     @pytest.mark.asyncio
     async def test_async_real_time_data_workflow(self):
         """Test async real-time data processing workflow."""
-        with patch("project_x_py.AsyncProjectXRealtimeClient") as mock_realtime_class:
+        with patch("project_x_py.RealtimeClient") as mock_realtime_class:
             # Mock realtime client
             mock_realtime = AsyncMock()
             mock_realtime_class.return_value = mock_realtime
@@ -380,8 +376,8 @@ class TestAsyncEndToEndWorkflows:
 
             mock_http_client.get = lambda *args, **kwargs: delayed_response(0.05)
 
-            async with AsyncProjectX(username="test", api_key="test") as client:
-                client.jwt_token = "test_token"
+            async with ProjectX(username="test", api_key="test") as client:
+                client.session_token = "test_token"
                 client.account_info = Mock(id="test")
 
                 # Time sequential vs concurrent operations
@@ -418,13 +414,13 @@ class TestSyncAsyncWorkflowCompatibility:
         sync_client.account_info = Mock(id=1001, name="Test")
 
         # Create async client
-        async_client = AsyncMock(spec=AsyncProjectX)
-        async_client.jwt_token = "test_token"
+        async_client = AsyncMock(spec=ProjectX)
+        async_client.session_token = "test_token"
         async_client.account_info = Mock(id="1001", name="Test")
 
         # Both should be able to create their respective managers
         sync_order_manager = create_order_manager(sync_client)
-        async_order_manager = create_async_order_manager(async_client)
+        async_order_manager = create_order_manager(async_client)
 
         # Initialize sync manager
         sync_result = sync_order_manager.initialize()
@@ -447,7 +443,7 @@ class TestSyncAsyncWorkflowCompatibility:
 
         # Should work with both client types
         sync_client = ProjectX(username="test", api_key="test", config=config)
-        async_client = AsyncProjectX(username="test", api_key="test", config=config)
+        async_client = ProjectX(username="test", api_key="test", config=config)
 
         assert sync_client.config.timeout_seconds == 45
         assert async_client.config.timeout_seconds == 45
@@ -459,21 +455,20 @@ class TestSyncAsyncWorkflowCompatibility:
         # Create model instances
         instrument = Instrument(
             id="TEST123",
-            symbol="TEST",
             name="Test Instrument",
-            activeContract="CON.TEST",
-            lastPrice=100.0,
+            description="Test Instrument",
             tickSize=0.01,
-            pointValue=1.0,
+            tickValue=1.0,
+            activeContract=True,
         )
 
         # Should work with both sync and async contexts
         assert instrument.id == "TEST123"
-        assert instrument.symbol == "TEST"
+        assert instrument.name == "Test Instrument"
 
         # Test in async context
         async def async_model_test():
-            return instrument.symbol
+            return instrument.name
 
         result = await async_model_test()
-        assert result == "TEST"
+        assert result == "Test Instrument"
