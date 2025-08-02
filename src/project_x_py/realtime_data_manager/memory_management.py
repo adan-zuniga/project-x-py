@@ -18,6 +18,7 @@ class MemoryManagementMixin:
 
     def __init__(self) -> None:
         """Initialize memory management attributes."""
+        super().__init__()
         self._cleanup_task: asyncio.Task[None] | None = None
 
     async def _cleanup_old_data(self: "RealtimeDataManagerProtocol") -> None:

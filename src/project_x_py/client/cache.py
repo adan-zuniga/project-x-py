@@ -20,6 +20,7 @@ class CacheMixin:
 
     def __init__(self) -> None:
         """Initialize cache attributes."""
+        super().__init__()
         # Cache for instrument data (symbol -> instrument)
         self._instrument_cache: dict[str, Instrument] = {}
         self._instrument_cache_time: dict[str, float] = {}

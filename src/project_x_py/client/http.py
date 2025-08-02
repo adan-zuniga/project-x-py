@@ -26,6 +26,7 @@ class HttpMixin:
 
     def __init__(self) -> None:
         """Initialize HTTP client attributes."""
+        super().__init__()
         self._client: httpx.AsyncClient | None = None
         self.api_call_count = 0
 

@@ -23,6 +23,7 @@ class AuthenticationMixin:
 
     def __init__(self) -> None:
         """Initialize authentication attributes."""
+        super().__init__()
         self.session_token = ""
         self.token_expiry: datetime.datetime | None = None
         self._authenticated = False

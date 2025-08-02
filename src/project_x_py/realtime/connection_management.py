@@ -19,6 +19,7 @@ class ConnectionManagementMixin:
 
     def __init__(self) -> None:
         """Initialize connection management attributes."""
+        super().__init__()
         self._loop: asyncio.AbstractEventLoop | None = None
 
     async def setup_connections(self: "ProjectXRealtimeClientProtocol") -> None:
