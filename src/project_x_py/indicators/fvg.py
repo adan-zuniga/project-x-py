@@ -72,7 +72,7 @@ class FVG(BaseIndicator):
         check_mitigation = kwargs.get("check_mitigation", False)
         mitigation_threshold = kwargs.get("mitigation_threshold", 0.5)
 
-        required_cols = [high_column, low_column, close_column]
+        required_cols: list[str] = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_data_length(data, 3)  # Need at least 3 candles
 
@@ -224,7 +224,7 @@ class FVG(BaseIndicator):
             )
 
         # Clean up intermediate columns
-        columns_to_drop = [
+        columns_to_drop: list[str] = [
             "prev_high",
             "prev_low",
             "prev2_high",

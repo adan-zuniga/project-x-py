@@ -136,13 +136,13 @@ class DataAccessMixin:
         """
         # Try to get from tick data first
         if self.current_tick_data:
-            return self.current_tick_data[-1]["price"]
+            return float(self.current_tick_data[-1]["price"])
 
         # Fallback to most recent bar close
         async with self.data_lock:
             for tf_key in ["1min", "5min", "15min"]:  # Check common timeframes
                 if tf_key in self.data and not self.data[tf_key].is_empty():
-                    return self.data[tf_key]["close"][-1]
+                    return float(self.data[tf_key]["close"][-1])
 
         return None
 

@@ -77,7 +77,7 @@ def create_data_snapshot(data: pl.DataFrame, description: str = "") -> dict[str,
     ]
 
     if numeric_cols:
-        stats = {}
+        stats: dict[str, dict[str, Any]] = {}
         for col in numeric_cols:
             try:
 
@@ -96,7 +96,7 @@ def create_data_snapshot(data: pl.DataFrame, description: str = "") -> dict[str,
                     "std": safe_float(data[col].std()),
                 }
             except Exception:
-                stats[col] = None
+                stats[col] = {"error": "Failed to calculate statistics"}
         snapshot["statistics"] = stats
 
     return snapshot

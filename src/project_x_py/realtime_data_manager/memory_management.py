@@ -5,7 +5,7 @@ import gc
 import logging
 import time
 from contextlib import suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from project_x_py.realtime_data_manager.types import RealtimeDataManagerProtocol
@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 class MemoryManagementMixin:
     """Mixin for memory management and optimization."""
+
+    def __init__(self) -> None:
+        """Initialize memory management attributes."""
+        self._cleanup_task: asyncio.Task[None] | None = None
 
     async def _cleanup_old_data(self: "RealtimeDataManagerProtocol") -> None:
         """
@@ -86,7 +90,7 @@ class MemoryManagementMixin:
                 self.logger.error(f"Runtime error in periodic cleanup: {e}")
                 # Don't re-raise runtime errors to keep the cleanup task running
 
-    def get_memory_stats(self: "RealtimeDataManagerProtocol") -> dict:
+    def get_memory_stats(self: "RealtimeDataManagerProtocol") -> dict[str, Any]:
         """
         Get comprehensive memory usage statistics for the real-time data manager.
 

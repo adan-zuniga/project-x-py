@@ -21,6 +21,7 @@ from project_x_py.exceptions import (
     ProjectXError,
     ProjectXInstrumentError,
 )
+from project_x_py.models import Instrument
 from project_x_py.realtime_data_manager.callbacks import CallbackMixin
 from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
@@ -201,16 +202,16 @@ class RealtimeDataManager(
         if timeframes is None:
             timeframes = ["5min"]
 
-        self.instrument = instrument
-        self.project_x = project_x
-        self.realtime_client = realtime_client
+        self.instrument: str = instrument
+        self.project_x: ProjectXBase = project_x
+        self.realtime_client: ProjectXRealtimeClient = realtime_client
 
         self.logger = logging.getLogger(__name__)
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone
 
-        timeframes_dict = {
+        timeframes_dict: dict[str, dict[str, Any]] = {
             "1sec": {"interval": 1, "unit": 1, "name": "1sec"},
             "5sec": {"interval": 5, "unit": 1, "name": "5sec"},
             "10sec": {"interval": 10, "unit": 1, "name": "10sec"},
@@ -228,7 +229,7 @@ class RealtimeDataManager(
         }
 
         # Initialize timeframes as dict mapping timeframe names to configs
-        self.timeframes = {}
+        self.timeframes: dict[str, dict[str, Any]] = {}
         for tf in timeframes:
             if tf not in timeframes_dict:
                 raise ValueError(
@@ -240,26 +241,26 @@ class RealtimeDataManager(
         self.data: dict[str, pl.DataFrame] = {}
 
         # Real-time data components
-        self.current_tick_data: list[dict] = []
+        self.current_tick_data: list[dict[str, Any]] = []
         self.last_bar_times: dict[str, datetime] = {}
 
         # Async synchronization
-        self.data_lock = asyncio.Lock()
-        self.is_running = False
+        self.data_lock: asyncio.Lock = asyncio.Lock()
+        self.is_running: bool = False
         self.callbacks: dict[str, list[Any]] = defaultdict(list)
-        self.indicator_cache: defaultdict[str, dict] = defaultdict(dict)
+        self.indicator_cache: defaultdict[str, dict[str, Any]] = defaultdict(dict)
 
         # Contract ID for real-time subscriptions
         self.contract_id: str | None = None
 
         # Memory management settings
-        self.max_bars_per_timeframe = 1000  # Keep last 1000 bars per timeframe
-        self.tick_buffer_size = 1000  # Max tick data to buffer
-        self.cleanup_interval = 300.0  # 5 minutes between cleanups
-        self.last_cleanup = time.time()
+        self.max_bars_per_timeframe: int = 1000  # Keep last 1000 bars per timeframe
+        self.tick_buffer_size: int = 1000  # Max tick data to buffer
+        self.cleanup_interval: float = 300.0  # 5 minutes between cleanups
+        self.last_cleanup: float = time.time()
 
         # Performance monitoring
-        self.memory_stats = {
+        self.memory_stats: dict[str, Any] = {
             "total_bars": 0,
             "bars_cleaned": 0,
             "ticks_processed": 0,
@@ -267,7 +268,7 @@ class RealtimeDataManager(
         }
 
         # Background cleanup task
-        self._cleanup_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task[None] | None = None
 
         self.logger.info(f"RealtimeDataManager initialized for {instrument}")
 
@@ -325,8 +326,10 @@ class RealtimeDataManager(
             )
 
             # Get the contract ID for the instrument
-            instrument_info = await self.project_x.get_instrument(self.instrument)
-            if not instrument_info:
+            instrument_info: Instrument | None = await self.project_x.get_instrument(
+                self.instrument
+            )
+            if instrument_info is None:
                 self.logger.error(f"❌ Instrument {self.instrument} not found")
                 return False
 

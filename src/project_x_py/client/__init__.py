@@ -100,4 +100,4 @@ class ProjectX(ProjectXBase):
     """
 
 
-__all__ = ["ProjectX", "RateLimiter"]
+__all__ = ["ProjectX", "ProjectXBase", "RateLimiter"]

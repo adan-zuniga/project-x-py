@@ -43,7 +43,7 @@ class OrderTrackingMixin:
         )
 
     async def _on_order_update(
-        self: "OrderManagerProtocol", order_data: dict[str, Any] | list
+        self: "OrderManagerProtocol", order_data: dict[str, Any] | list[Any]
     ) -> None:
         """Handle real-time order update events."""
         try:
@@ -104,7 +104,7 @@ class OrderTrackingMixin:
             logger.debug(f"Order data received: {order_data}")
 
     async def _on_trade_execution(
-        self: "OrderManagerProtocol", trade_data: dict[str, Any] | list
+        self: "OrderManagerProtocol", trade_data: dict[str, Any] | list[Any]
     ) -> None:
         """Handle real-time trade execution events."""
         try:

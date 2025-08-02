@@ -9,6 +9,7 @@ Base classes and common functionality for technical indicators.
 
 import hashlib
 from abc import ABC, abstractmethod
+from typing import Any
 
 import polars as pl
 
@@ -25,7 +26,7 @@ class BaseIndicator(ABC):
     that all indicators can inherit from.
     """
 
-    def __init__(self, name: str, description: str = ""):
+    def __init__(self, name: str, description: str = "") -> None:
         """
         Initialize base indicator.
 
@@ -33,11 +34,11 @@ class BaseIndicator(ABC):
             name: Indicator name
             description: Optional description
         """
-        self.name = name
-        self.description = description
+        self.name: str = name
+        self.description: str = description
         # Cache for computed results to avoid recomputation
-        self._cache = {}
-        self._cache_max_size = 100
+        self._cache: dict[str, pl.DataFrame] = {}
+        self._cache_max_size: int = 100
 
     def validate_data(self, data: pl.DataFrame, required_columns: list[str]) -> None:
         """
@@ -91,7 +92,7 @@ class BaseIndicator(ABC):
             )
 
     @abstractmethod
-    def calculate(self, data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    def calculate(self, data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
         """
         Calculate the indicator values.
 
@@ -103,7 +104,7 @@ class BaseIndicator(ABC):
             DataFrame with indicator columns added
         """
 
-    def _generate_cache_key(self, data: pl.DataFrame, **kwargs) -> str:
+    def _generate_cache_key(self, data: pl.DataFrame, **kwargs: Any) -> str:
         """
         Generate a cache key for the given data and parameters.
 
@@ -115,9 +116,9 @@ class BaseIndicator(ABC):
             Cache key string
         """
         # Create hash from DataFrame shape, column names, and last few rows
-        data_hash = hashlib.md5(
-            f"{data.shape}{list(data.columns)}{data.tail(5).to_numpy().tobytes()}".encode()
-        ).hexdigest()
+        data_bytes = data.tail(5).to_numpy().tobytes()
+        data_str = f"{data.shape}{list(data.columns)}"
+        data_hash = hashlib.md5(data_str.encode() + data_bytes).hexdigest()
 
         # Include parameters in the key
         params_str = "_".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
@@ -137,7 +138,7 @@ class BaseIndicator(ABC):
 
         self._cache[cache_key] = result
 
-    def __call__(self, data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    def __call__(self, data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
         """
         Allow indicator to be called directly with caching.
 
@@ -165,7 +166,7 @@ class BaseIndicator(ABC):
 class OverlapIndicator(BaseIndicator):
     """Base class for overlap study indicators (trend-following)."""
 
-    def __init__(self, name: str, description: str = ""):
+    def __init__(self, name: str, description: str = "") -> None:
         super().__init__(name, description)
         self.category = "overlap"
 
@@ -173,7 +174,7 @@ class OverlapIndicator(BaseIndicator):
 class MomentumIndicator(BaseIndicator):
     """Base class for momentum indicators."""
 
-    def __init__(self, name: str, description: str = ""):
+    def __init__(self, name: str, description: str = "") -> None:
         super().__init__(name, description)
         self.category = "momentum"
 
@@ -181,7 +182,7 @@ class MomentumIndicator(BaseIndicator):
 class VolatilityIndicator(BaseIndicator):
     """Base class for volatility indicators."""
 
-    def __init__(self, name: str, description: str = ""):
+    def __init__(self, name: str, description: str = "") -> None:
         super().__init__(name, description)
         self.category = "volatility"
 
@@ -189,7 +190,7 @@ class VolatilityIndicator(BaseIndicator):
 class VolumeIndicator(BaseIndicator):
     """Base class for volume indicators."""
 
-    def __init__(self, name: str, description: str = ""):
+    def __init__(self, name: str, description: str = "") -> None:
         super().__init__(name, description)
         self.category = "volume"
 

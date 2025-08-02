@@ -1,6 +1,7 @@
 """Rate limiting utility for API calls."""
 
 import time
+from typing import Any
 
 
 class RateLimiter:
@@ -20,7 +21,7 @@ class RateLimiter:
         self.min_interval = 60.0 / requests_per_minute
         self.last_request_time = 0.0
 
-    def __enter__(self):
+    def __enter__(self) -> "RateLimiter":
         """Context manager entry - enforce rate limit."""
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
@@ -32,7 +33,7 @@ class RateLimiter:
         self.last_request_time = time.time()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
 
     def wait_if_needed(self) -> None:

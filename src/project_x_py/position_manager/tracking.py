@@ -131,7 +131,7 @@ class PositionTrackingMixin:
             Position closure is determined by size == 0, NOT type == 0.
             Type 0 means "Undefined" position type, not a closed position.
         """
-        required_fields = {
+        required_fields: set[str] = {
             "id",
             "accountId",
             "contractId",
@@ -141,13 +141,7 @@ class PositionTrackingMixin:
             "averagePrice",
         }
 
-        if not isinstance(position_data, dict):
-            self.logger.warning(
-                f"Position payload is not a dict: {type(position_data)}"
-            )
-            return False
-
-        missing_fields = required_fields - set(position_data.keys())
+        missing_fields: set[str] = required_fields - set(position_data.keys())
         if missing_fields:
             self.logger.warning(
                 f"Position payload missing required fields: {missing_fields}"
@@ -155,13 +149,13 @@ class PositionTrackingMixin:
             return False
 
         # Validate PositionType enum values
-        position_type = position_data.get("type")
+        position_type: int | None = position_data.get("type")
         if position_type not in [0, 1, 2]:  # Undefined, Long, Short
             self.logger.warning(f"Invalid position type: {position_type}")
             return False
 
         # Validate that size is a number
-        size = position_data.get("size")
+        size: int | float | None = position_data.get("size")
         if not isinstance(size, int | float):
             self.logger.warning(f"Invalid position size type: {type(size)}")
             return False
@@ -208,7 +202,7 @@ class PositionTrackingMixin:
             # Handle wrapped position data from real-time updates
             # Real-time updates come as: {"action": 1, "data": {position_data}}
             # But direct API calls might provide raw position data
-            actual_position_data = position_data
+            actual_position_data: dict[str, Any] = position_data
             if "action" in position_data and "data" in position_data:
                 actual_position_data = position_data["data"]
                 self.logger.debug(
@@ -230,12 +224,12 @@ class PositionTrackingMixin:
             # Check if this is a position closure
             # Position is closed when size == 0 (not when type == 0)
             # type=0 means "Undefined" according to PositionType enum, not closed
-            position_size = actual_position_data.get("size", 0)
-            is_position_closed = position_size == 0
+            position_size: int = actual_position_data.get("size", 0)
+            is_position_closed: bool = position_size == 0
 
             # Get the old position before updating
-            old_position = self.tracked_positions.get(contract_id)
-            old_size = old_position.size if old_position else 0
+            old_position: Position | None = self.tracked_positions.get(contract_id)
+            old_size: int = old_position.size if old_position else 0
 
             if is_position_closed:
                 # Position is closed - remove from tracking and trigger closure callbacks
@@ -254,7 +248,7 @@ class PositionTrackingMixin:
             else:
                 # Position is open/updated - create or update position
                 # ProjectX payload structure matches our Position model fields
-                position = Position(**actual_position_data)
+                position: Position = Position(**actual_position_data)
                 self.tracked_positions[contract_id] = position
 
                 # Synchronize orders - update order sizes if position size changed

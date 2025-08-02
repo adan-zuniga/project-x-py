@@ -41,7 +41,7 @@ class ConfigManager:
         Args:
             config_file: Optional path to configuration file
         """
-        self.config_file = Path(config_file) if config_file else None
+        self.config_file: Path | None = Path(config_file) if config_file else None
         self._config: ProjectXConfig | None = None
 
     def load_config(self) -> ProjectXConfig:
@@ -79,8 +79,9 @@ class ConfigManager:
             return {}
 
         try:
-            with open(self.config_file) as f:
-                return json.load(f)
+            with open(self.config_file, encoding="utf-8") as f:
+                data = json.load(f)
+                return dict(data) if isinstance(data, dict) else {}
         except (json.JSONDecodeError, OSError) as e:
             logger.error(f"Error loading config file: {e}")
             return {}
@@ -117,7 +118,11 @@ class ConfigManager:
 
         return env_config
 
-    def save_config(self, config: ProjectXConfig, file_path: str | Path | None = None):
+    def save_config(
+        self,
+        config: ProjectXConfig,
+        file_path: str | Path | None = None,
+    ) -> None:
         """
         Save configuration to file.
 
@@ -136,7 +141,7 @@ class ConfigManager:
 
             # Convert config to dict and save as JSON
             config_dict = asdict(config)
-            with open(target_file, "w") as f:
+            with open(target_file, "w", encoding="utf-8") as f:
                 json.dump(config_dict, f, indent=2)
 
             logger.info(f"Configuration saved to {target_file}")
@@ -183,10 +188,15 @@ class ConfigManager:
         Raises:
             ValueError: If configuration is invalid
         """
-        errors = []
+        errors: list[str] = []
 
         # Validate URLs
-        required_urls = ["api_url", "realtime_url", "user_hub_url", "market_hub_url"]
+        required_urls: list[str] = [
+            "api_url",
+            "realtime_url",
+            "user_hub_url",
+            "market_hub_url",
+        ]
         for url_field in required_urls:
             url = getattr(config, url_field)
             if not url or not isinstance(url, str):
@@ -242,7 +252,7 @@ def load_topstepx_config() -> ProjectXConfig:
 
 
 def create_custom_config(
-    user_hub_url: str, market_hub_url: str, **kwargs
+    user_hub_url: str, market_hub_url: str, **kwargs: Any
 ) -> ProjectXConfig:
     """
     Create custom configuration with specified URLs.
@@ -275,7 +285,7 @@ def create_config_template(file_path: str | Path) -> None:
         file_path: Path where to create the template
     """
     template_config = ProjectXConfig()
-    config_dict = asdict(template_config)
+    config_dict: dict[str, Any] = asdict(template_config)
 
     # Add comments to the template
     template = {
@@ -298,7 +308,7 @@ def create_config_template(file_path: str | Path) -> None:
     file_path = Path(file_path)
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         json.dump(template, f, indent=2)
 
     logger.info(f"Configuration template created at {file_path}")
@@ -334,7 +344,7 @@ def check_environment() -> dict[str, Any]:
     Returns:
         Dictionary with environment status
     """
-    status = {
+    status: dict[str, Any] = {
         "auth_configured": False,
         "config_file_exists": False,
         "environment_overrides": [],
@@ -357,13 +367,13 @@ def check_environment() -> dict[str, Any]:
         status["missing_required"].extend(["PROJECT_X_API_KEY", "PROJECT_X_USERNAME"])
 
     # Check for config file
-    default_path = get_default_config_path()
+    default_path: Path = get_default_config_path()
     if default_path.exists():
         status["config_file_exists"] = True
         status["config_file_path"] = str(default_path)
 
     # Check for environment overrides
-    env_vars = [
+    env_vars: list[str] = [
         "PROJECTX_API_URL",
         "PROJECTX_REALTIME_URL",
         "PROJECTX_USER_HUB_URL",

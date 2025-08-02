@@ -107,7 +107,7 @@ def detect_chart_patterns(
     try:
         prices = data.select(pl.col(price_column)).to_series().to_list()
 
-        patterns = {
+        patterns: dict[str, list[dict[str, Any]]] = {
             "double_tops": [],
             "double_bottoms": [],
             "breakouts": [],

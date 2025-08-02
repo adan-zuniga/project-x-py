@@ -83,7 +83,7 @@ class OrderBlock(BaseIndicator):
         lookback_periods = kwargs.get("lookback_periods", 3)
         use_wicks = kwargs.get("use_wicks", True)
 
-        required_cols = [open_column, high_column, low_column, close_column]
+        required_cols: list[str] = [open_column, high_column, low_column, close_column]
         if volume_column in data.columns:
             required_cols.append(volume_column)
             use_volume = True
@@ -279,7 +279,7 @@ class OrderBlock(BaseIndicator):
             )
 
         # Clean up intermediate columns
-        columns_to_drop = [
+        columns_to_drop: list[str] = [
             "is_bullish_candle",
             "is_bearish_candle",
             "volume_percentile",

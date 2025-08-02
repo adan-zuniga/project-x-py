@@ -8,6 +8,8 @@ Overlap study indicators are often displaced by default and superimposed
 over the main price chart.
 """
 
+from typing import Any
+
 import polars as pl
 
 from project_x_py.indicators.base import OverlapIndicator, ema_alpha
@@ -16,7 +18,7 @@ from project_x_py.indicators.base import OverlapIndicator, ema_alpha
 class SMA(OverlapIndicator):
     """Simple Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="SMA",
             description="Simple Moving Average - arithmetic mean of prices over a period",
@@ -25,8 +27,7 @@ class SMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Simple Moving Average.
@@ -44,6 +45,10 @@ class SMA(OverlapIndicator):
             >>> data_with_sma = sma.calculate(ohlcv_data, period=20)
             >>> print(data_with_sma.columns)  # Now includes 'sma_20'
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period)
@@ -56,7 +61,7 @@ class SMA(OverlapIndicator):
 class EMA(OverlapIndicator):
     """Exponential Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="EMA",
             description="Exponential Moving Average - weighted moving average with more weight on recent prices",
@@ -65,8 +70,7 @@ class EMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Exponential Moving Average.
@@ -84,6 +88,10 @@ class EMA(OverlapIndicator):
             >>> data_with_ema = ema.calculate(ohlcv_data, period=20)
             >>> print(data_with_ema.columns)  # Now includes 'ema_20'
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
 
@@ -97,7 +105,7 @@ class EMA(OverlapIndicator):
 class BBANDS(OverlapIndicator):
     """Bollinger Bands indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="BBANDS",
             description="Bollinger Bands - moving average with upper and lower bands based on standard deviation",
@@ -106,9 +114,7 @@ class BBANDS(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
-        std_dev: float = 2.0,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Bollinger Bands.
@@ -129,6 +135,11 @@ class BBANDS(OverlapIndicator):
             ...     data_with_bb.columns
             ... )  # Now includes bb_upper, bb_lower, bb_middle
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+        std_dev: float = kwargs.get("std_dev", 2.0)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=2)
         self.validate_data_length(data, period)
@@ -159,7 +170,7 @@ class BBANDS(OverlapIndicator):
 class DEMA(OverlapIndicator):
     """Double Exponential Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="DEMA",
             description="Double Exponential Moving Average - reduces lag of traditional EMA",
@@ -168,8 +179,7 @@ class DEMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Double Exponential Moving Average.
@@ -184,6 +194,10 @@ class DEMA(OverlapIndicator):
         Returns:
             DataFrame with DEMA column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
 
@@ -211,7 +225,7 @@ class DEMA(OverlapIndicator):
 class TEMA(OverlapIndicator):
     """Triple Exponential Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="TEMA",
             description="Triple Exponential Moving Average - further reduces lag compared to DEMA",
@@ -220,8 +234,7 @@ class TEMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Triple Exponential Moving Average.
@@ -236,6 +249,10 @@ class TEMA(OverlapIndicator):
         Returns:
             DataFrame with TEMA column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
 
@@ -270,7 +287,7 @@ class TEMA(OverlapIndicator):
 class WMA(OverlapIndicator):
     """Weighted Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="WMA",
             description="Weighted Moving Average - linear weighted moving average with more weight on recent prices",
@@ -279,8 +296,7 @@ class WMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Weighted Moving Average.
@@ -293,6 +309,10 @@ class WMA(OverlapIndicator):
         Returns:
             DataFrame with WMA column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period)
@@ -329,7 +349,7 @@ class WMA(OverlapIndicator):
 class MIDPOINT(OverlapIndicator):
     """Midpoint over period indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MIDPOINT",
             description="Midpoint - average of highest high and lowest low over period",
@@ -338,8 +358,7 @@ class MIDPOINT(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Midpoint over period.
@@ -352,6 +371,10 @@ class MIDPOINT(OverlapIndicator):
         Returns:
             DataFrame with midpoint column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 14)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period)
@@ -370,7 +393,7 @@ class MIDPOINT(OverlapIndicator):
 class MIDPRICE(OverlapIndicator):
     """Midpoint Price over period indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MIDPRICE",
             description="Midpoint Price - average of highest high and lowest low over period",
@@ -379,9 +402,7 @@ class MIDPRICE(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Midpoint Price over period.
@@ -395,6 +416,11 @@ class MIDPRICE(OverlapIndicator):
         Returns:
             DataFrame with midprice column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        period: int = kwargs.get("period", 14)
+
         self.validate_data(data, [high_column, low_column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period)
@@ -413,7 +439,7 @@ class MIDPRICE(OverlapIndicator):
 class HT_TRENDLINE(OverlapIndicator):
     """Hilbert Transform - Instantaneous Trendline indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="HT_TRENDLINE",
             description="Hilbert Transform - Instantaneous Trendline",
@@ -422,7 +448,7 @@ class HT_TRENDLINE(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Hilbert Transform - Instantaneous Trendline.
@@ -434,6 +460,9 @@ class HT_TRENDLINE(OverlapIndicator):
         Returns:
             DataFrame with HT trendline column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+
         self.validate_data(data, [column])
 
         # Simplified Hilbert Transform implementation
@@ -446,7 +475,7 @@ class HT_TRENDLINE(OverlapIndicator):
 class KAMA(OverlapIndicator):
     """Kaufman Adaptive Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="KAMA",
             description="Kaufman Adaptive Moving Average - adaptive moving average that adjusts to market volatility",
@@ -455,10 +484,7 @@ class KAMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 30,
-        fast_sc: float = 2.0,
-        slow_sc: float = 30.0,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Kaufman Adaptive Moving Average.
@@ -473,6 +499,12 @@ class KAMA(OverlapIndicator):
         Returns:
             DataFrame with KAMA column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 30)
+        fast_sc: float = kwargs.get("fast_sc", 2.0)
+        slow_sc: float = kwargs.get("slow_sc", 30.0)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=2)
 
@@ -523,7 +555,7 @@ class KAMA(OverlapIndicator):
 class MA(OverlapIndicator):
     """Generic Moving Average indicator with different MA types."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MA",
             description="Moving Average - generic moving average with selectable type",
@@ -532,9 +564,7 @@ class MA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 30,
-        ma_type: str = "sma",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Moving Average of specified type.
@@ -548,21 +578,26 @@ class MA(OverlapIndicator):
         Returns:
             DataFrame with MA column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 30)
+        ma_type: str = kwargs.get("ma_type", "sma")
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
 
         ma_type = ma_type.lower()
 
         if ma_type == "sma":
-            return SMA().calculate(data, column, period)
+            return SMA().calculate(data, column=column, period=period)
         elif ma_type == "ema":
-            return EMA().calculate(data, column, period)
+            return EMA().calculate(data, column=column, period=period)
         elif ma_type == "wma":
-            return WMA().calculate(data, column, period)
+            return WMA().calculate(data, column=column, period=period)
         elif ma_type == "dema":
-            return DEMA().calculate(data, column, period)
+            return DEMA().calculate(data, column=column, period=period)
         elif ma_type == "tema":
-            return TEMA().calculate(data, column, period)
+            return TEMA().calculate(data, column=column, period=period)
         else:
             raise ValueError(f"Unsupported MA type: {ma_type}")
 
@@ -570,7 +605,7 @@ class MA(OverlapIndicator):
 class MAMA(OverlapIndicator):
     """MESA Adaptive Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MAMA",
             description="MESA Adaptive Moving Average - adaptive moving average based on dominant cycle",
@@ -579,9 +614,7 @@ class MAMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        fast_limit: float = 0.5,
-        slow_limit: float = 0.05,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate MESA Adaptive Moving Average.
@@ -595,6 +628,11 @@ class MAMA(OverlapIndicator):
         Returns:
             DataFrame with MAMA and FAMA columns added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        fast_limit: float = kwargs.get("fast_limit", 0.5)
+        slow_limit: float = kwargs.get("slow_limit", 0.05)
+
         self.validate_data(data, [column])
 
         def mama_calc(
@@ -651,7 +689,7 @@ class MAMA(OverlapIndicator):
 class MAVP(OverlapIndicator):
     """Moving Average with Variable Period indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MAVP",
             description="Moving Average with Variable Period - moving average with dynamically changing period",
@@ -660,11 +698,7 @@ class MAVP(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        periods_column: str = "periods",
-        min_period: int = 2,
-        max_period: int = 30,
-        ma_type: str = "sma",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Moving Average with Variable Period.
@@ -674,12 +708,15 @@ class MAVP(OverlapIndicator):
             column: Column to calculate MA for
             periods_column: Column containing period values
             min_period: Minimum period value
-            max_period: Maximum period value
-            ma_type: Type of moving average
 
         Returns:
             DataFrame with MAVP column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        periods_column: str = kwargs.get("periods_column", "periods")
+        min_period: int = kwargs.get("min_period", 2)
+
         self.validate_data(data, [column])
 
         # If periods column doesn't exist, create a default one
@@ -697,7 +734,7 @@ class MAVP(OverlapIndicator):
 class SAR(OverlapIndicator):
     """Parabolic SAR indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="SAR",
             description="Parabolic SAR - stop and reverse system for trend following",
@@ -706,10 +743,7 @@ class SAR(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        acceleration: float = 0.02,
-        maximum: float = 0.2,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Parabolic SAR.
@@ -724,6 +758,12 @@ class SAR(OverlapIndicator):
         Returns:
             DataFrame with SAR column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        acceleration: float = kwargs.get("acceleration", 0.02)
+        maximum: float = kwargs.get("maximum", 0.2)
+
         self.validate_data(data, [high_column, low_column])
 
         def sar_calc(highs: list[float], lows: list[float]) -> list[float | None]:
@@ -812,26 +852,13 @@ class SAR(OverlapIndicator):
 class SAREXT(OverlapIndicator):
     """Parabolic SAR - Extended indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="SAREXT",
             description="Parabolic SAR - Extended with additional parameters",
         )
 
-    def calculate(
-        self,
-        data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        start_value: float = 0.0,
-        offset_on_reverse: float = 0.0,
-        acceleration_init_long: float = 0.02,
-        acceleration_long: float = 0.02,
-        acceleration_max_long: float = 0.2,
-        acceleration_init_short: float = 0.02,
-        acceleration_short: float = 0.02,
-        acceleration_max_short: float = 0.2,
-    ) -> pl.DataFrame:
+    def calculate(self, data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
         """
         Calculate Parabolic SAR - Extended.
 
@@ -839,24 +866,28 @@ class SAREXT(OverlapIndicator):
             data: DataFrame with OHLCV data
             high_column: Column name for high prices
             low_column: Column name for low prices
-            start_value: Starting value
-            offset_on_reverse: Offset on reversal
-            acceleration_init_long: Initial acceleration for long
-            acceleration_long: Acceleration increment for long
-            acceleration_max_long: Maximum acceleration for long
-            acceleration_init_short: Initial acceleration for short
-            acceleration_short: Acceleration increment for short
-            acceleration_max_short: Maximum acceleration for short
+            acceleration: Acceleration increment
+            maximum: Maximum acceleration
 
         Returns:
             DataFrame with SAREXT column added
         """
+
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        acceleration: float = kwargs.get("acceleration", 0.02)
+        maximum: float = kwargs.get("maximum", 0.2)
+
         self.validate_data(data, [high_column, low_column])
 
         # For simplicity, use regular SAR with different parameters
         # Full SAREXT implementation would handle all these parameters separately
         result = SAR().calculate(
-            data, high_column, low_column, acceleration_long, acceleration_max_long
+            data,
+            high_column=high_column,
+            low_column=low_column,
+            acceleration=acceleration,
+            maximum=maximum,
         )
 
         return result.rename({"sar": "sarext"})
@@ -865,7 +896,7 @@ class SAREXT(OverlapIndicator):
 class T3(OverlapIndicator):
     """Triple Exponential Moving Average (T3) indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="T3",
             description="Triple Exponential Moving Average (T3) - Tillson T3 moving average",
@@ -874,9 +905,7 @@ class T3(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 5,
-        v_factor: float = 0.7,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate T3 Moving Average.
@@ -890,6 +919,11 @@ class T3(OverlapIndicator):
         Returns:
             DataFrame with T3 column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 5)
+        v_factor: float = kwargs.get("v_factor", 0.7)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
 
@@ -943,7 +977,7 @@ class T3(OverlapIndicator):
 class TRIMA(OverlapIndicator):
     """Triangular Moving Average indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="TRIMA",
             description="Triangular Moving Average - double smoothed moving average",
@@ -952,8 +986,7 @@ class TRIMA(OverlapIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 20,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Triangular Moving Average.
@@ -966,6 +999,10 @@ class TRIMA(OverlapIndicator):
         Returns:
             DataFrame with TRIMA column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 20)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
 

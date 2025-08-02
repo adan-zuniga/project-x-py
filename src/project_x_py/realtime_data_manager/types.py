@@ -37,7 +37,7 @@ class RealtimeDataManagerProtocol(Protocol):
     data_lock: asyncio.Lock
     is_running: bool
     callbacks: dict[str, list[Any]]
-    indicator_cache: "defaultdict[str, dict]"
+    indicator_cache: "defaultdict[str, dict[str, Any]]"
 
     # Contract and subscription
     contract_id: str | None

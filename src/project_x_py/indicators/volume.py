@@ -8,6 +8,8 @@ Volume indicators analyze trading volume to confirm price movements
 and identify potential trend reversals or continuations.
 """
 
+from typing import Any
+
 import polars as pl
 
 from project_x_py.indicators.base import VolumeIndicator, ema_alpha
@@ -16,7 +18,7 @@ from project_x_py.indicators.base import VolumeIndicator, ema_alpha
 class OBV(VolumeIndicator):
     """On-Balance Volume indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="OBV",
             description="On-Balance Volume - cumulative indicator relating volume to price change",
@@ -25,16 +27,16 @@ class OBV(VolumeIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        close_column: str = "close",
-        volume_column: str = "volume",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate On-Balance Volume.
 
         Args:
             data: DataFrame with OHLCV data
-            close_column: Close price column
-            volume_column: Volume column
+            **kwargs: Additional parameters:
+                close_column: Close price column (default: "close")
+                volume_column: Volume column (default: "volume")
 
         Returns:
             DataFrame with OBV column added
@@ -44,7 +46,9 @@ class OBV(VolumeIndicator):
             >>> data_with_obv = obv.calculate(ohlcv_data)
             >>> print(data_with_obv.columns)  # Now includes 'obv'
         """
-        required_cols = [close_column, volume_column]
+        close_column: str = kwargs.get("close_column", "close")
+        volume_column: str = kwargs.get("volume_column", "volume")
+        required_cols: list[str] = [close_column, volume_column]
         self.validate_data(data, required_cols)
         self.validate_data_length(data, 2)
 
@@ -79,7 +83,7 @@ class OBV(VolumeIndicator):
 class VWAP(VolumeIndicator):
     """Volume Weighted Average Price indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="VWAP",
             description="Volume Weighted Average Price - average price weighted by volume",
@@ -88,22 +92,19 @@ class VWAP(VolumeIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        volume_column: str = "volume",
-        period: int | None = None,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Volume Weighted Average Price.
 
         Args:
             data: DataFrame with OHLCV data
-            high_column: High price column
-            low_column: Low price column
-            close_column: Close price column
-            volume_column: Volume column
-            period: Optional period for rolling VWAP (None for cumulative)
+            **kwargs: Additional parameters:
+                high_column: High price column (default: "high")
+                low_column: Low price column (default: "low")
+                close_column: Close price column (default: "close")
+                volume_column: Volume column (default: "volume")
+                period: Optional period for rolling VWAP (None for cumulative)
 
         Returns:
             DataFrame with VWAP column added
@@ -113,7 +114,18 @@ class VWAP(VolumeIndicator):
             >>> data_with_vwap = vwap.calculate(ohlcv_data, period=20)
             >>> print(data_with_vwap.columns)  # Now includes 'vwap_20' or 'vwap'
         """
-        required_cols = [high_column, low_column, close_column, volume_column]
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        volume_column: str = kwargs.get("volume_column", "volume")
+        period: int | None = kwargs.get("period")
+
+        required_cols: list[str] = [
+            high_column,
+            low_column,
+            close_column,
+            volume_column,
+        ]
         self.validate_data(data, required_cols)
 
         if period is not None:
@@ -173,7 +185,7 @@ class VWAP(VolumeIndicator):
 class AD(VolumeIndicator):
     """Accumulation/Distribution Line indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="AD",
             description="Accumulation/Distribution Line - volume-based indicator showing money flow",
@@ -182,25 +194,33 @@ class AD(VolumeIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        volume_column: str = "volume",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Accumulation/Distribution Line.
 
         Args:
             data: DataFrame with OHLCV data
-            high_column: High price column
-            low_column: Low price column
-            close_column: Close price column
-            volume_column: Volume column
+            **kwargs: Additional parameters:
+                high_column: High price column (default: "high")
+                low_column: Low price column (default: "low")
+                close_column: Close price column (default: "close")
+                volume_column: Volume column (default: "volume")
 
         Returns:
             DataFrame with A/D Line column added
         """
-        required_cols = [high_column, low_column, close_column, volume_column]
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        volume_column: str = kwargs.get("volume_column", "volume")
+
+        required_cols: list[str] = [
+            high_column,
+            low_column,
+            close_column,
+            volume_column,
+        ]
         self.validate_data(data, required_cols)
 
         # Calculate Money Flow Multiplier
@@ -234,7 +254,7 @@ class AD(VolumeIndicator):
 class ADOSC(VolumeIndicator):
     """Accumulation/Distribution Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ADOSC",
             description="Accumulation/Distribution Oscillator - difference between fast and slow A/D Line EMAs",
@@ -243,29 +263,37 @@ class ADOSC(VolumeIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        volume_column: str = "volume",
-        fast_period: int = 3,
-        slow_period: int = 10,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Accumulation/Distribution Oscillator.
 
         Args:
             data: DataFrame with OHLCV data
-            high_column: High price column
-            low_column: Low price column
-            close_column: Close price column
-            volume_column: Volume column
-            fast_period: Fast EMA period
-            slow_period: Slow EMA period
+            **kwargs: Additional parameters:
+                high_column: High price column (default: "high")
+                low_column: Low price column (default: "low")
+                close_column: Close price column (default: "close")
+                volume_column: Volume column (default: "volume")
+                fast_period: Fast EMA period (default: 3)
+                slow_period: Slow EMA period (default: 10)
 
         Returns:
             DataFrame with A/D Oscillator column added
         """
-        required_cols = [high_column, low_column, close_column, volume_column]
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        volume_column: str = kwargs.get("volume_column", "volume")
+        fast_period: int = kwargs.get("fast_period", 3)
+        slow_period: int = kwargs.get("slow_period", 10)
+
+        required_cols: list[str] = [
+            high_column,
+            low_column,
+            close_column,
+            volume_column,
+        ]
         self.validate_data(data, required_cols)
         self.validate_period(fast_period, min_period=1)
         self.validate_period(slow_period, min_period=1)
@@ -276,7 +304,11 @@ class ADOSC(VolumeIndicator):
         # First calculate A/D Line
         ad_indicator = AD()
         result = ad_indicator.calculate(
-            data, high_column, low_column, close_column, volume_column
+            data=data,
+            high_column=high_column,
+            low_column=low_column,
+            close_column=close_column,
+            volume_column=volume_column,
         )
 
         # Calculate fast and slow EMAs of A/D Line

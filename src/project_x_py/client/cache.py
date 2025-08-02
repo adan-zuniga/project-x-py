@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class CacheMixin:
     """Mixin class providing caching functionality."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize cache attributes."""
         # Cache for instrument data (symbol -> instrument)
         self._instrument_cache: dict[str, Instrument] = {}

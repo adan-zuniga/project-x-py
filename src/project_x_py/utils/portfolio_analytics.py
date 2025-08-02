@@ -39,7 +39,7 @@ def calculate_correlation_matrix(
         raise ValueError("No numeric columns found")
 
     # Simple correlation calculation using polars
-    correlations = {}
+    correlations: dict[str, dict[str, float]] = {}
     for col1 in columns:
         correlations[col1] = {}
         for col2 in columns:
@@ -57,7 +57,7 @@ def calculate_correlation_matrix(
     # Convert to DataFrame
     corr_data = []
     for col1 in columns:
-        row = {"column": col1}
+        row: dict[str, Any] = {"column": col1}
         for col2 in columns:
             row[col2] = correlations[col1][col2]
         corr_data.append(row)
@@ -187,7 +187,7 @@ def calculate_sharpe_ratio(
 
         # Calculate Sharpe ratio
         excess_return = annualized_return - risk_free_rate
-        return excess_return / annualized_volatility
+        return float(excess_return / annualized_volatility)
 
     except Exception:
         return 0.0
@@ -254,7 +254,7 @@ def calculate_max_drawdown(
 
 
 def calculate_portfolio_metrics(
-    trades: list[dict],
+    trades: list[dict[str, Any]],
     initial_balance: float = 100000.0,
 ) -> dict[str, Any]:
     """
@@ -307,7 +307,7 @@ def calculate_portfolio_metrics(
 
         # Max drawdown
         peak = equity_curve[0]
-        max_dd = 0
+        max_dd = 0.0
         max_dd_duration = 0
         current_dd_duration = 0
 

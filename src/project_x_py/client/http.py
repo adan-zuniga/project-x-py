@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class HttpMixin:
     """Mixin class providing HTTP client functionality."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize HTTP client attributes."""
         self._client: httpx.AsyncClient | None = None
         self.api_call_count = 0

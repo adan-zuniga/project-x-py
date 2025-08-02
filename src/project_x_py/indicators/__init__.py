@@ -19,6 +19,8 @@ Example usage:
     >>> data_with_sma = calculate_sma(ohlcv_data, period=20)
 """
 
+import polars as pl
+
 # Base classes and utilities
 # Pattern Indicators
 from project_x_py.indicators.fvg import FVG as FVGIndicator, calculate_fvg
@@ -151,68 +153,90 @@ __author__ = "TexasCoding"
 
 
 # Overlap Studies
-def SMA(data, column="close", period=20):
+def SMA(data: pl.DataFrame, column: str = "close", period: int = 20) -> pl.DataFrame:
     """Simple Moving Average (TA-Lib style)."""
     return calculate_sma(data, column=column, period=period)
 
 
-def EMA(data, column="close", period=20):
+def EMA(data: pl.DataFrame, column: str = "close", period: int = 20) -> pl.DataFrame:
     """Exponential Moving Average (TA-Lib style)."""
     return calculate_ema(data, column=column, period=period)
 
 
-def BBANDS(data, column="close", period=20, std_dev=2.0):
+def BBANDS(
+    data: pl.DataFrame, column: str = "close", period: int = 20, std_dev: float = 2.0
+) -> pl.DataFrame:
     """Bollinger Bands (TA-Lib style)."""
     return calculate_bollinger_bands(
         data, column=column, period=period, std_dev=std_dev
     )
 
 
-def DEMA(data, column="close", period=20):
+def DEMA(data: pl.DataFrame, column: str = "close", period: int = 20) -> pl.DataFrame:
     """Double Exponential Moving Average (TA-Lib style)."""
     return DEMAIndicator().calculate(data, column=column, period=period)
 
 
-def TEMA(data, column="close", period=20):
+def TEMA(data: pl.DataFrame, column: str = "close", period: int = 20) -> pl.DataFrame:
     """Triple Exponential Moving Average (TA-Lib style)."""
     return TEMAIndicator().calculate(data, column=column, period=period)
 
 
-def WMA(data, column="close", period=20):
+def WMA(data: pl.DataFrame, column: str = "close", period: int = 20) -> pl.DataFrame:
     """Weighted Moving Average (TA-Lib style)."""
     return WMAIndicator().calculate(data, column=column, period=period)
 
 
-def MIDPOINT(data, column="close", period=14):
+def MIDPOINT(
+    data: pl.DataFrame, column: str = "close", period: int = 14
+) -> pl.DataFrame:
     """Midpoint over period (TA-Lib style)."""
     return MIDPOINTIndicator().calculate(data, column=column, period=period)
 
 
-def MIDPRICE(data, high_column="high", low_column="low", period=14):
+def MIDPRICE(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    period: int = 14,
+) -> pl.DataFrame:
     """Midpoint Price over period (TA-Lib style)."""
     return MIDPRICEIndicator().calculate(
         data, high_column=high_column, low_column=low_column, period=period
     )
 
 
-def HT_TRENDLINE(data, column="close"):
+def HT_TRENDLINE(data: pl.DataFrame, column: str = "close") -> pl.DataFrame:
     """Hilbert Transform - Instantaneous Trendline (TA-Lib style)."""
     return HT_TRENDLINEIndicator().calculate(data, column=column)
 
 
-def KAMA(data, column="close", period=30, fast_sc=2.0, slow_sc=30.0):
+def KAMA(
+    data: pl.DataFrame,
+    column: str = "close",
+    period: int = 30,
+    fast_sc: float = 2.0,
+    slow_sc: float = 30.0,
+) -> pl.DataFrame:
     """Kaufman Adaptive Moving Average (TA-Lib style)."""
     return KAMAIndicator().calculate(
         data, column=column, period=period, fast_sc=fast_sc, slow_sc=slow_sc
     )
 
 
-def MA(data, column="close", period=30, ma_type="sma"):
+def MA(
+    data: pl.DataFrame, column: str = "close", period: int = 30, ma_type: str = "sma"
+) -> pl.DataFrame:
     """Moving Average (TA-Lib style)."""
     return MAIndicator().calculate(data, column=column, period=period, ma_type=ma_type)
 
 
-def MAMA(data, column="close", fast_limit=0.5, slow_limit=0.05):
+def MAMA(
+    data: pl.DataFrame,
+    column: str = "close",
+    fast_limit: float = 0.5,
+    slow_limit: float = 0.05,
+) -> pl.DataFrame:
     """MESA Adaptive Moving Average (TA-Lib style)."""
     return MAMAIndicator().calculate(
         data, column=column, fast_limit=fast_limit, slow_limit=slow_limit
@@ -220,13 +244,13 @@ def MAMA(data, column="close", fast_limit=0.5, slow_limit=0.05):
 
 
 def MAVP(
-    data,
-    column="close",
-    periods_column="periods",
-    min_period=2,
-    max_period=30,
-    ma_type="sma",
-):
+    data: pl.DataFrame,
+    column: str = "close",
+    periods_column: str = "periods",
+    min_period: int = 2,
+    max_period: int = 30,
+    ma_type: str = "sma",
+) -> pl.DataFrame:
     """Moving Average with Variable Period (TA-Lib style)."""
     return MAVPIndicator().calculate(
         data,
@@ -238,7 +262,13 @@ def MAVP(
     )
 
 
-def SAR(data, high_column="high", low_column="low", acceleration=0.02, maximum=0.2):
+def SAR(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    acceleration: float = 0.02,
+    maximum: float = 0.2,
+) -> pl.DataFrame:
     """Parabolic SAR (TA-Lib style)."""
     return SARIndicator().calculate(
         data,
@@ -250,18 +280,18 @@ def SAR(data, high_column="high", low_column="low", acceleration=0.02, maximum=0
 
 
 def SAREXT(
-    data,
-    high_column="high",
-    low_column="low",
-    start_value=0.0,
-    offset_on_reverse=0.0,
-    acceleration_init_long=0.02,
-    acceleration_long=0.02,
-    acceleration_max_long=0.2,
-    acceleration_init_short=0.02,
-    acceleration_short=0.02,
-    acceleration_max_short=0.2,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    start_value: float = 0.0,
+    offset_on_reverse: float = 0.0,
+    acceleration_init_long: float = 0.02,
+    acceleration_long: float = 0.02,
+    acceleration_max_long: float = 0.2,
+    acceleration_init_short: float = 0.02,
+    acceleration_short: float = 0.02,
+    acceleration_max_short: float = 0.2,
+) -> pl.DataFrame:
     """Parabolic SAR - Extended (TA-Lib style)."""
     return SAREXTIndicator().calculate(
         data,
@@ -278,25 +308,33 @@ def SAREXT(
     )
 
 
-def T3(data, column="close", period=5, v_factor=0.7):
+def T3(
+    data: pl.DataFrame, column: str = "close", period: int = 5, v_factor: float = 0.7
+) -> pl.DataFrame:
     """Triple Exponential Moving Average (T3) (TA-Lib style)."""
     return T3Indicator().calculate(
         data, column=column, period=period, v_factor=v_factor
     )
 
 
-def TRIMA(data, column="close", period=20):
+def TRIMA(data: pl.DataFrame, column: str = "close", period: int = 20) -> pl.DataFrame:
     """Triangular Moving Average (TA-Lib style)."""
     return TRIMAIndicator().calculate(data, column=column, period=period)
 
 
 # Momentum Indicators
-def RSI(data, column="close", period=14):
+def RSI(data: pl.DataFrame, column: str = "close", period: int = 14) -> pl.DataFrame:
     """Relative Strength Index (TA-Lib style)."""
     return calculate_rsi(data, column=column, period=period)
 
 
-def MACD(data, column="close", fast_period=12, slow_period=26, signal_period=9):
+def MACD(
+    data: pl.DataFrame,
+    column: str = "close",
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> pl.DataFrame:
     """Moving Average Convergence Divergence (TA-Lib style)."""
     return calculate_macd(
         data,
@@ -308,13 +346,13 @@ def MACD(data, column="close", fast_period=12, slow_period=26, signal_period=9):
 
 
 def STOCH(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    k_period=14,
-    d_period=3,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    k_period: int = 14,
+    d_period: int = 3,
+) -> pl.DataFrame:
     """Stochastic Oscillator (TA-Lib style)."""
     return calculate_stochastic(
         data,
@@ -326,7 +364,13 @@ def STOCH(
     )
 
 
-def WILLR(data, high_column="high", low_column="low", close_column="close", period=14):
+def WILLR(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Williams %R (TA-Lib style)."""
     return calculate_williams_r(
         data,
@@ -338,13 +382,13 @@ def WILLR(data, high_column="high", low_column="low", close_column="close", peri
 
 
 def CCI(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    period=20,
-    constant=0.015,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 20,
+    constant: float = 0.015,
+) -> pl.DataFrame:
     """Commodity Channel Index (TA-Lib style)."""
     return calculate_commodity_channel_index(
         data,
@@ -356,19 +400,24 @@ def CCI(
     )
 
 
-def ROC(data, column="close", period=10):
+def ROC(data: pl.DataFrame, column: str = "close", period: int = 10) -> pl.DataFrame:
     """Rate of Change (TA-Lib style)."""
     return ROCIndicator().calculate(data, column=column, period=period)
 
 
-def MOM(data, column="close", period=10):
+def MOM(data: pl.DataFrame, column: str = "close", period: int = 10) -> pl.DataFrame:
     """Momentum (TA-Lib style)."""
     return MOMIndicator().calculate(data, column=column, period=period)
 
 
 def STOCHRSI(
-    data, column="close", rsi_period=14, stoch_period=14, k_period=3, d_period=3
-):
+    data: pl.DataFrame,
+    column: str = "close",
+    rsi_period: int = 14,
+    stoch_period: int = 14,
+    k_period: int = 3,
+    d_period: int = 3,
+) -> pl.DataFrame:
     """Stochastic RSI (TA-Lib style)."""
     return STOCHRSIIndicator().calculate(
         data,
@@ -383,7 +432,13 @@ def STOCHRSI(
 # NEW MOMENTUM INDICATORS (TA-LIB STYLE)
 
 
-def ADX(data, high_column="high", low_column="low", close_column="close", period=14):
+def ADX(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Average Directional Movement Index (TA-Lib style)."""
     return calculate_adx(
         data,
@@ -394,7 +449,13 @@ def ADX(data, high_column="high", low_column="low", close_column="close", period
     )
 
 
-def ADXR(data, high_column="high", low_column="low", close_column="close", period=14):
+def ADXR(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Average Directional Movement Index Rating (TA-Lib style)."""
     return ADXRIndicator().calculate(
         data,
@@ -405,7 +466,13 @@ def ADXR(data, high_column="high", low_column="low", close_column="close", perio
     )
 
 
-def APO(data, column="close", fast_period=12, slow_period=26, ma_type="ema"):
+def APO(
+    data: pl.DataFrame,
+    column: str = "close",
+    fast_period: int = 12,
+    slow_period: int = 26,
+    ma_type: str = "ema",
+) -> pl.DataFrame:
     """Absolute Price Oscillator (TA-Lib style)."""
     return APOIndicator().calculate(
         data,
@@ -416,7 +483,12 @@ def APO(data, column="close", fast_period=12, slow_period=26, ma_type="ema"):
     )
 
 
-def AROON(data, high_column="high", low_column="low", period=14):
+def AROON(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    period: int = 14,
+) -> pl.DataFrame:
     """Aroon (TA-Lib style)."""
     return calculate_aroon(
         data,
@@ -426,7 +498,12 @@ def AROON(data, high_column="high", low_column="low", period=14):
     )
 
 
-def AROONOSC(data, high_column="high", low_column="low", period=14):
+def AROONOSC(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    period: int = 14,
+) -> pl.DataFrame:
     """Aroon Oscillator (TA-Lib style)."""
     return AROONOSCIndicator().calculate(
         data,
@@ -437,8 +514,12 @@ def AROONOSC(data, high_column="high", low_column="low", period=14):
 
 
 def BOP(
-    data, high_column="high", low_column="low", open_column="open", close_column="close"
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    open_column: str = "open",
+    close_column: str = "close",
+) -> pl.DataFrame:
     """Balance of Power (TA-Lib style)."""
     return BOPIndicator().calculate(
         data,
@@ -449,12 +530,18 @@ def BOP(
     )
 
 
-def CMO(data, column="close", period=14):
+def CMO(data: pl.DataFrame, column: str = "close", period: int = 14) -> pl.DataFrame:
     """Chande Momentum Oscillator (TA-Lib style)."""
     return CMOIndicator().calculate(data, column=column, period=period)
 
 
-def DX(data, high_column="high", low_column="low", close_column="close", period=14):
+def DX(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Directional Movement Index (TA-Lib style)."""
     return DXIndicator().calculate(
         data,
@@ -466,15 +553,15 @@ def DX(data, high_column="high", low_column="low", close_column="close", period=
 
 
 def MACDEXT(
-    data,
-    column="close",
-    fast_period=12,
-    slow_period=26,
-    signal_period=9,
-    fast_ma_type="ema",
-    slow_ma_type="ema",
-    signal_ma_type="ema",
-):
+    data: pl.DataFrame,
+    column: str = "close",
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+    fast_ma_type: str = "ema",
+    slow_ma_type: str = "ema",
+    signal_ma_type: str = "ema",
+) -> pl.DataFrame:
     """MACD with controllable MA type (TA-Lib style)."""
     return MACDEXTIndicator().calculate(
         data,
@@ -488,7 +575,9 @@ def MACDEXT(
     )
 
 
-def MACDFIX(data, column="close", signal_period=9):
+def MACDFIX(
+    data: pl.DataFrame, column: str = "close", signal_period: int = 9
+) -> pl.DataFrame:
     """MACD Fix 12/26 (TA-Lib style)."""
     return MACDFIXIndicator().calculate(
         data, column=column, signal_period=signal_period
@@ -496,13 +585,13 @@ def MACDFIX(data, column="close", signal_period=9):
 
 
 def MFI(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    volume_column="volume",
-    period=14,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    volume_column: str = "volume",
+    period: int = 14,
+) -> pl.DataFrame:
     """Money Flow Index (TA-Lib style)."""
     return calculate_money_flow_index(
         data,
@@ -515,8 +604,12 @@ def MFI(
 
 
 def MINUS_DI(
-    data, high_column="high", low_column="low", close_column="close", period=14
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Minus Directional Indicator (TA-Lib style)."""
     return MINUS_DIIndicator().calculate(
         data,
@@ -527,7 +620,12 @@ def MINUS_DI(
     )
 
 
-def MINUS_DM(data, high_column="high", low_column="low", period=14):
+def MINUS_DM(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    period: int = 14,
+) -> pl.DataFrame:
     """Minus Directional Movement (TA-Lib style)."""
     return MINUS_DMIndicator().calculate(
         data,
@@ -538,8 +636,12 @@ def MINUS_DM(data, high_column="high", low_column="low", period=14):
 
 
 def PLUS_DI(
-    data, high_column="high", low_column="low", close_column="close", period=14
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Plus Directional Indicator (TA-Lib style)."""
     return PLUS_DIIndicator().calculate(
         data,
@@ -550,7 +652,12 @@ def PLUS_DI(
     )
 
 
-def PLUS_DM(data, high_column="high", low_column="low", period=14):
+def PLUS_DM(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    period: int = 14,
+) -> pl.DataFrame:
     """Plus Directional Movement (TA-Lib style)."""
     return PLUS_DMIndicator().calculate(
         data,
@@ -561,8 +668,13 @@ def PLUS_DM(data, high_column="high", low_column="low", period=14):
 
 
 def PPO(
-    data, column="close", fast_period=12, slow_period=26, signal_period=9, ma_type="ema"
-):
+    data: pl.DataFrame,
+    column: str = "close",
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+    ma_type: str = "ema",
+) -> pl.DataFrame:
     """Percentage Price Oscillator (TA-Lib style)."""
     return calculate_ppo(
         data,
@@ -573,29 +685,31 @@ def PPO(
     )
 
 
-def ROCP(data, column="close", period=10):
+def ROCP(data: pl.DataFrame, column: str = "close", period: int = 10) -> pl.DataFrame:
     """Rate of Change Percentage (TA-Lib style)."""
     return ROCPIndicator().calculate(data, column=column, period=period)
 
 
-def ROCR(data, column="close", period=10):
+def ROCR(data: pl.DataFrame, column: str = "close", period: int = 10) -> pl.DataFrame:
     """Rate of Change Ratio (TA-Lib style)."""
     return ROCRIndicator().calculate(data, column=column, period=period)
 
 
-def ROCR100(data, column="close", period=10):
+def ROCR100(
+    data: pl.DataFrame, column: str = "close", period: int = 10
+) -> pl.DataFrame:
     """Rate of Change Ratio 100 scale (TA-Lib style)."""
     return ROCR100Indicator().calculate(data, column=column, period=period)
 
 
 def STOCHF(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    k_period=14,
-    d_period=3,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    k_period: int = 14,
+    d_period: int = 3,
+) -> pl.DataFrame:
     """Stochastic Fast (TA-Lib style)."""
     return STOCHFIndicator().calculate(
         data,
@@ -607,20 +721,20 @@ def STOCHF(
     )
 
 
-def TRIX(data, column="close", period=14):
+def TRIX(data: pl.DataFrame, column: str = "close", period: int = 14) -> pl.DataFrame:
     """TRIX (TA-Lib style)."""
     return TRIXIndicator().calculate(data, column=column, period=period)
 
 
 def ULTOSC(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    period1=7,
-    period2=14,
-    period3=28,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period1: int = 7,
+    period2: int = 14,
+    period3: int = 28,
+) -> pl.DataFrame:
     """Ultimate Oscillator (TA-Lib style)."""
     return calculate_ultimate_oscillator(
         data,
@@ -634,7 +748,13 @@ def ULTOSC(
 
 
 # Volatility Indicators
-def ATR(data, high_column="high", low_column="low", close_column="close", period=14):
+def ATR(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Average True Range (TA-Lib style)."""
     return calculate_atr(
         data,
@@ -645,7 +765,13 @@ def ATR(data, high_column="high", low_column="low", close_column="close", period
     )
 
 
-def NATR(data, high_column="high", low_column="low", close_column="close", period=14):
+def NATR(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    period: int = 14,
+) -> pl.DataFrame:
     """Normalized Average True Range (TA-Lib style)."""
     return NATRIndicator().calculate(
         data,
@@ -656,32 +782,41 @@ def NATR(data, high_column="high", low_column="low", close_column="close", perio
     )
 
 
-def TRANGE(data, high_column="high", low_column="low", close_column="close"):
+def TRANGE(
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+) -> pl.DataFrame:
     """True Range (TA-Lib style)."""
     return TRANGEIndicator().calculate(
         data, high_column=high_column, low_column=low_column, close_column=close_column
     )
 
 
-def STDDEV(data, column="close", period=5, ddof=1):
+def STDDEV(
+    data: pl.DataFrame, column: str = "close", period: int = 5, ddof: int = 1
+) -> pl.DataFrame:
     """Standard Deviation (TA-Lib style)."""
     return calculate_stddev(data, column=column, period=period, ddof=ddof)
 
 
 # Volume Indicators
-def OBV(data, close_column="close", volume_column="volume"):
+def OBV(
+    data: pl.DataFrame, close_column: str = "close", volume_column: str = "volume"
+) -> pl.DataFrame:
     """On-Balance Volume (TA-Lib style)."""
     return calculate_obv(data, close_column=close_column, volume_column=volume_column)
 
 
 def VWAP(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    volume_column="volume",
-    period=None,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    volume_column: str = "volume",
+    period: int | None = None,
+) -> pl.DataFrame:
     """Volume Weighted Average Price (TA-Lib style)."""
     return calculate_vwap(
         data,
@@ -694,12 +829,12 @@ def VWAP(
 
 
 def AD(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    volume_column="volume",
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    volume_column: str = "volume",
+) -> pl.DataFrame:
     """Accumulation/Distribution Line (TA-Lib style)."""
     return ADIndicator().calculate(
         data,
@@ -711,14 +846,14 @@ def AD(
 
 
 def ADOSC(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    volume_column="volume",
-    fast_period=3,
-    slow_period=10,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    volume_column: str = "volume",
+    fast_period: int = 3,
+    slow_period: int = 10,
+) -> pl.DataFrame:
     """Accumulation/Distribution Oscillator (TA-Lib style)."""
     return ADOSCIndicator().calculate(
         data,
@@ -733,14 +868,14 @@ def ADOSC(
 
 # Pattern Indicators
 def FVG(
-    data,
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    min_gap_size=0.0,
-    check_mitigation=False,
-    mitigation_threshold=0.5,
-):
+    data: pl.DataFrame,
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    min_gap_size: float = 0.0,
+    check_mitigation: bool = False,
+    mitigation_threshold: float = 0.5,
+) -> pl.DataFrame:
     """Fair Value Gap (TA-Lib style)."""
     return calculate_fvg(
         data,
@@ -754,18 +889,18 @@ def FVG(
 
 
 def ORDERBLOCK(
-    data,
-    open_column="open",
-    high_column="high",
-    low_column="low",
-    close_column="close",
-    volume_column="volume",
-    min_volume_percentile=50,
-    check_mitigation=False,
-    mitigation_threshold=0.5,
-    lookback_periods=3,
-    use_wicks=True,
-):
+    data: pl.DataFrame,
+    open_column: str = "open",
+    high_column: str = "high",
+    low_column: str = "low",
+    close_column: str = "close",
+    volume_column: str = "volume",
+    min_volume_percentile: float = 50,
+    check_mitigation: bool = False,
+    mitigation_threshold: float = 0.5,
+    lookback_periods: int = 3,
+    use_wicks: bool = True,
+) -> pl.DataFrame:
     """Order Block (TA-Lib style)."""
     return calculate_order_block(
         data,
@@ -783,18 +918,18 @@ def ORDERBLOCK(
 
 
 def WAE(
-    data,
-    close_column="close",
-    high_column="high",
-    low_column="low",
-    fast_period=20,
-    slow_period=40,
-    bb_period=20,
-    bb_mult=2.0,
-    sensitivity=150,
-    dead_zone_period=100,
-    dead_zone_mult=3.6,
-):
+    data: pl.DataFrame,
+    close_column: str = "close",
+    high_column: str = "high",
+    low_column: str = "low",
+    fast_period: int = 20,
+    slow_period: int = 40,
+    bb_period: int = 20,
+    bb_mult: float = 2.0,
+    sensitivity: int = 150,
+    dead_zone_period: int = 100,
+    dead_zone_mult: float = 3.6,
+) -> pl.DataFrame:
     """Waddah Attar Explosion (TA-Lib style)."""
     return calculate_wae(
         data,
@@ -812,7 +947,7 @@ def WAE(
 
 
 # Helper functions for indicator discovery
-def get_indicator_groups():
+def get_indicator_groups() -> dict[str, list[str]]:
     """Get available indicator groups."""
     return {
         "overlap": [
@@ -872,7 +1007,7 @@ def get_indicator_groups():
     }
 
 
-def get_all_indicators():
+def get_all_indicators() -> list[str]:
     """Get list of all available indicators."""
     groups = get_indicator_groups()
     all_indicators = []
@@ -881,7 +1016,7 @@ def get_all_indicators():
     return sorted(all_indicators)
 
 
-def get_indicator_info(indicator_name):
+def get_indicator_info(indicator_name: str) -> str:
     """Get information about a specific indicator."""
     indicator_map = {
         # Overlap Studies

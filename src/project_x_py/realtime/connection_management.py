@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 class ConnectionManagementMixin:
     """Mixin for connection management functionality."""
 
+    def __init__(self) -> None:
+        """Initialize connection management attributes."""
+        self._loop: asyncio.AbstractEventLoop | None = None
+
     async def setup_connections(self: "ProjectXRealtimeClientProtocol") -> None:
         """
         Set up SignalR hub connections with ProjectX Gateway configuration.

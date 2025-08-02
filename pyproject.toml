@@ -164,6 +164,7 @@ ignore = [
     "N815",  # Variable in class scope should not be mixedCase (API compatibility)
     "N818",  # Exception name should be named with an Error suffix
     "UP007", # Use X | Y for type annotations (optional)
+    "N811", # Variable in class scope should not be mixedCase (API compatibility)
 ]
 
 fixable = ["ALL"]
@@ -283,6 +284,7 @@ dev = [
     "pytest-mock>=3.14.1",
     "pre-commit>=4.2.0",
     "types-requests>=2.32.4.20250611",
+    "types-pytz>=2025.2.0.20250516",
 ]
 test = [
     "pytest>=8.4.1",

@@ -8,6 +8,8 @@ This module defines custom exception classes for the ProjectX API client.
 
 """
 
+from typing import Any
+
 
 class ProjectXError(Exception):
     """Base exception for ProjectX API errors."""
@@ -16,7 +18,7 @@ class ProjectXError(Exception):
         self,
         message: str,
         error_code: int | None = None,
-        response_data: dict | None = None,
+        response_data: dict[str, Any] | None = None,
     ):
         """
         Initialize ProjectX error.

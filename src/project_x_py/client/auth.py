@@ -21,11 +21,12 @@ logger = logging.getLogger(__name__)
 class AuthenticationMixin:
     """Mixin class providing authentication functionality."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize authentication attributes."""
         self.session_token = ""
         self.token_expiry: datetime.datetime | None = None
         self._authenticated = False
+        self.account_info: Account | None = None
 
     async def _refresh_authentication(self: "ProjectXClientProtocol") -> None:
         """Refresh authentication if token is expired or about to expire."""
@@ -82,9 +83,9 @@ class AuthenticationMixin:
             token_parts = self.session_token.split(".")
             if len(token_parts) >= 2:
                 # Add padding if necessary
-                payload = token_parts[1]
-                payload += "=" * (4 - len(payload) % 4)
-                decoded = base64.urlsafe_b64decode(payload)
+                token_payload = token_parts[1]
+                token_payload += "=" * (4 - len(token_payload) % 4)
+                decoded = base64.urlsafe_b64decode(token_payload)
                 token_data = json.loads(decoded)
                 self.token_expiry = datetime.datetime.fromtimestamp(
                     token_data["exp"], tz=pytz.UTC

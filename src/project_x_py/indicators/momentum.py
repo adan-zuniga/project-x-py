@@ -8,6 +8,8 @@ Momentum indicators measure the rate of change in price movements,
 helping identify overbought/oversold conditions and trend strength.
 """
 
+from typing import Any
+
 import polars as pl
 
 from project_x_py.indicators.base import (
@@ -20,7 +22,7 @@ from project_x_py.indicators.base import (
 class RSI(MomentumIndicator):
     """Relative Strength Index indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="RSI",
             description="Relative Strength Index - momentum oscillator measuring speed and change of price movements",
@@ -29,8 +31,7 @@ class RSI(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Relative Strength Index.
@@ -48,6 +49,10 @@ class RSI(MomentumIndicator):
             >>> data_with_rsi = rsi.calculate(ohlcv_data, period=14)
             >>> print(data_with_rsi.columns)  # Now includes 'rsi_14'
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 14)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -112,7 +117,7 @@ class RSI(MomentumIndicator):
 class MACD(MomentumIndicator):
     """Moving Average Convergence Divergence indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MACD",
             description="Moving Average Convergence Divergence - trend-following momentum indicator",
@@ -121,10 +126,7 @@ class MACD(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        fast_period: int = 12,
-        slow_period: int = 26,
-        signal_period: int = 9,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Moving Average Convergence Divergence (MACD).
@@ -144,6 +146,12 @@ class MACD(MomentumIndicator):
             >>> data_with_macd = macd.calculate(ohlcv_data)
             >>> # Now includes macd, macd_signal, macd_histogram
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        fast_period: int = kwargs.get("fast_period", 12)
+        slow_period: int = kwargs.get("slow_period", 26)
+        signal_period: int = kwargs.get("signal_period", 9)
+
         self.validate_data(data, [column])
         self.validate_period(fast_period, min_period=1)
         self.validate_period(slow_period, min_period=1)
@@ -182,7 +190,7 @@ class MACD(MomentumIndicator):
 class STOCH(MomentumIndicator):
     """Stochastic Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="STOCH",
             description="Stochastic Oscillator - momentum indicator comparing closing price to price range",
@@ -191,11 +199,7 @@ class STOCH(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        k_period: int = 14,
-        d_period: int = 3,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Stochastic Oscillator.
@@ -216,6 +220,13 @@ class STOCH(MomentumIndicator):
             >>> data_with_stoch = stoch.calculate(ohlcv_data)
             >>> # Now includes stoch_k, stoch_d
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        k_period: int = kwargs.get("k_period", 14)
+        d_period: int = kwargs.get("d_period", 3)
+
         required_cols = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_period(k_period, min_period=1)
@@ -256,7 +267,7 @@ class STOCH(MomentumIndicator):
 class WILLR(MomentumIndicator):
     """Williams %R indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="WILLR",
             description="Williams %R - momentum indicator showing overbought/oversold levels",
@@ -265,10 +276,7 @@ class WILLR(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Williams %R.
@@ -288,6 +296,12 @@ class WILLR(MomentumIndicator):
             >>> data_with_wr = willr.calculate(ohlcv_data)
             >>> # Now includes williams_r_14
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 14)
+
         required_cols = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -320,7 +334,7 @@ class WILLR(MomentumIndicator):
 class CCI(MomentumIndicator):
     """Commodity Channel Index indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="CCI",
             description="Commodity Channel Index - momentum oscillator identifying cyclical trends",
@@ -329,11 +343,7 @@ class CCI(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 20,
-        constant: float = 0.015,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Commodity Channel Index (CCI).
@@ -354,6 +364,13 @@ class CCI(MomentumIndicator):
             >>> data_with_cci = cci.calculate(ohlcv_data)
             >>> # Now includes cci_20
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 20)
+        constant: float = kwargs.get("constant", 0.015)
+
         required_cols = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -397,7 +414,7 @@ class CCI(MomentumIndicator):
 class ROC(MomentumIndicator):
     """Rate of Change indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ROC",
             description="Rate of Change - momentum indicator measuring percentage change in price",
@@ -406,8 +423,7 @@ class ROC(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 10,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Rate of Change.
@@ -420,6 +436,10 @@ class ROC(MomentumIndicator):
         Returns:
             DataFrame with ROC column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 10)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -438,7 +458,7 @@ class ROC(MomentumIndicator):
 class MOM(MomentumIndicator):
     """Momentum indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MOM",
             description="Momentum - measures the amount of change in price over a specified time period",
@@ -447,8 +467,7 @@ class MOM(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 10,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Momentum.
@@ -461,6 +480,10 @@ class MOM(MomentumIndicator):
         Returns:
             DataFrame with momentum column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 10)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -473,7 +496,7 @@ class MOM(MomentumIndicator):
 class STOCHRSI(MomentumIndicator):
     """Stochastic RSI indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="STOCHRSI",
             description="Stochastic RSI - applies Stochastic oscillator formula to RSI values",
@@ -482,11 +505,7 @@ class STOCHRSI(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        rsi_period: int = 14,
-        stoch_period: int = 14,
-        k_period: int = 3,
-        d_period: int = 3,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Stochastic RSI.
@@ -502,6 +521,13 @@ class STOCHRSI(MomentumIndicator):
         Returns:
             DataFrame with StochRSI columns added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        rsi_period: int = kwargs.get("rsi_period", 14)
+        stoch_period: int = kwargs.get("stoch_period", 14)
+        k_period: int = kwargs.get("k_period", 3)
+        d_period: int = kwargs.get("d_period", 3)
+
         self.validate_data(data, [column])
         self.validate_period(rsi_period, min_period=1)
         self.validate_period(stoch_period, min_period=1)
@@ -552,7 +578,7 @@ class STOCHRSI(MomentumIndicator):
 class ADX(MomentumIndicator):
     """Average Directional Movement Index indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ADX",
             description="Average Directional Movement Index - measures trend strength regardless of direction",
@@ -561,10 +587,7 @@ class ADX(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate ADX, +DI, and -DI.
@@ -579,6 +602,12 @@ class ADX(MomentumIndicator):
         Returns:
             DataFrame with ADX, +DI, -DI columns added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 14)
+
         required_cols = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -681,7 +710,7 @@ class ADX(MomentumIndicator):
 class ADXR(MomentumIndicator):
     """Average Directional Movement Index Rating indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ADXR",
             description="Average Directional Movement Index Rating - smoothed version of ADX",
@@ -690,10 +719,7 @@ class ADXR(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate ADXR.
@@ -708,10 +734,20 @@ class ADXR(MomentumIndicator):
         Returns:
             DataFrame with ADXR column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 14)
+
         # First calculate ADX
         adx_indicator = ADX()
         data_with_adx = adx_indicator.calculate(
-            data, high_column, low_column, close_column, period
+            data,
+            high_column=high_column,
+            low_column=low_column,
+            close_column=close_column,
+            period=period,
         )
 
         adx_col = f"adx_{period}"
@@ -727,7 +763,7 @@ class ADXR(MomentumIndicator):
 class APO(MomentumIndicator):
     """Absolute Price Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="APO",
             description="Absolute Price Oscillator - difference between fast and slow EMA",
@@ -736,10 +772,7 @@ class APO(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        fast_period: int = 12,
-        slow_period: int = 26,
-        ma_type: str = "ema",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate APO.
@@ -754,6 +787,12 @@ class APO(MomentumIndicator):
         Returns:
             DataFrame with APO column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        fast_period: int = kwargs.get("fast_period", 12)
+        slow_period: int = kwargs.get("slow_period", 26)
+        ma_type: str = kwargs.get("ma_type", "ema")
+
         self.validate_data(data, [column])
         self.validate_period(fast_period, min_period=1)
         self.validate_period(slow_period, min_period=1)
@@ -795,7 +834,7 @@ class APO(MomentumIndicator):
 class AROON(MomentumIndicator):
     """Aroon indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="AROON",
             description="Aroon - identifies when trends are likely to change direction",
@@ -804,9 +843,7 @@ class AROON(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Aroon Up and Aroon Down.
@@ -820,6 +857,11 @@ class AROON(MomentumIndicator):
         Returns:
             DataFrame with Aroon Up and Aroon Down columns added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        period: int = kwargs.get("period", 14)
+
         required_cols = [high_column, low_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -840,7 +882,12 @@ class AROON(MomentumIndicator):
         # Aroon Down = ((period - periods since lowest low) / period) * 100
 
         # Create a helper function to find periods since extreme values
-        def periods_since_extreme(data_with_rolling, col_name, extreme_col, period_val):
+        def periods_since_extreme(
+            data_with_rolling: pl.DataFrame,
+            col_name: str,
+            extreme_col: str,
+            period_val: int,
+        ) -> pl.Series:
             # For each row, find how many periods ago the extreme occurred
             result_data = data_with_rolling.with_row_index("idx")
 
@@ -854,22 +901,26 @@ class AROON(MomentumIndicator):
                         extreme_idx = window_data[col_name].arg_max()
                     else:  # lowest_low
                         extreme_idx = window_data[col_name].arg_min()
-                    periods_since = len(window_data) - 1 - extreme_idx
-                    indices.append(periods_since)
+
+                    if extreme_idx is not None:
+                        periods_since = len(window_data) - 1 - extreme_idx
+                        indices.append(periods_since)
+                    else:
+                        indices.append(period_val - 1)
                 else:
                     indices.append(period_val - 1)
 
             return pl.Series(indices)
 
         # Calculate Aroon Up and Down using rolling_map
-        def aroon_up_calc(s):
+        def aroon_up_calc(s: pl.Series) -> float | None:
             if len(s) >= period:
                 max_idx = s.arg_max()
                 if max_idx is not None:
                     return 100.0 * (period - (len(s) - 1 - max_idx)) / period
             return None
 
-        def aroon_down_calc(s):
+        def aroon_down_calc(s: pl.Series) -> float | None:
             if len(s) >= period:
                 min_idx = s.arg_min()
                 if min_idx is not None:
@@ -895,7 +946,7 @@ class AROON(MomentumIndicator):
 class AROONOSC(MomentumIndicator):
     """Aroon Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="AROONOSC",
             description="Aroon Oscillator - difference between Aroon Up and Aroon Down",
@@ -904,9 +955,7 @@ class AROONOSC(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Aroon Oscillator.
@@ -920,10 +969,18 @@ class AROONOSC(MomentumIndicator):
         Returns:
             DataFrame with Aroon Oscillator column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        period: int = kwargs.get("period", 14)
+
         # Calculate Aroon first
         aroon_indicator = AROON()
         data_with_aroon = aroon_indicator.calculate(
-            data, high_column, low_column, period
+            data,
+            high_column=high_column,
+            low_column=low_column,
+            period=period,
         )
 
         # Calculate oscillator as difference
@@ -937,7 +994,7 @@ class AROONOSC(MomentumIndicator):
 class BOP(MomentumIndicator):
     """Balance of Power indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="BOP",
             description="Balance of Power - measures buying vs selling pressure",
@@ -946,10 +1003,7 @@ class BOP(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        open_column: str = "open",
-        close_column: str = "close",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Balance of Power.
@@ -964,6 +1018,12 @@ class BOP(MomentumIndicator):
         Returns:
             DataFrame with BOP column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        open_column: str = kwargs.get("open_column", "open")
+        close_column: str = kwargs.get("close_column", "close")
+
         required_cols = [high_column, low_column, open_column, close_column]
         self.validate_data(data, required_cols)
 
@@ -978,7 +1038,7 @@ class BOP(MomentumIndicator):
 class CMO(MomentumIndicator):
     """Chande Momentum Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="CMO",
             description="Chande Momentum Oscillator - momentum indicator without smoothing",
@@ -987,8 +1047,7 @@ class CMO(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Chande Momentum Oscillator.
@@ -1001,6 +1060,10 @@ class CMO(MomentumIndicator):
         Returns:
             DataFrame with CMO column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 14)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -1042,7 +1105,7 @@ class CMO(MomentumIndicator):
 class DX(MomentumIndicator):
     """Directional Movement Index indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="DX",
             description="Directional Movement Index - measures directional movement",
@@ -1051,10 +1114,7 @@ class DX(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate DX.
@@ -1069,10 +1129,20 @@ class DX(MomentumIndicator):
         Returns:
             DataFrame with DX column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 14)
+
         # Calculate ADX first (which includes DX calculation)
         adx_indicator = ADX()
         data_with_adx = adx_indicator.calculate(
-            data, high_column, low_column, close_column, period
+            data,
+            high_column=high_column,
+            low_column=low_column,
+            close_column=close_column,
+            period=period,
         )
 
         # DX was calculated as intermediate step in ADX, need to recalculate
@@ -1092,7 +1162,7 @@ class DX(MomentumIndicator):
 class MACDEXT(MomentumIndicator):
     """MACD with controllable MA type indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MACDEXT",
             description="MACD with controllable MA type - extended MACD with different MA types",
@@ -1101,13 +1171,7 @@ class MACDEXT(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        fast_period: int = 12,
-        slow_period: int = 26,
-        signal_period: int = 9,
-        fast_ma_type: str = "ema",
-        slow_ma_type: str = "ema",
-        signal_ma_type: str = "ema",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate MACD with controllable MA types.
@@ -1125,6 +1189,15 @@ class MACDEXT(MomentumIndicator):
         Returns:
             DataFrame with MACD columns added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        fast_period: int = kwargs.get("fast_period", 12)
+        slow_period: int = kwargs.get("slow_period", 26)
+        signal_period: int = kwargs.get("signal_period", 9)
+        fast_ma_type: str = kwargs.get("fast_ma_type", "ema")
+        slow_ma_type: str = kwargs.get("slow_ma_type", "ema")
+        signal_ma_type: str = kwargs.get("signal_ma_type", "ema")
+
         self.validate_data(data, [column])
         self.validate_period(fast_period, min_period=1)
         self.validate_period(slow_period, min_period=1)
@@ -1184,7 +1257,7 @@ class MACDEXT(MomentumIndicator):
 class MACDFIX(MomentumIndicator):
     """MACD Fix 12/26 indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MACDFIX",
             description="MACD Fix 12/26 - MACD with fixed 12/26 periods",
@@ -1193,8 +1266,7 @@ class MACDFIX(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        signal_period: int = 9,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate MACD with fixed 12/26 periods.
@@ -1207,8 +1279,12 @@ class MACDFIX(MomentumIndicator):
         Returns:
             DataFrame with MACD Fix columns added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        signal_period: int = kwargs.get("signal_period", 9)
+
         # Use standard MACD with fixed 12/26 periods
-        macd_indicator = MACD()
+        macd_indicator: MACD = MACD()
         return macd_indicator.calculate(
             data,
             column=column,
@@ -1227,7 +1303,7 @@ class MACDFIX(MomentumIndicator):
 class MFI(MomentumIndicator):
     """Money Flow Index indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MFI",
             description="Money Flow Index - volume-weighted RSI",
@@ -1236,11 +1312,7 @@ class MFI(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        volume_column: str = "volume",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Money Flow Index.
@@ -1256,6 +1328,13 @@ class MFI(MomentumIndicator):
         Returns:
             DataFrame with MFI column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        volume_column: str = kwargs.get("volume_column", "volume")
+        period: int = kwargs.get("period", 14)
+
         required_cols = [high_column, low_column, close_column, volume_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -1337,7 +1416,7 @@ class MFI(MomentumIndicator):
 class PLUS_DI(MomentumIndicator):
     """Plus Directional Indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="PLUS_DI",
             description="Plus Directional Indicator - measures positive directional movement",
@@ -1346,10 +1425,7 @@ class PLUS_DI(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate +DI.
@@ -1364,17 +1440,27 @@ class PLUS_DI(MomentumIndicator):
         Returns:
             DataFrame with +DI column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 14)
+
         # Calculate ADX first (which includes +DI)
-        adx_indicator = ADX()
+        adx_indicator: ADX = ADX()
         return adx_indicator.calculate(
-            data, high_column, low_column, close_column, period
+            data,
+            high_column=high_column,
+            low_column=low_column,
+            close_column=close_column,
+            period=period,
         )
 
 
 class MINUS_DI(MomentumIndicator):
     """Minus Directional Indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MINUS_DI",
             description="Minus Directional Indicator - measures negative directional movement",
@@ -1383,10 +1469,7 @@ class MINUS_DI(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate -DI.
@@ -1401,17 +1484,27 @@ class MINUS_DI(MomentumIndicator):
         Returns:
             DataFrame with -DI column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period: int = kwargs.get("period", 14)
+
         # Calculate ADX first (which includes -DI)
         adx_indicator = ADX()
         return adx_indicator.calculate(
-            data, high_column, low_column, close_column, period
+            data,
+            high_column=high_column,
+            low_column=low_column,
+            close_column=close_column,
+            period=period,
         )
 
 
 class PLUS_DM(MomentumIndicator):
     """Plus Directional Movement."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="PLUS_DM",
             description="Plus Directional Movement - raw positive directional movement",
@@ -1420,9 +1513,7 @@ class PLUS_DM(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate +DM.
@@ -1436,6 +1527,11 @@ class PLUS_DM(MomentumIndicator):
         Returns:
             DataFrame with +DM column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        period: int = kwargs.get("period", 14)
+
         required_cols = [high_column, low_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -1476,7 +1572,7 @@ class PLUS_DM(MomentumIndicator):
 class MINUS_DM(MomentumIndicator):
     """Minus Directional Movement."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="MINUS_DM",
             description="Minus Directional Movement - raw negative directional movement",
@@ -1485,9 +1581,7 @@ class MINUS_DM(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate -DM.
@@ -1501,6 +1595,11 @@ class MINUS_DM(MomentumIndicator):
         Returns:
             DataFrame with -DM column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        period: int = kwargs.get("period", 14)
+
         required_cols = [high_column, low_column]
         self.validate_data(data, required_cols)
         self.validate_period(period, min_period=1)
@@ -1541,7 +1640,7 @@ class MINUS_DM(MomentumIndicator):
 class PPO(MomentumIndicator):
     """Percentage Price Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="PPO",
             description="Percentage Price Oscillator - percentage difference between fast and slow MA",
@@ -1550,11 +1649,7 @@ class PPO(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        fast_period: int = 12,
-        slow_period: int = 26,
-        signal_period: int = 9,
-        ma_type: str = "ema",
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate PPO.
@@ -1570,6 +1665,13 @@ class PPO(MomentumIndicator):
         Returns:
             DataFrame with PPO columns added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        fast_period: int = kwargs.get("fast_period", 12)
+        slow_period: int = kwargs.get("slow_period", 26)
+        signal_period: int = kwargs.get("signal_period", 9)
+        ma_type: str = kwargs.get("ma_type", "ema")
+
         self.validate_data(data, [column])
         self.validate_period(fast_period, min_period=1)
         self.validate_period(slow_period, min_period=1)
@@ -1634,7 +1736,7 @@ class PPO(MomentumIndicator):
 class ROCP(MomentumIndicator):
     """Rate of Change Percentage indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ROCP",
             description="Rate of Change Percentage - (price-prevPrice)/prevPrice",
@@ -1643,8 +1745,7 @@ class ROCP(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 10,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Rate of Change Percentage.
@@ -1657,6 +1758,10 @@ class ROCP(MomentumIndicator):
         Returns:
             DataFrame with ROCP column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 10)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -1672,7 +1777,7 @@ class ROCP(MomentumIndicator):
 class ROCR(MomentumIndicator):
     """Rate of Change Ratio indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ROCR",
             description="Rate of Change Ratio - price/prevPrice",
@@ -1681,8 +1786,7 @@ class ROCR(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 10,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Rate of Change Ratio.
@@ -1695,6 +1799,10 @@ class ROCR(MomentumIndicator):
         Returns:
             DataFrame with ROCR column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 10)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -1710,7 +1818,7 @@ class ROCR(MomentumIndicator):
 class ROCR100(MomentumIndicator):
     """Rate of Change Ratio 100 scale indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ROCR100",
             description="Rate of Change Ratio 100 scale - (price/prevPrice)*100",
@@ -1719,8 +1827,7 @@ class ROCR100(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 10,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Rate of Change Ratio 100 scale.
@@ -1733,6 +1840,10 @@ class ROCR100(MomentumIndicator):
         Returns:
             DataFrame with ROCR100 column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 10)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period + 1)
@@ -1751,7 +1862,7 @@ class ROCR100(MomentumIndicator):
 class STOCHF(MomentumIndicator):
     """Stochastic Fast indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="STOCHF",
             description="Stochastic Fast - fast stochastic without smoothing",
@@ -1760,11 +1871,7 @@ class STOCHF(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        k_period: int = 14,
-        d_period: int = 3,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Fast Stochastic.
@@ -1780,6 +1887,13 @@ class STOCHF(MomentumIndicator):
         Returns:
             DataFrame with Fast Stochastic columns added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        k_period: int = kwargs.get("k_period", 14)
+        d_period: int = kwargs.get("d_period", 3)
+
         required_cols = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_period(k_period, min_period=1)
@@ -1819,7 +1933,7 @@ class STOCHF(MomentumIndicator):
 class TRIX(MomentumIndicator):
     """TRIX indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="TRIX",
             description="TRIX - 1-day Rate-Of-Change of a Triple Smooth EMA",
@@ -1828,8 +1942,7 @@ class TRIX(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        column: str = "close",
-        period: int = 14,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate TRIX.
@@ -1842,6 +1955,10 @@ class TRIX(MomentumIndicator):
         Returns:
             DataFrame with TRIX column added
         """
+        # Extract parameters from kwargs
+        column: str = kwargs.get("column", "close")
+        period: int = kwargs.get("period", 14)
+
         self.validate_data(data, [column])
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period * 3 + 1)
@@ -1872,7 +1989,7 @@ class TRIX(MomentumIndicator):
 class ULTOSC(MomentumIndicator):
     """Ultimate Oscillator indicator."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="ULTOSC",
             description="Ultimate Oscillator - momentum oscillator using three timeframes",
@@ -1881,12 +1998,7 @@ class ULTOSC(MomentumIndicator):
     def calculate(
         self,
         data: pl.DataFrame,
-        high_column: str = "high",
-        low_column: str = "low",
-        close_column: str = "close",
-        period1: int = 7,
-        period2: int = 14,
-        period3: int = 28,
+        **kwargs: Any,
     ) -> pl.DataFrame:
         """
         Calculate Ultimate Oscillator.
@@ -1903,6 +2015,14 @@ class ULTOSC(MomentumIndicator):
         Returns:
             DataFrame with Ultimate Oscillator column added
         """
+        # Extract parameters from kwargs
+        high_column: str = kwargs.get("high_column", "high")
+        low_column: str = kwargs.get("low_column", "low")
+        close_column: str = kwargs.get("close_column", "close")
+        period1: int = kwargs.get("period1", 7)
+        period2: int = kwargs.get("period2", 14)
+        period3: int = kwargs.get("period3", 28)
+
         required_cols = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
         self.validate_period(period1, min_period=1)
