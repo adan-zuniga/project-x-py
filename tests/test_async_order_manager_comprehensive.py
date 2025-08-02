@@ -14,15 +14,15 @@ from project_x_py import (
     ProjectX,
     create_order_manager,
 )
-from project_x_py.realtime import RealtimeClient
+from project_x_py.realtime import ProjectXRealtimeClient
 
 
-class TestAsyncOrderManagerInitialization:
+class TestOrderManagerAsyncInitialization:
     """Test suite for Async Order Manager initialization."""
 
     @pytest.fixture
     async def mock_async_client(self):
-        """Create a mock AsyncProjectX client."""
+        """Create a mock ProjectX client for async testing."""
         client = AsyncMock(spec=ProjectX)
         client.account_info = Mock(id="1001", name="Demo Account")
         client.session_token = "test_token"
@@ -30,7 +30,7 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_basic_initialization(self, mock_async_client):
-        """Test basic AsyncOrderManager initialization."""
+        """Test basic OrderManager initialization with async client."""
         order_manager = OrderManager(mock_async_client)
 
         assert order_manager.project_x == mock_async_client
@@ -41,7 +41,7 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_initialize_without_realtime(self, mock_async_client):
-        """Test AsyncOrderManager initialization without real-time."""
+        """Test OrderManager initialization without real-time."""
         order_manager = OrderManager(mock_async_client)
 
         # Initialize without real-time
@@ -53,9 +53,9 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_initialize_with_realtime(self, mock_async_client):
-        """Test AsyncOrderManager initialization with real-time integration."""
+        """Test OrderManager initialization with real-time integration."""
         # Mock async real-time client
-        mock_realtime = AsyncMock(spec=RealtimeClient)
+        mock_realtime = AsyncMock(spec=ProjectXRealtimeClient)
         mock_realtime.add_callback = AsyncMock()
 
         order_manager = OrderManager(mock_async_client)
@@ -78,9 +78,9 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_initialize_with_realtime_exception(self, mock_async_client):
-        """Test AsyncOrderManager initialization when real-time setup fails."""
+        """Test OrderManager initialization when real-time setup fails."""
         # Mock real-time client that raises exception
-        mock_realtime = AsyncMock(spec=RealtimeClient)
+        mock_realtime = AsyncMock(spec=ProjectXRealtimeClient)
         mock_realtime.add_callback.side_effect = Exception("Connection error")
 
         order_manager = OrderManager(mock_async_client)
@@ -94,7 +94,7 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_reinitialize_order_manager(self, mock_async_client):
-        """Test that AsyncOrderManager can be reinitialized."""
+        """Test that OrderManager can be reinitialized."""
         order_manager = OrderManager(mock_async_client)
 
         # First initialization
@@ -108,7 +108,7 @@ class TestAsyncOrderManagerInitialization:
     @pytest.mark.asyncio
     async def test_create_async_order_manager_helper_function(self):
         """Test the create_async_order_manager helper function."""
-        with patch("project_x_py.AsyncOrderManager") as mock_order_manager_class:
+        with patch("project_x_py.OrderManager") as mock_order_manager_class:
             mock_order_manager = AsyncMock()
             mock_order_manager.initialize.return_value = True
             mock_order_manager_class.return_value = mock_order_manager
@@ -125,13 +125,13 @@ class TestAsyncOrderManagerInitialization:
     @pytest.mark.asyncio
     async def test_create_async_order_manager_with_realtime(self):
         """Test create_async_order_manager with real-time client."""
-        with patch("project_x_py.AsyncOrderManager") as mock_order_manager_class:
+        with patch("project_x_py.OrderManager") as mock_order_manager_class:
             mock_order_manager = AsyncMock()
             mock_order_manager.initialize.return_value = True
             mock_order_manager_class.return_value = mock_order_manager
 
             client = AsyncMock(spec=ProjectX)
-            realtime_client = AsyncMock(spec=RealtimeClient)
+            realtime_client = AsyncMock(spec=ProjectXRealtimeClient)
 
             # Test with real-time
             order_manager = create_order_manager(
@@ -143,7 +143,7 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_order_manager_without_account_info(self):
-        """Test AsyncOrderManager behavior when client has no account info."""
+        """Test OrderManager behavior when client has no account info."""
         client = AsyncMock(spec=ProjectX)
         client.account_info = None
 
@@ -155,7 +155,7 @@ class TestAsyncOrderManagerInitialization:
 
     @pytest.mark.asyncio
     async def test_async_order_manager_attributes(self, mock_async_client):
-        """Test AsyncOrderManager has expected attributes after initialization."""
+        """Test OrderManager has expected attributes after initialization."""
         order_manager = OrderManager(mock_async_client)
         await order_manager.initialize()
 
@@ -297,7 +297,7 @@ class TestSyncAsyncOrderManagerCompatibility:
     @pytest.mark.asyncio
     async def test_async_realtime_callback_handling(self, mock_async_client):
         """Test async real-time callback handling."""
-        mock_realtime = AsyncMock(spec=RealtimeClient)
+        mock_realtime = AsyncMock(spec=ProjectXRealtimeClient)
         mock_realtime.add_callback = AsyncMock()
 
         order_manager = OrderManager(mock_async_client)

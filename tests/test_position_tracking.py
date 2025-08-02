@@ -6,7 +6,7 @@ from datetime import datetime
 from unittest.mock import Mock
 
 from project_x_py import ProjectX
-from project_x_py.models import Fill, Position
+from project_x_py.models import Position, Trade
 from project_x_py.position_manager import PositionManager
 
 
@@ -189,30 +189,30 @@ class TestPositionTracking:
         # Assert
         assert "MGC" not in position_manager._positions
 
-    def test_position_from_fills(self):
-        """Test position creation from fills"""
+    def test_position_from_trades(self):
+        """Test position creation from trades"""
         # Arrange
         mock_client = Mock(spec=ProjectX)
         position_manager = PositionManager(mock_client)
         position_manager.initialize()
 
-        # Simulate multiple fills
-        fills = [
-            Fill(
+        # Simulate multiple trades
+        trades = [
+            Trade(
                 instrument="MGC",
                 side=0,  # Buy
                 quantity=2,
                 price=2045.0,
                 timestamp=datetime.now(),
             ),
-            Fill(
+            Trade(
                 instrument="MGC",
                 side=0,  # Buy
                 quantity=3,
                 price=2046.0,
                 timestamp=datetime.now(),
             ),
-            Fill(
+            Trade(
                 instrument="MGC",
                 side=1,  # Sell
                 quantity=1,
@@ -222,8 +222,8 @@ class TestPositionTracking:
         ]
 
         # Act
-        for fill in fills:
-            position_manager.process_fill(fill)
+        for trade in trades:
+            position_manager.process_trade(trade)
 
         # Assert
         position = position_manager._positions.get("MGC")

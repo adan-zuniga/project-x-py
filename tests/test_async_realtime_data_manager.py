@@ -1,4 +1,4 @@
-"""Tests for AsyncRealtimeDataManager."""
+"""Tests for ProjectXRealtimeDataManager."""
 
 import asyncio
 from datetime import datetime
@@ -55,7 +55,7 @@ def mock_realtime_client():
 
 @pytest.fixture
 def data_manager(mock_async_client, mock_realtime_client):
-    """Create an AsyncRealtimeDataManager instance."""
+    """Create a ProjectXRealtimeDataManager instance."""
     return RealtimeDataManager(
         instrument="MGC",
         project_x=mock_async_client,
@@ -66,7 +66,7 @@ def data_manager(mock_async_client, mock_realtime_client):
 
 @pytest.mark.asyncio
 async def test_data_manager_initialization(mock_async_client, mock_realtime_client):
-    """Test AsyncRealtimeDataManager initialization."""
+    """Test ProjectXRealtimeDataManager initialization."""
     manager = RealtimeDataManager(
         instrument="MGC",
         project_x=mock_async_client,

@@ -6,23 +6,20 @@ from datetime import datetime
 
 import polars as pl
 
+from project_x_py.indicators import (
+    ATR,
+    BBANDS,
+    EMA,
+    MACD,
+    RSI,
+    SMA,
+)
 from project_x_py.utils import (
-    align_price_to_tick,
-    calculate_atr,
-    calculate_bollinger_bands,
-    calculate_ema,
-    calculate_macd,
     calculate_position_value,
-    calculate_rsi,
-    calculate_sma,
-    convert_to_chicago_time,
-    create_time_range,
     extract_symbol_from_contract_id,
     format_price,
-    merge_dataframes_on_timestamp,
-    parse_timestamp,
+    round_to_tick_size,
     validate_contract_id,
-    validate_order_side,
 )
 
 
@@ -50,7 +47,9 @@ class TestTechnicalAnalysis:
         )
 
         # Act
-        sma = calculate_sma(data, "close", 5)
+        sma_indicator = SMA(period=5)
+        result = sma_indicator(data)
+        sma = result["sma"]
 
         # Assert
         assert len(sma) == len(data)
@@ -82,7 +81,9 @@ class TestTechnicalAnalysis:
         )
 
         # Act
-        ema = calculate_ema(data, "close", 5)
+        ema_indicator = EMA(period=5)
+        result = ema_indicator(data)
+        ema = result["ema"]
 
         # Assert
         assert len(ema) == len(data)
@@ -116,7 +117,9 @@ class TestTechnicalAnalysis:
         data = pl.DataFrame({"close": prices})
 
         # Act
-        rsi = calculate_rsi(data, "close", 14)
+        rsi_indicator = RSI(period=14)
+        result = rsi_indicator(data)
+        rsi = result["rsi"]
 
         # Assert
         assert len(rsi) == len(data)
@@ -148,7 +151,8 @@ class TestTechnicalAnalysis:
         )
 
         # Act
-        bb = calculate_bollinger_bands(data, "close", 20, 2.0)
+        bb_indicator = BBANDS(period=20, std_dev=2.0)
+        bb = bb_indicator(data)
 
         # Assert
         assert "upper_band" in bb.columns
@@ -168,7 +172,8 @@ class TestTechnicalAnalysis:
         data = pl.DataFrame({"close": trend_data})
 
         # Act
-        macd = calculate_macd(data, "close", 12, 26, 9)
+        macd_indicator = MACD(fast_period=12, slow_period=26, signal_period=9)
+        macd = macd_indicator(data)
 
         # Assert
         assert "macd" in macd.columns
@@ -190,7 +195,9 @@ class TestTechnicalAnalysis:
         )
 
         # Act
-        atr = calculate_atr(data, 5)
+        atr_indicator = ATR(period=5)
+        result = atr_indicator(data)
+        atr = result["atr"]
 
         # Assert
         assert len(atr) == len(data)
@@ -226,50 +233,19 @@ class TestUtilityFunctions:
         assert extract_symbol_from_contract_id("invalid") is None
         assert extract_symbol_from_contract_id("") is None
 
-    def test_align_price_to_tick(self):
-        """Test price alignment to tick size"""
+    def test_round_to_tick_size(self):
+        """Test price rounding to tick size"""
         # Act & Assert
         # Test with tick size 0.1
-        assert align_price_to_tick(2045.23, 0.1) == 2045.2
-        assert align_price_to_tick(2045.27, 0.1) == 2045.3
-        assert align_price_to_tick(2045.25, 0.1) == 2045.3  # Round up on .5
+        assert round_to_tick_size(2045.23, 0.1) == 2045.2
+        assert round_to_tick_size(2045.27, 0.1) == 2045.3
+        assert round_to_tick_size(2045.25, 0.1) == 2045.3  # Round up on .5
 
         # Test with tick size 0.25
-        assert align_price_to_tick(5400.10, 0.25) == 5400.00
-        assert align_price_to_tick(5400.30, 0.25) == 5400.25
-        assert align_price_to_tick(5400.60, 0.25) == 5400.50
-        assert align_price_to_tick(5400.90, 0.25) == 5401.00
-
-    def test_convert_to_chicago_time(self):
-        """Test timezone conversion to Chicago time"""
-        # Arrange
-        utc_time = datetime(2024, 3, 15, 14, 30, 0)  # 2:30 PM UTC
-
-        # Act
-        chicago_time = convert_to_chicago_time(utc_time)
-
-        # Assert
-        # In March, Chicago is UTC-5 (CDT)
-        assert chicago_time.hour == 9  # 9:30 AM Chicago time
-        assert chicago_time.minute == 30
-
-    def test_parse_timestamp(self):
-        """Test timestamp parsing from various formats"""
-        # Act & Assert
-        # ISO format
-        dt1 = parse_timestamp("2024-03-15T14:30:00Z")
-        assert dt1.year == 2024
-        assert dt1.month == 3
-        assert dt1.day == 15
-
-        # Unix timestamp (seconds)
-        dt2 = parse_timestamp(1710511800)
-        assert isinstance(dt2, datetime)
-
-        # Already datetime
-        now = datetime.now()
-        dt3 = parse_timestamp(now)
-        assert dt3 == now
+        assert round_to_tick_size(5400.10, 0.25) == 5400.00
+        assert round_to_tick_size(5400.30, 0.25) == 5400.25
+        assert round_to_tick_size(5400.60, 0.25) == 5400.50
+        assert round_to_tick_size(5400.90, 0.25) == 5401.00
 
     def test_calculate_position_value(self):
         """Test position value calculation"""
@@ -295,58 +271,3 @@ class TestUtilityFunctions:
         )
         # -3 contracts * (5395-5400) / 0.25 * 5 = -3 * -20 * 5 = 300
         assert value == 300.0
-
-    def test_create_time_range(self):
-        """Test time range creation"""
-        # Arrange
-        end_time = datetime(2024, 3, 15, 14, 30, 0)
-
-        # Act
-        start, end = create_time_range(days=7, end_time=end_time)
-
-        # Assert
-        assert end == end_time
-        assert (end - start).days == 7
-
-        # Test with hours
-        start2, end2 = create_time_range(hours=24, end_time=end_time)
-        assert (end2 - start2).total_seconds() == 24 * 3600
-
-    def test_validate_order_side(self):
-        """Test order side validation"""
-        # Act & Assert
-        assert validate_order_side(0) is True  # Buy
-        assert validate_order_side(1) is True  # Sell
-        assert validate_order_side("BUY") is True
-        assert validate_order_side("SELL") is True
-        assert validate_order_side("buy") is True
-        assert validate_order_side("sell") is True
-        assert validate_order_side(2) is False
-        assert validate_order_side("invalid") is False
-
-    def test_merge_dataframes_on_timestamp(self):
-        """Test merging dataframes on timestamp"""
-        # Arrange
-        df1 = pl.DataFrame(
-            {
-                "timestamp": [datetime(2024, 1, 1, 10, 0), datetime(2024, 1, 1, 10, 5)],
-                "price": [100.0, 101.0],
-            }
-        )
-
-        df2 = pl.DataFrame(
-            {
-                "timestamp": [datetime(2024, 1, 1, 10, 0), datetime(2024, 1, 1, 10, 5)],
-                "volume": [1000, 1100],
-            }
-        )
-
-        # Act
-        merged = merge_dataframes_on_timestamp(df1, df2)
-
-        # Assert
-        assert len(merged) == 2
-        assert "price" in merged.columns
-        assert "volume" in merged.columns
-        assert merged["price"][0] == 100.0
-        assert merged["volume"][0] == 1000

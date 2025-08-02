@@ -225,7 +225,7 @@ class TestAsyncEndToEndWorkflows:
     @pytest.mark.asyncio
     async def test_async_trading_suite_integration(self):
         """Test complete async trading suite integration."""
-        with patch("project_x_py.AsyncProjectX") as mock_client_class:
+        with patch("project_x_py.ProjectX") as mock_client_class:
             # Create mock async client
             mock_client = AsyncMock(spec=ProjectX)
             mock_client.session_token = "test_jwt"
@@ -319,7 +319,9 @@ class TestAsyncEndToEndWorkflows:
     @pytest.mark.asyncio
     async def test_async_real_time_data_workflow(self):
         """Test async real-time data processing workflow."""
-        with patch("project_x_py.RealtimeClient") as mock_realtime_class:
+        with patch(
+            "project_x_py.realtime.ProjectXRealtimeClient"
+        ) as mock_realtime_class:
             # Mock realtime client
             mock_realtime = AsyncMock()
             mock_realtime_class.return_value = mock_realtime
@@ -329,7 +331,7 @@ class TestAsyncEndToEndWorkflows:
 
             # Mock data manager
             with patch(
-                "project_x_py.AsyncRealtimeDataManager"
+                "project_x_py.realtime_data_manager.ProjectXRealtimeDataManager"
             ) as mock_data_manager_class:
                 mock_data_manager = AsyncMock()
                 mock_data_manager_class.return_value = mock_data_manager
@@ -432,7 +434,7 @@ class TestSyncAsyncWorkflowCompatibility:
 
         # Verify different types
         assert type(sync_order_manager).__name__ == "OrderManager"
-        assert type(async_order_manager).__name__ == "AsyncOrderManager"
+        assert type(async_order_manager).__name__ == "OrderManager"
 
     @pytest.mark.asyncio
     async def test_configuration_compatibility(self):

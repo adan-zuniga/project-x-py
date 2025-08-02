@@ -1,4 +1,4 @@
-"""Tests for AsyncProjectX client."""
+"""Tests for ProjectX client (async functionality)."""
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -8,8 +8,8 @@ from unittest.mock import Mock
 import pytest
 
 from project_x_py import ProjectX
-from project_x_py.exceptions import ProjectXRiskError
-from project_x_py.models import Fill, Instrument, Order, Position
+from project_x_py.exceptions import ProjectXOrderError
+from project_x_py.models import Instrument, Order, Position, Trade
 from project_x_py.order_manager import OrderManager
 from project_x_py.position_manager import PositionManager
 
@@ -43,7 +43,7 @@ class TestRiskManagement:
 
         # Act & Assert
         # Should reject order that would exceed position limit
-        with pytest.raises(ProjectXRiskError) as exc_info:
+        with pytest.raises(ProjectXOrderError) as exc_info:
             order_manager.place_market_order(
                 "MGC", side=0, size=10
             )  # Would be 55 total

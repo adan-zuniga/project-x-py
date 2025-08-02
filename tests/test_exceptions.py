@@ -6,15 +6,15 @@ import pytest
 
 from project_x_py.exceptions import (
     ProjectXAuthenticationError,
-    ProjectXConfigError,
+    ProjectXClientError,
     ProjectXConnectionError,
     ProjectXDataError,
     ProjectXError,
     ProjectXInstrumentError,
     ProjectXOrderError,
+    ProjectXPositionError,
     ProjectXRateLimitError,
-    ProjectXRiskError,
-    ProjectXValidationError,
+    ProjectXServerError,
 )
 
 

@@ -8,13 +8,17 @@ from unittest.mock import Mock, patch
 import polars as pl
 import pytest
 
-from project_x_py import ProjectX
+from project_x_py import (
+    OrderManager,
+    PositionManager,
+    ProjectX,
+    RealtimeDataManager,
+    create_order_manager,
+    create_position_manager,
+    create_trading_suite,
+)
 from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Instrument, Order, Position
-from project_x_py.order_manager import OrderManager, create_order_manager
-from project_x_py.position_manager import PositionManager, create_position_manager
-from project_x_py.realtime_data_manager import ProjectXRealtimeDataManager
-from project_x_py.utils import create_trading_suite
 
 
 class TestEndToEndWorkflows:
