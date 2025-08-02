@@ -1,6 +1,7 @@
 # Async Migration Guide for project-x-py
 
-This guide helps you migrate from the synchronous ProjectX SDK to the new async/await architecture.
+This guide helps you migrate from the synchronous ProjectX SDK to the new async/await architecture.  
+**Note:** All public classes and factory functions are now async-ready by default—no Async* prefix is required.
 
 ## Table of Contents
 
@@ -69,7 +70,7 @@ await realtime_client.add_callback("position_update", on_position_update)
 1. **All API methods are now async** - Must use `await`
 2. **Context managers are async** - Use `async with`
 3. **Callbacks can be async** - Better event handling
-4. **Import changes** - New async classes available
+4. **Imports updated** - All classes and factory functions are async-ready and use the canonical names (no Async* prefix).
 
 ## Migration Steps
 
@@ -79,8 +80,8 @@ await realtime_client.add_callback("position_update", on_position_update)
 # Old imports
 from project_x_py import ProjectX, create_trading_suite
 
-# New imports for async
-from project_x_py import AsyncProjectX, create_async_trading_suite
+# New imports (all classes/factories are async-ready by default)
+from project_x_py import ProjectX, create_trading_suite
 ```
 
 ### Step 2: Update Client Creation
@@ -91,7 +92,7 @@ client = ProjectX.from_env()
 client.authenticate()
 
 # New async client
-async with AsyncProjectX.from_env() as client:
+async with ProjectX.from_env() as client:
     await client.authenticate()
 ```
 
@@ -116,11 +117,11 @@ data = await client.get_data("MGC", days=5)
 order_manager = create_order_manager(client)
 position_manager = create_position_manager(client)
 
-# New async managers
-order_manager = create_async_order_manager(client)
+# New async managers (all managers are now async-ready by default)
+order_manager = create_order_manager(client)
 await order_manager.initialize()
 
-position_manager = create_async_position_manager(client)
+position_manager = create_position_manager(client)
 await position_manager.initialize()
 ```
 
@@ -138,13 +139,13 @@ def main():
     print(f"Connected as: {account.name}")
 ```
 
-**Async:**
+**Async (now using canonical names):**
 ```python
 import asyncio
-from project_x_py import AsyncProjectX
+from project_x_py import ProjectX
 
 async def main():
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         await client.authenticate()
         print(f"Connected as: {client.account_info.name}")
 
@@ -160,9 +161,9 @@ response = order_manager.place_market_order("MGC", 0, 1)
 orders = order_manager.search_open_orders()
 ```
 
-**Async:**
+**Async (now using canonical names):**
 ```python
-order_manager = create_async_order_manager(client)
+order_manager = create_order_manager(client)
 await order_manager.initialize()
 
 response = await order_manager.place_market_order("MGC", 0, 1)
@@ -181,10 +182,10 @@ data_manager.initialize()
 data_manager.start_realtime_feed()
 ```
 
-**Async:**
+**Async (now using canonical names):**
 ```python
-realtime_client = create_async_realtime_client(jwt_token, account_id)
-data_manager = create_async_data_manager("MGC", client, realtime_client)
+realtime_client = create_realtime_client(jwt_token, account_id)
+data_manager = create_data_manager("MGC", client, realtime_client)
 
 await realtime_client.connect()
 await data_manager.initialize()
@@ -204,9 +205,9 @@ suite["realtime_client"].connect()
 suite["data_manager"].initialize()
 ```
 
-**Async:**
+**Async (now using canonical names):**
 ```python
-suite = await create_async_trading_suite(
+suite = await create_trading_suite(
     "MGC", client, jwt_token, account_id,
     timeframes=["5min", "15min"]
 )
@@ -216,6 +217,8 @@ await suite["data_manager"].initialize()
 ```
 
 ## Common Patterns
+
+All public classes and factory functions are async-ready—use canonical names (no Async* prefix).
 
 ### 1. Concurrent Operations
 
@@ -299,7 +302,7 @@ monitor_task = asyncio.create_task(monitor_positions(position_manager))
 
 1. **Always use async context managers:**
    ```python
-   async with AsyncProjectX.from_env() as client:
+   async with ProjectX.from_env() as client:
        # Client is properly cleaned up
    ```
 
@@ -399,16 +402,16 @@ def trading_bot():
         time.sleep(60)
 ```
 
-**New Async Bot:**
+**New Async Bot (now using canonical names):**
 ```python
 import asyncio
-from project_x_py import AsyncProjectX, create_async_trading_suite
+from project_x_py import ProjectX, create_trading_suite
 
 async def trading_bot():
-    async with AsyncProjectX.from_env() as client:
+    async with ProjectX.from_env() as client:
         await client.authenticate()
         
-        suite = await create_async_trading_suite(
+        suite = await create_trading_suite(
             "MGC", client, client.jwt_token, 
             client.account_info.id
         )
