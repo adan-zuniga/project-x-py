@@ -174,9 +174,37 @@ Good documentation is essential for this project:
 ## Architecture Guidelines
 
 ### Project Structure
-- Maintain the existing modular architecture
-- Place new files in appropriate modules
-- Consider impacts on existing components
+
+The SDK uses a modular architecture where large components are split into multi-file packages:
+
+- **Client Module** (`client/`): Core async client functionality
+  - `auth.py`: Authentication and token management
+  - `http.py`: HTTP client and request handling
+  - `cache.py`: Caching for instruments and market data
+  - `market_data.py`: Market data operations
+  - `trading.py`: Trading operations
+  - `base.py`: Base class combining mixins
+  
+- **Trading Modules**:
+  - `order_manager/`: Order lifecycle management (10 modules)
+  - `position_manager/`: Portfolio and risk management (12 modules)
+  
+- **Real-time Modules**:
+  - `realtime/`: WebSocket client functionality (8 modules)
+  - `realtime_data_manager/`: Real-time OHLCV data (9 modules)
+  
+- **Utilities** (`utils/`): Shared utilities (10 modules)
+  - Trading calculations, portfolio analytics, pattern detection
+  - Market microstructure, formatting, environment handling
+
+- **Indicators** (`indicators/`): 58+ technical indicators
+  - Organized by category (momentum, overlap, volatility, etc.)
+
+### Adding New Features
+- Place new functionality in the appropriate existing module
+- For large features, consider creating a new sub-module
+- Maintain backward compatibility for all public APIs
+- Follow the established mixin pattern for client extensions
 
 ### Performance Considerations
 - Implement time window filtering for analysis methods
