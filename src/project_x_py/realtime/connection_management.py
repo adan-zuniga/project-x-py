@@ -131,15 +131,14 @@ class ConnectionManagementMixin:
                 raise ImportError("signalrcore is required for real-time functionality")
 
             async with self._connection_lock:
-                # Build user hub connection with JWT in headers
+                # Build user hub connection with JWT as query parameter
+                # SignalR WebSocket connections often need auth tokens in URL, not headers
+                user_url_with_token = (
+                    f"{self.user_hub_url}?access_token={self.jwt_token}"
+                )
                 self.user_connection = (
                     HubConnectionBuilder()
-                    .with_url(
-                        self.user_hub_url,
-                        options={
-                            "headers": {"Authorization": f"Bearer {self.jwt_token}"}
-                        },
-                    )
+                    .with_url(user_url_with_token)
                     .configure_logging(
                         logger.level,
                         socket_trace=False,
@@ -155,15 +154,13 @@ class ConnectionManagementMixin:
                     .build()
                 )
 
-                # Build market hub connection with JWT in headers
+                # Build market hub connection with JWT as query parameter
+                market_url_with_token = (
+                    f"{self.market_hub_url}?access_token={self.jwt_token}"
+                )
                 self.market_connection = (
                     HubConnectionBuilder()
-                    .with_url(
-                        self.market_hub_url,
-                        options={
-                            "headers": {"Authorization": f"Bearer {self.jwt_token}"}
-                        },
-                    )
+                    .with_url(market_url_with_token)
                     .configure_logging(
                         logger.level,
                         socket_trace=False,
