@@ -49,7 +49,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from project_x_py.models import OrderPlaceResponse
-from project_x_py.types.trading import OrderType
+from project_x_py.types.trading import OrderSide, OrderType
 
 if TYPE_CHECKING:
     from project_x_py.types import OrderManagerProtocol
@@ -227,7 +227,7 @@ class OrderTypesMixin:
         """
         return await self.place_order(
             contract_id=contract_id,
-            side=0,  # Buy side
+            side=OrderSide.BUY,
             size=size,
             order_type=OrderType.JOIN_BID,
             account_id=account_id,
@@ -261,7 +261,7 @@ class OrderTypesMixin:
         """
         return await self.place_order(
             contract_id=contract_id,
-            side=1,  # Sell side
+            side=OrderSide.SELL,
             size=size,
             order_type=OrderType.JOIN_ASK,
             account_id=account_id,
