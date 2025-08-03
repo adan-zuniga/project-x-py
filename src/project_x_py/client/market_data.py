@@ -79,7 +79,8 @@ class MarketDataMixin:
         Get detailed instrument information with caching.
 
         Args:
-            symbol: Trading symbol (e.g., 'NQ', 'ES', 'MGC')
+            symbol: Trading symbol (e.g., 'NQ', 'ES', 'MGC') or full contract ID
+                   (e.g., 'CON.F.US.MNQ.U25')
             live: If True, only return live/active contracts (default: False)
 
         Returns:
@@ -104,10 +105,27 @@ class MarketDataMixin:
                 logger.info(LogMessages.CACHE_HIT, extra={"symbol": symbol})
                 return cached_instrument
 
-            logger.info(LogMessages.CACHE_MISS, extra={"symbol": symbol})
+            logger.debug(LogMessages.CACHE_MISS, extra={"symbol": symbol})
+
+            # Check if this is a full contract ID (e.g., CON.F.US.MNQ.U25)
+            # If so, extract the base symbol for searching
+            search_symbol = symbol
+            is_contract_id = False
+            if symbol.startswith("CON.") and symbol.count(".") >= 3:
+                is_contract_id = True
+                # Extract base symbol from contract ID
+                # CON.F.US.MNQ.U25 -> MNQ
+                parts = symbol.split(".")
+                if len(parts) >= 4:
+                    search_symbol = parts[3]
+                    # Remove any month/year suffix (e.g., U25 -> base symbol)
+                    futures_pattern = re.compile(r"^(.+?)([FGHJKMNQUVXZ]\d{1,2})$")
+                    match = futures_pattern.match(search_symbol)
+                    if match:
+                        search_symbol = match.group(1)
 
             # Search for instrument
-            payload = {"searchText": symbol, "live": live}
+            payload = {"searchText": search_symbol, "live": live}
             response = await self._make_request(
                 "POST", "/Contract/search", data=payload
             )
@@ -128,12 +146,27 @@ class MarketDataMixin:
                 )
 
             # Select best match
-            best_match = self._select_best_contract(contracts_data, symbol)
+            if is_contract_id:
+                # If searching by contract ID, try to find exact match
+                best_match = None
+                for contract in contracts_data:
+                    if contract.get("id") == symbol:
+                        best_match = contract
+                        break
+
+                # If no exact match by ID, use the selection logic with search_symbol
+                if best_match is None:
+                    best_match = self._select_best_contract(
+                        contracts_data, search_symbol
+                    )
+            else:
+                best_match = self._select_best_contract(contracts_data, symbol)
+
             instrument = Instrument(**best_match)
 
             # Cache the result
             self.cache_instrument(symbol, instrument)
-            logger.info(LogMessages.CACHE_UPDATE, extra={"symbol": symbol})
+            logger.debug(LogMessages.CACHE_UPDATE, extra={"symbol": symbol})
 
             # Periodic cache cleanup
             if time.time() - self.last_cache_cleanup > 3600:  # Every hour
@@ -243,7 +276,7 @@ class MarketDataMixin:
         ):
             await self._ensure_authenticated()
 
-            logger.info(LogMessages.DATA_FETCH, extra={"query": query})
+            logger.debug(LogMessages.DATA_FETCH, extra={"query": query})
 
             payload = {"searchText": query, "live": live}
             response = await self._make_request(
@@ -256,7 +289,7 @@ class MarketDataMixin:
             contracts_data = response.get("contracts", [])
             instruments = [Instrument(**contract) for contract in contracts_data]
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_RECEIVED,
                 extra={"count": len(instruments), "query": query},
             )
@@ -321,10 +354,10 @@ class MarketDataMixin:
             cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
             cached_data = self.get_cached_market_data(cache_key)
             if cached_data is not None:
-                logger.info(LogMessages.CACHE_HIT, extra={"cache_key": cache_key})
+                logger.debug(LogMessages.CACHE_HIT, extra={"cache_key": cache_key})
                 return cached_data
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_FETCH,
                 extra={"symbol": symbol, "days": days, "interval": interval},
             )
