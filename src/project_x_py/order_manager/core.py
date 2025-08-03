@@ -1,8 +1,34 @@
 """
-Core OrderManager class for comprehensive order operations.
+Async OrderManager core for ProjectX trading.
 
-This module provides the main OrderManager class that handles all order-related
-operations including placement, modification, cancellation, and tracking.
+Overview:
+    Contains the main OrderManager class, orchestrating all async order operations
+    (placement, modification, cancellation, tracking) and integrating mixins for
+    bracket, position, and order type strategies. Provides thread-safe, eventful,
+    and real-time capable order workflows for automated and manual trading.
+
+Key Features:
+    - Unified async API for order lifecycle (market, limit, stop, trailing, OCO)
+    - Bracket and position-based order strategies
+    - Real-time tracking, event-driven callbacks, and statistics
+    - Price alignment, concurrent safety, and health metrics
+    - Extensible for custom bots and strategy engines
+
+Example Usage:
+    ```python
+    from project_x_py import ProjectX
+    from project_x_py.order_manager import OrderManager
+
+    async with ProjectX.from_env() as client:
+        om = OrderManager(client)
+        await om.place_limit_order("ES", 0, 1, 5000.0)
+    ```
+
+See Also:
+    - `order_manager.bracket_orders`
+    - `order_manager.position_orders`
+    - `order_manager.order_types`
+    - `order_manager.tracking`
 """
 
 import asyncio

@@ -1,4 +1,29 @@
-"""Order placement methods for different order types."""
+"""
+Async order type placement mixin for ProjectX.
+
+Overview:
+    Implements mixin methods for placing specific order types (market, limit,
+    stop, trailing stop) in the async OrderManager system. Encapsulates order-type
+    validation, parameter handling, and delegates to the unified underlying API.
+
+Key Features:
+    - Async placement of market, limit, stop, and trailing stop orders
+    - Standardized argument validation and contract handling
+    - Integrates with bracket and position order mixins
+    - Returns model-typed responses for downstream logic
+
+Example Usage:
+    ```python
+    # Assuming om is an instance of OrderManager
+    await om.place_limit_order("MES", 1, 2, 5000.0)
+    await om.place_market_order("MGC", 0, 1)
+    ```
+
+See Also:
+    - `order_manager.core.OrderManager`
+    - `order_manager.bracket_orders`
+    - `order_manager.position_orders`
+"""
 
 import logging
 from typing import TYPE_CHECKING

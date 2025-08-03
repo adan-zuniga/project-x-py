@@ -1,4 +1,31 @@
-"""Bracket order functionality for complex order strategies."""
+"""
+Async bracket order strategies for ProjectX.
+
+Overview:
+    Provides mixin logic for placing and managing bracket orders—sophisticated, three-legged
+    order strategies consisting of entry, stop loss, and take profit orders. Ensures risk
+    controls are established atomically and linked to positions for robust trade automation.
+
+Key Features:
+    - Place async bracket orders (entry, stop, target) as a single operation
+    - Price/side validation and position link management
+    - Automatic risk management: stops and targets managed with entry
+    - Integrates with core OrderManager and position tracking
+
+Example Usage:
+    ```python
+    # Assuming om is an instance of OrderManager
+    await om.place_bracket_order(
+        contract_id="MGC", side=0, size=1,
+        entry_price=2050.0, stop_loss_price=2040.0, take_profit_price=2070.0
+    )
+    ```
+
+See Also:
+    - `order_manager.core.OrderManager`
+    - `order_manager.position_orders`
+    - `order_manager.order_types`
+"""
 
 import logging
 from typing import TYPE_CHECKING
