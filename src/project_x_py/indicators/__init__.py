@@ -188,6 +188,16 @@ from .base import (
     ema_alpha,
     safe_division,
 )
+from .candlestick import (
+    BullishEngulfing as BullishEngulfingIndicator,
+    Doji as DojiIndicator,
+    Hammer as HammerIndicator,
+    ShootingStar as ShootingStarIndicator,
+    calculate_bullishengulfing,
+    calculate_doji,
+    calculate_hammer,
+    calculate_shootingstar,
+)
 
 # Version info
 __version__ = "2.0.8"
@@ -992,6 +1002,26 @@ def WAE(
     )
 
 
+def DOJI(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    """Doji candlestick pattern (TA-Lib style)."""
+    return calculate_doji(data, **kwargs)
+
+
+def HAMMER(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    """Hammer candlestick pattern (TA-Lib style)."""
+    return calculate_hammer(data, **kwargs)
+
+
+def SHOOTINGSTAR(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    """Shooting Star candlestick pattern (TA-Lib style)."""
+    return calculate_shootingstar(data, **kwargs)
+
+
+def BULLISHENGULFING(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+    """Bullish Engulfing pattern (TA-Lib style)."""
+    return calculate_bullishengulfing(data, **kwargs)
+
+
 # Helper functions for indicator discovery
 def get_indicator_groups() -> dict[str, list[str]]:
     """Get available indicator groups."""
@@ -1049,7 +1079,15 @@ def get_indicator_groups() -> dict[str, list[str]]:
         ],
         "volatility": ["ATR", "NATR", "TRANGE", "STDDEV"],
         "volume": ["OBV", "VWAP", "AD", "ADOSC"],
-        "patterns": ["FVG", "ORDERBLOCK", "WAE"],
+        "patterns": [
+            "FVG",
+            "ORDERBLOCK",
+            "WAE",
+            "DOJI",
+            "HAMMER",
+            "SHOOTINGSTAR",
+            "BULLISHENGULFING",
+        ],
     }
 
 
@@ -1128,6 +1166,10 @@ def get_indicator_info(indicator_name: str) -> str:
         "FVG": "Fair Value Gap - identifies price imbalance areas that may act as support/resistance",
         "ORDERBLOCK": "Order Block - identifies institutional order zones based on price action patterns",
         "WAE": "Waddah Attar Explosion - identifies strong trends and breakouts using MACD and Bollinger Bands",
+        "DOJI": "Doji - indecision pattern with open and close nearly equal",
+        "HAMMER": "Hammer - bullish reversal with long lower shadow",
+        "SHOOTINGSTAR": "Shooting Star - bearish reversal with long upper shadow",
+        "BULLISHENGULFING": "Bullish Engulfing - bullish reversal pattern",
     }
 
     return indicator_map.get(indicator_name.upper(), "Indicator not found")
@@ -1140,10 +1182,13 @@ __all__ = [
     "ADX",
     "ATR",
     "BBANDS",
+    "BULLISHENGULFING",
     "CCI",
     "DEMA",
+    "DOJI",
     "EMA",
     "FVG",
+    "HAMMER",
     "HT_TRENDLINE",
     "KAMA",
     "MA",
@@ -1160,6 +1205,7 @@ __all__ = [
     "RSI",
     "SAR",
     "SAREXT",
+    "SHOOTINGSTAR",
     # Class-based indicators (import from modules)
     "SMA",
     "STDDEV",
@@ -1185,10 +1231,13 @@ __all__ = [
     "calculate_aroon",
     "calculate_atr",
     "calculate_bollinger_bands",
+    "calculate_bullishengulfing",
     "calculate_commodity_channel_index",
     "calculate_dema",
+    "calculate_doji",
     "calculate_ema",
     "calculate_fvg",
+    "calculate_hammer",
     "calculate_ht_trendline",
     "calculate_kama",
     "calculate_ma",
@@ -1202,6 +1251,7 @@ __all__ = [
     "calculate_ppo",
     "calculate_rsi",
     "calculate_sar",
+    "calculate_shootingstar",
     # Function-based indicators (convenience functions)
     "calculate_sma",
     "calculate_stddev",
