@@ -4,8 +4,29 @@ ProjectX Indicators - Momentum Indicators
 Author: TexasCoding
 Date: June 2025
 
-Momentum indicators measure the rate of change in price movements,
-helping identify overbought/oversold conditions and trend strength.
+Overview:
+    Provides a suite of momentum indicators for ProjectX, covering oscillators and
+    trend-following calculations. Includes both class-based and TA-Lib-style
+    function interfaces for RSI, MACD, Stochastic, CCI, and many more, all operating
+    on Polars DataFrames.
+
+Key Features:
+    - Relative Strength Index (RSI), MACD, Stochastic, Williams %R, CCI, ROC, MOM, and more
+    - Directional movement, Aroon, Ultimate Oscillator, and Chande Momentum Oscillator
+    - All indicators vectorized for performance and chained analysis
+    - Flexible configuration: periods, smoothing, columns, and more
+    - Convenient function interface for script-style use
+
+Example Usage:
+    ```python
+    from project_x_py.indicators import calculate_rsi
+    data_with_rsi = calculate_rsi(ohlcv_data, period=14)
+    ```
+
+See Also:
+    - `project_x_py.indicators.base.MomentumIndicator`
+    - `project_x_py.indicators.overlap`
+    - `project_x_py.indicators.volume`
 """
 
 from typing import Any

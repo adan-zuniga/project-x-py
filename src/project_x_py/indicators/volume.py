@@ -4,8 +4,27 @@ ProjectX Indicators - Volume Indicators
 Author: TexasCoding
 Date: June 2025
 
-Volume indicators analyze trading volume to confirm price movements
-and identify potential trend reversals or continuations.
+Overview:
+    Implements volume-based indicators for ProjectX, allowing traders to confirm
+    trends, spot reversals, and analyze money flow. Includes both cumulative
+    and oscillator-style volume indicators operating on Polars DataFrames.
+
+Key Features:
+    - OBV, VWAP, Accumulation/Distribution (AD), AD Oscillator (ADOSC)
+    - Rolling, cumulative, and EMA-based volume analytics
+    - TA-Lib-style function interface for direct scripting
+    - Compatible with all other indicator modules
+
+Example Usage:
+    ```python
+    from project_x_py.indicators import calculate_vwap
+    data_with_vwap = calculate_vwap(ohlcv_data, period=20)
+    ```
+
+See Also:
+    - `project_x_py.indicators.base.VolumeIndicator`
+    - `project_x_py.indicators.momentum`
+    - `project_x_py.indicators.overlap`
 """
 
 from typing import Any
