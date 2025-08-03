@@ -22,6 +22,8 @@ Order Types Supported:
     - Limit Orders: Execution at specified price or better
     - Stop Orders: Market orders triggered at stop price
     - Trailing Stop Orders: Dynamic stops that follow price movement
+    - Join Bid Orders: Limit buy orders at current best bid price
+    - Join Ask Orders: Limit sell orders at current best ask price
 
 Each order type method provides a simplified interface for common order placement
 scenarios while maintaining full compatibility with the underlying order system.
@@ -33,6 +35,8 @@ Example Usage:
     await om.place_market_order("MGC", 0, 1)
     await om.place_stop_order("MGC", 1, 1, 2040.0)
     await om.place_trailing_stop_order("MGC", 1, 1, 5.0)
+    await om.place_join_bid_order("MGC", 1)  # Join bid side
+    await om.place_join_ask_order("MGC", 1)  # Join ask side
     ```
 
 See Also:
@@ -192,5 +196,73 @@ class OrderTypesMixin:
             side=side,
             size=size,
             trail_price=trail_price,
+            account_id=account_id,
+        )
+
+    async def place_join_bid_order(
+        self: "OrderManagerProtocol",
+        contract_id: str,
+        size: int,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse:
+        """
+        Place a join bid order (limit order at current best bid price).
+
+        Join bid orders automatically place a limit buy order at the current
+        best bid price, joining the queue of passive liquidity providers.
+        The order will be placed at whatever the best bid price is at the
+        time of submission.
+
+        Args:
+            contract_id: The contract ID to trade
+            size: Number of contracts to trade
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            OrderPlaceResponse: Response containing order ID and status
+
+        Example:
+            >>> # Join the bid to provide liquidity
+            >>> response = await order_manager.place_join_bid_order("MGC", 1)
+        """
+        return await self.place_order(
+            contract_id=contract_id,
+            side=0,  # Buy side
+            size=size,
+            order_type=OrderType.JOIN_BID,
+            account_id=account_id,
+        )
+
+    async def place_join_ask_order(
+        self: "OrderManagerProtocol",
+        contract_id: str,
+        size: int,
+        account_id: int | None = None,
+    ) -> OrderPlaceResponse:
+        """
+        Place a join ask order (limit order at current best ask price).
+
+        Join ask orders automatically place a limit sell order at the current
+        best ask price, joining the queue of passive liquidity providers.
+        The order will be placed at whatever the best ask price is at the
+        time of submission.
+
+        Args:
+            contract_id: The contract ID to trade
+            size: Number of contracts to trade
+            account_id: Account ID. Uses default account if None.
+
+        Returns:
+            OrderPlaceResponse: Response containing order ID and status
+
+        Example:
+            >>> # Join the ask to provide liquidity
+            >>> response = await order_manager.place_join_ask_order("MGC", 1)
+        """
+        return await self.place_order(
+            contract_id=contract_id,
+            side=1,  # Sell side
+            size=size,
+            order_type=OrderType.JOIN_ASK,
             account_id=account_id,
         )

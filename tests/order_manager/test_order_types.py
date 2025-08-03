@@ -61,3 +61,31 @@ class TestOrderTypesMixin:
         args = dummy.place_order.call_args.kwargs
         assert args["order_type"] == 5
         assert args["trail_price"] == 5.0
+
+    async def test_place_join_bid_order(self):
+        """place_join_bid_order delegates to place_order with order_type=6 and side=0 (buy)."""
+        dummy = DummyOrderManager()
+        from project_x_py.order_manager.order_types import OrderTypesMixin
+
+        mixin = OrderTypesMixin()
+        mixin.place_order = dummy.place_order
+        await mixin.place_join_bid_order("MGC", 2)
+        args = dummy.place_order.call_args.kwargs
+        assert args["order_type"] == 6
+        assert args["side"] == 0  # Buy side
+        assert args["size"] == 2
+        assert args["contract_id"] == "MGC"
+
+    async def test_place_join_ask_order(self):
+        """place_join_ask_order delegates to place_order with order_type=7 and side=1 (sell)."""
+        dummy = DummyOrderManager()
+        from project_x_py.order_manager.order_types import OrderTypesMixin
+
+        mixin = OrderTypesMixin()
+        mixin.place_order = dummy.place_order
+        await mixin.place_join_ask_order("MGC", 3)
+        args = dummy.place_order.call_args.kwargs
+        assert args["order_type"] == 7
+        assert args["side"] == 1  # Sell side
+        assert args["size"] == 3
+        assert args["contract_id"] == "MGC"
