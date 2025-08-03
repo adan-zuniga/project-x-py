@@ -165,9 +165,9 @@ class ConnectionManagementMixin:
                         },
                     )
                     .configure_logging(
-                        logging.INFO,
+                        logger.level,
                         socket_trace=False,
-                        handler=logging.StreamHandler(),
+                        handler=None,  # Use None to avoid duplicate logging
                     )
                     .with_automatic_reconnect(
                         {
@@ -288,8 +288,8 @@ class ConnectionManagementMixin:
                     )
                     return False
 
-                # Wait for connections to establish
-                await asyncio.sleep(0.5)
+                # Wait for connections to establish and stabilize
+                await asyncio.sleep(2.0)  # Increased wait time for connection stability
 
                 if self.user_connected and self.market_connected:
                     self.stats["connected_time"] = datetime.now()

@@ -29,8 +29,7 @@ import polars as pl
 
 from project_x_py import (
     ProjectX,
-    create_data_manager,
-    create_realtime_client,
+    create_initialized_trading_suite,
     setup_logging,
 )
 
@@ -171,29 +170,14 @@ async def demonstrate_historical_analysis(data_manager):
         print(f"   ❌ Analysis error: {e}")
 
 
-async def price_update_callback(price_data):
-    """Handle real-time price updates asynchronously."""
+async def new_bar_callback(data):
+    """Handle new bar creation asynchronously."""
     timestamp = datetime.now().strftime("%H:%M:%S")
+    timeframe = data["timeframe"]
+    bar = data["data"]
     print(
-        f"🔔 [{timestamp}] Price Update: ${price_data['price']:.2f} (Vol: {price_data.get('volume', 0):,})"
+        f"📊 [{timestamp}] New {timeframe} Bar: ${bar['close']:.2f} (Vol: {bar['volume']:,})"
     )
-
-
-async def bar_update_callback(bar_data):
-    """Handle real-time bar completions asynchronously."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    timeframe = bar_data["timeframe"]
-    close = bar_data["close"]
-    volume = bar_data["volume"]
-    print(f"📊 [{timestamp}] New {timeframe} Bar: ${close:.2f} (Vol: {volume:,})")
-
-
-async def connection_status_callback(status):
-    """Handle connection status changes asynchronously."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    status_text = "Connected" if status["connected"] else "Disconnected"
-    icon = "✅" if status["connected"] else "❌"
-    print(f"{icon} [{timestamp}] Connection Status: {status_text}")
 
 
 async def main():
@@ -225,59 +209,42 @@ async def main():
             print(f"   Account: {client.account_info.name}")
             print(f"   Account ID: {client.account_info.id}")
 
-            # Create async real-time client
-            print("\n🌐 Creating async real-time client...")
-            realtime_client = create_realtime_client(
-                client.session_token, str(client.account_info.id)
-            )
-            print("✅ Async real-time client created!")
+            # Create and initialize trading suite with all components
+            print("\n🏗️ Creating and initializing trading suite...")
 
-            # Connect to real-time services
-            print("\n🔌 Connecting to real-time services...")
-            connected = await realtime_client.connect()
-            if connected:
-                print("✅ Real-time connection established!")
-            else:
-                print(
-                    "⚠️ Real-time client connection failed - continuing with limited functionality"
-                )
-
-            # Create real-time data manager
-            print("\n🏗️ Creating async real-time data manager...")
-
-            # Define timeframes for multi-timeframe analysis (matching sync version)
+            # Define timeframes for multi-timeframe analysis
             timeframes = ["15sec", "1min", "5min", "15min", "1hr"]
 
             try:
-                data_manager = create_data_manager(
+                # Use create_initialized_trading_suite which handles all initialization
+                suite = await create_initialized_trading_suite(
                     instrument="MNQ",
                     project_x=client,
-                    realtime_client=realtime_client,
                     timeframes=timeframes,
+                    enable_orderbook=False,  # Don't need orderbook for this example
+                    initial_days=5,
                 )
-                print("✅ Async real-time data manager created for MNQ")
+
+                print("✅ Trading suite created and initialized!")
+                print("   Instrument: MNQ")
                 print(f"   Timeframes: {', '.join(timeframes)}")
+
+                # Extract components from the suite
+                data_manager = suite["data_manager"]
+                realtime_client = suite["realtime_client"]
+
+                print("\n✅ All components connected and subscribed:")
+                print("   - Real-time client connected")
+                print("   - Market data subscribed")
+                print("   - Historical data loaded")
+                print("   - Real-time feed started")
             except Exception as e:
-                print(f"❌ Failed to create data manager: {e}")
+                print(f"❌ Failed to create trading suite: {e}")
                 print(
                     "Info: This may happen if MNQ is not available in your environment"
                 )
                 print("✅ Basic async client functionality verified!")
                 return True
-
-            # Initialize with historical data
-            print("\n📚 Initializing with historical data...")
-            if await data_manager.initialize(initial_days=5):
-                print("✅ Historical data loaded successfully")
-                print("   Loaded 5 days of historical data across all timeframes")
-            else:
-                print("❌ Failed to load historical data")
-                print(
-                    "Info: This may happen if the MNQ contract doesn't have available market data"
-                )
-                print("      The async client functionality is working correctly")
-                print("✅ Continuing with real-time feed only...")
-                # Don't return False - continue with real-time only
 
             # Show initial data state
             print("\n" + "=" * 50)
@@ -288,30 +255,20 @@ async def main():
             await display_memory_stats(data_manager)
             await demonstrate_historical_analysis(data_manager)
 
-            # Register async callbacks
-            print("\n🔔 Registering async callbacks...")
+            # OPTIONAL: Register callbacks for custom event handling
+            # The RealtimeDataManager already processes data internally to build OHLCV bars.
+            # These callbacks are only needed if you want to react to specific events.
+            print("\n🔔 Registering optional callbacks for demonstration...")
             try:
-                await data_manager.add_callback("price_update", price_update_callback)
-                await data_manager.add_callback("bar_complete", bar_update_callback)
-                await data_manager.add_callback(
-                    "connection_status", connection_status_callback
-                )
-                print("✅ Async callbacks registered!")
+                # Note: "data_update" callback is not actually triggered by the current implementation
+                # Only "new_bar" events are currently supported for external callbacks
+                await data_manager.add_callback("new_bar", new_bar_callback)
+                print("✅ Optional callbacks registered!")
             except Exception as e:
                 print(f"⚠️ Callback registration error: {e}")
 
-            # Start real-time data feed
-            print("\n🚀 Starting real-time data feed...")
-            try:
-                feed_started = await data_manager.start_realtime_feed()
-                if feed_started:
-                    print("✅ Real-time data feed started!")
-                else:
-                    print("❌ Failed to start real-time feed")
-                    print("Info: Continuing with historical data only")
-            except Exception as e:
-                print(f"❌ Real-time feed error: {e}")
-                print("Info: Continuing with historical data only")
+            # Note: Real-time feed is already started by create_initialized_trading_suite
+            # The data manager is already receiving and processing quotes to build OHLCV bars
 
             print("\n" + "=" * 60)
             print("📡 REAL-TIME DATA STREAMING ACTIVE")

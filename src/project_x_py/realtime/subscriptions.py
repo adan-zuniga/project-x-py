@@ -148,6 +148,29 @@ class SubscriptionsMixin:
                     extra={"error": "User connection not available"},
                 )
                 return False
+
+            # Wait for transport to be ready
+            max_wait = 5.0  # Maximum 5 seconds
+            wait_interval = 0.1
+            waited = 0.0
+
+            while waited < max_wait:
+                if (
+                    hasattr(self.user_connection, "transport")
+                    and self.user_connection.transport
+                    and hasattr(self.user_connection.transport, "is_running")
+                    and self.user_connection.transport.is_running()
+                ):
+                    break
+                await asyncio.sleep(wait_interval)
+                waited += wait_interval
+            else:
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "User hub transport not ready after waiting"},
+                )
+                return False
+
             # ProjectX Gateway expects Subscribe method with account ID
             loop = asyncio.get_event_loop()
 
@@ -268,6 +291,10 @@ class SubscriptionsMixin:
 
             # Subscribe using ProjectX Gateway methods (same as sync client)
             loop = asyncio.get_event_loop()
+
+            # Add a small delay to ensure the connection is fully established
+            await asyncio.sleep(0.5)
+
             for contract_id in contract_ids:
                 # Subscribe to quotes
                 if self.market_connection is None:
@@ -276,26 +303,73 @@ class SubscriptionsMixin:
                         extra={"error": "Market connection not available"},
                     )
                     return False
-                await loop.run_in_executor(
-                    None,
-                    self.market_connection.send,
-                    "SubscribeContractQuotes",
-                    [contract_id],
-                )
+
+                # Wait for transport to be ready
+                max_wait = 5.0  # Maximum 5 seconds
+                wait_interval = 0.1
+                waited = 0.0
+
+                while waited < max_wait:
+                    if (
+                        hasattr(self.market_connection, "transport")
+                        and self.market_connection.transport
+                        and hasattr(self.market_connection.transport, "is_running")
+                        and self.market_connection.transport.is_running()
+                    ):
+                        break
+                    await asyncio.sleep(wait_interval)
+                    waited += wait_interval
+                else:
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": "Market hub transport not ready after waiting"},
+                    )
+                    return False
+
+                try:
+                    await loop.run_in_executor(
+                        None,
+                        self.market_connection.send,
+                        "SubscribeContractQuotes",
+                        [contract_id],
+                    )
+                except Exception as e:
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": f"Failed to subscribe to quotes: {str(e)}"},
+                    )
+                    return False
                 # Subscribe to trades
-                await loop.run_in_executor(
-                    None,
-                    self.market_connection.send,
-                    "SubscribeContractTrades",
-                    [contract_id],
-                )
+                try:
+                    await loop.run_in_executor(
+                        None,
+                        self.market_connection.send,
+                        "SubscribeContractTrades",
+                        [contract_id],
+                    )
+                except Exception as e:
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": f"Failed to subscribe to trades: {str(e)}"},
+                    )
+                    return False
+
                 # Subscribe to market depth
-                await loop.run_in_executor(
-                    None,
-                    self.market_connection.send,
-                    "SubscribeContractMarketDepth",
-                    [contract_id],
-                )
+                try:
+                    await loop.run_in_executor(
+                        None,
+                        self.market_connection.send,
+                        "SubscribeContractMarketDepth",
+                        [contract_id],
+                    )
+                except Exception as e:
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={
+                            "error": f"Failed to subscribe to market depth: {str(e)}"
+                        },
+                    )
+                    return False
 
             logger.info(
                 LogMessages.DATA_SUBSCRIBE,
