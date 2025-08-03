@@ -59,9 +59,7 @@ async def old_approach():
             raise ValueError("Instrument not found")
 
         print("Subscribing to market data...")
-        await suite["realtime_client"].subscribe_market_data(
-            [instruments[0].activeContract]
-        )
+        await suite["realtime_client"].subscribe_market_data([instruments[0].id])
 
         print("Starting realtime feed...")
         await suite["data_manager"].start_realtime_feed()
@@ -72,9 +70,9 @@ async def old_approach():
                 realtime_client=suite["realtime_client"]
             )
 
-        instrument: Instrument = suite["instrument_info"]
-        print(f"Instrument: {instrument.symbolId}")
-        print(f"Contract: {instrument.activeContract}")
+        # In manual mode, we have the instruments from our search
+        print(f"Instrument: {instruments[0].name}")
+        print(f"Contract: {instruments[0].activeContract}")
 
         print("\n✓ Finally ready to trade!")
         print("Lines of setup code: ~15-20")

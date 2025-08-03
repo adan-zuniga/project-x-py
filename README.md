@@ -448,6 +448,56 @@ async def place_order(self, ...):
     # Method implementation
 ```
 
+## 🔧 Troubleshooting
+
+### Common Issues with Factory Functions
+
+#### JWT Token Not Available
+```python
+# Error: "JWT token is required but not available from client"
+# Solution: Ensure client is authenticated before creating suite
+async with ProjectX.from_env() as client:
+    await client.authenticate()  # Don't forget this!
+    suite = await create_initialized_trading_suite("MNQ", client)
+```
+
+#### Instrument Not Found
+```python
+# Error: "Instrument MNQ not found"
+# Solution: Verify instrument symbol is correct
+# Common symbols: "MNQ", "MES", "MGC", "ES", "NQ"
+```
+
+#### Connection Timeouts
+```python
+# If initialization times out, try manual setup with error handling:
+try:
+    suite = await create_trading_suite(
+        instrument="MNQ",
+        project_x=client,
+        auto_connect=False
+    )
+    await suite["realtime_client"].connect()
+except Exception as e:
+    print(f"Connection failed: {e}")
+```
+
+#### Memory Issues with Long-Running Strategies
+```python
+# The suite automatically manages memory, but for long-running strategies:
+# 1. Use reasonable initial_days (3-7 is usually sufficient)
+# 2. The data manager automatically maintains sliding windows
+# 3. OrderBook has built-in memory limits
+```
+
+#### Rate Limiting
+```python
+# The SDK handles rate limiting automatically, but if you encounter issues:
+# 1. Reduce concurrent API calls
+# 2. Add delays between operations
+# 3. Use batch operations where available
+```
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

@@ -385,7 +385,7 @@ async def create_trading_suite(
         await data_manager.initialize(initial_days=initial_days)
 
         # Subscribe to market data
-        await realtime_client.subscribe_market_data([instrument_info.activeContract])
+        await realtime_client.subscribe_market_data([instrument_info.id])
 
         # Start realtime feed
         await data_manager.start_realtime_feed()

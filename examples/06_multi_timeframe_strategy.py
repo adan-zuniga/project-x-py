@@ -440,7 +440,7 @@ async def main():
             instruments = await client.search_instruments("MNQ")
             if instruments:
                 await suite["realtime_client"].subscribe_market_data(
-                    [instruments[0].activeContract]
+                    [instruments[0].id]
                 )
                 await suite["data_manager"].start_realtime_feed()
 
