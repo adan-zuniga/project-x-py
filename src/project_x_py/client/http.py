@@ -47,6 +47,7 @@ import httpx
 
 from project_x_py.exceptions import (
     ProjectXAuthenticationError,
+    ProjectXConnectionError,
     ProjectXDataError,
     ProjectXError,
     ProjectXRateLimitError,
@@ -178,7 +179,7 @@ class HttpMixin:
             has_data=data is not None,
             has_params=params is not None,
         ):
-            logger.info(
+            logger.debug(
                 LogMessages.API_REQUEST, extra={"method": method, "endpoint": endpoint}
             )
 
@@ -197,13 +198,16 @@ class HttpMixin:
             self.api_call_count += 1
             start_time = time.time()
 
-            response = await client.request(
-                method=method,
-                url=url,
-                json=data,
-                params=params,
-                headers=request_headers,
-            )
+            try:
+                response = await client.request(
+                    method=method,
+                    url=url,
+                    json=data,
+                    params=params,
+                    headers=request_headers,
+                )
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                raise ProjectXConnectionError(str(e)) from e
 
             # Log API call
             log_api_call(

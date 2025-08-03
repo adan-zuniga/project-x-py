@@ -49,6 +49,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.models import Position
+from project_x_py.types.trading import PositionType
 
 if TYPE_CHECKING:
     from project_x_py.types import PositionManagerProtocol
@@ -134,10 +135,12 @@ class PositionAnalyticsMixin:
             - Use instrument.contractMultiplier for accurate point_value
         """
         # Calculate P&L based on position direction
-        if position.type == 1:  # LONG
+        if position.type == PositionType.LONG:  # LONG
             price_change = current_price - position.averagePrice
-        else:  # SHORT (type == 2)
+        elif position.type == PositionType.SHORT:  # SHORT (type == PositionType.SHORT)
             price_change = position.averagePrice - current_price
+        else:
+            price_change = 0.0
 
         # Apply point value if provided (for accurate dollar P&L)
         if point_value is not None:
@@ -155,7 +158,7 @@ class PositionAnalyticsMixin:
             "current_price": current_price,
             "entry_price": position.averagePrice,
             "size": position.size,
-            "direction": "LONG" if position.type == 1 else "SHORT",
+            "direction": "LONG" if position.type == PositionType.LONG else "SHORT",
             "price_change": price_change,
         }
 
@@ -247,7 +250,9 @@ class PositionAnalyticsMixin:
                         "current_price": None,
                         "unrealized_pnl": None,
                         "market_value": None,
-                        "direction": "LONG" if position.type == 1 else "SHORT",
+                        "direction": (
+                            "LONG" if position.type == PositionType.LONG else "SHORT"
+                        ),
                     }
                 )
 
@@ -316,7 +321,9 @@ class PositionAnalyticsMixin:
                     "size": position.size,
                     "avg_price": position.averagePrice,
                     "market_value": position.size * position.averagePrice,
-                    "direction": "LONG" if position.type == 1 else "SHORT",
+                    "direction": (
+                        "LONG" if position.type == PositionType.LONG else "SHORT"
+                    ),
                     "note": "P&L requires current market price - use calculate_position_pnl() method",
                 }
             )

@@ -25,8 +25,8 @@ class TestTypes:
         # Test enums
         assert OrderSide.BUY.value == 0
         assert OrderSide.SELL.value == 1
-        assert OrderType.MARKET.value == 0
-        assert OrderStatus.PENDING.value == 0
+        assert OrderType.MARKET.value == 2
+        assert OrderStatus.PENDING.value == 6
 
     def test_market_data_types_import(self):
         """Test that market data types can be imported."""

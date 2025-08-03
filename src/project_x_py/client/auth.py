@@ -139,7 +139,7 @@ class AuthenticationMixin:
             >>>     print(f"Authenticated as {client.account_info.username}")
             >>>     print(f"Using account: {client.account_info.name}")
         """
-        logger.info(LogMessages.AUTH_START, extra={"username": self.username})
+        logger.debug(LogMessages.AUTH_START, extra={"username": self.username})
 
         # Authenticate and get token
         auth_data = {
@@ -210,7 +210,7 @@ class AuthenticationMixin:
 
         self.account_info = selected_account
         self._authenticated = True
-        logger.info(
+        logger.debug(
             LogMessages.AUTH_SUCCESS,
             extra={
                 "account_name": selected_account.name,

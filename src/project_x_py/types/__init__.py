@@ -44,7 +44,7 @@ Example Usage:
         OrderSide,
         OrderType,
         OrderStatus,
-        PositionSide,
+        PositionType,
         # Market data types
         DomType,
         OrderbookSide,
@@ -124,7 +124,8 @@ from project_x_py.types.trading import (
     OrderStats,
     OrderStatus,
     OrderType,
-    PositionSide,
+    PositionType,
+    TradeLogType,
 )
 
 __all__ = [
@@ -151,7 +152,7 @@ __all__ = [
     "OrderbookSnapshot",
     "PositionId",
     "PositionManagerProtocol",
-    "PositionSide",
+    "PositionType",
     "PriceLevelDict",
     # From protocols.py
     "ProjectXClientProtocol",
@@ -159,4 +160,5 @@ __all__ = [
     "RealtimeDataManagerProtocol",
     "SyncCallback",
     "TradeDict",
+    "TradeLogType",
 ]

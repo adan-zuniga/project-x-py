@@ -373,7 +373,9 @@ class PositionManager(
             >>> if mgc_position:
             ...     print(f"MGC position: {mgc_position.size} contracts")
             ...     print(f"Entry price: ${mgc_position.averagePrice}")
-            ...     print(f"Direction: {'Long' if mgc_position.type == 1 else 'Short'}")
+            ...     print(
+            ...         f"Direction: {'Long' if mgc_position.type == PositionType.LONG else 'Short'}"
+            ...     )
             ... else:
             ...     print("No MGC position found")
 

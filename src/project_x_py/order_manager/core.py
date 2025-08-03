@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import Order, OrderPlaceResponse
 from project_x_py.types import OrderStats
+from project_x_py.types.trading import OrderStatus
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,
@@ -441,14 +442,14 @@ class OrderManager(
                 async with self.order_lock:
                     status = self.order_status_cache.get(order_id_str)
                     if status is not None:
-                        return status == 2  # 2 = Filled
+                        return status == OrderStatus.FILLED
 
                 if attempt < 2:  # Don't sleep on last attempt
                     await asyncio.sleep(0.2)  # Brief wait for real-time update
 
         # Fallback to API check
         order = await self.get_order_by_id(int(order_id))
-        return order is not None and order.status == 2  # 2 = Filled
+        return order is not None and order.status == OrderStatus.FILLED
 
     async def get_order_by_id(self, order_id: int) -> Order | None:
         """
@@ -520,8 +521,8 @@ class OrderManager(
             if success:
                 # Update cache
                 if str(order_id) in self.tracked_orders:
-                    self.tracked_orders[str(order_id)]["status"] = 3  # Cancelled
-                    self.order_status_cache[str(order_id)] = 3
+                    self.tracked_orders[str(order_id)]["status"] = OrderStatus.CANCELLED
+                    self.order_status_cache[str(order_id)] = OrderStatus.CANCELLED
 
                 self.stats["orders_cancelled"] = (
                     self.stats.get("orders_cancelled", 0) + 1

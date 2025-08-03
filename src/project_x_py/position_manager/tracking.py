@@ -64,6 +64,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.models import Position
+from project_x_py.types.trading import PositionType
 
 if TYPE_CHECKING:
     from asyncio import Lock
@@ -219,7 +220,11 @@ class PositionTrackingMixin:
 
         # Validate PositionType enum values
         position_type: int | None = position_data.get("type")
-        if position_type not in [0, 1, 2]:  # Undefined, Long, Short
+        if position_type not in [
+            PositionType.UNDEFINED,
+            PositionType.LONG,
+            PositionType.SHORT,
+        ]:
             self.logger.warning(f"Invalid position type: {position_type}")
             return False
 

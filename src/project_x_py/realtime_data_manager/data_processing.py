@@ -78,6 +78,8 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from project_x_py.types.trading import TradeLogType
+
 if TYPE_CHECKING:
     from asyncio import Lock
 
@@ -234,9 +236,9 @@ class DataProcessingMixin:
                     "volume": int(volume),
                     "type": "trade",
                     "trade_side": "buy"
-                    if trade_type == 0
+                    if trade_type == TradeLogType.BUY
                     else "sell"
-                    if trade_type == 1
+                    if trade_type == TradeLogType.SELL
                     else "unknown",
                     "source": "gateway_trade",
                 }

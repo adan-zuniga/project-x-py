@@ -407,7 +407,7 @@ def log_api_call(
             extra={**log_data, "error": str(error)},
         )
     else:
-        logger.info(
+        logger.debug(
             f"{LogMessages.API_RESPONSE}: {method} {endpoint}",
             extra=log_data,
         )

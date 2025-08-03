@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING, Any
 
 from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import OrderPlaceResponse
+from project_x_py.types.trading import OrderSide, OrderStatus, PositionType
 
 if TYPE_CHECKING:
     from project_x_py.types import OrderManagerProtocol
@@ -102,7 +103,8 @@ class PositionOrderMixin:
             return None
 
         # Determine order side (opposite of position)
-        side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        # side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        side = OrderSide.SELL if position.type == PositionType.LONG else OrderSide.BUY
         size = abs(position.size)
 
         # Place closing order
@@ -152,7 +154,7 @@ class PositionOrderMixin:
             return None
 
         # Determine order side (opposite of position)
-        side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        side = OrderSide.SELL if position.type == PositionType.LONG else OrderSide.BUY
         order_size = size if size else abs(position.size)
 
         # Place stop order
@@ -203,7 +205,7 @@ class PositionOrderMixin:
             return None
 
         # Determine order side (opposite of position)
-        side = 1 if position.size > 0 else 0  # Sell long, Buy short
+        side = OrderSide.SELL if position.type == PositionType.LONG else OrderSide.BUY
         order_size = size if size else abs(position.size)
 
         # Place limit order
@@ -362,7 +364,7 @@ class PositionOrderMixin:
                 try:
                     # Get current order
                     order = await self.get_order_by_id(order_id)
-                    if order and order.status == 1:  # Open
+                    if order and order.status == OrderStatus.OPEN:  # Open
                         # Modify order size
                         success = await self.modify_order(
                             order_id=order_id, size=new_size

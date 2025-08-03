@@ -112,7 +112,9 @@ class TestOrderManagerCore:
         order_manager.project_x._make_request = AsyncMock(
             return_value={"success": False, "errorMessage": "fail"}
         )
-        assert await order_manager.cancel_order(888) is False
+        with pytest.raises(ProjectXOrderError) as exc_info:
+            await order_manager.cancel_order(888)
+        assert "Failed to cancel order 888: fail" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_modify_order_success_and_aligns(self, order_manager):
@@ -135,9 +137,11 @@ class TestOrderManagerCore:
         assert await order_manager.modify_order(12, limit_price=2000.5) is True
 
         order_manager.project_x._make_request = AsyncMock(
-            return_value={"success": False}
+            return_value={"success": False, "errorMessage": "modification failed"}
         )
-        assert await order_manager.modify_order(12, limit_price=2001.5) is False
+        with pytest.raises(ProjectXOrderError) as exc_info:
+            await order_manager.modify_order(12, limit_price=2001.5)
+        assert "Failed to modify order 12" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_statistics(self, order_manager):

@@ -45,6 +45,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from project_x_py.models import OrderPlaceResponse
+from project_x_py.types.trading import OrderType
 
 if TYPE_CHECKING:
     from project_x_py.types import OrderManagerProtocol
@@ -88,7 +89,7 @@ class OrderTypesMixin:
             contract_id=contract_id,
             side=side,
             size=size,
-            order_type=2,  # Market
+            order_type=OrderType.MARKET,
             account_id=account_id,
         )
 
@@ -120,7 +121,7 @@ class OrderTypesMixin:
             contract_id=contract_id,
             side=side,
             size=size,
-            order_type=1,  # Limit
+            order_type=OrderType.LIMIT,
             limit_price=limit_price,
             account_id=account_id,
         )
@@ -154,7 +155,7 @@ class OrderTypesMixin:
             contract_id=contract_id,
             side=side,
             size=size,
-            order_type=4,  # Stop
+            order_type=OrderType.STOP,
             stop_price=stop_price,
             account_id=account_id,
         )
@@ -187,7 +188,7 @@ class OrderTypesMixin:
         """
         return await self.place_order(
             contract_id=contract_id,
-            order_type=5,  # Trailing stop order
+            order_type=OrderType.TRAILING_STOP,
             side=side,
             size=size,
             trail_price=trail_price,

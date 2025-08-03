@@ -119,7 +119,7 @@ class TestMarketData:
                 with pytest.raises(ProjectXInstrumentError) as exc_info:
                     await client.get_instrument("INVALID")
 
-                assert "No instruments found" in str(exc_info.value)
+                assert "Instrument not found: INVALID" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_search_instruments(

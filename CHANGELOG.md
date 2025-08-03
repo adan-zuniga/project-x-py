@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [2.0.6] - 2025-08-03
+
+### Changed
+- **🔢 Enum Usage**: Replaced magic numbers with proper enum values throughout codebase
+  - All order side values now use `OrderSide` enum (BUY=0, SELL=1)
+  - All order type values now use `OrderType` enum (LIMIT=1, MARKET=2, STOP=4, etc.)
+  - All order status values now use `OrderStatus` enum (OPEN=1, FILLED=2, CANCELLED=3, etc.)
+  - All position type values now use `PositionType` enum (LONG=1, SHORT=2)
+  - Trade log types now use `TradeLogType` enum (BUY=0, SELL=1)
+  - Improved code readability and maintainability
+  - All enum values match ProjectX Gateway documentation
+
+### Fixed
+- **🧪 Test Suite**: Fixed all test failures from recent refactoring
+  - HTTP client retry logic tests now expect correct retry counts
+  - Connection/timeout errors properly converted to `ProjectXConnectionError`
+  - Order cancellation and modification tests updated to expect exceptions
+  - Market data tests updated for standardized error messages
+  - Type tests updated with correct enum values
+
+### Improved
+- **📖 Code Documentation**: Updated inline documentation to reference enums
+- **🔍 Type Safety**: Better type checking with enum usage
+- **🐛 Bug Prevention**: Enum usage prevents invalid numeric values
+
 ## [2.0.5] - 2025-08-03
 
 ### Added

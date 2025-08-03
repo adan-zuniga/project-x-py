@@ -152,7 +152,9 @@ class TestHttpClient:
         with pytest.raises(ProjectXServerError):
             await client._make_request("GET", "/test/endpoint")
 
-        assert client._client.request.call_count == 4  # Initial + 3 retries
+        assert (
+            client._client.request.call_count == 3
+        )  # Total attempts (decorator max_attempts=3)
 
     @pytest.mark.asyncio
     async def test_connection_error_handling(self, initialized_client):

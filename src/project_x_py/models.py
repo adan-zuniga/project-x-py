@@ -53,9 +53,9 @@ Example Usage:
         contractId="CON.F.US.MGC.M25",
         creationTimestamp="2024-01-01T10:00:00Z",
         updateTimestamp="2024-01-01T10:00:05Z",
-        status=1,  # Open
-        type=1,  # Limit
-        side=0,  # Bid
+        status=OrderStatus.OPEN,
+        type=OrderType.LIMIT,
+        side=OrderSide.BUY,
         size=5,
         limitPrice=2050.0,
     )
@@ -66,7 +66,7 @@ Example Usage:
         accountId=1001,
         contractId="CON.F.US.MGC.M25",
         creationTimestamp="2024-01-01T10:00:00Z",
-        type=1,  # Long
+        type=PositionType.LONG,
         size=5,
         averagePrice=2050.0,
     )
@@ -265,7 +265,8 @@ class Position:
         accountId (int): Account holding the position
         contractId (str): Contract of the position
         creationTimestamp (str): When the position was opened (ISO format)
-        type (int): Position type code (1=LONG, 2=SHORT)
+        type (int): Position type code (PositionType enum):
+            0=UNDEFINED, 1=LONG, 2=SHORT
         size (int): Position size (number of contracts, always positive)
         averagePrice (float): Average entry price of the position
 
@@ -274,7 +275,7 @@ class Position:
         For P&L calculations, use PositionManager.calculate_position_pnl() method.
 
     Example:
-        >>> direction = "LONG" if position.type == 1 else "SHORT"
+        >>> direction = "LONG" if position.type == PositionType.LONG else "SHORT"
         >>> print(
         ...     f"{direction} {position.size} {position.contractId} @ ${position.averagePrice}"
         ... )

@@ -19,7 +19,7 @@ Key Features:
 
 Type Categories:
     - Order Types: OrderSide, OrderType, OrderStatus for order management
-    - Position Types: PositionSide for position tracking
+    - Position Types: PositionType for position tracking
     - Statistics: OrderStats for order execution tracking
 
 Example Usage:
@@ -28,7 +28,7 @@ Example Usage:
         OrderSide,
         OrderType,
         OrderStatus,
-        PositionSide,
+        PositionType,
         OrderStats,
     )
 
@@ -62,13 +62,13 @@ Example Usage:
 
 
     # Use position side enumeration
-    def manage_position(side: PositionSide, size: int) -> None:
-        if side == PositionSide.LONG:
+    def manage_position(type: PositionType, size: int) -> None:
+        if type == PositionType.LONG:
             print(f"Long position: {size} contracts")
-        elif side == PositionSide.SHORT:
+        elif type == PositionType.SHORT:
             print(f"Short position: {size} contracts")
         else:
-            print("Flat position")
+            print("Undefined position")
 
 
     # Use order statistics
@@ -80,11 +80,11 @@ Example Usage:
 
 Order Types:
     - OrderSide: BUY=0, SELL=1 for order direction
-    - OrderType: MARKET=0, LIMIT=1, STOP=2, STOP_LIMIT=3, TRAILING_STOP=4
-    - OrderStatus: PENDING=0, OPEN=1, FILLED=2, CANCELLED=3, REJECTED=4, EXPIRED=5
+    - OrderType: LIMIT=1, MARKET=2, STOP_LIMIT=3, STOP=4, TRAILING_STOP=5, JOIN_BID=6, JOIN_ASK=7
+    - OrderStatus: NONE=0, OPEN=1, FILLED=2, CANCELLED=3, REJECTED=4, EXPIRED=5, PENDING=6
 
 Position Types:
-    - PositionSide: LONG=0, SHORT=1, FLAT=2 for position direction
+    - PositionType: UNDEFINED=0, LONG=1, SHORT=2 for position direction
 
 Statistics Types:
     - OrderStats: Comprehensive order execution statistics with timestamps
@@ -116,22 +116,25 @@ class OrderSide(IntEnum):
 class OrderType(IntEnum):
     """Order type enumeration."""
 
-    MARKET = 0
     LIMIT = 1
-    STOP = 2
+    MARKET = 2
     STOP_LIMIT = 3
-    TRAILING_STOP = 4
+    STOP = 4
+    TRAILING_STOP = 5
+    JOIN_BID = 6
+    JOIN_ASK = 7
 
 
 class OrderStatus(IntEnum):
     """Order status enumeration."""
 
-    PENDING = 0
+    NONE = 0
     OPEN = 1
     FILLED = 2
     CANCELLED = 3
-    REJECTED = 4
-    EXPIRED = 5
+    EXPIRED = 4
+    REJECTED = 5
+    PENDING = 6
 
 
 class OrderStats(TypedDict):
@@ -144,12 +147,19 @@ class OrderStats(TypedDict):
     last_order_time: datetime | None
 
 
-class PositionSide(IntEnum):
-    """Position side enumeration."""
+class PositionType(IntEnum):
+    """Position type enumeration."""
 
-    LONG = 0
-    SHORT = 1
-    FLAT = 2
+    UNDEFINED = 0
+    LONG = 1
+    SHORT = 2
+
+
+class TradeLogType(IntEnum):
+    """Trade type enumeration. Used for trade logging."""
+
+    BUY = 0
+    SELL = 1
 
 
 __all__ = [
@@ -157,5 +167,6 @@ __all__ = [
     "OrderStats",
     "OrderStatus",
     "OrderType",
-    "PositionSide",
+    "PositionType",
+    "TradeLogType",
 ]
