@@ -128,11 +128,97 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### Real-time Trading Suite
+### Trading Suite (NEW in v2.0.8)
+
+The easiest way to get started with a complete trading setup:
 
 ```python
 import asyncio
-from project_x_py import ProjectX, create_trading_suite
+from project_x_py import ProjectX, create_initialized_trading_suite
+
+async def main():
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        # One line creates and initializes everything!
+        suite = await create_initialized_trading_suite(
+            instrument="MNQ",
+            project_x=client,
+            timeframes=["5min", "15min", "1hr"],
+            initial_days=5
+        )
+        
+        # Everything is ready to use:
+        # ✅ Realtime client connected
+        # ✅ Historical data loaded
+        # ✅ Market data streaming
+        # ✅ All components initialized
+        
+        # Access components
+        data = await suite["data_manager"].get_data("5min")
+        orderbook = suite["orderbook"]
+        order_manager = suite["order_manager"]
+        position_manager = suite["position_manager"]
+        
+        # Your trading logic here...
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Factory Functions (v2.0.8+)
+
+The SDK provides powerful factory functions to simplify setup:
+
+#### create_initialized_trading_suite
+The simplest way to get a fully initialized trading environment:
+
+```python
+suite = await create_initialized_trading_suite(
+    instrument="MNQ",
+    project_x=client,
+    timeframes=["5min", "15min", "1hr"],  # Optional, defaults to ["5min"]
+    enable_orderbook=True,                 # Optional, defaults to True
+    initial_days=5                         # Optional, defaults to 5
+)
+# Everything is connected and ready!
+```
+
+#### create_trading_suite
+For more control over initialization:
+
+```python
+suite = await create_trading_suite(
+    instrument="MNQ",
+    project_x=client,
+    timeframes=["5min", "15min"],
+    auto_connect=True,      # Auto-connect realtime client (default: True)
+    auto_subscribe=True,    # Auto-subscribe to market data (default: True)
+    initial_days=5          # Historical data to load
+)
+```
+
+#### Manual Setup (Full Control)
+If you need complete control:
+
+```python
+suite = await create_trading_suite(
+    instrument="MNQ",
+    project_x=client,
+    auto_connect=False,
+    auto_subscribe=False
+)
+# Now manually connect and subscribe as needed
+await suite["realtime_client"].connect()
+await suite["data_manager"].initialize()
+# ... etc
+```
+
+### Real-time Trading Example
+
+```python
+import asyncio
+from project_x_py import ProjectX, create_initialized_trading_suite
 
 async def on_tick(tick_data):
     print(f"Price: ${tick_data['price']}")
@@ -141,24 +227,18 @@ async def main():
     async with ProjectX.from_env() as client:
         await client.authenticate()
         
-        # Create complete trading suite
-        suite = await create_trading_suite(
-            instrument="MNQ",
-            project_x=client,
-            timeframes=["1min", "5min", "15min"]
-        )
+        # Create fully initialized trading suite
+        suite = await create_initialized_trading_suite("MNQ", client)
         
-        # Connect real-time services
-        await suite["realtime_client"].connect()
-        await suite["data_manager"].initialize(initial_days=5)
-        
-        # Subscribe to real-time data
+        # Add callbacks
         suite["data_manager"].add_tick_callback(on_tick)
-        await suite["data_manager"].start_realtime_feed()
+        
+        # Get current price
+        current_price = await suite["data_manager"].get_current_price()
         
         # Place a bracket order
         response = await suite["order_manager"].place_bracket_order(
-            contract_id=instrument.id,
+            contract_id=suite["instrument_info"].id,
             side=0,  # Buy
             size=1,
             entry_price=current_price,
@@ -284,6 +364,8 @@ The `examples/` directory contains comprehensive async examples:
 7. **07_technical_indicators.py** - Using indicators with async data
 8. **08_order_and_position_tracking.py** - Integrated async monitoring
 9. **09_get_check_available_instruments.py** - Interactive async instrument search
+10. **12_simplified_strategy.py** - NEW: Simplified strategy using auto-initialization
+11. **13_factory_comparison.py** - NEW: Comparison of factory function approaches
 
 ## 🔧 Configuration
 
