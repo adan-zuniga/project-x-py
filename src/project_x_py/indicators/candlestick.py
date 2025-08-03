@@ -1,7 +1,7 @@
 """
 ProjectX Indicators - Candlestick Pattern Recognition
 
-Author: Grok CLI
+Author: @TexasCoding
 Date: 2025-08-03
 
 Overview:
