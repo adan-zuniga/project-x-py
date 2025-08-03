@@ -60,11 +60,7 @@ def handle_errors(
                 logger = logging.getLogger(func.__module__)
 
             try:
-                result = func(*args, **kwargs)
-                # Handle both sync and async returns
-                if asyncio.iscoroutine(result):
-                    return await result  # type: ignore[no-any-return]
-                return result
+                return await func(*args, **kwargs)
             except ProjectXError as e:
                 # Already a ProjectX error, just add context
                 logger.error(
@@ -192,7 +188,7 @@ def retry_on_network_error(
 
             for attempt in range(max_attempts):
                 try:
-                    return func(*args, **kwargs)
+                    return await func(*args, **kwargs)
                 except retry_on as e:
                     last_exception = e
 
@@ -301,11 +297,7 @@ def handle_rate_limit(
                 logger = logging.getLogger(func.__module__)
 
             try:
-                result = func(*args, **kwargs)
-                # Handle both sync and async returns
-                if asyncio.iscoroutine(result):
-                    return await result  # type: ignore[no-any-return]
-                return result
+                return await func(*args, **kwargs)
             except ProjectXRateLimitError as e:
                 # Check if we have a reset time in the response
                 reset_time = None
@@ -339,7 +331,7 @@ def handle_rate_limit(
                 await asyncio.sleep(delay)
 
                 # Retry once after waiting
-                return func(*args, **kwargs)
+                return await func(*args, **kwargs)
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> T:
@@ -377,10 +369,7 @@ def validate_response(
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> T:
-            result = func(*args, **kwargs)
-            # Handle both sync and async returns
-            if asyncio.iscoroutine(result):
-                result = await result
+            result = await func(*args, **kwargs)
 
             # Validate type
             if response_type is not None and not isinstance(result, response_type):
