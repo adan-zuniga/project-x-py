@@ -1,4 +1,39 @@
-"""HTTP client and request handling for ProjectX client."""
+"""
+Async HTTP/2 client, rate-limiting, and robust error handling for ProjectX SDK.
+
+Overview:
+    Implements the async HTTP/2 client logic for ProjectX API access, including connection
+    pooling, automatic retry on transient errors, and adaptive rate limiting. All API calls
+    are decorated for rate control and network resilience, with detailed error mapping for
+    4xx and 5xx responses. Integrates with authentication for seamless token refresh and
+    propagates network/runtime errors as SDK-specific exceptions.
+
+Key Features:
+    - HTTP/2 async client with connection pooling (via httpx)
+    - Decorators for automatic rate limiting and network retry logic
+    - Error mapping: raises precise exceptions for 4xx/5xx responses
+    - Automatic JWT token refresh on 401/expired session
+    - API call logging, health status, and statistics
+    - Centralized request/response handling for all mixins
+
+Example Usage:
+    ```python
+    import asyncio
+    from project_x_py import ProjectX
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            status = await client.get_health_status()
+            print(status["api_status"], status["client_stats"]["api_calls"])
+
+    asyncio.run(main())
+    ```
+
+See Also:
+    - `project_x_py.client.base.ProjectXBase`
+    - `project_x_py.client.auth.AuthenticationMixin`
+    - `project_x_py.client.cache.CacheMixin`
+"""
 
 import time
 from typing import TYPE_CHECKING, Any

@@ -1,4 +1,41 @@
-"""Base client class with lifecycle methods for ProjectX."""
+"""
+ProjectX async base client: context-managed lifecycle, mixin composition, and helpers.
+
+Overview:
+    Defines the foundational async client for ProjectX by combining all core functional
+    mixins (auth, HTTP, cache, market data, trading) into a single context-managed class.
+    Supports async context management for safe resource cleanup, flexible instantiation from
+    environment or config file, and exposes helper classmethods to streamline credential and
+    configuration handling in both development and production setups.
+
+Key Features:
+    - Composes all client-side mixins (auth, HTTP, cache, data, trading)
+    - Async context manager for safe resource initialization and teardown
+    - Classmethod constructors: `from_env` and `from_config_file`
+    - Centralized client/session token and account info access
+    - Integrated API rate limiting and configuration
+    - Suitable as a base for advanced SDK extensibility
+
+Example Usage:
+    ```python
+    import asyncio
+    from project_x_py import ProjectX
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+            print(client.get_account_info())
+
+    asyncio.run(main())
+    ```
+
+See Also:
+    - `project_x_py.client.auth.AuthenticationMixin`
+    - `project_x_py.client.http.HttpMixin`
+    - `project_x_py.client.cache.CacheMixin`
+    - `project_x_py.client.market_data.MarketDataMixin`
+    - `project_x_py.client.trading.TradingMixin`
+"""
 
 import logging
 import os
