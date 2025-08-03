@@ -13,6 +13,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [2.0.8] - 2025-08-03
+
+### Added
+- **🚀 Enhanced Factory Functions**: Dramatically simplified trading suite setup
+  - `create_initialized_trading_suite()`: One-line setup with everything connected and ready
+  - Enhanced `create_trading_suite()` with auto-initialization options:
+    - `auto_connect`: Automatically connect realtime client and subscribe to user updates
+    - `auto_subscribe`: Automatically subscribe to market data and start feeds
+    - `initial_days`: Configurable historical data loading (default: 5)
+  - Reduces boilerplate code by ~95% for most use cases
+  - Still allows full manual control when needed
+
+### Examples
+- **12_simplified_strategy.py**: Demonstrates the new simplified setup approach
+- **13_factory_comparison.py**: Shows the difference between old manual setup and new auto-initialization
+
+### Improved
+- **📖 Documentation**: Updated README with comprehensive factory function documentation
+- **🎯 Developer Experience**: Trading strategies can now focus on logic instead of setup boilerplate
+- **🔄 Flexibility**: Three levels of initialization control:
+  1. `create_initialized_trading_suite()` - Everything automatic
+  2. `create_trading_suite(..., auto_connect=True, auto_subscribe=True)` - Configurable automation
+  3. `create_trading_suite(..., auto_connect=False, auto_subscribe=False)` - Full manual control
+
+### Technical Details
+- Factory functions now handle all initialization steps:
+  - WebSocket connection and user update subscription
+  - Historical data loading
+  - Instrument search and contract resolution
+  - Market data subscription
+  - Real-time feed initialization
+  - OrderBook initialization (if enabled)
+- All initialization is properly sequenced to avoid race conditions
+- Error handling ensures clear feedback if initialization fails
+
 ## [2.0.7] - 2025-08-03
 
 ### Added

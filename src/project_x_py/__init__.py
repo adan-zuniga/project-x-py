@@ -97,7 +97,7 @@ from typing import Any
 
 from project_x_py.client.base import ProjectXBase
 
-__version__ = "2.0.7"
+__version__ = "2.0.8"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
@@ -229,6 +229,7 @@ __all__ = [
     "create_custom_config",
     # Factory functions (async-only)
     "create_data_manager",
+    "create_initialized_trading_suite",
     "create_order_manager",
     "create_orderbook",
     "create_position_manager",
@@ -251,6 +252,9 @@ async def create_trading_suite(
     timeframes: list[str] | None = None,
     enable_orderbook: bool = True,
     config: ProjectXConfig | None = None,
+    auto_connect: bool = True,
+    auto_subscribe: bool = True,
+    initial_days: int = 5,
 ) -> dict[str, Any]:
     """
     Create a complete async trading suite with all components initialized.
@@ -266,6 +270,9 @@ async def create_trading_suite(
         timeframes: List of timeframes for real-time data (default: ["5min"])
         enable_orderbook: Whether to include OrderBook in suite
         config: Optional custom configuration
+        auto_connect: Automatically connect realtime client and subscribe to user updates (default: True)
+        auto_subscribe: Automatically subscribe to market data and start realtime feed (default: True)
+        initial_days: Days of historical data to load when auto_subscribe is True (default: 5)
 
     Returns:
         Dictionary containing initialized trading components:
@@ -274,8 +281,10 @@ async def create_trading_suite(
         - order_manager: Order management system
         - position_manager: Position tracking system
         - orderbook: Level 2 order book (if enabled)
+        - instrument_info: Instrument contract information (if auto_subscribe is True)
 
     Example:
+        # Fully automated setup (recommended)
         async with ProjectX.from_env() as client:
             await client.authenticate()
 
@@ -284,10 +293,16 @@ async def create_trading_suite(
                 project_x=client,
                 timeframes=["1min", "5min", "15min"]
             )
+            # Ready to use - all connections and subscriptions are active!
 
-            # Connect real-time services
-            await suite["realtime_client"].connect()
-            await suite["data_manager"].initialize()
+        # Manual setup (for more control)
+        suite = await create_trading_suite(
+            instrument="MGC",
+            project_x=client,
+            auto_connect=False,
+            auto_subscribe=False
+        )
+        # Manually connect and subscribe as needed
     """
     # Use provided config or get from project_x client
     if config is None:
@@ -351,7 +366,84 @@ async def create_trading_suite(
     if orderbook:
         suite["orderbook"] = orderbook
 
+    # Auto-connect if requested
+    if auto_connect:
+        await realtime_client.connect()
+        await realtime_client.subscribe_user_updates()
+
+    # Auto-subscribe and initialize if requested
+    if auto_subscribe:
+        # Search for instrument
+        instruments = await project_x.search_instruments(instrument)
+        if not instruments:
+            raise ValueError(f"Instrument {instrument} not found")
+
+        instrument_info: Instrument = instruments[0]
+        suite["instrument_info"] = instrument_info
+
+        # Initialize data manager with historical data
+        await data_manager.initialize(initial_days=initial_days)
+
+        # Subscribe to market data
+        await realtime_client.subscribe_market_data([instrument_info.id])
+
+        # Start realtime feed
+        await data_manager.start_realtime_feed()
+
+        # Initialize orderbook if enabled
+        if orderbook:
+            await orderbook.initialize(
+                realtime_client=realtime_client,
+                subscribe_to_depth=True,
+                subscribe_to_quotes=True,
+            )
+
     return suite
+
+
+async def create_initialized_trading_suite(
+    instrument: str,
+    project_x: ProjectXBase,
+    timeframes: list[str] | None = None,
+    enable_orderbook: bool = True,
+    initial_days: int = 5,
+) -> dict[str, Any]:
+    """
+    Create and fully initialize a trading suite with all connections active.
+
+    This is a convenience wrapper around create_trading_suite that always
+    auto-connects and auto-subscribes, perfect for most trading strategies.
+
+    Args:
+        instrument: Trading instrument symbol (e.g., "MGC", "MNQ")
+        project_x: Authenticated ProjectX client instance
+        timeframes: List of timeframes for real-time data (default: ["5min"])
+        enable_orderbook: Whether to include OrderBook in suite
+        initial_days: Days of historical data to load (default: 5)
+
+    Returns:
+        Fully initialized trading suite ready for use
+
+    Example:
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # One line to get a fully ready trading suite!
+            suite = await create_initialized_trading_suite("MNQ", client)
+
+            # Everything is connected and subscribed - start trading!
+            strategy = MyStrategy(suite)
+            await strategy.run()
+    """
+    return await create_trading_suite(
+        instrument=instrument,
+        project_x=project_x,
+        timeframes=timeframes,
+        enable_orderbook=enable_orderbook,
+        auto_connect=True,
+        auto_subscribe=True,
+        initial_days=initial_days,
+    )
 
 
 def create_order_manager(
