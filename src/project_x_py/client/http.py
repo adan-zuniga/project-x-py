@@ -1,24 +1,33 @@
 """HTTP client and request handling for ProjectX client."""
 
-import asyncio
-import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from project_x_py.exceptions import (
     ProjectXAuthenticationError,
-    ProjectXConnectionError,
     ProjectXDataError,
     ProjectXError,
     ProjectXRateLimitError,
     ProjectXServerError,
 )
+from project_x_py.utils import (
+    ErrorMessages,
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    format_error_message,
+    handle_errors,
+    handle_rate_limit,
+    log_api_call,
+    retry_on_network_error,
+)
 
 if TYPE_CHECKING:
-    from project_x_py.client.protocols import ProjectXClientProtocol
+    from project_x_py.types import ProjectXClientProtocol
 
-logger = logging.getLogger(__name__)
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class HttpMixin:
@@ -80,6 +89,8 @@ class HttpMixin:
             self._client = await self._create_client()
         return self._client
 
+    @handle_rate_limit()
+    @retry_on_network_error(max_attempts=3)
     async def _make_request(
         self: "ProjectXClientProtocol",
         method: str,
@@ -106,21 +117,33 @@ class HttpMixin:
         Raises:
             ProjectXError: Various specific exceptions based on error type
         """
-        client = await self._ensure_client()
+        with LogContext(
+            logger,
+            operation="api_request",
+            method=method,
+            endpoint=endpoint,
+            has_data=data is not None,
+            has_params=params is not None,
+        ):
+            logger.info(
+                LogMessages.API_REQUEST, extra={"method": method, "endpoint": endpoint}
+            )
 
-        url = f"{self.base_url}{endpoint}"
-        request_headers = {**self.headers, **(headers or {})}
+            client = await self._ensure_client()
 
-        # Add authorization if we have a token
-        if self.session_token and endpoint != "/Auth/loginKey":
-            request_headers["Authorization"] = f"Bearer {self.session_token}"
+            url = f"{self.base_url}{endpoint}"
+            request_headers = {**self.headers, **(headers or {})}
 
-        # Apply rate limiting
-        await self.rate_limiter.acquire()
+            # Add authorization if we have a token
+            if self.session_token and endpoint != "/Auth/loginKey":
+                request_headers["Authorization"] = f"Bearer {self.session_token}"
 
-        self.api_call_count += 1
+            # Apply rate limiting
+            await self.rate_limiter.acquire()
 
-        try:
+            self.api_call_count += 1
+            start_time = time.time()
+
             response = await client.request(
                 method=method,
                 url=url,
@@ -129,23 +152,23 @@ class HttpMixin:
                 headers=request_headers,
             )
 
+            # Log API call
+            log_api_call(
+                logger,
+                method=method,
+                endpoint=endpoint,
+                status_code=response.status_code,
+                duration=time.time() - start_time,
+            )
+
             # Handle rate limiting
             if response.status_code == 429:
-                if retry_count < self.config.retry_attempts:
-                    retry_after = int(response.headers.get("Retry-After", "5"))
-                    self.logger.warning(
-                        f"Rate limited, retrying after {retry_after} seconds"
+                retry_after = int(response.headers.get("Retry-After", "60"))
+                raise ProjectXRateLimitError(
+                    format_error_message(
+                        ErrorMessages.API_RATE_LIMITED, retry_after=retry_after
                     )
-                    await asyncio.sleep(retry_after)
-                    return await self._make_request(
-                        method=method,
-                        endpoint=endpoint,
-                        data=data,
-                        params=params,
-                        headers=headers,
-                        retry_count=retry_count + 1,
-                    )
-                raise ProjectXRateLimitError("Rate limit exceeded after retries")
+                )
 
             # Handle successful responses
             if response.status_code in (200, 201, 204):
@@ -166,7 +189,7 @@ class HttpMixin:
                         headers=headers,
                         retry_count=retry_count + 1,
                     )
-                raise ProjectXAuthenticationError("Authentication failed")
+                raise ProjectXAuthenticationError(ErrorMessages.AUTH_FAILED)
 
             # Handle client errors
             if 400 <= response.status_code < 500:
@@ -181,53 +204,25 @@ class HttpMixin:
                     error_msg = response.text
 
                 if response.status_code == 404:
-                    raise ProjectXDataError(f"Resource not found: {error_msg}")
+                    raise ProjectXDataError(
+                        format_error_message(
+                            ErrorMessages.API_RESOURCE_NOT_FOUND, resource=endpoint
+                        )
+                    )
                 else:
                     raise ProjectXError(error_msg)
 
-            # Handle server errors with retry
+            # Handle server errors
             if 500 <= response.status_code < 600:
-                if retry_count < self.config.retry_attempts:
-                    wait_time = 2**retry_count  # Exponential backoff
-                    self.logger.warning(
-                        f"Server error {response.status_code}, retrying in {wait_time}s"
-                    )
-                    await asyncio.sleep(wait_time)
-                    return await self._make_request(
-                        method=method,
-                        endpoint=endpoint,
-                        data=data,
-                        params=params,
-                        headers=headers,
-                        retry_count=retry_count + 1,
-                    )
                 raise ProjectXServerError(
-                    f"Server error: {response.status_code} - {response.text}"
+                    format_error_message(
+                        ErrorMessages.API_SERVER_ERROR,
+                        status_code=response.status_code,
+                        message=response.text[:200],  # Limit message length
+                    )
                 )
 
-        except httpx.ConnectError as e:
-            if retry_count < self.config.retry_attempts:
-                wait_time = 2**retry_count
-                self.logger.warning(f"Connection error, retrying in {wait_time}s: {e}")
-                await asyncio.sleep(wait_time)
-                return await self._make_request(
-                    method, endpoint, data, params, headers, retry_count + 1
-                )
-            raise ProjectXConnectionError(f"Failed to connect to API: {e}") from e
-        except httpx.TimeoutException as e:
-            if retry_count < self.config.retry_attempts:
-                wait_time = 2**retry_count
-                self.logger.warning(f"Request timeout, retrying in {wait_time}s: {e}")
-                await asyncio.sleep(wait_time)
-                return await self._make_request(
-                    method, endpoint, data, params, headers, retry_count + 1
-                )
-            raise ProjectXConnectionError(f"Request timeout: {e}") from e
-        except Exception as e:
-            if not isinstance(e, ProjectXError):
-                raise ProjectXError(f"Unexpected error: {e}") from e
-            raise
-
+    @handle_errors("get health status")
     async def get_health_status(self: "ProjectXClientProtocol") -> dict[str, Any]:
         """
         Get API health status and client statistics.

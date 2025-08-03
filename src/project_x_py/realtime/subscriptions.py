@@ -3,13 +3,23 @@
 import asyncio
 from typing import TYPE_CHECKING
 
+from project_x_py.utils import (
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    handle_errors,
+)
+
 if TYPE_CHECKING:
-    from project_x_py.realtime.types import ProjectXRealtimeClientProtocol
+    from project_x_py.types import ProjectXRealtimeClientProtocol
+
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class SubscriptionsMixin:
     """Mixin for subscription management functionality."""
 
+    @handle_errors("subscribe user updates", reraise=False, default_return=False)
     async def subscribe_user_updates(self: "ProjectXRealtimeClientProtocol") -> bool:
         """
         Subscribe to all user-specific real-time updates.
@@ -55,14 +65,26 @@ class SubscriptionsMixin:
             - All subscriptions are account-specific
             - Must re-subscribe after reconnection
         """
-        if not self.user_connected:
-            self.logger.error("❌ User hub not connected")
-            return False
+        with LogContext(
+            logger,
+            operation="subscribe_user_updates",
+            account_id=self.account_id,
+        ):
+            if not self.user_connected:
+                logger.error(
+                    LogMessages.WS_ERROR, extra={"error": "User hub not connected"}
+                )
+                return False
 
-        try:
-            self.logger.info(f"📡 Subscribing to user updates for {self.account_id}")
+            logger.info(
+                LogMessages.DATA_SUBSCRIBE,
+                extra={"channel": "user_updates", "account_id": self.account_id},
+            )
             if self.user_connection is None:
-                self.logger.error("❌ User connection not available")
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "User connection not available"},
+                )
                 return False
             # ProjectX Gateway expects Subscribe method with account ID
             loop = asyncio.get_event_loop()
@@ -99,13 +121,13 @@ class SubscriptionsMixin:
                 [int(self.account_id)],  # List with int account ID
             )
 
-            self.logger.info("✅ Subscribed to user updates")
+            logger.info(
+                LogMessages.DATA_SUBSCRIBE,
+                extra={"status": "success", "channel": "user_updates"},
+            )
             return True
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to subscribe to user updates: {e}")
-            return False
-
+    @handle_errors("subscribe market data", reraise=False, default_return=False)
     async def subscribe_market_data(
         self: "ProjectXRealtimeClientProtocol", contract_ids: list[str]
     ) -> bool:
@@ -160,13 +182,21 @@ class SubscriptionsMixin:
             - Duplicate subscriptions are filtered automatically
             - Contract IDs are case-sensitive
         """
-        if not self.market_connected:
-            self.logger.error("❌ Market hub not connected")
-            return False
+        with LogContext(
+            logger,
+            operation="subscribe_market_data",
+            contract_count=len(contract_ids),
+            contracts=contract_ids[:5],  # Log first 5 contracts
+        ):
+            if not self.market_connected:
+                logger.error(
+                    LogMessages.WS_ERROR, extra={"error": "Market hub not connected"}
+                )
+                return False
 
-        try:
-            self.logger.info(
-                f"📊 Subscribing to market data for {len(contract_ids)} contracts"
+            logger.info(
+                LogMessages.DATA_SUBSCRIBE,
+                extra={"channel": "market_data", "count": len(contract_ids)},
             )
 
             # Store for reconnection (avoid duplicates)
@@ -179,7 +209,10 @@ class SubscriptionsMixin:
             for contract_id in contract_ids:
                 # Subscribe to quotes
                 if self.market_connection is None:
-                    self.logger.error("❌ Market connection not available")
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": "Market connection not available"},
+                    )
                     return False
                 await loop.run_in_executor(
                     None,
@@ -202,13 +235,17 @@ class SubscriptionsMixin:
                     [contract_id],
                 )
 
-            self.logger.info(f"✅ Subscribed to {len(contract_ids)} contracts")
+            logger.info(
+                LogMessages.DATA_SUBSCRIBE,
+                extra={
+                    "status": "success",
+                    "channel": "market_data",
+                    "count": len(contract_ids),
+                },
+            )
             return True
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to subscribe to market data: {e}")
-            return False
-
+    @handle_errors("unsubscribe user updates", reraise=False, default_return=False)
     async def unsubscribe_user_updates(self: "ProjectXRealtimeClientProtocol") -> bool:
         """
         Unsubscribe from all user-specific real-time updates.
@@ -234,15 +271,25 @@ class SubscriptionsMixin:
             - Can re-subscribe without re-registering callbacks
             - Stops events for: accounts, positions, orders, trades
         """
-        if not self.user_connected:
-            self.logger.error("❌ User hub not connected")
-            return False
+        with LogContext(
+            logger,
+            operation="unsubscribe_user_updates",
+            account_id=self.account_id,
+        ):
+            if not self.user_connected:
+                logger.error(
+                    LogMessages.WS_ERROR, extra={"error": "User hub not connected"}
+                )
+                return False
 
-        if self.user_connection is None:
-            self.logger.error("❌ User connection not available")
-            return False
+            if self.user_connection is None:
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "User connection not available"},
+                )
+                return False
 
-        try:
+            logger.info(LogMessages.DATA_UNSUBSCRIBE, extra={"channel": "user_updates"})
             loop = asyncio.get_event_loop()
 
             # Unsubscribe from account updates
@@ -280,13 +327,13 @@ class SubscriptionsMixin:
                 self.account_id,
             )
 
-            self.logger.info("✅ Unsubscribed from user updates")
+            logger.info(
+                LogMessages.DATA_UNSUBSCRIBE,
+                extra={"status": "success", "channel": "user_updates"},
+            )
             return True
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to unsubscribe from user updates: {e}")
-            return False
-
+    @handle_errors("unsubscribe market data", reraise=False, default_return=False)
     async def unsubscribe_market_data(
         self: "ProjectXRealtimeClientProtocol", contract_ids: list[str]
     ) -> bool:
@@ -326,12 +373,22 @@ class SubscriptionsMixin:
             - Callbacks remain registered for future subscriptions
             - Safe to call with non-subscribed contracts
         """
-        if not self.market_connected:
-            self.logger.error("❌ Market hub not connected")
-            return False
+        with LogContext(
+            logger,
+            operation="unsubscribe_market_data",
+            contract_count=len(contract_ids),
+            contracts=contract_ids[:5],
+        ):
+            if not self.market_connected:
+                logger.error(
+                    LogMessages.WS_ERROR, extra={"error": "Market hub not connected"}
+                )
+                return False
 
-        try:
-            self.logger.info(f"🛑 Unsubscribing from {len(contract_ids)} contracts")
+            logger.info(
+                LogMessages.DATA_UNSUBSCRIBE,
+                extra={"channel": "market_data", "count": len(contract_ids)},
+            )
 
             # Remove from stored contracts
             for contract_id in contract_ids:
@@ -341,7 +398,10 @@ class SubscriptionsMixin:
             # ProjectX Gateway expects Unsubscribe method
             loop = asyncio.get_event_loop()
             if self.market_connection is None:
-                self.logger.error("❌ Market connection not available")
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "Market connection not available"},
+                )
                 return False
 
             # Unsubscribe from quotes
@@ -368,9 +428,12 @@ class SubscriptionsMixin:
                 [contract_ids],
             )
 
-            self.logger.info(f"✅ Unsubscribed from {len(contract_ids)} contracts")
+            logger.info(
+                LogMessages.DATA_UNSUBSCRIBE,
+                extra={
+                    "status": "success",
+                    "channel": "market_data",
+                    "count": len(contract_ids),
+                },
+            )
             return True
-
-        except Exception as e:
-            self.logger.error(f"❌ Failed to unsubscribe from market data: {e}")
-            return False

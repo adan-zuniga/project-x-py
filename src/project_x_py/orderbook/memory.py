@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 import contextlib
 import logging
 
-from project_x_py.orderbook.types import MemoryConfig
+from project_x_py.types import MemoryConfig
 
 
 class MemoryManager:

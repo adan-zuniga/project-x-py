@@ -25,7 +25,7 @@ from typing import Any
 
 from project_x_py.client.base import ProjectXBase
 
-__version__ = "2.0.4"
+__version__ = "2.0.5"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
@@ -94,8 +94,6 @@ from project_x_py.realtime_data_manager import RealtimeDataManager
 # Utility functions
 from project_x_py.utils import (
     RateLimiter,
-    # Market analysis utilities
-    analyze_bid_ask_spread,
     # Risk and portfolio analysis
     calculate_max_drawdown,
     calculate_portfolio_metrics,
@@ -140,7 +138,6 @@ __all__ = [
     # Version info
     "__author__",
     "__version__",
-    "analyze_bid_ask_spread",
     # Technical Analysis
     "calculate_adx",
     "calculate_atr",

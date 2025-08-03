@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.realtime_data_manager.types import RealtimeDataManagerProtocol
+    from project_x_py.types import RealtimeDataManagerProtocol
 
 logger = logging.getLogger(__name__)
 

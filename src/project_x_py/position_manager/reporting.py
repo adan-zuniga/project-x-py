@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.position_manager.types import PositionManagerProtocol
+    from project_x_py.types import PositionManagerProtocol
 
 
 class PositionReportingMixin:

@@ -9,6 +9,8 @@ Note: Technical indicators have been moved to the indicators module.
 """
 
 # Data utilities
+# Rate limiting
+from project_x_py.utils.async_rate_limiter import RateLimiter
 from project_x_py.utils.data_utils import (
     create_data_snapshot,
     get_polars_last_value,
@@ -18,17 +20,32 @@ from project_x_py.utils.data_utils import (
 # Environment utilities
 from project_x_py.utils.environment import get_env_var
 
+# Error handling utilities
+from project_x_py.utils.error_handler import (
+    ErrorContext,
+    handle_errors,
+    handle_rate_limit,
+    retry_on_network_error,
+    validate_response,
+)
+from project_x_py.utils.error_messages import (
+    ErrorCode,
+    ErrorMessages,
+    format_error_message,
+)
+
 # Formatting utilities
 from project_x_py.utils.formatting import format_price, format_volume
+from project_x_py.utils.logging_config import (
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    configure_sdk_logging,
+    log_api_call,
+)
 
 # Logging utilities
 from project_x_py.utils.logging_utils import setup_logging
-
-# Market microstructure utilities
-from project_x_py.utils.market_microstructure import (
-    analyze_bid_ask_spread,
-    calculate_volume_profile,
-)
 
 # Market utilities
 from project_x_py.utils.market_utils import (
@@ -54,9 +71,6 @@ from project_x_py.utils.portfolio_analytics import (
     calculate_volatility_metrics,
 )
 
-# Rate limiting
-from project_x_py.utils.rate_limiter import RateLimiter
-
 # Trading calculations
 from project_x_py.utils.trading_calculations import (
     calculate_position_sizing,
@@ -67,10 +81,15 @@ from project_x_py.utils.trading_calculations import (
 )
 
 __all__ = [
+    # Error handling
+    "ErrorCode",
+    "ErrorContext",
+    "ErrorMessages",
     # Rate limiting
+    "LogContext",
+    "LogMessages",
+    "ProjectXLogger",
     "RateLimiter",
-    # Market microstructure
-    "analyze_bid_ask_spread",
     # Portfolio analytics
     "calculate_correlation_matrix",
     "calculate_max_drawdown",
@@ -82,13 +101,14 @@ __all__ = [
     # Trading calculations
     "calculate_tick_value",
     "calculate_volatility_metrics",
-    "calculate_volume_profile",
+    "configure_sdk_logging",
     "convert_timeframe_to_seconds",
     "create_data_snapshot",
     # Pattern detection
     "detect_candlestick_patterns",
     "detect_chart_patterns",
     "extract_symbol_from_contract_id",
+    "format_error_message",
     # Formatting utilities
     "format_price",
     "format_volume",
@@ -98,10 +118,15 @@ __all__ = [
     "get_polars_last_value",
     # Data utilities
     "get_polars_rows",
+    "handle_errors",
+    "handle_rate_limit",
     # Market utilities
     "is_market_hours",
+    "log_api_call",
+    "retry_on_network_error",
     "round_to_tick_size",
     # Logging utilities
     "setup_logging",
     "validate_contract_id",
+    "validate_response",
 ]

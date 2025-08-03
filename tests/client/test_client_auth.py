@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from project_x_py.exceptions import ProjectXAuthenticationError
+from project_x_py.exceptions import ProjectXAuthenticationError, ProjectXError
 
 
 class TestClientAuth:
@@ -94,21 +94,15 @@ class TestClientAuth:
 
         auth_response, accounts_response = mock_auth_response
 
-        # Make sure the ValueError message includes the available account name
-        from unittest.mock import patch
+        client._client.request.side_effect = [auth_response, accounts_response]
 
-        with patch(
-            "project_x_py.client.auth.ValueError", side_effect=ValueError
-        ) as mock_error:
-            client._client.request.side_effect = [auth_response, accounts_response]
+        with pytest.raises(ProjectXError) as exc_info:
+            await client.authenticate()
 
-            with pytest.raises(ValueError):
-                await client.authenticate()
-
-            # Verify the error message contains the available account name
-            args, _ = mock_error.call_args
-            error_msg = args[0]
-            assert "Test Account" in error_msg
+        # Verify the error message contains the available account name
+        error_msg = str(exc_info.value)
+        assert "NonExistent" in error_msg
+        assert "Test Account" in error_msg
 
     @pytest.mark.asyncio
     async def test_token_refresh(

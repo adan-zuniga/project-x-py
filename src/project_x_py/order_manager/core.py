@@ -6,25 +6,33 @@ operations including placement, modification, cancellation, and tracking.
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import Order, OrderPlaceResponse
+from project_x_py.types import OrderStats
+from project_x_py.utils import (
+    ErrorMessages,
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    format_error_message,
+    handle_errors,
+    validate_response,
+)
 
 from .bracket_orders import BracketOrderMixin
 from .order_types import OrderTypesMixin
 from .position_orders import PositionOrderMixin
 from .tracking import OrderTrackingMixin
-from .types import OrderStats
 from .utils import align_price_to_tick_size, resolve_contract_id
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
     from project_x_py.realtime import ProjectXRealtimeClient
 
-logger = logging.getLogger(__name__)
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class OrderManager(
@@ -88,7 +96,7 @@ class OrderManager(
         OrderTrackingMixin.__init__(self)
 
         self.project_x = project_x_client
-        self.logger = logging.getLogger(__name__)
+        self.logger = ProjectXLogger.get_logger(__name__)
 
         # Async lock for thread safety
         self.order_lock = asyncio.Lock()
@@ -166,6 +174,8 @@ class OrderManager(
             self.logger.error(f"❌ Failed to initialize AsyncOrderManager: {e}")
             return False
 
+    @handle_errors("place order")
+    @validate_response(required_fields=["success", "orderId"])
     async def place_order(
         self,
         contract_id: str,
@@ -205,13 +215,35 @@ class OrderManager(
         Raises:
             ProjectXOrderError: If order placement fails due to invalid parameters or API errors
         """
-        result = None
-        aligned_limit_price = None
-        aligned_stop_price = None
-        aligned_trail_price = None
+        # Add logging context
+        with LogContext(
+            self.logger,
+            operation="place_order",
+            contract_id=contract_id,
+            order_type=order_type,
+            side=side,
+            size=size,
+            custom_tag=custom_tag,
+        ):
+            # Validate inputs
+            if size <= 0:
+                raise ProjectXOrderError(
+                    format_error_message(ErrorMessages.ORDER_INVALID_SIZE, size=size)
+                )
 
-        async with self.order_lock:
-            try:
+            self.logger.info(
+                LogMessages.ORDER_PLACE,
+                extra={
+                    "contract_id": contract_id,
+                    "order_type": order_type,
+                    "side": side,
+                    "size": size,
+                    "limit_price": limit_price,
+                    "stop_price": stop_price,
+                },
+            )
+
+            async with self.order_lock:
                 # Align all prices to tick size to prevent "Invalid price" errors
                 aligned_limit_price = await align_price_to_tick_size(
                     limit_price, contract_id, self.project_x
@@ -226,7 +258,7 @@ class OrderManager(
                 # Use account_info if no account_id provided
                 if account_id is None:
                     if not self.project_x.account_info:
-                        raise ProjectXOrderError("No account information available")
+                        raise ProjectXOrderError(ErrorMessages.ORDER_NO_ACCOUNT)
                     account_id = self.project_x.account_info.id
 
                 # Build order request payload
@@ -246,25 +278,14 @@ class OrderManager(
                 if custom_tag:
                     payload["customTag"] = custom_tag
 
-                # Log order parameters for debugging
-                self.logger.debug(f"🔍 Order Placement Request: {payload}")
-
                 # Place the order
                 response = await self.project_x._make_request(
                     "POST", "/Order/place", data=payload
                 )
 
-                # Log the actual API response for debugging
-                self.logger.debug(f"🔍 Order API Response: {response}")
-
                 if not response.get("success", False):
-                    error_msg = (
-                        response.get("errorMessage")
-                        or "Unknown error - no error message provided"
-                    )
-                    self.logger.error(f"Order placement failed: {error_msg}")
-                    self.logger.error(f"🔍 Full response data: {response}")
-                    raise ProjectXOrderError(f"Order placement failed: {error_msg}")
+                    error_msg = response.get("errorMessage", ErrorMessages.ORDER_FAILED)
+                    raise ProjectXOrderError(error_msg)
 
                 result = OrderPlaceResponse(**response)
 
@@ -272,14 +293,19 @@ class OrderManager(
                 self.stats["orders_placed"] += 1
                 self.stats["last_order_time"] = datetime.now()
 
-                self.logger.info(f"✅ Order placed: {result.orderId}")
+                self.logger.info(
+                    LogMessages.ORDER_PLACED,
+                    extra={
+                        "order_id": result.orderId,
+                        "contract_id": contract_id,
+                        "side": side,
+                        "size": size,
+                    },
+                )
 
-            except Exception as e:
-                self.logger.error(f"❌ Failed to place order: {e}")
-                raise ProjectXOrderError(f"Order placement failed: {e}") from e
+                return result
 
-        return result
-
+    @handle_errors("search open orders")
     async def search_open_orders(
         self, contract_id: str | None = None, side: int | None = None
     ) -> list[Order]:
@@ -293,51 +319,48 @@ class OrderManager(
         Returns:
             List of Order objects
         """
-        try:
-            if not self.project_x.account_info:
-                raise ProjectXOrderError("No account selected")
+        if not self.project_x.account_info:
+            raise ProjectXOrderError(ErrorMessages.ORDER_NO_ACCOUNT)
 
-            params = {"accountId": self.project_x.account_info.id}
+        params = {"accountId": self.project_x.account_info.id}
 
-            if contract_id:
-                # Resolve contract
-                resolved = await resolve_contract_id(contract_id, self.project_x)
-                if resolved and resolved.get("id"):
-                    params["contractId"] = resolved["id"]
+        if contract_id:
+            # Resolve contract
+            resolved = await resolve_contract_id(contract_id, self.project_x)
+            if resolved and resolved.get("id"):
+                params["contractId"] = resolved["id"]
 
-            if side is not None:
-                params["side"] = side
+        if side is not None:
+            params["side"] = side
 
-            response = await self.project_x._make_request(
-                "POST", "/Order/searchOpen", data=params
-            )
+        response = await self.project_x._make_request(
+            "POST", "/Order/searchOpen", data=params
+        )
 
-            if not response.get("success", False):
-                error_msg = response.get("errorMessage", "Unknown error")
-                self.logger.error(f"Order search failed: {error_msg}")
-                return []
+        if not response.get("success", False):
+            error_msg = response.get("errorMessage", ErrorMessages.ORDER_SEARCH_FAILED)
+            raise ProjectXOrderError(error_msg)
 
-            orders = response.get("orders", [])
-            # Filter to only include fields that Order model expects
-            open_orders = []
-            for order_data in orders:
-                try:
-                    order = Order(**order_data)
-                    open_orders.append(order)
+        orders = response.get("orders", [])
+        # Filter to only include fields that Order model expects
+        open_orders = []
+        for order_data in orders:
+            try:
+                order = Order(**order_data)
+                open_orders.append(order)
 
-                    # Update our cache
-                    async with self.order_lock:
-                        self.tracked_orders[str(order.id)] = order_data
-                        self.order_status_cache[str(order.id)] = order.status
-                except Exception as e:
-                    self.logger.warning(f"Failed to parse order: {e}")
-                    continue
+                # Update our cache
+                async with self.order_lock:
+                    self.tracked_orders[str(order.id)] = order_data
+                    self.order_status_cache[str(order.id)] = order.status
+            except Exception as e:
+                self.logger.warning(
+                    "Failed to parse order",
+                    extra={"error": str(e), "order_data": order_data},
+                )
+                continue
 
-            return open_orders
-
-        except Exception as e:
-            self.logger.error(f"Failed to search orders: {e}")
-            return []
+        return open_orders
 
     async def is_order_filled(self, order_id: str | int) -> bool:
         """
@@ -402,6 +425,7 @@ class OrderManager(
             self.logger.error(f"Failed to get order {order_id}: {e}")
             return None
 
+    @handle_errors("cancel order")
     async def cancel_order(self, order_id: int, account_id: int | None = None) -> bool:
         """
         Cancel an open order.
@@ -413,56 +437,55 @@ class OrderManager(
         Returns:
             True if cancellation successful
         """
+        self.logger.info(LogMessages.ORDER_CANCEL, extra={"order_id": order_id})
+
         async with self.order_lock:
-            try:
-                # Get account ID if not provided
-                if account_id is None:
-                    if not self.project_x.account_info:
-                        await self.project_x.authenticate()
-                    if not self.project_x.account_info:
-                        raise ProjectXOrderError("No account information available")
-                    account_id = self.project_x.account_info.id
+            # Get account ID if not provided
+            if account_id is None:
+                if not self.project_x.account_info:
+                    await self.project_x.authenticate()
+                if not self.project_x.account_info:
+                    raise ProjectXOrderError(ErrorMessages.ORDER_NO_ACCOUNT)
+                account_id = self.project_x.account_info.id
 
-                # Use correct endpoint and payload structure
-                payload = {
-                    "accountId": account_id,
-                    "orderId": order_id,
-                }
+            # Use correct endpoint and payload structure
+            payload = {
+                "accountId": account_id,
+                "orderId": order_id,
+            }
 
-                response = await self.project_x._make_request(
-                    "POST", "/Order/cancel", data=payload
+            response = await self.project_x._make_request(
+                "POST", "/Order/cancel", data=payload
+            )
+
+            success = response.get("success", False) if response else False
+
+            if success:
+                # Update cache
+                if str(order_id) in self.tracked_orders:
+                    self.tracked_orders[str(order_id)]["status"] = 3  # Cancelled
+                    self.order_status_cache[str(order_id)] = 3
+
+                self.stats["orders_cancelled"] = (
+                    self.stats.get("orders_cancelled", 0) + 1
+                )
+                self.logger.info(
+                    LogMessages.ORDER_CANCELLED, extra={"order_id": order_id}
+                )
+                return True
+            else:
+                error_msg = response.get(
+                    "errorMessage", ErrorMessages.ORDER_CANCEL_FAILED
+                )
+                raise ProjectXOrderError(
+                    format_error_message(
+                        ErrorMessages.ORDER_CANCEL_FAILED,
+                        order_id=order_id,
+                        reason=error_msg,
+                    )
                 )
 
-                success = response.get("success", False) if response else False
-
-                if success:
-                    # Update cache
-                    if str(order_id) in self.tracked_orders:
-                        self.tracked_orders[str(order_id)]["status"] = (
-                            3  # Cancelled = 3
-                        )
-                        self.order_status_cache[str(order_id)] = 3
-
-                    self.stats["orders_cancelled"] = (
-                        self.stats.get("orders_cancelled", 0) + 1
-                    )
-                    self.logger.info(f"✅ Order cancelled: {order_id}")
-                    return True
-                else:
-                    error_msg = (
-                        response.get("errorMessage", "Unknown error")
-                        if response
-                        else "No response"
-                    )
-                    self.logger.error(
-                        f"❌ Failed to cancel order {order_id}: {error_msg}"
-                    )
-                    return False
-
-            except Exception as e:
-                self.logger.error(f"Failed to cancel order {order_id}: {e}")
-                return False
-
+    @handle_errors("modify order")
     async def modify_order(
         self,
         order_id: int,
@@ -482,12 +505,24 @@ class OrderManager(
         Returns:
             True if modification successful
         """
-        try:
+        with LogContext(
+            self.logger,
+            operation="modify_order",
+            order_id=order_id,
+            has_limit=limit_price is not None,
+            has_stop=stop_price is not None,
+            has_size=size is not None,
+        ):
+            self.logger.info(LogMessages.ORDER_MODIFY, extra={"order_id": order_id})
+
             # Get existing order details to determine contract_id for price alignment
             existing_order = await self.get_order_by_id(order_id)
             if not existing_order:
-                self.logger.error(f"❌ Cannot modify order {order_id}: Order not found")
-                return False
+                raise ProjectXOrderError(
+                    format_error_message(
+                        ErrorMessages.ORDER_NOT_FOUND, order_id=order_id
+                    )
+                )
 
             contract_id = existing_order.contractId
 
@@ -530,21 +565,25 @@ class OrderManager(
                         self.stats.get("orders_modified", 0) + 1
                     )
 
-                self.logger.info(f"✅ Order modified: {order_id}")
+                self.logger.info(
+                    LogMessages.ORDER_MODIFIED, extra={"order_id": order_id}
+                )
                 return True
             else:
                 error_msg = (
-                    response.get("errorMessage", "Unknown error")
+                    response.get("errorMessage", ErrorMessages.ORDER_MODIFY_FAILED)
                     if response
-                    else "No response"
+                    else ErrorMessages.ORDER_MODIFY_FAILED
                 )
-                self.logger.error(f"❌ Order modification failed: {error_msg}")
-                return False
+                raise ProjectXOrderError(
+                    format_error_message(
+                        ErrorMessages.ORDER_MODIFY_FAILED,
+                        order_id=order_id,
+                        reason=error_msg,
+                    )
+                )
 
-        except Exception as e:
-            self.logger.error(f"Failed to modify order {order_id}: {e}")
-            return False
-
+    @handle_errors("cancel all orders")
     async def cancel_all_orders(
         self, contract_id: str | None = None, account_id: int | None = None
     ) -> dict[str, Any]:
@@ -558,26 +597,45 @@ class OrderManager(
         Returns:
             Dict with cancellation results
         """
-        orders = await self.search_open_orders(contract_id, account_id)
+        with LogContext(
+            self.logger,
+            operation="cancel_all_orders",
+            contract_id=contract_id,
+            account_id=account_id,
+        ):
+            self.logger.info(
+                LogMessages.ORDER_CANCEL_ALL, extra={"contract_id": contract_id}
+            )
 
-        results: dict[str, Any] = {
-            "total": len(orders),
-            "cancelled": 0,
-            "failed": 0,
-            "errors": [],
-        }
+            orders = await self.search_open_orders(contract_id, account_id)
 
-        for order in orders:
-            try:
-                if await self.cancel_order(order.id, account_id):
-                    results["cancelled"] += 1
-                else:
+            results: dict[str, Any] = {
+                "total": len(orders),
+                "cancelled": 0,
+                "failed": 0,
+                "errors": [],
+            }
+
+            for order in orders:
+                try:
+                    if await self.cancel_order(order.id, account_id):
+                        results["cancelled"] += 1
+                    else:
+                        results["failed"] += 1
+                except Exception as e:
                     results["failed"] += 1
-            except Exception as e:
-                results["failed"] += 1
-                results["errors"].append({"order_id": order.id, "error": str(e)})
+                    results["errors"].append({"order_id": order.id, "error": str(e)})
 
-        return results
+            self.logger.info(
+                LogMessages.ORDER_CANCEL_ALL_COMPLETE,
+                extra={
+                    "total": results["total"],
+                    "cancelled": results["cancelled"],
+                    "failed": results["failed"],
+                },
+            )
+
+            return results
 
     async def get_order_statistics(self) -> dict[str, Any]:
         """

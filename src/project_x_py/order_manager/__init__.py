@@ -10,6 +10,6 @@ This module provides comprehensive order management functionality including:
 """
 
 from project_x_py.order_manager.core import OrderManager
-from project_x_py.order_manager.types import OrderStats
+from project_x_py.types import OrderStats
 
 __all__ = ["OrderManager", "OrderStats"]

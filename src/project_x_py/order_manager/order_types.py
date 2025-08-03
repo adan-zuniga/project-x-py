@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from project_x_py.models import OrderPlaceResponse
 
 if TYPE_CHECKING:
-    from project_x_py.order_manager.protocols import OrderManagerProtocol
+    from project_x_py.types import OrderManagerProtocol
 
 logger = logging.getLogger(__name__)
 

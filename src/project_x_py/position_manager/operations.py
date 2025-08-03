@@ -1,14 +1,21 @@
 """Direct position operations (close, partial close, etc.)."""
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.exceptions import ProjectXError
+from project_x_py.utils import (
+    ErrorMessages,
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    format_error_message,
+    handle_errors,
+)
 
 if TYPE_CHECKING:
-    from project_x_py.position_manager.types import PositionManagerProtocol
+    from project_x_py.types import PositionManagerProtocol
 
-logger = logging.getLogger(__name__)
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class PositionOperationsMixin:
@@ -67,7 +74,9 @@ class PositionOperationsMixin:
 
         if account_id is None:
             if not self.project_x.account_info:
-                raise ProjectXError("No account information available")
+                raise ProjectXError(
+                    format_error_message(ErrorMessages.ORDER_NO_ACCOUNT)
+                )
             account_id = self.project_x.account_info.id
 
         url = "/Position/closeContract"
@@ -112,6 +121,11 @@ class PositionOperationsMixin:
             self.logger.error(f"❌ Position closure request failed: {e}")
             return {"success": False, "error": str(e)}
 
+    @handle_errors(
+        "partially close position",
+        reraise=False,
+        default_return={"success": False, "error": "Operation failed"},
+    )
     async def partially_close_position(
         self: "PositionManagerProtocol",
         contract_id: str,
@@ -168,12 +182,16 @@ class PositionOperationsMixin:
 
         if account_id is None:
             if not self.project_x.account_info:
-                raise ProjectXError("No account information available")
+                raise ProjectXError(
+                    format_error_message(ErrorMessages.ORDER_NO_ACCOUNT)
+                )
             account_id = self.project_x.account_info.id
 
         # Validate close size
         if close_size <= 0:
-            raise ProjectXError("Close size must be positive")
+            raise ProjectXError(
+                format_error_message(ErrorMessages.ORDER_INVALID_SIZE, size=close_size)
+            )
 
         url = "/Position/partialCloseContract"
         payload = {
@@ -182,15 +200,32 @@ class PositionOperationsMixin:
             "closeSize": close_size,
         }
 
-        try:
+        with LogContext(
+            logger,
+            operation="partial_close_position",
+            contract_id=contract_id,
+            close_size=close_size,
+            account_id=account_id,
+        ):
+            logger.info(
+                LogMessages.POSITION_CLOSE,
+                extra={"contract_id": contract_id, "partial": True, "size": close_size},
+            )
+
             response = await self.project_x._make_request("POST", url, data=payload)
 
             if response:
                 success = response.get("success", False)
 
                 if success:
-                    self.logger.info(
-                        f"✅ Position {contract_id} partially closed: {close_size} contracts"
+                    logger.info(
+                        LogMessages.POSITION_CLOSED,
+                        extra={
+                            "contract_id": contract_id,
+                            "partial": True,
+                            "size": close_size,
+                            "order_id": response.get("orderId"),
+                        },
                     )
                     # Trigger position refresh to get updated sizes
                     await self.refresh_positions(account_id=account_id)
@@ -205,17 +240,14 @@ class PositionOperationsMixin:
                     self.stats["positions_partially_closed"] += 1
                 else:
                     error_msg = response.get("errorMessage", "Unknown error")
-                    self.logger.error(
-                        f"❌ Partial position closure failed: {error_msg}"
+                    logger.error(
+                        LogMessages.POSITION_ERROR,
+                        extra={"operation": "partial_close", "error": error_msg},
                     )
 
                 return dict(response)
 
             return {"success": False, "error": "No response from server"}
-
-        except Exception as e:
-            self.logger.error(f"❌ Partial position closure request failed: {e}")
-            return {"success": False, "error": str(e)}
 
     async def close_all_positions(
         self: "PositionManagerProtocol",

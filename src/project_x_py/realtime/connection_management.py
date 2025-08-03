@@ -5,13 +5,22 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from project_x_py.utils import (
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    handle_errors,
+)
+
 try:
     from signalrcore.hub_connection_builder import HubConnectionBuilder
 except ImportError:
     HubConnectionBuilder = None
 
 if TYPE_CHECKING:
-    from project_x_py.realtime.types import ProjectXRealtimeClientProtocol
+    from project_x_py.types import ProjectXRealtimeClientProtocol
+
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class ConnectionManagementMixin:
@@ -22,6 +31,7 @@ class ConnectionManagementMixin:
         super().__init__()
         self._loop: asyncio.AbstractEventLoop | None = None
 
+    @handle_errors("setup connections")
     async def setup_connections(self: "ProjectXRealtimeClientProtocol") -> None:
         """
         Set up SignalR hub connections with ProjectX Gateway configuration.
@@ -57,7 +67,14 @@ class ConnectionManagementMixin:
             This method is idempotent - safe to call multiple times.
             Sets self.setup_complete = True when successful.
         """
-        try:
+        with LogContext(
+            logger,
+            operation="setup_connections",
+            user_hub=self.user_hub_url,
+            market_hub=self.market_hub_url,
+        ):
+            logger.info(LogMessages.WS_CONNECT, extra={"phase": "setup"})
+
             if HubConnectionBuilder is None:
                 raise ImportError("signalrcore is required for real-time functionality")
 
@@ -72,9 +89,9 @@ class ConnectionManagementMixin:
                         },
                     )
                     .configure_logging(
-                        logging.INFO,
+                        logger.level,
                         socket_trace=False,
-                        handler=logging.StreamHandler(),
+                        handler=None,
                     )
                     .with_automatic_reconnect(
                         {
@@ -144,13 +161,10 @@ class ConnectionManagementMixin:
                 self.market_connection.on("GatewayTrade", self._forward_market_trade)
                 self.market_connection.on("GatewayDepth", self._forward_market_depth)
 
-                self.logger.info("✅ ProjectX Gateway connections configured")
+                logger.info(LogMessages.WS_CONNECTED, extra={"phase": "setup_complete"})
                 self.setup_complete = True
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to setup ProjectX connections: {e}")
-            raise
-
+    @handle_errors("connect", reraise=False, default_return=False)
     async def connect(self: "ProjectXRealtimeClientProtocol") -> bool:
         """
         Connect to ProjectX Gateway SignalR hubs asynchronously.
@@ -189,27 +203,37 @@ class ConnectionManagementMixin:
             - SignalR connections run in thread executor for async compatibility
             - Automatic reconnection is configured but initial connect may fail
         """
-        if not self.setup_complete:
-            await self.setup_connections()
+        with LogContext(
+            logger,
+            operation="connect",
+            account_id=self.account_id,
+        ):
+            if not self.setup_complete:
+                await self.setup_connections()
 
-        # Store the event loop for cross-thread task scheduling
-        self._loop = asyncio.get_event_loop()
+            # Store the event loop for cross-thread task scheduling
+            self._loop = asyncio.get_event_loop()
 
-        self.logger.info("🔌 Connecting to ProjectX Gateway...")
+            logger.info(LogMessages.WS_CONNECT)
 
-        try:
             async with self._connection_lock:
                 # Start both connections
                 if self.user_connection:
                     await self._start_connection_async(self.user_connection, "user")
                 else:
-                    self.logger.error("❌ User connection not available")
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": "User connection not available"},
+                    )
                     return False
 
                 if self.market_connection:
                     await self._start_connection_async(self.market_connection, "market")
                 else:
-                    self.logger.error("❌ Market connection not available")
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": "Market connection not available"},
+                    )
                     return False
 
                 # Wait for connections to establish
@@ -217,17 +241,16 @@ class ConnectionManagementMixin:
 
                 if self.user_connected and self.market_connected:
                     self.stats["connected_time"] = datetime.now()
-                    self.logger.info("✅ ProjectX Gateway connections established")
+                    logger.info(LogMessages.WS_CONNECTED)
                     return True
                 else:
-                    self.logger.error("❌ Failed to establish all connections")
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={"error": "Failed to establish all connections"},
+                    )
                     return False
 
-        except Exception as e:
-            self.logger.error(f"❌ Connection error: {e}")
-            self.stats["connection_errors"] += 1
-            return False
-
+    @handle_errors("start connection")
     async def _start_connection_async(
         self: "ProjectXRealtimeClientProtocol", connection: Any, name: str
     ) -> None:
@@ -247,8 +270,9 @@ class ConnectionManagementMixin:
         # SignalR connections are synchronous, so we run them in executor
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, connection.start)
-        self.logger.info(f"✅ {name.capitalize()} hub connection started")
+        logger.info(LogMessages.WS_CONNECTED, extra={"hub": name})
 
+    @handle_errors("disconnect")
     async def disconnect(self: "ProjectXRealtimeClientProtocol") -> None:
         """
         Disconnect from ProjectX Gateway hubs.
@@ -276,20 +300,25 @@ class ConnectionManagementMixin:
             Does not clear callbacks or subscription lists, allowing for
             reconnection with the same configuration.
         """
-        self.logger.info("📴 Disconnecting from ProjectX Gateway...")
+        with LogContext(
+            logger,
+            operation="disconnect",
+            account_id=self.account_id,
+        ):
+            logger.info(LogMessages.WS_DISCONNECT)
 
-        async with self._connection_lock:
-            if self.user_connection:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self.user_connection.stop)
-                self.user_connected = False
+            async with self._connection_lock:
+                if self.user_connection:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, self.user_connection.stop)
+                    self.user_connected = False
 
-            if self.market_connection:
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self.market_connection.stop)
-                self.market_connected = False
+                if self.market_connection:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, self.market_connection.stop)
+                    self.market_connected = False
 
-            self.logger.info("✅ Disconnected from ProjectX Gateway")
+                logger.info(LogMessages.WS_DISCONNECTED)
 
     # Connection event handlers
     def _on_user_hub_open(self: "ProjectXRealtimeClientProtocol") -> None:
@@ -378,13 +407,14 @@ class ConnectionManagementMixin:
         error_type = type(error).__name__
         if "CompletionMessage" in error_type:
             # This is a normal SignalR protocol message, not an error
-            self.logger.debug(f"SignalR completion message from {hub} hub: {error}")
+            logger.debug(f"SignalR completion message from {hub} hub: {error}")
             return
 
         # Log actual errors
-        self.logger.error(f"❌ {hub.capitalize()} hub error: {error}")
+        logger.error(LogMessages.WS_ERROR, extra={"hub": hub, "error": str(error)})
         self.stats["connection_errors"] += 1
 
+    @handle_errors("update JWT token", reraise=False, default_return=False)
     async def update_jwt_token(
         self: "ProjectXRealtimeClientProtocol", new_jwt_token: str
     ) -> bool:
@@ -435,31 +465,39 @@ class ConnectionManagementMixin:
             - Market data subscriptions are restored automatically
             - Brief data gap during reconnection process
         """
-        self.logger.info("🔑 Updating JWT token and reconnecting...")
+        with LogContext(
+            logger,
+            operation="update_jwt_token",
+            account_id=self.account_id,
+        ):
+            logger.info(LogMessages.AUTH_REFRESH)
 
-        # Disconnect existing connections
-        await self.disconnect()
+            # Disconnect existing connections
+            await self.disconnect()
 
-        # Update JWT token for header authentication
-        self.jwt_token = new_jwt_token
+            # Update JWT token for header authentication
+            self.jwt_token = new_jwt_token
 
-        # Reset setup flag to force new connection setup
-        self.setup_complete = False
+            # Reset setup flag to force new connection setup
+            self.setup_complete = False
 
-        # Reconnect
-        if await self.connect():
-            # Re-subscribe to user updates
-            await self.subscribe_user_updates()
+            # Reconnect
+            if await self.connect():
+                # Re-subscribe to user updates
+                await self.subscribe_user_updates()
 
-            # Re-subscribe to market data
-            if self._subscribed_contracts:
-                await self.subscribe_market_data(self._subscribed_contracts)
+                # Re-subscribe to market data
+                if self._subscribed_contracts:
+                    await self.subscribe_market_data(self._subscribed_contracts)
 
-            self.logger.info("✅ Reconnected with new JWT token")
-            return True
-        else:
-            self.logger.error("❌ Failed to reconnect with new JWT token")
-            return False
+                logger.info(LogMessages.WS_RECONNECT)
+                return True
+            else:
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "Failed to reconnect with new JWT token"},
+                )
+                return False
 
     def is_connected(self: "ProjectXRealtimeClientProtocol") -> bool:
         """

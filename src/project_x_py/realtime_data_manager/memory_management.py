@@ -8,7 +8,9 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.realtime_data_manager.types import RealtimeDataManagerProtocol
+    from asyncio import Lock
+
+    import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +18,26 @@ logger = logging.getLogger(__name__)
 class MemoryManagementMixin:
     """Mixin for memory management and optimization."""
 
+    # Type hints for mypy - these attributes are provided by the main class
+    if TYPE_CHECKING:
+        logger: logging.Logger
+        last_cleanup: float
+        cleanup_interval: float
+        data_lock: Lock
+        timeframes: dict[str, dict[str, Any]]
+        data: dict[str, pl.DataFrame]
+        max_bars_per_timeframe: int
+        current_tick_data: list[dict[str, Any]]
+        tick_buffer_size: int
+        memory_stats: dict[str, Any]
+        is_running: bool
+
     def __init__(self) -> None:
         """Initialize memory management attributes."""
         super().__init__()
         self._cleanup_task: asyncio.Task[None] | None = None
 
-    async def _cleanup_old_data(self: "RealtimeDataManagerProtocol") -> None:
+    async def _cleanup_old_data(self) -> None:
         """
         Clean up old OHLCV data to manage memory efficiently using sliding windows.
         """
@@ -71,7 +87,7 @@ class MemoryManagementMixin:
                 # Force garbage collection after cleanup
                 gc.collect()
 
-    async def _periodic_cleanup(self: "RealtimeDataManagerProtocol") -> None:
+    async def _periodic_cleanup(self) -> None:
         """Background task for periodic cleanup."""
         while self.is_running:
             try:
@@ -91,7 +107,7 @@ class MemoryManagementMixin:
                 self.logger.error(f"Runtime error in periodic cleanup: {e}")
                 # Don't re-raise runtime errors to keep the cleanup task running
 
-    def get_memory_stats(self: "RealtimeDataManagerProtocol") -> dict[str, Any]:
+    def get_memory_stats(self) -> dict[str, Any]:
         """
         Get comprehensive memory usage statistics for the real-time data manager.
 
@@ -124,7 +140,7 @@ class MemoryManagementMixin:
             **self.memory_stats,
         }
 
-    async def stop_cleanup_task(self: "RealtimeDataManagerProtocol") -> None:
+    async def stop_cleanup_task(self) -> None:
         """Stop the background cleanup task."""
         if self._cleanup_task:
             self._cleanup_task.cancel()
@@ -132,7 +148,7 @@ class MemoryManagementMixin:
                 await self._cleanup_task
             self._cleanup_task = None
 
-    def start_cleanup_task(self: "RealtimeDataManagerProtocol") -> None:
+    def start_cleanup_task(self) -> None:
         """Start the background cleanup task."""
         if not self._cleanup_task:
             self._cleanup_task = asyncio.create_task(self._periodic_cleanup())

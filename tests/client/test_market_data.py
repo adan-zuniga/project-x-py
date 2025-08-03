@@ -7,8 +7,8 @@ import polars as pl
 import pytest
 
 from project_x_py import ProjectX
-from project_x_py.client.rate_limiter import RateLimiter
 from project_x_py.exceptions import ProjectXInstrumentError
+from project_x_py.utils.async_rate_limiter import RateLimiter
 
 
 class TestMarketData:

@@ -19,11 +19,16 @@ microstructure analysis, and real-time trading decision support by extracting
 higher-level insights from the raw order book data.
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import Any
 
 import polars as pl
+
+from project_x_py.utils import (
+    LogMessages,
+    ProjectXLogger,
+    handle_errors,
+)
 
 from .base import OrderBookBase
 
@@ -56,8 +61,18 @@ class MarketAnalytics:
 
     def __init__(self, orderbook: OrderBookBase):
         self.orderbook = orderbook
-        self.logger = logging.getLogger(__name__)
+        self.logger = ProjectXLogger.get_logger(__name__)
 
+    @handle_errors(
+        "get market imbalance",
+        reraise=False,
+        default_return={
+            "imbalance_ratio": 0.0,
+            "bid_volume": 0,
+            "ask_volume": 0,
+            "analysis": "Error occurred",
+        },
+    )
     async def get_market_imbalance(self, levels: int = 10) -> dict[str, Any]:
         """
         Calculate order flow imbalance between bid and ask sides.
@@ -156,9 +171,17 @@ class MarketAnalytics:
                 }
 
             except Exception as e:
-                self.logger.error(f"Error calculating market imbalance: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "market_imbalance", "error": str(e)},
+                )
                 return {"error": str(e)}
 
+    @handle_errors(
+        "get orderbook depth",
+        reraise=False,
+        default_return={"error": "Analysis failed"},
+    )
     async def get_orderbook_depth(self, price_range: float) -> dict[str, Any]:
         """
         Analyze orderbook depth within a price range.
@@ -217,9 +240,22 @@ class MarketAnalytics:
                 }
 
             except Exception as e:
-                self.logger.error(f"Error analyzing orderbook depth: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "orderbook_depth", "error": str(e)},
+                )
                 return {"error": str(e)}
 
+    @handle_errors(
+        "get cumulative delta",
+        reraise=False,
+        default_return={
+            "cumulative_delta": 0,
+            "buy_volume": 0,
+            "sell_volume": 0,
+            "error": "Analysis failed",
+        },
+    )
     async def get_cumulative_delta(
         self, time_window_minutes: int = 60
     ) -> dict[str, Any]:
@@ -296,7 +332,10 @@ class MarketAnalytics:
                 }
 
             except Exception as e:
-                self.logger.error(f"Error calculating cumulative delta: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "cumulative_delta", "error": str(e)},
+                )
                 return {"error": str(e)}
 
     async def get_trade_flow_summary(self) -> dict[str, Any]:
@@ -349,7 +388,10 @@ class MarketAnalytics:
                 }
 
             except Exception as e:
-                self.logger.error(f"Error getting trade flow summary: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "trade_flow_summary", "error": str(e)},
+                )
                 return {"error": str(e)}
 
     async def get_liquidity_levels(
@@ -404,7 +446,10 @@ class MarketAnalytics:
                 }
 
             except Exception as e:
-                self.logger.error(f"Error analyzing liquidity levels: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "liquidity_levels", "error": str(e)},
+                )
                 return {"error": str(e)}
 
     async def get_statistics(self) -> dict[str, Any]:
@@ -444,5 +489,97 @@ class MarketAnalytics:
                 return stats
 
             except Exception as e:
-                self.logger.error(f"Error getting statistics: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "get_statistics", "error": str(e)},
+                )
                 return {"error": str(e)}
+
+    @staticmethod
+    def analyze_dataframe_spread(
+        data: pl.DataFrame,
+        bid_column: str = "bid",
+        ask_column: str = "ask",
+        mid_column: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Analyze bid-ask spread characteristics from a DataFrame.
+
+        This is a static method that can analyze spread data from any DataFrame,
+        useful for historical analysis or backtesting scenarios where you have
+        bid/ask data but not a live orderbook.
+
+        Args:
+            data: DataFrame with bid/ask price columns
+            bid_column: Name of the bid price column (default: "bid")
+            ask_column: Name of the ask price column (default: "ask")
+            mid_column: Name of the mid price column (optional, will calculate if not provided)
+
+        Returns:
+            Dict containing spread analysis:
+                - avg_spread: Average absolute spread
+                - median_spread: Median absolute spread
+                - min_spread: Minimum spread observed
+                - max_spread: Maximum spread observed
+                - avg_relative_spread: Average spread as percentage of mid price
+                - spread_volatility: Standard deviation of spread
+
+        Example:
+            >>> # Analyze historical bid/ask data
+            >>> spread_stats = MarketAnalytics.analyze_dataframe_spread(historical_data)
+            >>> print(f"Average spread: ${spread_stats['avg_spread']:.4f}")
+            >>> print(f"Relative spread: {spread_stats['avg_relative_spread']:.4%}")
+        """
+        required_cols = [bid_column, ask_column]
+        for col in required_cols:
+            if col not in data.columns:
+                raise ValueError(f"Column '{col}' not found in data")
+
+        if data.is_empty():
+            return {"error": "No data provided"}
+
+        try:
+            # Calculate mid price if not provided
+            if mid_column is None:
+                data = data.with_columns(
+                    ((pl.col(bid_column) + pl.col(ask_column)) / 2).alias("mid_price")
+                )
+                mid_column = "mid_price"
+
+            # Calculate spread metrics
+            analysis_data = (
+                data.with_columns(
+                    [
+                        (pl.col(ask_column) - pl.col(bid_column)).alias("spread"),
+                        (
+                            (pl.col(ask_column) - pl.col(bid_column))
+                            / pl.col(mid_column)
+                        ).alias("relative_spread"),
+                    ]
+                )
+                .select(["spread", "relative_spread"])
+                .drop_nulls()
+            )
+
+            if analysis_data.is_empty():
+                return {"error": "No valid spread data"}
+
+            return {
+                "avg_spread": analysis_data.select(pl.col("spread").mean()).item()
+                or 0.0,
+                "median_spread": analysis_data.select(pl.col("spread").median()).item()
+                or 0.0,
+                "min_spread": analysis_data.select(pl.col("spread").min()).item()
+                or 0.0,
+                "max_spread": analysis_data.select(pl.col("spread").max()).item()
+                or 0.0,
+                "avg_relative_spread": analysis_data.select(
+                    pl.col("relative_spread").mean()
+                ).item()
+                or 0.0,
+                "spread_volatility": analysis_data.select(pl.col("spread").std()).item()
+                or 0.0,
+            }
+
+        except Exception as e:
+            return {"error": str(e)}

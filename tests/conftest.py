@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytz
 
-from project_x_py.client.rate_limiter import RateLimiter
 from project_x_py.models import Instrument, ProjectXConfig
+from project_x_py.utils.async_rate_limiter import RateLimiter
 
 
 @pytest.fixture

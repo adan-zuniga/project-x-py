@@ -10,6 +10,19 @@ This module defines custom exception classes for the ProjectX API client.
 
 from typing import Any
 
+__all__ = [
+    "ProjectXAuthenticationError",
+    "ProjectXClientError",
+    "ProjectXConnectionError",
+    "ProjectXDataError",
+    "ProjectXError",
+    "ProjectXInstrumentError",
+    "ProjectXOrderError",
+    "ProjectXPositionError",
+    "ProjectXRateLimitError",
+    "ProjectXServerError",
+]
+
 
 class ProjectXError(Exception):
     """Base exception for ProjectX API errors."""
