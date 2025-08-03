@@ -1,4 +1,29 @@
-"""Position-related order management functionality."""
+"""
+Async position-based order management for ProjectX.
+
+Overview:
+    Provides mixin logic for managing orders at the position level: closing open positions,
+    adding stop losses/take profits, and synchronizing/canceling related orders as position
+    size changes. Enables robust, risk-aware trading automations.
+
+Key Features:
+    - Async close, stop loss, and take profit for open positions
+    - Automatic order/position tracking and synchronization
+    - Bulk cancellation and modification of position-related orders
+    - Integrates with order callbacks and bracket strategies
+
+Example Usage:
+    ```python
+    # Assuming om is an instance of OrderManager
+    await om.close_position("MNQ")
+    await om.add_stop_loss("MNQ", stop_price=2030.0)
+    ```
+
+See Also:
+    - `order_manager.core.OrderManager`
+    - `order_manager.bracket_orders`
+    - `order_manager.order_types`
+"""
 
 import logging
 from typing import TYPE_CHECKING, Any

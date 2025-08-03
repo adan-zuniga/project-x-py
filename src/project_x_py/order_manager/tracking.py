@@ -1,4 +1,30 @@
-"""Order tracking and real-time monitoring functionality."""
+"""
+Async order tracking and real-time monitoring for ProjectX.
+
+Overview:
+    Implements mixin logic for tracking order status, maintaining local state and cache,
+    and handling real-time updates from websocket events. Supports callback registration
+    for fills/cancels, cache queries, and system health validation.
+
+Key Features:
+    - Real-time tracking via websocket/callbacks and local cache
+    - Order-to-position relationship mapping
+    - Async event/callback system for fills, cancels, rejections
+    - Cache clearing, health/status reporting, and metrics
+    - Integrates with OrderManager main class
+
+Example Usage:
+    ```python
+    # Assuming om is an instance of OrderManager
+    await om.initialize(realtime_client)
+    tracked = await om.get_tracked_order_status("12345")
+    ```
+
+See Also:
+    - `order_manager.core.OrderManager`
+    - `order_manager.position_orders`
+    - `order_manager.utils`
+"""
 
 import asyncio
 import logging

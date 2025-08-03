@@ -4,8 +4,28 @@ ProjectX Indicators - Volatility Indicators
 Author: TexasCoding
 Date: June 2025
 
-Volatility indicators measure the rate of price fluctuations,
-helping traders understand market volatility and potential breakouts.
+Overview:
+    Implements volatility-focused indicators for ProjectX, quantifying price range,
+    standard deviation, and directional movement. Designed for gauging market
+    turbulence, breakout potential, and risk in systematic strategies.
+
+Key Features:
+    - Average True Range (ATR), ADX, NATR, TRANGE, STDDEV, Ultimate Oscillator
+    - Wilder's smoothing, EMA, and rolling window variants
+    - All indicators operate on Polars DataFrames
+    - TA-Lib-style convenience functions for scripting/backtesting
+    - Can be chained with other indicator modules
+
+Example Usage:
+    ```python
+    from project_x_py.indicators import calculate_atr
+    data_with_atr = calculate_atr(ohlcv_data, period=14)
+    ```
+
+See Also:
+    - `project_x_py.indicators.base.VolatilityIndicator`
+    - `project_x_py.indicators.overlap`
+    - `project_x_py.indicators.momentum`
 """
 
 from typing import Any

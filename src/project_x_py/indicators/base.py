@@ -4,7 +4,35 @@ ProjectX Indicators - Base Classes
 Author: TexasCoding
 Date: June 2025
 
-Base classes and common functionality for technical indicators.
+Overview:
+    Provides abstract base classes and shared validation/utilities for all ProjectX
+    indicator modules. Encapsulates error handling, cache logic, and call semantics
+    for consistent and efficient indicator development. All custom indicators should
+    inherit from these classes for uniformity and extensibility.
+
+Key Features:
+    - `BaseIndicator` with parameter validation, data checks, and result caching
+    - Specialized subclasses: OverlapIndicator, MomentumIndicator, VolatilityIndicator,
+      VolumeIndicator
+    - Utility functions for safe division, rolling sums, and EMA alpha calculation
+    - Standardized exception (`IndicatorError`) for all indicator errors
+
+Example Usage:
+    ```python
+    from project_x_py.indicators.base import BaseIndicator
+
+    class MyCustomIndicator(BaseIndicator):
+        def calculate(self, data, period=10):
+            self.validate_data(data, ["close"])
+            self.validate_period(period)
+            # ... custom calculation ...
+    ```
+
+See Also:
+    - `project_x_py.indicators.momentum.MomentumIndicator`
+    - `project_x_py.indicators.overlap.OverlapIndicator`
+    - `project_x_py.indicators.volatility.VolatilityIndicator`
+    - `project_x_py.indicators.volume.VolumeIndicator`
 """
 
 import hashlib

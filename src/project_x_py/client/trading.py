@@ -1,4 +1,40 @@
-"""Trading operations for ProjectX client."""
+"""
+Async trading queries: positions and trade history for ProjectX accounts.
+
+Overview:
+    Supplies async methods for querying open positions and executed trades for the currently
+    authenticated account. Integrates tightly with the authentication/session lifecycle and
+    other mixins, enabling streamlined access to P&L, trade analysis, and reporting data.
+    All queries require a valid session and leverage ProjectX's unified API request logic.
+
+Key Features:
+    - Query current open positions for the selected account
+    - Search historical trades with flexible date range and contract filters
+    - Async error handling and robust integration with authentication
+    - Typed results as Position and Trade model objects for analysis/reporting
+    - Designed for use in trading bots, dashboards, and research scripts
+
+Example Usage:
+    ```python
+    import asyncio
+    from project_x_py import ProjectX
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+            positions = await client.get_positions()
+            trades = await client.search_trades(limit=10)
+            print([p.symbol for p in positions])
+            print([t.contractId for t in trades])
+
+    asyncio.run(main())
+    ```
+
+See Also:
+    - `project_x_py.client.auth.AuthenticationMixin`
+    - `project_x_py.client.base.ProjectXBase`
+    - `project_x_py.client.market_data.MarketDataMixin`
+"""
 
 import datetime
 import logging

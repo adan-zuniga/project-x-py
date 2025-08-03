@@ -1,81 +1,42 @@
 """
-Async Level 2 Orderbook module for ProjectX.
+Async Level 2 orderbook toolkit for ProjectX.
 
-This module provides comprehensive asynchronous orderbook analysis with real-time
-capabilities for institutional-grade market microstructure analysis. It offers a
-complete suite of tools for deep market understanding and strategy development.
+Overview:
+    Provides a complete async suite for Level 2 orderbook analysis, real-time market
+    microstructure, and market depth analytics. Integrates with ProjectX for
+    institutional-grade trading, strategy development, and execution research.
 
-Core Functionality:
-- Real-time Level 2 market depth tracking with WebSocket integration
-- Advanced iceberg order detection with confidence scoring
-- Order clustering analysis for institutional activity detection
-- Volume profile analysis with Point of Control and Value Area
-- Dynamic support/resistance level identification
-- Detailed trade flow analytics and execution classification
-- Memory-efficient data management with configurable cleanup policies
-- Complete market microstructure metrics with imbalance detection
+Key Features:
+    - Real-time Level 2 market depth tracking (WebSocket)
+    - Iceberg/cluster detection, volume profile, and POC analytics
+    - Market imbalance, support/resistance, and trade flow stats
+    - Memory-efficient, thread-safe, event-driven architecture
+    - Component-based design for extensibility
 
-Technical Features:
-- Thread-safe concurrent access with asyncio locks
-- Polars DataFrame-based data structures for performance
-- Configurable memory management with automatic garbage collection
-- Event-driven architecture with customizable callbacks
-- Component-based design for maintainability and extensibility
+Example Usage:
+    ```python
+    from project_x_py import ProjectX, create_orderbook
+    import asyncio
 
-Example:
-    Basic usage with real-time data::
+    async def main():
+        client = ProjectX()
+        await client.connect()
+        orderbook = create_orderbook("MNQ", project_x=client)
+        await orderbook.initialize(realtime_client=client.realtime_client)
+        snapshot = await orderbook.get_orderbook_snapshot(levels=10)
+        print(snapshot["best_bid"], snapshot["spread"])
+        await orderbook.cleanup()
 
-        >>> from project_x_py import ProjectX, create_orderbook
-        >>> import asyncio
-        >>>
-        >>> async def main():
-        ...     # Initialize client and connect
-        ...     client = ProjectX()
-        ...     await client.connect()
-        ...
-        ...     # Create orderbook with factory function
-        ...     orderbook = create_orderbook(
-        ...         instrument="MNQ",  # Micro Nasdaq futures
-        ...         project_x=client,
-        ...         timezone_str="America/Chicago"
-        ...     )
-        ...
-        ...     # Initialize with real-time data feed
-        ...     await orderbook.initialize(
-        ...         realtime_client=client.realtime_client,
-        ...         subscribe_to_depth=True,
-        ...         subscribe_to_quotes=True
-        ...     )
-        ...
-        ...     # Get current orderbook snapshot
-        ...     snapshot = await orderbook.get_orderbook_snapshot(levels=10)
-        ...     print(f"Best Bid: {snapshot['best_bid']}")
-        ...     print(f"Best Ask: {snapshot['best_ask']}")
-        ...     print(f"Spread: {snapshot['spread']}")
-        ...     print(f"Bid/Ask Imbalance: {snapshot['imbalance']}")
-        ...
-        ...     # Detect iceberg orders
-        ...     icebergs = await orderbook.detect_iceberg_orders(min_refreshes=5)
-        ...     for iceberg in icebergs['iceberg_levels']:
-        ...         print(f"Potential iceberg at {iceberg['price']} with "
-        ...               f"{iceberg['confidence']:.1%} confidence")
-        ...
-        ...     # Analyze market imbalance
-        ...     imbalance = await orderbook.get_market_imbalance(levels=10)
-        ...     print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f} "
-        ...           f"({imbalance['analysis']})")
-        ...
-        ...     # Register a callback for order book updates
-        ...     async def on_depth_update(data):
-        ...         print(f"New depth update at {data['price']}, "
-        ...               f"volume: {data['volume']}")
-        ...
-        ...     await orderbook.add_callback("depth_update", on_depth_update)
-        ...
-        ...     # Clean up resources when done
-        ...     await orderbook.cleanup()
-        >>>
-        >>> asyncio.run(main())
+    asyncio.run(main())
+    ```
+
+See Also:
+    - `orderbook.base.OrderBookBase`
+    - `orderbook.analytics.MarketAnalytics`
+    - `orderbook.detection.OrderDetection`
+    - `orderbook.profile.VolumeProfile`
+    - `orderbook.memory.MemoryManager`
+    - `orderbook.realtime.RealtimeHandler`
 """
 
 from typing import TYPE_CHECKING, Any

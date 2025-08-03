@@ -1,28 +1,28 @@
 """
-Advanced detection algorithms for the async orderbook.
+Async detection algorithms for ProjectX orderbook.
 
-This module implements sophisticated algorithms for detecting hidden market microstructure
-patterns that provide deeper insights into market participant behavior. It specializes in
-identifying patterns that may indicate institutional activity, hidden liquidity, and
-market manipulation attempts.
+Overview:
+    Implements sophisticated detection logic for iceberg orders, clusters, and
+    hidden liquidity in the ProjectX async orderbook. Uses historical price
+    level, trade, and refresh data to infer institutional activity and market
+    manipulation attempts.
 
-Key detection capabilities:
-- Iceberg order detection: Identifies large hidden orders that only show a small portion
-  of their total size at any given time
-- Order clustering analysis: Detects clusters of orders at similar price levels that may
-  indicate coordinated market participant activity
-- Market microstructure metrics: Calculates advanced metrics that reveal hidden aspects
-  of market behavior
-- Confidence scoring: Assigns confidence levels to detections to distinguish between
-  high and low probability signals
+Key Features:
+    - Iceberg order detection with confidence scoring
+    - Order clustering and spread concentration analysis
+    - Market microstructure and hidden volume metrics
+    - Configurable detection sensitivity and parameters
 
-The detection algorithms use historical price level data, order refresh patterns, and
-trade execution analysis to infer the presence of hidden orders and market structures
-that are not directly visible in the raw orderbook data.
+Example Usage:
+    ```python
+    # Assuming orderbook is initialized and populated
+    icebergs = await orderbook.detect_iceberg_orders(min_refreshes=5)
+    print([i["price"] for i in icebergs["iceberg_levels"]])
+    ```
 
-All detection methods are optimized for real-time performance while maintaining
-accuracy, with configurable sensitivity parameters to adjust for different market
-conditions and instrument characteristics.
+See Also:
+    - `orderbook.base.OrderBookBase`
+    - `orderbook.analytics.MarketAnalytics`
 """
 
 import logging

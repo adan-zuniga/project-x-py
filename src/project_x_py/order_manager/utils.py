@@ -1,4 +1,28 @@
-"""Utility functions for order management."""
+"""
+Order management utility functions for ProjectX.
+
+Overview:
+    Provides async/sync helpers for price alignment to instrument tick size, contract
+    resolution, and other utility operations used throughout the async OrderManager system.
+
+Key Features:
+    - Aligns prices to valid instrument tick size (async and sync)
+    - Resolves contract IDs to instrument metadata
+    - Precision rounding and validation helpers
+
+Example Usage:
+    ```python
+    # Aligning a price to tick size
+    aligned = align_price_to_tick(2052.17, 0.25)
+    # Resolving contract ID
+    details = await resolve_contract_id("MNQ", project_x_client)
+    ```
+
+See Also:
+    - `order_manager.core.OrderManager`
+    - `order_manager.tracking`
+    - `order_manager.position_orders`
+"""
 
 import logging
 from decimal import ROUND_HALF_UP, Decimal

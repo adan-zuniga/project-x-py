@@ -4,8 +4,28 @@ ProjectX Indicators - Fair Value Gap (FVG) Indicator
 Author: TexasCoding
 Date: August 2025
 
-Fair Value Gap indicator identifies imbalance areas in price action where there is little
-to no trading activity, which can act as support/resistance zones.
+Overview:
+    Implements the Fair Value Gap (FVG) indicator for identifying price imbalances
+    and potential support/resistance zones. Detects gaps in price action with
+    optional mitigation logic, helping traders spot areas likely to be revisited.
+
+Key Features:
+    - Identifies bullish/bearish fair value gaps from OHLC data
+    - Supports configurable gap size, mitigation threshold, and custom columns
+    - Returns gap boundary, size, and mitigation status for each bar
+    - Callable as a class or via TA-Lib-style convenience function
+
+Example Usage:
+    ```python
+    from project_x_py.indicators import FVG
+    fvg = FVG()
+    data_with_fvg = fvg.calculate(ohlcv_data, min_gap_size=0.001)
+    gaps = data_with_fvg.filter(pl.col("fvg_bullish"))
+    ```
+
+See Also:
+    - `project_x_py.indicators.order_block`
+    - `project_x_py.indicators.base.BaseIndicator`
 """
 
 from typing import Any

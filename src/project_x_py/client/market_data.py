@@ -1,4 +1,40 @@
-"""Market data operations for ProjectX client."""
+"""
+Async instrument search, selection, and historical bar data for ProjectX clients.
+
+Overview:
+    Provides async methods for instrument discovery, smart contract selection, and retrieval
+    of historical OHLCV bar data, with Polars DataFrame output for high-performance analysis.
+    Integrates in-memory caching for both instrument and bar queries, minimizing redundant
+    API calls and ensuring data consistency. Designed to support trading and analytics flows
+    requiring timely and accurate market data.
+
+Key Features:
+    - Symbol/name instrument search with live/active filtering
+    - Sophisticated contract selection logic (front month, micro, etc.)
+    - Historical bar data retrieval (OHLCV) with timezone handling
+    - Transparent, per-query caching for both instrument and bars
+    - Data returned as Polars DataFrame (timestamp, open, high, low, close, volume)
+    - Utilities for cache management and periodic cleanup
+
+Example Usage:
+    ```python
+    import asyncio
+    from project_x_py import ProjectX
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            instrument = await client.get_instrument("ES")
+            bars = await client.get_bars("ES", days=3, interval=15)
+            print(bars.head())
+
+    asyncio.run(main())
+    ```
+
+See Also:
+    - `project_x_py.client.cache.CacheMixin`
+    - `project_x_py.client.base.ProjectXBase`
+    - `project_x_py.client.trading.TradingMixin`
+"""
 
 import datetime
 import re

@@ -1,8 +1,28 @@
 """
-Real-time data handling for the async orderbook.
+Async real-time data handling for ProjectX orderbook.
 
-This module handles WebSocket callbacks, real-time data processing,
-and orderbook updates from the ProjectX Gateway.
+Overview:
+    Manages WebSocket callbacks, real-time Level 2 data processing, and live orderbook
+    updates for ProjectX via the Gateway. Handles event registration, contract
+    subscription, and async orderbook data updates for trading and analytics.
+
+Key Features:
+    - WebSocket-based real-time data ingest and event processing
+    - Market depth and quote update callbacks for orderbook
+    - Async event/callback registration and contract management
+    - Orderbook reset, trade, and depth update logic
+
+Example Usage:
+    ```python
+    # Assuming orderbook and realtime_client are initialized
+    await orderbook.realtime_handler.initialize(realtime_client)
+    # Real-time updates are now handled automatically
+    ```
+
+See Also:
+    - `orderbook.base.OrderBookBase`
+    - `orderbook.analytics.MarketAnalytics`
+    - `orderbook.detection.OrderDetection`
 """
 
 from datetime import datetime

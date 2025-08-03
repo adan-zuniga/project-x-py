@@ -4,8 +4,29 @@ ProjectX Indicators - Waddah Attar Explosion (WAE) Indicator
 Author: TexasCoding
 Date: August 2025
 
-Waddah Attar Explosion indicator is a volatility-based indicator that combines
-MACD and Bollinger Bands to identify strong trends and potential breakouts.
+Overview:
+    Implements the Waddah Attar Explosion (WAE) indicator for detecting strong
+    trends and breakout conditions. Combines MACD, Bollinger Bands, and ATR-based
+    dead zone logic to filter for high-momentum moves with volatility context.
+
+Key Features:
+    - Computes explosion line, trend, and dead zone from price/volatility data
+    - Configurable MACD/Bollinger/ATR parameters for fine-tuning
+    - Flags bullish/bearish breakouts above dead zone threshold
+    - Callable as a class or with TA-Lib-style convenience function
+
+Example Usage:
+    ```python
+    from project_x_py.indicators import WAE
+    wae = WAE()
+    data_with_wae = wae.calculate(ohlcv_data)
+    signals = data_with_wae.filter(pl.col("wae_explosion_above_dz"))
+    ```
+
+See Also:
+    - `project_x_py.indicators.volatility`
+    - `project_x_py.indicators.base.BaseIndicator`
+    - `project_x_py.indicators.momentum`
 """
 
 from typing import Any

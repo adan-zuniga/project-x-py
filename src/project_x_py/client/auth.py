@@ -1,4 +1,42 @@
-"""Authentication and token management for ProjectX client."""
+"""
+Authentication and account management for ProjectX async clients.
+
+Overview:
+    This module implements the complete authentication lifecycle for ProjectX, including
+    secure login using API key and username, JWT token handling, account selection, and
+    robust error management. It automatically parses and refreshes authentication tokens,
+    supports multiple accounts, and ensures session validity throughout async API usage.
+    Integrated as a mixin, it enables seamless auth orchestration for all async clients.
+
+Key Features:
+    - Full async login flow with API key and user credentials
+    - JWT token parsing, expiry extraction, and proactive refresh logic
+    - Multi-account discovery and selection (by name or default)
+    - Automatic authentication refresh on token expiry or invalidation
+    - Error management with descriptive exceptions for auth failures
+    - Utility methods for listing and validating available accounts
+
+Example Usage:
+    ```python
+    import asyncio
+    from project_x_py import ProjectX
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+            print(f"Authenticated as {client.account_info.username}")
+            accounts = await client.list_accounts()
+            for acc in accounts:
+                print(acc.name, acc.balance)
+
+    asyncio.run(main())
+    ```
+
+See Also:
+    - `project_x_py.client.base.ProjectXBase` (core client with mixins)
+    - `project_x_py.client.http.HttpMixin` (for HTTP request integration)
+    - `project_x_py.client.trading.TradingMixin` (trading operations requiring auth)
+"""
 
 import base64
 import datetime

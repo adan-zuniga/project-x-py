@@ -4,8 +4,29 @@ ProjectX Indicators - Overlap Studies (Trend Indicators)
 Author: TexasCoding
 Date: June 2025
 
-Overlap study indicators are often displaced by default and superimposed
-over the main price chart.
+Overview:
+    Contains all trend-following (overlap) indicators for ProjectX, including
+    moving averages, Bollinger Bands, and adaptive smoothing. Each indicator
+    provides a class interface and function-style convenience wrapper, and
+    all outputs are Polars DataFrames for easy chaining.
+
+Key Features:
+    - SMA, EMA, DEMA, TEMA, WMA, TRIMA, KAMA, and other moving averages
+    - Bollinger Bands, Parabolic SAR, Hilbert Transform, and more
+    - Selectable MA type for generic moving average computations
+    - Rolling, exponential, and adaptive implementations
+    - All indicators are vectorized and support chaining
+
+Example Usage:
+    ```python
+    from project_x_py.indicators import calculate_sma
+    data_with_sma = calculate_sma(ohlcv_data, period=20)
+    ```
+
+See Also:
+    - `project_x_py.indicators.base.OverlapIndicator`
+    - `project_x_py.indicators.momentum`
+    - `project_x_py.indicators.volatility`
 """
 
 from typing import Any

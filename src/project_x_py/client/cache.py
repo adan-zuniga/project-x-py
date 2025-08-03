@@ -1,4 +1,34 @@
-"""Caching functionality for ProjectX client."""
+"""
+In-memory caching for instrument and market data with TTL and performance tracking.
+
+Overview:
+    Provides efficient, per-symbol in-memory caching for instrument metadata and historical
+    market data. Uses time-based TTL (time-to-live) for automatic expiry and memory cleanup,
+    reducing API load and improving performance for frequently accessed symbols. Includes
+    cache hit counters and periodic cleanup for resource optimization within async clients.
+
+Key Features:
+    - Fast cache for instrument lookups (symbol → instrument)
+    - Market data caching for historical bar queries (string key → Polars DataFrame)
+    - Configurable TTL (default 5 minutes) to automatically expire stale data
+    - Performance metrics: cache hit count and cleanup timing
+    - Async cache cleanup and garbage collection for large workloads
+    - Manual cache clearing utilities
+
+Example Usage:
+    ```python
+    # Used internally by ProjectX; typical use is transparent:
+    instrument = await client.get_instrument("MNQ")
+    # On repeated calls, instrument is served from cache if not expired.
+    cached = client.get_cached_instrument("MNQ")
+    client.clear_all_caches()
+    ```
+
+See Also:
+    - `project_x_py.client.market_data.MarketDataMixin`
+    - `project_x_py.client.base.ProjectXBase`
+    - `project_x_py.client.http.HttpMixin`
+"""
 
 import gc
 import logging

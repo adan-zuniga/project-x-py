@@ -4,19 +4,41 @@ ProjectX Indicators - Technical Analysis Library
 Author: TexasCoding
 Date: June 2025
 
-A comprehensive technical analysis library similar to TA-Lib, built on Polars DataFrames.
-Provides both class-based and function-based interfaces for technical indicators.
+Overview:
+    ProjectX Indicators provides a comprehensive, extensible technical analysis library
+    similar to TA-Lib, built on Polars DataFrames. It offers both class-based and
+    function-based interfaces for over 60 technical indicators, with seamless integration
+    for vectorized backtesting and strategy development in ProjectX and beyond.
 
-Example usage:
+Key Features:
+    - Wide range of indicators: trend/overlap, momentum, volatility, volume, and patterns
+    - Class-based and TA-Lib-style function interface for flexible usage
+    - All indicators operate on Polars DataFrames for speed and modern analytics
+    - Utilities for indicator discovery, grouping, and docstring access
+    - Clean API and naming convention for easy scripting and research
+
+Example Usage:
+    ```python
     # Class-based interface
-    >>> from project_x_py.indicators import RSI, SMA
-    >>> rsi = RSI()
-    >>> data_with_rsi = rsi.calculate(ohlcv_data, period=14)
+    from project_x_py.indicators import RSI, SMA
+    rsi = RSI()
+    data_with_rsi = rsi.calculate(ohlcv_data, period=14)
 
     # Function-based interface (TA-Lib style)
-    >>> from project_x_py.indicators import calculate_rsi, calculate_sma
-    >>> data_with_rsi = calculate_rsi(ohlcv_data, period=14)
-    >>> data_with_sma = calculate_sma(ohlcv_data, period=20)
+    from project_x_py.indicators import calculate_rsi, calculate_sma
+    data_with_rsi = calculate_rsi(ohlcv_data, period=14)
+    data_with_sma = calculate_sma(ohlcv_data, period=20)
+    ```
+
+See Also:
+    - `project_x_py.indicators.base` (abstract base classes/utilities)
+    - `project_x_py.indicators.momentum`
+    - `project_x_py.indicators.overlap`
+    - `project_x_py.indicators.volume`
+    - `project_x_py.indicators.volatility`
+    - `project_x_py.indicators.order_block`
+    - `project_x_py.indicators.fvg`
+    - `project_x_py.indicators.waddah_attar`
 """
 
 import polars as pl
