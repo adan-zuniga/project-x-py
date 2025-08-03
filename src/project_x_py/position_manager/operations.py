@@ -21,6 +21,11 @@ logger = ProjectXLogger.get_logger(__name__)
 class PositionOperationsMixin:
     """Mixin for direct position operations."""
 
+    @handle_errors(
+        "close position direct",
+        reraise=False,
+        default_return={"success": False, "error": "Operation failed"},
+    )
     async def close_position_direct(
         self: "PositionManagerProtocol",
         contract_id: str,
@@ -85,14 +90,25 @@ class PositionOperationsMixin:
             "contractId": contract_id,
         }
 
-        try:
+        with LogContext(
+            logger,
+            operation="close_position_direct",
+            contract_id=contract_id,
+            account_id=account_id,
+        ):
             response = await self.project_x._make_request("POST", url, data=payload)
 
             if response:
                 success = response.get("success", False)
 
                 if success:
-                    self.logger.info(f"✅ Position {contract_id} closed successfully")
+                    logger.info(
+                        LogMessages.POSITION_CLOSED,
+                        extra={
+                            "contract_id": contract_id,
+                            "order_id": response.get("orderId"),
+                        },
+                    )
                     # Remove from tracked positions if present
                     async with self.position_lock:
                         positions_to_remove = [
@@ -111,15 +127,14 @@ class PositionOperationsMixin:
                     self.stats["positions_closed"] += 1
                 else:
                     error_msg = response.get("errorMessage", "Unknown error")
-                    self.logger.error(f"❌ Position closure failed: {error_msg}")
+                    logger.error(
+                        LogMessages.POSITION_ERROR,
+                        extra={"operation": "close_position", "error": error_msg},
+                    )
 
                 return dict(response)
 
             return {"success": False, "error": "No response from server"}
-
-        except Exception as e:
-            self.logger.error(f"❌ Position closure request failed: {e}")
-            return {"success": False, "error": str(e)}
 
     @handle_errors(
         "partially close position",
@@ -249,6 +264,11 @@ class PositionOperationsMixin:
 
             return {"success": False, "error": "No response from server"}
 
+    @handle_errors(
+        "close all positions",
+        reraise=False,
+        default_return={"total_positions": 0, "closed": 0, "failed": 0, "errors": []},
+    )
     async def close_all_positions(
         self: "PositionManagerProtocol",
         contract_id: str | None = None,
@@ -325,11 +345,22 @@ class PositionOperationsMixin:
                 results["failed"] += 1
                 results["errors"].append(f"Position {position.contractId}: {e!s}")
 
-        self.logger.info(
-            f"✅ Closed {results['closed']}/{results['total_positions']} positions"
+        logger.info(
+            LogMessages.POSITION_CLOSE,
+            extra={
+                "closed": results["closed"],
+                "total": results["total_positions"],
+                "failed": results["failed"],
+                "operation": "close_all",
+            },
         )
         return results
 
+    @handle_errors(
+        "close position by contract",
+        reraise=False,
+        default_return={"success": False, "error": "Operation failed"},
+    )
     async def close_position_by_contract(
         self: "PositionManagerProtocol",
         contract_id: str,

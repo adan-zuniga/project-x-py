@@ -236,6 +236,13 @@ class LogMessages:
     ERROR_HANDLED = "Error handled"
     ERROR_UNHANDLED = "Unhandled error"
 
+    # Callbacks
+    CALLBACK_REGISTERED = "Callback registered"
+    CALLBACK_REMOVED = "Callback removed"
+
+    # Cleanup
+    CLEANUP_COMPLETE = "Cleanup completed"
+
 
 def log_performance(
     logger: logging.Logger,

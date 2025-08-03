@@ -47,6 +47,8 @@ from project_x_py.utils import (
     handle_errors,
 )
 
+logger = ProjectXLogger.get_logger(__name__)
+
 
 class OrderBookBase:
     """
@@ -284,6 +286,11 @@ class OrderBookBase:
             )
             return {"bid": None, "ask": None, "spread": None, "timestamp": None}
 
+    @handle_errors(
+        "get best bid/ask",
+        reraise=False,
+        default_return={"bid": None, "ask": None, "spread": None, "timestamp": None},
+    )
     async def get_best_bid_ask(self) -> dict[str, Any]:
         """
         Get current best bid and ask prices with spread calculation.
@@ -316,6 +323,7 @@ class OrderBookBase:
         async with self.orderbook_lock:
             return self._get_best_bid_ask_unlocked()
 
+    @handle_errors("get bid-ask spread", reraise=False, default_return=None)
     async def get_bid_ask_spread(self) -> float | None:
         """Get the current bid-ask spread."""
         best_prices = await self.get_best_bid_ask()
@@ -347,6 +355,7 @@ class OrderBookBase:
             )
             return pl.DataFrame()
 
+    @handle_errors("get orderbook bids", reraise=False, default_return=pl.DataFrame())
     async def get_orderbook_bids(self, levels: int = 10) -> pl.DataFrame:
         """Get orderbook bids up to specified levels."""
         async with self.orderbook_lock:
@@ -378,11 +387,13 @@ class OrderBookBase:
             )
             return pl.DataFrame()
 
+    @handle_errors("get orderbook asks", reraise=False, default_return=pl.DataFrame())
     async def get_orderbook_asks(self, levels: int = 10) -> pl.DataFrame:
         """Get orderbook asks up to specified levels."""
         async with self.orderbook_lock:
             return self._get_orderbook_asks_unlocked(levels)
 
+    @handle_errors("get orderbook snapshot")
     async def get_orderbook_snapshot(self, levels: int = 10) -> dict[str, Any]:
         """
         Get a complete snapshot of the current orderbook state.
@@ -488,6 +499,7 @@ class OrderBookBase:
                 )
                 raise ProjectXError(f"Failed to get orderbook snapshot: {e}") from e
 
+    @handle_errors("get recent trades", reraise=False, default_return=[])
     async def get_recent_trades(self, count: int = 100) -> list[dict[str, Any]]:
         """Get recent trades from the orderbook."""
         async with self.orderbook_lock:
@@ -506,11 +518,13 @@ class OrderBookBase:
                 )
                 return []
 
+    @handle_errors("get order type statistics", reraise=False, default_return={})
     async def get_order_type_statistics(self) -> dict[str, int]:
         """Get statistics about different order types processed."""
         async with self.orderbook_lock:
             return self.order_type_stats.copy()
 
+    @handle_errors("add callback", reraise=False)
     async def add_callback(self, event_type: str, callback: CallbackType) -> None:
         """
         Register a callback for orderbook events.
@@ -547,14 +561,21 @@ class OrderBookBase:
         """
         async with self._callback_lock:
             self.callbacks[event_type].append(callback)
-            self.logger.debug(f"Added orderbook callback for {event_type}")
+            logger.debug(
+                LogMessages.CALLBACK_REGISTERED,
+                extra={"event_type": event_type, "component": "orderbook"},
+            )
 
+    @handle_errors("remove callback", reraise=False)
     async def remove_callback(self, event_type: str, callback: CallbackType) -> None:
         """Remove a registered callback."""
         async with self._callback_lock:
             if event_type in self.callbacks and callback in self.callbacks[event_type]:
                 self.callbacks[event_type].remove(callback)
-                self.logger.debug(f"Removed orderbook callback for {event_type}")
+                logger.debug(
+                    LogMessages.CALLBACK_REMOVED,
+                    extra={"event_type": event_type, "component": "orderbook"},
+                )
 
     async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
         """Trigger all callbacks for a specific event type."""
@@ -571,9 +592,13 @@ class OrderBookBase:
                     extra={"operation": f"callback_{event_type}", "error": str(e)},
                 )
 
+    @handle_errors("cleanup", reraise=False)
     async def cleanup(self) -> None:
         """Clean up resources."""
         await self.memory_manager.stop()
         async with self._callback_lock:
             self.callbacks.clear()
-        self.logger.info("OrderBook cleanup completed")
+        logger.info(
+            LogMessages.CLEANUP_COMPLETE,
+            extra={"component": "OrderBook"},
+        )
