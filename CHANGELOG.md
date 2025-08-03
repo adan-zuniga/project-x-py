@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [2.0.7] - 2025-08-03
+
+### Added
+- **📈 JoinBid and JoinAsk Order Types**: Passive liquidity-providing order types
+  - `place_join_bid_order()`: Places limit buy order at current best bid price
+  - `place_join_ask_order()`: Places limit sell order at current best ask price
+  - These order types automatically join the best bid/ask queue
+  - Useful for market making strategies and minimizing market impact
+  - Added comprehensive tests for both order types
+  - Created example script `16_join_orders.py` demonstrating usage
+
+### Improved
+- **📖 Order Type Documentation**: Enhanced documentation for all order types
+  - Clarified that JoinBid/JoinAsk are passive orders, not stop-limit orders
+  - Updated order type enum documentation with behavior descriptions
+  - Added inline comments explaining each order type value
+
 ## [2.0.6] - 2025-08-03
 
 ### Changed

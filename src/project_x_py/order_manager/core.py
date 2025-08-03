@@ -104,10 +104,11 @@ class OrderManager(
     Order Type Enum Values:
         - 1: Limit
         - 2: Market
+        - 3: StopLimit
         - 4: Stop
         - 5: TrailingStop
-        - 6: JoinBid
-        - 7: JoinAsk
+        - 6: JoinBid (places limit buy at current best bid)
+        - 7: JoinAsk (places limit sell at current best ask)
 
     The OrderManager combines multiple mixins to provide a unified interface for all
     order-related operations, ensuring consistent behavior and comprehensive functionality
