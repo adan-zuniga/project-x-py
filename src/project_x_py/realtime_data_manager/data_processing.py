@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 if TYPE_CHECKING:
-    from project_x_py.realtime_data_manager.types import RealtimeDataManagerProtocol
+    from asyncio import Lock
+
+    from pytz import BaseTzInfo
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +17,32 @@ logger = logging.getLogger(__name__)
 class DataProcessingMixin:
     """Mixin for tick processing and OHLCV bar creation."""
 
-    async def _on_quote_update(
-        self: "RealtimeDataManagerProtocol", callback_data: dict[str, Any]
-    ) -> None:
+    # Type hints for mypy - these attributes are provided by the main class
+    if TYPE_CHECKING:
+        logger: logging.Logger
+        timezone: BaseTzInfo
+        data_lock: Lock
+        current_tick_data: list[dict[str, Any]]
+        timeframes: dict[str, dict[str, Any]]
+        data: dict[str, pl.DataFrame]
+        last_bar_times: dict[str, datetime]
+        memory_stats: dict[str, Any]
+        is_running: bool
+
+        # Methods from other mixins/main class
+        def _parse_and_validate_quote_payload(
+            self, data: dict[str, Any]
+        ) -> dict[str, Any] | None: ...
+        def _parse_and_validate_trade_payload(
+            self, data: dict[str, Any]
+        ) -> dict[str, Any] | None: ...
+        def _symbol_matches_instrument(self, symbol: str) -> bool: ...
+        async def _trigger_callbacks(
+            self, event_type: str, data: dict[str, Any]
+        ) -> None: ...
+        async def _cleanup_old_data(self) -> None: ...
+
+    async def _on_quote_update(self, callback_data: dict[str, Any]) -> None:
         """
         Handle real-time quote updates for OHLCV data processing.
 
@@ -91,9 +116,7 @@ class DataProcessingMixin:
             self.logger.error(f"Error processing quote update for OHLCV: {e}")
             self.logger.debug(f"Callback data that caused error: {callback_data}")
 
-    async def _on_trade_update(
-        self: "RealtimeDataManagerProtocol", callback_data: dict[str, Any]
-    ) -> None:
+    async def _on_trade_update(self, callback_data: dict[str, Any]) -> None:
         """
         Handle real-time trade updates for OHLCV data processing.
 
@@ -153,9 +176,7 @@ class DataProcessingMixin:
             self.logger.error(f"❌ Error processing market trade for OHLCV: {e}")
             self.logger.debug(f"Callback data that caused error: {callback_data}")
 
-    async def _process_tick_data(
-        self: "RealtimeDataManagerProtocol", tick: dict[str, Any]
-    ) -> None:
+    async def _process_tick_data(self, tick: dict[str, Any]) -> None:
         """
         Process incoming tick data and update all OHLCV timeframes.
 
@@ -192,7 +213,7 @@ class DataProcessingMixin:
             self.logger.error(f"Error processing tick data: {e}")
 
     async def _update_timeframe_data(
-        self: "RealtimeDataManagerProtocol",
+        self,
         tf_key: str,
         timestamp: datetime,
         price: float,
@@ -325,7 +346,7 @@ class DataProcessingMixin:
             self.logger.error(f"Error updating {tf_key} timeframe: {e}")
 
     def _calculate_bar_time(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timestamp: datetime,
         interval: int,
         unit: int,

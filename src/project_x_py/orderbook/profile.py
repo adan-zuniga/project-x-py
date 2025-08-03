@@ -426,3 +426,128 @@ class VolumeProfile:
             except Exception as e:
                 self.logger.error(f"Error analyzing spread: {e}")
                 return {"error": str(e)}
+
+    @staticmethod
+    def calculate_dataframe_volume_profile(
+        data: pl.DataFrame,
+        price_column: str = "close",
+        volume_column: str = "volume",
+        num_bins: int = 50,
+    ) -> dict[str, Any]:
+        """
+        Calculate volume profile from a DataFrame with price and volume data.
+
+        This static method provides volume profile analysis for any DataFrame,
+        useful for historical analysis or when working with data outside of
+        the orderbook context. It creates a histogram of volume distribution
+        across price levels and identifies key areas of market interest.
+
+        Args:
+            data: DataFrame with price and volume data
+            price_column: Name of the price column (default: "close")
+            volume_column: Name of the volume column (default: "volume")
+            num_bins: Number of price bins for the histogram (default: 50)
+
+        Returns:
+            Dict containing volume profile analysis:
+                - point_of_control: Price level with highest volume
+                - poc_volume: Volume at the point of control
+                - value_area_high: Upper bound of 70% volume area
+                - value_area_low: Lower bound of 70% volume area
+                - total_volume: Total volume analyzed
+                - volume_distribution: Top 10 high-volume price levels
+
+        Example:
+            >>> # Analyze volume distribution in historical data
+            >>> profile = VolumeProfile.calculate_dataframe_volume_profile(ohlcv_data)
+            >>> print(f"POC Price: ${profile['point_of_control']:.2f}")
+            >>> print(
+            ...     f"Value Area: ${profile['value_area_low']:.2f} - ${profile['value_area_high']:.2f}"
+            ... )
+        """
+        required_cols = [price_column, volume_column]
+        for col in required_cols:
+            if col not in data.columns:
+                raise ValueError(f"Column '{col}' not found in data")
+
+        if data.is_empty():
+            return {"error": "No data provided"}
+
+        try:
+            # Get price range
+            min_price = data.select(pl.col(price_column).min()).item()
+            max_price = data.select(pl.col(price_column).max()).item()
+
+            if min_price is None or max_price is None:
+                return {"error": "Invalid price data"}
+
+            price_range = max_price - min_price
+            if price_range == 0:
+                # All prices are the same
+                total_vol = data.select(pl.col(volume_column).sum()).item() or 0
+                return {
+                    "point_of_control": min_price,
+                    "poc_volume": total_vol,
+                    "value_area_high": min_price,
+                    "value_area_low": min_price,
+                    "total_volume": total_vol,
+                    "volume_distribution": [{"price": min_price, "volume": total_vol}],
+                }
+
+            # Create price bins
+            bin_size = price_range / num_bins
+            bins = [min_price + i * bin_size for i in range(num_bins + 1)]
+
+            # Calculate volume per price level
+            volume_by_price = []
+            for i in range(len(bins) - 1):
+                bin_data = data.filter(
+                    (pl.col(price_column) >= bins[i])
+                    & (pl.col(price_column) < bins[i + 1])
+                )
+
+                if not bin_data.is_empty():
+                    total_volume = (
+                        bin_data.select(pl.col(volume_column).sum()).item() or 0
+                    )
+                    avg_price = (bins[i] + bins[i + 1]) / 2
+                    volume_by_price.append(
+                        {
+                            "price": avg_price,
+                            "volume": total_volume,
+                            "price_range": (bins[i], bins[i + 1]),
+                        }
+                    )
+
+            if not volume_by_price:
+                return {"error": "No volume data in bins"}
+
+            # Sort by volume to find key levels
+            volume_by_price.sort(key=lambda x: x["volume"], reverse=True)
+
+            # Point of Control (POC) - price level with highest volume
+            poc = volume_by_price[0]
+
+            # Value Area (70% of volume)
+            total_volume = sum(vp["volume"] for vp in volume_by_price)
+            value_area_volume = total_volume * 0.7
+            cumulative_volume = 0
+            value_area_prices = []
+
+            for vp in volume_by_price:
+                cumulative_volume += vp["volume"]
+                value_area_prices.append(vp["price"])
+                if cumulative_volume >= value_area_volume:
+                    break
+
+            return {
+                "point_of_control": poc["price"],
+                "poc_volume": poc["volume"],
+                "value_area_high": max(value_area_prices),
+                "value_area_low": min(value_area_prices),
+                "total_volume": total_volume,
+                "volume_distribution": volume_by_price[:10],  # Top 10 volume levels
+            }
+
+        except Exception as e:
+            return {"error": str(e)}

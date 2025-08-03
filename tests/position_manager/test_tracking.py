@@ -1,8 +1,12 @@
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
+
 @pytest.mark.asyncio
-async def test_validate_position_payload_valid_invalid(position_manager, mock_positions_data):
+async def test_validate_position_payload_valid_invalid(
+    position_manager, mock_positions_data
+):
     pm = position_manager
     valid = pm._validate_position_payload(mock_positions_data[0])
     assert valid is True
@@ -17,8 +21,11 @@ async def test_validate_position_payload_valid_invalid(position_manager, mock_po
     invalid2["size"] = "not_a_number"
     assert pm._validate_position_payload(invalid2) is False
 
+
 @pytest.mark.asyncio
-async def test_process_position_data_open_and_close(position_manager, mock_positions_data):
+async def test_process_position_data_open_and_close(
+    position_manager, mock_positions_data
+):
     pm = position_manager
     # Patch callback
     pm._trigger_callbacks = AsyncMock()

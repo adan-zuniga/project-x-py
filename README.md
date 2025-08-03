@@ -21,9 +21,20 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v2.0.2 - Async-First Architecture with Enhanced Indicators
+## 🚀 v2.0.5 - Enterprise-Grade Error Handling & Logging
 
-**BREAKING CHANGE**: Version 2.0.0 is a complete rewrite with async-only architecture. All synchronous APIs have been removed in favor of high-performance async implementations.
+**Latest Update (v2.0.5)**: Enhanced error handling system with centralized logging, structured error messages, and comprehensive retry mechanisms.
+
+### What's New in v2.0.5
+
+- **Centralized Error Handling**: Decorators for consistent error handling across all modules
+- **Structured Logging**: JSON-formatted logs with contextual information for production environments
+- **Smart Retry Logic**: Automatic retry for network operations with exponential backoff
+- **Rate Limit Management**: Built-in rate limit handling with automatic throttling
+- **Enhanced Type Safety**: Full mypy compliance with strict type checking
+- **Code Quality**: All ruff checks pass with comprehensive linting
+
+**BREAKING CHANGE**: Version 2.0.0 introduced async-only architecture. All synchronous APIs have been removed in favor of high-performance async implementations.
 
 ### Why Async?
 
@@ -63,6 +74,8 @@ async with ProjectX.from_env() as client:
 - **Real-time WebSockets**: Async streaming for quotes, trades, and account updates
 - **Performance Optimized**: Connection pooling, intelligent caching, memory management
 - **Pattern Recognition**: Fair Value Gaps, Order Blocks, and Waddah Attar Explosion indicators
+- **Enterprise Error Handling**: Production-ready error handling with decorators and structured logging
+- **Comprehensive Testing**: High test coverage with async-safe testing patterns
 
 ## 📦 Installation
 
@@ -308,9 +321,11 @@ data_manager = RealtimeDataManager(
 )
 ```
 
-## 🔍 Error Handling
+## 🔍 Error Handling & Logging (v2.0.5+)
 
-All async operations use typed exceptions:
+### Structured Error Handling
+
+All async operations use typed exceptions with automatic retry and logging:
 
 ```python
 from project_x_py.exceptions import (
@@ -318,14 +333,37 @@ from project_x_py.exceptions import (
     ProjectXOrderError,
     ProjectXRateLimitError
 )
+from project_x_py.utils import configure_sdk_logging
+
+# Configure logging for production
+configure_sdk_logging(
+    level=logging.INFO,
+    format_json=True,  # JSON logs for production
+    log_file="/var/log/projectx/trading.log"
+)
 
 try:
     async with ProjectX.from_env() as client:
-        await client.authenticate()
+        await client.authenticate()  # Automatic retry on network errors
 except ProjectXAuthenticationError as e:
+    # Structured error with context
     print(f"Authentication failed: {e}")
 except ProjectXRateLimitError as e:
+    # Automatic backoff already attempted
     print(f"Rate limit exceeded: {e}")
+```
+
+### Error Handling Decorators
+
+The SDK uses decorators for consistent error handling:
+
+```python
+# All API methods have built-in error handling
+@handle_errors("place order")
+@retry_on_network_error(max_attempts=3)
+@validate_response(required_fields=["orderId"])
+async def place_order(self, ...):
+    # Method implementation
 ```
 
 ## 🤝 Contributing

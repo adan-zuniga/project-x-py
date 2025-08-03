@@ -1,7 +1,6 @@
 """Market data operations for ProjectX client."""
 
 import datetime
-import logging
 import re
 import time
 from typing import TYPE_CHECKING, Any
@@ -11,16 +10,27 @@ import pytz
 
 from project_x_py.exceptions import ProjectXInstrumentError
 from project_x_py.models import Instrument
+from project_x_py.utils import (
+    ErrorMessages,
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    format_error_message,
+    handle_errors,
+    validate_response,
+)
 
 if TYPE_CHECKING:
-    from project_x_py.client.protocols import ProjectXClientProtocol
+    from project_x_py.types import ProjectXClientProtocol
 
-logger = logging.getLogger(__name__)
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class MarketDataMixin:
     """Mixin class providing market data functionality."""
 
+    @handle_errors("get instrument")
+    @validate_response(required_fields=["success", "contracts"])
     async def get_instrument(
         self: "ProjectXClientProtocol", symbol: str, live: bool = False
     ) -> Instrument:
@@ -39,36 +49,56 @@ class MarketDataMixin:
             >>> print(f"Trading {instrument.symbol} - {instrument.name}")
             >>> print(f"Tick size: {instrument.tick_size}")
         """
-        await self._ensure_authenticated()
+        with LogContext(
+            logger,
+            operation="get_instrument",
+            symbol=symbol,
+            live=live,
+        ):
+            await self._ensure_authenticated()
 
-        # Check cache first
-        cached_instrument = self.get_cached_instrument(symbol)
-        if cached_instrument:
-            return cached_instrument
+            # Check cache first
+            cached_instrument = self.get_cached_instrument(symbol)
+            if cached_instrument:
+                logger.info(LogMessages.CACHE_HIT, extra={"symbol": symbol})
+                return cached_instrument
 
-        # Search for instrument
-        payload = {"searchText": symbol, "live": live}
-        response = await self._make_request("POST", "/Contract/search", data=payload)
+            logger.info(LogMessages.CACHE_MISS, extra={"symbol": symbol})
 
-        if not response or not response.get("success", False):
-            raise ProjectXInstrumentError(f"No instruments found for symbol: {symbol}")
+            # Search for instrument
+            payload = {"searchText": symbol, "live": live}
+            response = await self._make_request(
+                "POST", "/Contract/search", data=payload
+            )
 
-        contracts_data = response.get("contracts", [])
-        if not contracts_data:
-            raise ProjectXInstrumentError(f"No instruments found for symbol: {symbol}")
+            if not response or not response.get("success", False):
+                raise ProjectXInstrumentError(
+                    format_error_message(
+                        ErrorMessages.INSTRUMENT_NOT_FOUND, symbol=symbol
+                    )
+                )
 
-        # Select best match
-        best_match = self._select_best_contract(contracts_data, symbol)
-        instrument = Instrument(**best_match)
+            contracts_data = response.get("contracts", [])
+            if not contracts_data:
+                raise ProjectXInstrumentError(
+                    format_error_message(
+                        ErrorMessages.INSTRUMENT_NOT_FOUND, symbol=symbol
+                    )
+                )
 
-        # Cache the result
-        self.cache_instrument(symbol, instrument)
+            # Select best match
+            best_match = self._select_best_contract(contracts_data, symbol)
+            instrument = Instrument(**best_match)
 
-        # Periodic cache cleanup
-        if time.time() - self.last_cache_cleanup > 3600:  # Every hour
-            await self._cleanup_cache()
+            # Cache the result
+            self.cache_instrument(symbol, instrument)
+            logger.info(LogMessages.CACHE_UPDATE, extra={"symbol": symbol})
 
-        return instrument
+            # Periodic cache cleanup
+            if time.time() - self.last_cache_cleanup > 3600:  # Every hour
+                await self._cleanup_cache()
+
+            return instrument
 
     def _select_best_contract(
         self: "ProjectXClientProtocol",
@@ -131,6 +161,8 @@ class MarketDataMixin:
         # Default to first result
         return instruments[0]
 
+    @handle_errors("search instruments")
+    @validate_response(required_fields=["success", "contracts"])
     async def search_instruments(
         self: "ProjectXClientProtocol", query: str, live: bool = False
     ) -> list[Instrument]:
@@ -149,17 +181,35 @@ class MarketDataMixin:
             >>> for inst in instruments:
             >>>     print(f"{inst.name}: {inst.description}")
         """
-        await self._ensure_authenticated()
+        with LogContext(
+            logger,
+            operation="search_instruments",
+            query=query,
+            live=live,
+        ):
+            await self._ensure_authenticated()
 
-        payload = {"searchText": query, "live": live}
-        response = await self._make_request("POST", "/Contract/search", data=payload)
+            logger.info(LogMessages.DATA_FETCH, extra={"query": query})
 
-        if not response or not response.get("success", False):
-            return []
+            payload = {"searchText": query, "live": live}
+            response = await self._make_request(
+                "POST", "/Contract/search", data=payload
+            )
 
-        contracts_data = response.get("contracts", [])
-        return [Instrument(**contract) for contract in contracts_data]
+            if not response or not response.get("success", False):
+                return []
 
+            contracts_data = response.get("contracts", [])
+            instruments = [Instrument(**contract) for contract in contracts_data]
+
+            logger.info(
+                LogMessages.DATA_RECEIVED,
+                extra={"count": len(instruments), "query": query},
+            )
+
+            return instruments
+
+    @handle_errors("get bars")
     async def get_bars(
         self: "ProjectXClientProtocol",
         symbol: str,
@@ -202,22 +252,37 @@ class MarketDataMixin:
             ...     f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}"
             ... )
         """
-        await self._ensure_authenticated()
+        with LogContext(
+            logger,
+            operation="get_bars",
+            symbol=symbol,
+            days=days,
+            interval=interval,
+            unit=unit,
+            partial=partial,
+        ):
+            await self._ensure_authenticated()
 
-        # Check market data cache
-        cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
-        cached_data = self.get_cached_market_data(cache_key)
-        if cached_data is not None:
-            return cached_data
+            # Check market data cache
+            cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
+            cached_data = self.get_cached_market_data(cache_key)
+            if cached_data is not None:
+                logger.info(LogMessages.CACHE_HIT, extra={"cache_key": cache_key})
+                return cached_data
 
-        # Lookup instrument
-        instrument = await self.get_instrument(symbol)
+            logger.info(
+                LogMessages.DATA_FETCH,
+                extra={"symbol": symbol, "days": days, "interval": interval},
+            )
 
-        # Calculate date range
-        from datetime import timedelta
+            # Lookup instrument
+            instrument = await self.get_instrument(symbol)
 
-        start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
-        end_date = datetime.datetime.now(pytz.UTC)
+            # Calculate date range
+            from datetime import timedelta
+
+            start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
+            end_date = datetime.datetime.now(pytz.UTC)
 
         # Calculate limit based on unit type
         if limit is None:
@@ -257,7 +322,10 @@ class MarketDataMixin:
         # Handle the response format
         if not response.get("success", False):
             error_msg = response.get("errorMessage", "Unknown error")
-            self.logger.error(f"History retrieval failed: {error_msg}")
+            self.logger.error(
+                LogMessages.DATA_ERROR,
+                extra={"operation": "get_history", "error": error_msg},
+            )
             return pl.DataFrame()
 
         bars_data = response.get("bars", [])

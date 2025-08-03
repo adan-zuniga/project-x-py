@@ -6,7 +6,6 @@ operations including tracking, monitoring, analysis, and management.
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -18,6 +17,11 @@ from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.risk import RiskManagementMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
+from project_x_py.utils import (
+    LogMessages,
+    ProjectXLogger,
+    handle_errors,
+)
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
@@ -103,7 +107,7 @@ class PositionManager(
         PositionMonitoringMixin.__init__(self)
 
         self.project_x = project_x_client
-        self.logger = logging.getLogger(__name__)
+        self.logger = ProjectXLogger.get_logger(__name__)
 
         # Async lock for thread safety
         self.position_lock = asyncio.Lock()
@@ -136,8 +140,11 @@ class PositionManager(
             "alert_threshold": 0.005,  # 0.5% threshold for alerts
         }
 
-        self.logger.info("PositionManager initialized")
+        self.logger.info(
+            LogMessages.MANAGER_INITIALIZED, extra={"manager": "PositionManager"}
+        )
 
+    @handle_errors("initialize position manager", reraise=False, default_return=False)
     async def initialize(
         self,
         realtime_client: Optional["ProjectXRealtimeClient"] = None,
@@ -179,39 +186,40 @@ class PositionManager(
             - Polling mode refreshes positions periodically (see start_monitoring)
             - Order synchronization helps maintain order/position consistency
         """
-        try:
-            # Set up real-time integration if provided
-            if realtime_client:
-                self.realtime_client = realtime_client
-                await self._setup_realtime_callbacks()
-                self._realtime_enabled = True
-                self.logger.info(
-                    "✅ PositionManager initialized with real-time capabilities"
-                )
-            else:
-                self.logger.info("✅ PositionManager initialized (polling mode)")
+        # Set up real-time integration if provided
+        if realtime_client:
+            self.realtime_client = realtime_client
+            await self._setup_realtime_callbacks()
+            self._realtime_enabled = True
+            self.logger.info(
+                LogMessages.MANAGER_INITIALIZED,
+                extra={"manager": "PositionManager", "mode": "realtime"},
+            )
+        else:
+            self.logger.info(
+                LogMessages.MANAGER_INITIALIZED,
+                extra={"manager": "PositionManager", "mode": "polling"},
+            )
 
-            # Set up order management integration if provided
-            if order_manager:
-                self.order_manager = order_manager
-                self._order_sync_enabled = True
-                self.logger.info(
-                    "✅ PositionManager initialized with order synchronization"
-                )
+        # Set up order management integration if provided
+        if order_manager:
+            self.order_manager = order_manager
+            self._order_sync_enabled = True
+            self.logger.info(
+                LogMessages.MANAGER_INITIALIZED,
+                extra={"feature": "order_synchronization", "enabled": True},
+            )
 
-            # Load initial positions
-            await self.refresh_positions()
+        # Load initial positions
+        await self.refresh_positions()
 
-            return True
-
-        except Exception as e:
-            self.logger.error(f"❌ Failed to initialize PositionManager: {e}")
-            return False
+        return True
 
     # ================================================================================
     # CORE POSITION RETRIEVAL METHODS
     # ================================================================================
 
+    @handle_errors("get all positions", reraise=False, default_return=[])
     async def get_all_positions(self, account_id: int | None = None) -> list[Position]:
         """
         Get all current positions from the API and update tracking.
@@ -246,26 +254,26 @@ class PositionManager(
             In real-time mode, tracked positions are also updated via WebSocket,
             but this method always fetches fresh data from the API.
         """
-        try:
-            positions = await self.project_x.search_open_positions(
-                account_id=account_id
-            )
+        self.logger.info(LogMessages.POSITION_SEARCH, extra={"account_id": account_id})
 
-            # Update tracked positions
-            async with self.position_lock:
-                for position in positions:
-                    self.tracked_positions[position.contractId] = position
+        positions = await self.project_x.search_open_positions(account_id=account_id)
 
-                # Update statistics
-                self.stats["positions_tracked"] = len(positions)
-                self.stats["last_update_time"] = datetime.now()
+        # Update tracked positions
+        async with self.position_lock:
+            for position in positions:
+                self.tracked_positions[position.contractId] = position
 
-            return positions
+            # Update statistics
+            self.stats["positions_tracked"] = len(positions)
+            self.stats["last_update_time"] = datetime.now()
 
-        except Exception as e:
-            self.logger.error(f"❌ Failed to retrieve positions: {e}")
-            return []
+        self.logger.info(
+            LogMessages.POSITION_UPDATE, extra={"position_count": len(positions)}
+        )
 
+        return positions
+
+    @handle_errors("get position", reraise=False, default_return=None)
     async def get_position(
         self, contract_id: str, account_id: int | None = None
     ) -> Position | None:
@@ -316,6 +324,7 @@ class PositionManager(
 
         return None
 
+    @handle_errors("refresh positions", reraise=False, default_return=False)
     async def refresh_positions(self, account_id: int | None = None) -> bool:
         """
         Refresh all position data from the API.
@@ -349,13 +358,15 @@ class PositionManager(
             This method is called automatically during initialization and by
             the monitoring loop in polling mode.
         """
-        try:
-            positions = await self.get_all_positions(account_id=account_id)
-            self.logger.info(f"🔄 Refreshed {len(positions)} positions")
-            return True
-        except Exception as e:
-            self.logger.error(f"❌ Failed to refresh positions: {e}")
-            return False
+        self.logger.info(LogMessages.POSITION_REFRESH, extra={"account_id": account_id})
+
+        positions = await self.get_all_positions(account_id=account_id)
+
+        self.logger.info(
+            LogMessages.POSITION_UPDATE, extra={"refreshed_count": len(positions)}
+        )
+
+        return True
 
     async def is_position_open(
         self, contract_id: str, account_id: int | None = None

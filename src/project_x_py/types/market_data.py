@@ -1,11 +1,10 @@
 """
-Type definitions and constants for the async orderbook module.
+Market data type definitions.
 
-This module contains shared types, enums, and constants used across
-the async orderbook implementation.
+This module contains type definitions for market data structures including
+orderbook data, trades, quotes, and real-time data updates.
 """
 
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
@@ -107,12 +106,13 @@ class IcebergConfig:
     confidence_threshold: float = 0.7
 
 
-# Type aliases for async callbacks
-AsyncCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
-SyncCallback = Callable[[dict[str, Any]], None]
-CallbackType = AsyncCallback | SyncCallback
-
-
-# Constants
-DEFAULT_TIMEZONE = "America/Chicago"
-TICK_SIZE_PRECISION = 8  # Decimal places for tick size rounding
+__all__ = [
+    "DomType",
+    "IcebergConfig",
+    "MarketDataDict",
+    "MemoryConfig",
+    "OrderbookSide",
+    "OrderbookSnapshot",
+    "PriceLevelDict",
+    "TradeDict",
+]

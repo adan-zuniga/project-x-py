@@ -20,7 +20,7 @@ project-x-py Documentation
 **project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
 
 .. note::
-   **Version 2.0.0**: Complete async-first rewrite. All APIs now require ``async/await`` for better performance and concurrent operations.
+   **Version 2.0.5**: Enterprise-grade error handling with centralized logging, structured error messages, and comprehensive retry mechanisms. Complete async-first architecture introduced in v2.0.0.
 
 .. warning::
    **Development Phase**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
@@ -104,6 +104,13 @@ Key Features
    * Async event-driven architecture
    * WebSocket-based connections with async handlers
 
+🛡️ **Enterprise Features (v2.0.5+)**
+   * Centralized error handling with decorators
+   * Structured JSON logging for production
+   * Automatic retry with exponential backoff
+   * Rate limit management
+   * Comprehensive type safety (mypy compliant)
+
 Table of Contents
 -----------------
 
@@ -115,6 +122,7 @@ Table of Contents
    quickstart
    authentication
    configuration
+   error_handling
 
 .. toctree::
    :maxdepth: 2

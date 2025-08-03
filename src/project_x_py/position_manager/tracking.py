@@ -10,13 +10,30 @@ from typing import TYPE_CHECKING, Any
 from project_x_py.models import Position
 
 if TYPE_CHECKING:
-    from project_x_py.position_manager.types import PositionManagerProtocol
+    from asyncio import Lock
+
+    from project_x_py.realtime import ProjectXRealtimeClient
 
 logger = logging.getLogger(__name__)
 
 
 class PositionTrackingMixin:
     """Mixin for real-time position tracking and callback functionality."""
+
+    # Type hints for mypy - these attributes are provided by the main class
+    if TYPE_CHECKING:
+        realtime_client: ProjectXRealtimeClient | None
+        logger: logging.Logger
+        position_lock: Lock
+        stats: dict[str, Any]
+
+        # Methods from other mixins
+        async def _check_position_alerts(
+            self,
+            contract_id: str,
+            current_position: Position,
+            old_position: Position | None,
+        ) -> None: ...
 
     def __init__(self) -> None:
         """Initialize tracking attributes."""
@@ -25,7 +42,7 @@ class PositionTrackingMixin:
         self.position_history: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self.position_callbacks: dict[str, list[Any]] = defaultdict(list)
 
-    async def _setup_realtime_callbacks(self: "PositionManagerProtocol") -> None:
+    async def _setup_realtime_callbacks(self) -> None:
         """
         Set up callbacks for real-time position monitoring via WebSocket.
 
@@ -54,7 +71,7 @@ class PositionTrackingMixin:
         self.logger.info("🔄 Real-time position callbacks registered")
 
     async def _on_position_update(
-        self: "PositionManagerProtocol", data: dict[str, Any] | list[dict[str, Any]]
+        self, data: dict[str, Any] | list[dict[str, Any]]
     ) -> None:
         """
         Handle real-time position updates and detect position closures.
@@ -84,9 +101,7 @@ class PositionTrackingMixin:
         except Exception as e:
             self.logger.error(f"Error processing position update: {e}")
 
-    async def _on_account_update(
-        self: "PositionManagerProtocol", data: dict[str, Any]
-    ) -> None:
+    async def _on_account_update(self, data: dict[str, Any]) -> None:
         """
         Handle account-level updates that may affect positions.
 
@@ -99,9 +114,7 @@ class PositionTrackingMixin:
         """
         await self._trigger_callbacks("account_update", data)
 
-    def _validate_position_payload(
-        self: "PositionManagerProtocol", position_data: dict[str, Any]
-    ) -> bool:
+    def _validate_position_payload(self, position_data: dict[str, Any]) -> bool:
         """
         Validate that position payload matches ProjectX GatewayUserPosition format.
 
@@ -162,9 +175,7 @@ class PositionTrackingMixin:
 
         return True
 
-    async def _process_position_data(
-        self: "PositionManagerProtocol", position_data: dict[str, Any]
-    ) -> None:
+    async def _process_position_data(self, position_data: dict[str, Any]) -> None:
         """
         Process individual position data update and detect position closures.
 
@@ -278,9 +289,7 @@ class PositionTrackingMixin:
             self.logger.error(f"Error processing position data: {e}")
             self.logger.debug(f"Position data that caused error: {position_data}")
 
-    async def _trigger_callbacks(
-        self: "PositionManagerProtocol", event_type: str, data: Any
-    ) -> None:
+    async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
         """
         Trigger registered callbacks for position events.
 
@@ -312,7 +321,7 @@ class PositionTrackingMixin:
                 self.logger.error(f"Error in {event_type} callback: {e}")
 
     async def add_callback(
-        self: "PositionManagerProtocol",
+        self,
         event_type: str,
         callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None] | None],
     ) -> None:

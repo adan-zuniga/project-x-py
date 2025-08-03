@@ -6,7 +6,6 @@ market data processing across multiple timeframes.
 """
 
 import asyncio
-import logging
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -17,7 +16,6 @@ import pytz
 
 from project_x_py.client.base import ProjectXBase
 from project_x_py.exceptions import (
-    ProjectXDataError,
     ProjectXError,
     ProjectXInstrumentError,
 )
@@ -27,6 +25,14 @@ from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
+from project_x_py.utils import (
+    ErrorMessages,
+    LogContext,
+    LogMessages,
+    ProjectXLogger,
+    format_error_message,
+    handle_errors,
+)
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
@@ -206,7 +212,7 @@ class RealtimeDataManager(
         self.project_x: ProjectXBase = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = ProjectXLogger.get_logger(__name__)
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone
@@ -270,8 +276,11 @@ class RealtimeDataManager(
         # Background cleanup task
         self._cleanup_task: asyncio.Task[None] | None = None
 
-        self.logger.info(f"RealtimeDataManager initialized for {instrument}")
+        self.logger.info(
+            "RealtimeDataManager initialized", extra={"instrument": instrument}
+        )
 
+    @handle_errors("initialize", reraise=False, default_return=False)
     async def initialize(self, initial_days: int = 1) -> bool:
         """
         Initialize the real-time data manager by loading historical OHLCV data.
@@ -320,9 +329,15 @@ class RealtimeDataManager(
             - If data for a specific timeframe fails to load, the method will log a warning
               but continue with the other timeframes
         """
-        try:
+        with LogContext(
+            self.logger,
+            operation="initialize",
+            instrument=self.instrument,
+            initial_days=initial_days,
+        ):
             self.logger.info(
-                f"Initializing RealtimeDataManager for {self.instrument}..."
+                LogMessages.DATA_FETCH,
+                extra={"phase": "initialization", "instrument": self.instrument},
             )
 
             # Get the contract ID for the instrument
@@ -330,8 +345,11 @@ class RealtimeDataManager(
                 self.instrument
             )
             if instrument_info is None:
-                self.logger.error(f"❌ Instrument {self.instrument} not found")
-                return False
+                raise ProjectXInstrumentError(
+                    format_error_message(
+                        ErrorMessages.INSTRUMENT_NOT_FOUND, symbol=self.instrument
+                    )
+                )
 
             # Store the exact contract ID for real-time subscriptions
             self.contract_id = instrument_info.id
@@ -349,26 +367,22 @@ class RealtimeDataManager(
                     if bars is not None and not bars.is_empty():
                         self.data[tf_key] = bars
                         self.logger.info(
-                            f"✅ Loaded {len(bars)} bars for {tf_key} timeframe"
+                            LogMessages.DATA_RECEIVED,
+                            extra={"timeframe": tf_key, "bar_count": len(bars)},
                         )
                     else:
-                        self.logger.warning(f"⚠️ No data loaded for {tf_key} timeframe")
+                        self.logger.warning(
+                            LogMessages.DATA_ERROR,
+                            extra={"timeframe": tf_key, "error": "No data loaded"},
+                        )
 
             self.logger.info(
-                f"✅ RealtimeDataManager initialized for {self.instrument}"
+                LogMessages.DATA_RECEIVED,
+                extra={"status": "initialized", "instrument": self.instrument},
             )
             return True
 
-        except ProjectXInstrumentError as e:
-            self.logger.error(f"❌ Failed to initialize - instrument error: {e}")
-            return False
-        except ProjectXDataError as e:
-            self.logger.error(f"❌ Failed to initialize - data error: {e}")
-            return False
-        except ProjectXError as e:
-            self.logger.error(f"❌ Failed to initialize - ProjectX error: {e}")
-            return False
-
+    @handle_errors("start realtime feed", reraise=False, default_return=False)
     async def start_realtime_feed(self) -> bool:
         """
         Start the real-time OHLCV data feed using WebSocket connections.
@@ -422,14 +436,26 @@ class RealtimeDataManager(
             - The method sets up a background task for periodic memory cleanup to prevent
               excessive memory usage
         """
-        try:
+        with LogContext(
+            self.logger,
+            operation="start_realtime_feed",
+            instrument=self.instrument,
+            contract_id=self.contract_id,
+        ):
             if self.is_running:
-                self.logger.warning("⚠️ Real-time feed already running")
+                self.logger.warning(
+                    LogMessages.DATA_ERROR,
+                    extra={"error": "Real-time feed already running"},
+                )
                 return True
 
             if not self.contract_id:
-                self.logger.error("❌ Contract ID not set - call initialize() first")
-                return False
+                raise ProjectXError(
+                    format_error_message(
+                        ErrorMessages.INTERNAL_ERROR,
+                        reason="Contract ID not set - call initialize() first",
+                    )
+                )
 
             # Register callbacks first
             await self.realtime_client.add_callback(
@@ -441,17 +467,25 @@ class RealtimeDataManager(
             )
 
             # Subscribe to market data using the contract ID
-            self.logger.info(f"📡 Subscribing to market data for {self.contract_id}")
+            self.logger.info(
+                LogMessages.DATA_SUBSCRIBE, extra={"contract_id": self.contract_id}
+            )
             subscription_success = await self.realtime_client.subscribe_market_data(
                 [self.contract_id]
             )
 
             if not subscription_success:
-                self.logger.error("❌ Failed to subscribe to market data")
-                return False
+                raise ProjectXError(
+                    format_error_message(
+                        ErrorMessages.WS_SUBSCRIPTION_FAILED,
+                        channel="market data",
+                        reason="Subscription returned False",
+                    )
+                )
 
             self.logger.info(
-                f"✅ Successfully subscribed to market data for {self.contract_id}"
+                LogMessages.DATA_SUBSCRIBE,
+                extra={"status": "success", "contract_id": self.contract_id},
             )
 
             self.is_running = True
@@ -459,15 +493,11 @@ class RealtimeDataManager(
             # Start cleanup task
             self.start_cleanup_task()
 
-            self.logger.info(f"✅ Real-time OHLCV feed started for {self.instrument}")
+            self.logger.info(
+                LogMessages.DATA_SUBSCRIBE,
+                extra={"status": "feed_started", "instrument": self.instrument},
+            )
             return True
-
-        except RuntimeError as e:
-            self.logger.error(f"❌ Failed to start real-time feed - runtime error: {e}")
-            return False
-        except TimeoutError as e:
-            self.logger.error(f"❌ Failed to start real-time feed - timeout: {e}")
-            return False
 
     async def stop_realtime_feed(self) -> None:
         """

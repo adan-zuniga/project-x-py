@@ -3,7 +3,6 @@
 import base64
 import datetime
 import json
-import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -11,11 +10,19 @@ import pytz
 
 from project_x_py.exceptions import ProjectXAuthenticationError
 from project_x_py.models import Account
+from project_x_py.utils import (
+    ErrorMessages,
+    LogMessages,
+    ProjectXLogger,
+    format_error_message,
+    handle_errors,
+    validate_response,
+)
 
 if TYPE_CHECKING:
-    from project_x_py.client.protocols import ProjectXClientProtocol
+    from project_x_py.types import ProjectXClientProtocol
 
-logger = logging.getLogger(__name__)
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class AuthenticationMixin:
@@ -43,6 +50,7 @@ class AuthenticationMixin:
         buffer_time = timedelta(minutes=5)
         return datetime.datetime.now(pytz.UTC) >= (self.token_expiry - buffer_time)
 
+    @handle_errors("authenticate")
     async def authenticate(self: "ProjectXClientProtocol") -> None:
         """
         Authenticate with ProjectX API and select account.
@@ -65,6 +73,8 @@ class AuthenticationMixin:
             >>>     print(f"Authenticated as {client.account_info.username}")
             >>>     print(f"Using account: {client.account_info.name}")
         """
+        logger.info(LogMessages.AUTH_START, extra={"username": self.username})
+
         # Authenticate and get token
         auth_data = {
             "userName": self.username,
@@ -74,7 +84,7 @@ class AuthenticationMixin:
         response = await self._make_request("POST", "/Auth/loginKey", data=auth_data)
 
         if not response:
-            raise ProjectXAuthenticationError("Authentication failed")
+            raise ProjectXAuthenticationError(ErrorMessages.AUTH_FAILED)
 
         self.session_token = response["token"]
         self.headers["Authorization"] = f"Bearer {self.session_token}"
@@ -92,7 +102,7 @@ class AuthenticationMixin:
                     token_data["exp"], tz=pytz.UTC
                 )
         except Exception as e:
-            self.logger.warning(f"Could not parse token expiry: {e}")
+            logger.warning(LogMessages.AUTH_TOKEN_PARSE_FAILED, extra={"error": str(e)})
             # Set a default expiry of 1 hour
             self.token_expiry = datetime.datetime.now(pytz.UTC) + timedelta(hours=1)
 
@@ -102,13 +112,13 @@ class AuthenticationMixin:
             "POST", "/Account/search", data=payload
         )
         if not accounts_response or not accounts_response.get("success", False):
-            raise ProjectXAuthenticationError("Account search failed")
+            raise ProjectXAuthenticationError(ErrorMessages.API_REQUEST_FAILED)
 
         accounts_data = accounts_response.get("accounts", [])
         accounts = [Account(**acc) for acc in accounts_data]
 
         if not accounts:
-            raise ProjectXAuthenticationError("No accounts found for user")
+            raise ProjectXAuthenticationError(ErrorMessages.AUTH_NO_ACCOUNTS)
 
         # Select account
         if self.account_name:
@@ -122,8 +132,11 @@ class AuthenticationMixin:
             if not selected_account:
                 available = ", ".join(acc.name for acc in accounts)
                 raise ValueError(
-                    f"Account '{self.account_name}' not found. "
-                    f"Available accounts: {available}"
+                    format_error_message(
+                        ErrorMessages.ACCOUNT_NOT_FOUND,
+                        account_name=self.account_name,
+                        available_accounts=available,
+                    )
                 )
         else:
             # Use first account
@@ -131,8 +144,12 @@ class AuthenticationMixin:
 
         self.account_info = selected_account
         self._authenticated = True
-        self.logger.info(
-            f"Authenticated successfully. Using account: {selected_account.name}"
+        logger.info(
+            LogMessages.AUTH_SUCCESS,
+            extra={
+                "account_name": selected_account.name,
+                "account_id": selected_account.id,
+            },
         )
 
     async def _ensure_authenticated(self: "ProjectXClientProtocol") -> None:
@@ -140,6 +157,8 @@ class AuthenticationMixin:
         if not self._authenticated or self._should_refresh_token():
             await self.authenticate()
 
+    @handle_errors("list accounts")
+    @validate_response(required_fields=["success", "accounts"])
     async def list_accounts(self: "ProjectXClientProtocol") -> list[Account]:
         """
         List all accounts available to the authenticated user.

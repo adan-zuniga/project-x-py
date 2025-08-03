@@ -32,7 +32,7 @@ from typing import Any
 import polars as pl
 
 from project_x_py.orderbook.base import OrderBookBase
-from project_x_py.orderbook.types import IcebergConfig
+from project_x_py.types import IcebergConfig
 
 
 class OrderDetection:

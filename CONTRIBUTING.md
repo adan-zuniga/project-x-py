@@ -67,6 +67,7 @@ This project follows strict code style guidelines to maintain consistency and qu
 - Use Python 3.10+ union syntax: `int | None` instead of `Optional[int]`
 - Use `isinstance(x, (A | B))` instead of `isinstance(x, (A, B))`
 - Use `dict[str, Any]` instead of `Dict[str, Any]`
+- Run mypy to ensure type safety: `uv run mypy src/`
 
 ### Async/Await
 - This project uses an async-first architecture
@@ -80,11 +81,43 @@ This project follows strict code style guidelines to maintain consistency and qu
 - Use vectorized operations where possible
 - Validate DataFrame schemas before operations
 
-### Error Handling
-- Wrap ProjectX API calls in try-catch blocks
-- Log errors with context: `self.logger.error(f"Error in {method_name}: {e}")`
-- Return meaningful error responses instead of raising exceptions
-- Validate input parameters and API data
+### Error Handling (v2.0.5+)
+
+Use the centralized error handling system:
+
+1. **Use Error Handling Decorators**
+   ```python
+   from project_x_py.utils import handle_errors, retry_on_network_error
+   
+   @handle_errors("operation name")
+   @retry_on_network_error(max_attempts=3)
+   async def my_method(self, ...):
+       # Method implementation
+   ```
+
+2. **Use Structured Logging**
+   ```python
+   from project_x_py.utils import ProjectXLogger, LogMessages, LogContext
+   
+   logger = ProjectXLogger.get_logger(__name__)
+   
+   with LogContext(logger, operation="fetch_data", symbol="MGC"):
+       logger.info(LogMessages.DATA_FETCH)
+   ```
+
+3. **Use Standardized Error Messages**
+   ```python
+   from project_x_py.utils import ErrorMessages, format_error_message
+   
+   raise ProjectXError(
+       format_error_message(ErrorMessages.ORDER_NOT_FOUND, order_id=order_id)
+   )
+   ```
+
+4. **Validate Input Parameters**
+   - Use `@validate_response` decorator for API responses
+   - Validate parameters at method entry
+   - Return typed errors with context
 
 ## Pull Request Process
 
@@ -106,6 +139,7 @@ This project follows strict code style guidelines to maintain consistency and qu
    ```bash
    uv run ruff format .
    uv run ruff check --fix .
+   uv run mypy src/
    ```
 
 6. **Update documentation** to reflect your changes

@@ -1,8 +1,10 @@
-import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
-from project_x_py.position_manager.core import PositionManager
+import pytest
+
 from project_x_py.models import Position
+from project_x_py.position_manager.core import PositionManager
+
 
 @pytest.fixture
 async def position_manager(initialized_client, mock_positions_data):
@@ -15,7 +17,8 @@ async def position_manager(initialized_client, mock_positions_data):
     # Optionally patch other APIs as needed for isolation
 
     pm = PositionManager(initialized_client)
-    yield pm
+    return pm
+
 
 @pytest.fixture
 def populate_prices():

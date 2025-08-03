@@ -8,13 +8,26 @@ from typing import TYPE_CHECKING, Any
 from project_x_py.models import Position
 
 if TYPE_CHECKING:
-    from project_x_py.position_manager.types import PositionManagerProtocol
+    from asyncio import Lock
 
 logger = logging.getLogger(__name__)
 
 
 class PositionMonitoringMixin:
     """Mixin for position monitoring and alerts."""
+
+    # Type hints for mypy - these attributes are provided by the main class
+    if TYPE_CHECKING:
+        position_lock: Lock
+        logger: logging.Logger
+        stats: dict[str, Any]
+        _realtime_enabled: bool
+
+        # Methods from other mixins/main class
+        async def _trigger_callbacks(
+            self, event_type: str, data: dict[str, Any]
+        ) -> None: ...
+        async def refresh_positions(self, account_id: int | None = None) -> bool: ...
 
     def __init__(self) -> None:
         """Initialize monitoring attributes."""
@@ -24,7 +37,7 @@ class PositionMonitoringMixin:
         self.position_alerts: dict[str, dict[str, Any]] = {}
 
     async def add_position_alert(
-        self: "PositionManagerProtocol",
+        self,
         contract_id: str,
         max_loss: float | None = None,
         max_gain: float | None = None,
@@ -56,9 +69,7 @@ class PositionMonitoringMixin:
 
         self.logger.info(f"📢 Position alert added for {contract_id}")
 
-    async def remove_position_alert(
-        self: "PositionManagerProtocol", contract_id: str
-    ) -> None:
+    async def remove_position_alert(self, contract_id: str) -> None:
         """
         Remove position alert for a specific contract.
 
@@ -74,7 +85,7 @@ class PositionMonitoringMixin:
                 self.logger.info(f"🔕 Position alert removed for {contract_id}")
 
     async def _check_position_alerts(
-        self: "PositionManagerProtocol",
+        self,
         contract_id: str,
         current_position: Position,
         old_position: Position | None,
@@ -137,9 +148,7 @@ class PositionMonitoringMixin:
                 },
             )
 
-    async def _monitoring_loop(
-        self: "PositionManagerProtocol", refresh_interval: int
-    ) -> None:
+    async def _monitoring_loop(self, refresh_interval: int) -> None:
         """
         Main monitoring loop for polling mode position updates.
 
@@ -162,9 +171,7 @@ class PositionMonitoringMixin:
                 self.logger.error(f"Error in monitoring loop: {e}")
                 await asyncio.sleep(refresh_interval)
 
-    async def start_monitoring(
-        self: "PositionManagerProtocol", refresh_interval: int = 30
-    ) -> None:
+    async def start_monitoring(self, refresh_interval: int = 30) -> None:
         """
         Start automated position monitoring for real-time updates and alerts.
 
@@ -200,7 +207,7 @@ class PositionMonitoringMixin:
         else:
             self.logger.info("📊 Position monitoring started (real-time mode)")
 
-    async def stop_monitoring(self: "PositionManagerProtocol") -> None:
+    async def stop_monitoring(self) -> None:
         """
         Stop automated position monitoring and clean up monitoring resources.
 

@@ -33,16 +33,21 @@ import pytz
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
 
-import logging
-
 from project_x_py.exceptions import ProjectXError
 from project_x_py.orderbook.memory import MemoryManager
-from project_x_py.orderbook.types import (
+from project_x_py.types import (
     DEFAULT_TIMEZONE,
     CallbackType,
     DomType,
     MemoryConfig,
 )
+from project_x_py.utils import (
+    LogMessages,
+    ProjectXLogger,
+    handle_errors,
+)
+
+logger = ProjectXLogger.get_logger(__name__)
 
 
 class OrderBookBase:
@@ -88,7 +93,7 @@ class OrderBookBase:
         self.instrument = instrument
         self.project_x = project_x
         self.timezone = pytz.timezone(timezone_str)
-        self.logger = logging.getLogger(__name__)
+        self.logger = ProjectXLogger.get_logger(__name__)
 
         # Cache instrument tick size during initialization
         self._tick_size: Decimal | None = None
@@ -200,18 +205,15 @@ class OrderBookBase:
         except ValueError:
             return f"Unknown_{type_code}"
 
+    @handle_errors("get tick size", reraise=False, default_return=Decimal("0.01"))
     async def get_tick_size(self) -> Decimal:
         """Get the tick size for the instrument."""
         if self._tick_size is None and self.project_x:
-            try:
-                contract_details = await self.project_x.get_instrument(self.instrument)
-                if contract_details and hasattr(contract_details, "tickSize"):
-                    self._tick_size = Decimal(str(contract_details.tickSize))
-                else:
-                    self._tick_size = Decimal("0.01")  # Default fallback
-            except Exception as e:
-                self.logger.warning(f"Failed to get tick size: {e}, using default 0.01")
-                self._tick_size = Decimal("0.01")
+            contract_details = await self.project_x.get_instrument(self.instrument)
+            if contract_details and hasattr(contract_details, "tickSize"):
+                self._tick_size = Decimal(str(contract_details.tickSize))
+            else:
+                self._tick_size = Decimal("0.01")  # Default fallback
         return self._tick_size or Decimal("0.01")
 
     def _get_best_bid_ask_unlocked(self) -> dict[str, Any]:
@@ -278,9 +280,17 @@ class OrderBookBase:
             }
 
         except Exception as e:
-            self.logger.error(f"Error getting best bid/ask: {e}")
+            self.logger.error(
+                LogMessages.DATA_ERROR,
+                extra={"operation": "get_best_bid_ask", "error": str(e)},
+            )
             return {"bid": None, "ask": None, "spread": None, "timestamp": None}
 
+    @handle_errors(
+        "get best bid/ask",
+        reraise=False,
+        default_return={"bid": None, "ask": None, "spread": None, "timestamp": None},
+    )
     async def get_best_bid_ask(self) -> dict[str, Any]:
         """
         Get current best bid and ask prices with spread calculation.
@@ -313,6 +323,7 @@ class OrderBookBase:
         async with self.orderbook_lock:
             return self._get_best_bid_ask_unlocked()
 
+    @handle_errors("get bid-ask spread", reraise=False, default_return=None)
     async def get_bid_ask_spread(self) -> float | None:
         """Get the current bid-ask spread."""
         best_prices = await self.get_best_bid_ask()
@@ -338,9 +349,13 @@ class OrderBookBase:
                 .head(levels)
             )
         except Exception as e:
-            self.logger.error(f"Error getting orderbook bids: {e}")
+            self.logger.error(
+                LogMessages.DATA_ERROR,
+                extra={"operation": "get_orderbook_bids", "error": str(e)},
+            )
             return pl.DataFrame()
 
+    @handle_errors("get orderbook bids", reraise=False, default_return=pl.DataFrame())
     async def get_orderbook_bids(self, levels: int = 10) -> pl.DataFrame:
         """Get orderbook bids up to specified levels."""
         async with self.orderbook_lock:
@@ -366,14 +381,19 @@ class OrderBookBase:
                 .head(levels)
             )
         except Exception as e:
-            self.logger.error(f"Error getting orderbook asks: {e}")
+            self.logger.error(
+                LogMessages.DATA_ERROR,
+                extra={"operation": "get_orderbook_asks", "error": str(e)},
+            )
             return pl.DataFrame()
 
+    @handle_errors("get orderbook asks", reraise=False, default_return=pl.DataFrame())
     async def get_orderbook_asks(self, levels: int = 10) -> pl.DataFrame:
         """Get orderbook asks up to specified levels."""
         async with self.orderbook_lock:
             return self._get_orderbook_asks_unlocked(levels)
 
+    @handle_errors("get orderbook snapshot")
     async def get_orderbook_snapshot(self, levels: int = 10) -> dict[str, Any]:
         """
         Get a complete snapshot of the current orderbook state.
@@ -473,9 +493,13 @@ class OrderBookBase:
                 }
 
             except Exception as e:
-                self.logger.error(f"Error getting orderbook snapshot: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "get_orderbook_snapshot", "error": str(e)},
+                )
                 raise ProjectXError(f"Failed to get orderbook snapshot: {e}") from e
 
+    @handle_errors("get recent trades", reraise=False, default_return=[])
     async def get_recent_trades(self, count: int = 100) -> list[dict[str, Any]]:
         """Get recent trades from the orderbook."""
         async with self.orderbook_lock:
@@ -488,14 +512,19 @@ class OrderBookBase:
                 return recent.to_dicts()
 
             except Exception as e:
-                self.logger.error(f"Error getting recent trades: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": "get_recent_trades", "error": str(e)},
+                )
                 return []
 
+    @handle_errors("get order type statistics", reraise=False, default_return={})
     async def get_order_type_statistics(self) -> dict[str, int]:
         """Get statistics about different order types processed."""
         async with self.orderbook_lock:
             return self.order_type_stats.copy()
 
+    @handle_errors("add callback", reraise=False)
     async def add_callback(self, event_type: str, callback: CallbackType) -> None:
         """
         Register a callback for orderbook events.
@@ -532,14 +561,21 @@ class OrderBookBase:
         """
         async with self._callback_lock:
             self.callbacks[event_type].append(callback)
-            self.logger.debug(f"Added orderbook callback for {event_type}")
+            logger.debug(
+                LogMessages.CALLBACK_REGISTERED,
+                extra={"event_type": event_type, "component": "orderbook"},
+            )
 
+    @handle_errors("remove callback", reraise=False)
     async def remove_callback(self, event_type: str, callback: CallbackType) -> None:
         """Remove a registered callback."""
         async with self._callback_lock:
             if event_type in self.callbacks and callback in self.callbacks[event_type]:
                 self.callbacks[event_type].remove(callback)
-                self.logger.debug(f"Removed orderbook callback for {event_type}")
+                logger.debug(
+                    LogMessages.CALLBACK_REMOVED,
+                    extra={"event_type": event_type, "component": "orderbook"},
+                )
 
     async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
         """Trigger all callbacks for a specific event type."""
@@ -551,11 +587,18 @@ class OrderBookBase:
                 else:
                     callback(data)
             except Exception as e:
-                self.logger.error(f"Error in {event_type} callback: {e}")
+                self.logger.error(
+                    LogMessages.DATA_ERROR,
+                    extra={"operation": f"callback_{event_type}", "error": str(e)},
+                )
 
+    @handle_errors("cleanup", reraise=False)
     async def cleanup(self) -> None:
         """Clean up resources."""
         await self.memory_manager.stop()
         async with self._callback_lock:
             self.callbacks.clear()
-        self.logger.info("OrderBook cleanup completed")
+        logger.info(
+            LogMessages.CLEANUP_COMPLETE,
+            extra={"component": "OrderBook"},
+        )

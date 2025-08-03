@@ -24,7 +24,7 @@ For advanced trading operations, use the specialized managers:
 """
 
 from project_x_py.client.base import ProjectXBase
-from project_x_py.client.rate_limiter import RateLimiter
+from project_x_py.utils.async_rate_limiter import RateLimiter
 
 
 class ProjectX(ProjectXBase):

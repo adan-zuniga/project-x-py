@@ -92,7 +92,7 @@ from project_x_py.orderbook.detection import OrderDetection
 from project_x_py.orderbook.memory import MemoryManager
 from project_x_py.orderbook.profile import VolumeProfile
 from project_x_py.orderbook.realtime import RealtimeHandler
-from project_x_py.orderbook.types import (
+from project_x_py.types import (
     DEFAULT_TIMEZONE,
     AsyncCallback,
     CallbackType,
@@ -113,6 +113,8 @@ __all__ = [
     "CallbackType",
     "DomType",
     "IcebergConfig",
+    # Analytics components
+    "MarketAnalytics",
     "MarketDataDict",
     "MemoryConfig",
     "OrderBook",
@@ -121,6 +123,8 @@ __all__ = [
     "PriceLevelDict",
     "SyncCallback",
     "TradeDict",
+    # Profile components
+    "VolumeProfile",
     "create_orderbook",
 ]
 

@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 from project_x_py.realtime.connection_management import ConnectionManagementMixin
 from project_x_py.realtime.event_handling import EventHandlingMixin
 from project_x_py.realtime.subscriptions import SubscriptionsMixin
-from project_x_py.utils import RateLimiter
 
 if TYPE_CHECKING:
     from project_x_py.models import ProjectXConfig
@@ -198,8 +197,6 @@ class ProjectXRealtimeClient(
         self.logger.info("AsyncProjectX real-time client initialized")
         self.logger.info(f"User Hub: {final_user_url}")
         self.logger.info(f"Market Hub: {final_market_url}")
-
-        self.rate_limiter = RateLimiter(requests_per_minute=60)
 
         # Async locks for thread-safe operations
         self._callback_lock = asyncio.Lock()

@@ -7,13 +7,23 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from project_x_py.order_manager.protocols import OrderManagerProtocol
+    from project_x_py.types import OrderManagerProtocol
 
 logger = logging.getLogger(__name__)
 
 
 class OrderTrackingMixin:
     """Mixin for order tracking and real-time monitoring functionality."""
+
+    # Type hints for mypy - these attributes are provided by the main class
+    if TYPE_CHECKING:
+        from asyncio import Lock
+
+        from project_x_py.realtime import ProjectXRealtimeClient
+
+        order_lock: Lock
+        realtime_client: ProjectXRealtimeClient | None
+        _realtime_enabled: bool
 
     def __init__(self) -> None:
         """Initialize tracking attributes."""
@@ -30,7 +40,7 @@ class OrderTrackingMixin:
         )
         self.order_to_position: dict[int, str] = {}  # order_id -> contract_id
 
-    async def _setup_realtime_callbacks(self: "OrderManagerProtocol") -> None:
+    async def _setup_realtime_callbacks(self) -> None:
         """Set up callbacks for real-time order monitoring."""
         if not self.realtime_client:
             return
@@ -42,9 +52,7 @@ class OrderTrackingMixin:
             "trade_execution", self._on_trade_execution
         )
 
-    async def _on_order_update(
-        self: "OrderManagerProtocol", order_data: dict[str, Any] | list[Any]
-    ) -> None:
+    async def _on_order_update(self, order_data: dict[str, Any] | list[Any]) -> None:
         """Handle real-time order update events."""
         try:
             logger.info(f"📨 Order update received: {type(order_data)}")
@@ -103,9 +111,7 @@ class OrderTrackingMixin:
             logger.error(f"Error handling order update: {e}")
             logger.debug(f"Order data received: {order_data}")
 
-    async def _on_trade_execution(
-        self: "OrderManagerProtocol", trade_data: dict[str, Any] | list[Any]
-    ) -> None:
+    async def _on_trade_execution(self, trade_data: dict[str, Any] | list[Any]) -> None:
         """Handle real-time trade execution events."""
         try:
             # Handle different data formats from SignalR
@@ -141,7 +147,7 @@ class OrderTrackingMixin:
             logger.debug(f"Trade data received: {trade_data}")
 
     async def get_tracked_order_status(
-        self: "OrderManagerProtocol", order_id: str, wait_for_cache: bool = False
+        self, order_id: str, wait_for_cache: bool = False
     ) -> dict[str, Any] | None:
         """
         Get cached order status from real-time tracking for faster access.
@@ -174,7 +180,7 @@ class OrderTrackingMixin:
             return self.tracked_orders.get(order_id)
 
     def add_callback(
-        self: "OrderManagerProtocol",
+        self,
         event_type: str,
         callback: Callable[[dict[str, Any]], None],
     ) -> None:
@@ -194,9 +200,7 @@ class OrderTrackingMixin:
         self.order_callbacks[event_type].append(callback)
         logger.debug(f"Registered callback for {event_type}")
 
-    async def _trigger_callbacks(
-        self: "OrderManagerProtocol", event_type: str, data: Any
-    ) -> None:
+    async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
         """
         Trigger all callbacks registered for a specific event type.
 
