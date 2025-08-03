@@ -1,8 +1,29 @@
 """
-Memory management for the async orderbook module.
+Async memory management for ProjectX orderbook.
 
-Handles cleanup strategies, memory statistics, and resource optimization
-for high-frequency orderbook data processing.
+Overview:
+    Provides memory/resource management for high-frequency orderbook data. Handles
+    cleanup, trimming, stats, and garbage collection for deep market data streams,
+    ensuring long-running session stability.
+
+Key Features:
+    - Periodic cleanup of trades, depth, and price history
+    - Configurable memory and history retention policies
+    - Memory usage/statistics reporting for diagnostics
+    - Async task-based cleanup with thread safety
+
+Example Usage:
+    ```python
+    # Assuming orderbook is initialized
+    await orderbook.memory_manager.start()
+    await orderbook.memory_manager.cleanup_old_data()
+    stats = await orderbook.memory_manager.get_memory_stats()
+    print(stats["recent_trades_count"])
+    ```
+
+See Also:
+    - `orderbook.base.OrderBookBase`
+    - `orderbook.analytics.MarketAnalytics`
 """
 
 import asyncio

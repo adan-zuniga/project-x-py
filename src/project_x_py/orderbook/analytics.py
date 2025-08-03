@@ -1,22 +1,29 @@
 """
-Market analytics for the async orderbook.
+Async market analytics for ProjectX orderbook.
 
-This module provides advanced market analytics for the async orderbook implementation,
-focusing on quantitative analysis of market structure, liquidity, and order flow.
-It extracts actionable insights from the raw orderbook data through a variety of
-analytical methods.
+Overview:
+    Implements advanced quantitative analytics for the async orderbook, extracting
+    actionable insights on market structure, order flow, liquidity, and trade intensity.
+    Enables strategy development and microstructure research on deep market data.
 
-Key capabilities:
-- Market imbalance analysis: Detects and quantifies buy/sell pressure
-- Orderbook depth analysis: Evaluates liquidity distribution across price ranges
-- Cumulative delta calculations: Tracks aggressive buying vs. selling over time
-- Trade flow analytics: Analyzes market maker vs. taker behavior patterns
-- Liquidity level identification: Locates significant support/resistance zones
-- Comprehensive statistical analysis: Provides full orderbook metrics
+Key Features:
+    - Market imbalance detection and ratio analysis
+    - Orderbook depth and liquidity distribution metrics
+    - Cumulative delta and trade flow statistics
+    - VWAP, spread, and volume breakdowns
+    - Statistical summaries for trading strategy development
 
-The analytics are designed to support trading strategy development, market
-microstructure analysis, and real-time trading decision support by extracting
-higher-level insights from the raw order book data.
+Example Usage:
+    ```python
+    # Assuming orderbook is initialized and receiving data
+    imbalance = await orderbook.get_market_imbalance(levels=10)
+    print(imbalance["imbalance_ratio"], imbalance["analysis"])
+    ```
+
+See Also:
+    - `orderbook.base.OrderBookBase`
+    - `orderbook.detection.OrderDetection`
+    - `orderbook.profile.VolumeProfile`
 """
 
 from datetime import datetime, timedelta

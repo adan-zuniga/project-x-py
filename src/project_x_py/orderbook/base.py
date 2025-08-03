@@ -1,24 +1,30 @@
 """
-Base async orderbook functionality.
+Base async orderbook functionality for ProjectX.
 
-This module contains the core orderbook data structures and foundational operations for
-the async orderbook implementation. It provides the base class that maintains the primary
-orderbook state, handles data consistency, and implements the core functionality upon which
-higher-level analytics are built.
+Overview:
+    Defines the core data structures and foundational async methods for the ProjectX
+    orderbook system. Implements thread-safe storage, trade history, best price/spread
+    tracking, and callback/event infrastructure for all higher-level analytics.
 
-Key features:
-- Thread-safe orderbook data structures using asyncio locks
-- Polars DataFrame-based bid and ask level storage
-- Recent trade history tracking with automatic classification
-- Best bid/ask price tracking with historical records
-- Spread calculation and tracking
-- Price level refreshment detection for iceberg analysis
-- Configurable memory management
-- Event-driven architecture with customizable callbacks
+Key Features:
+    - Thread-safe Polars DataFrame bid/ask storage
+    - Recent trade history, spread, and tick size tracking
+    - Price level refreshment for iceberg/cluster analysis
+    - Async callback/event registration for orderbook events
+    - Configurable memory management and cleanup
 
-The OrderBookBase class serves as the foundation for the complete OrderBook
-implementation, providing the essential infrastructure while delegating specialized
-functionality to dedicated component classes.
+Example Usage:
+    ```python
+    # Directly using OrderBookBase for custom analytics
+    base = OrderBookBase("MNQ")
+    await base.get_best_bid_ask()
+    await base.add_callback("trade", lambda d: print(d))
+    ```
+
+See Also:
+    - `orderbook.analytics.MarketAnalytics`
+    - `orderbook.detection.OrderDetection`
+    - `orderbook.memory.MemoryManager`
 """
 
 import asyncio

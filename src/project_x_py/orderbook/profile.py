@@ -1,26 +1,28 @@
 """
-Volume profile and support/resistance analysis for the async orderbook.
+Async volume profile and support/resistance analytics for ProjectX.
 
-This module implements sophisticated volume profile analysis, support/resistance level
-detection, and spread analytics for market structure analysis. It focuses on identifying
-key price levels and zones where significant trading activity has occurred or where
-the market may find support or resistance in the future.
+Overview:
+    Implements volume profile, POC, value area, support/resistance, and spread
+    analysis for the ProjectX async orderbook. Enables market structure research,
+    trade planning, and execution optimization based on historical and real-time data.
 
-Key capabilities:
-- Volume profile analysis: Creates histogram-based analysis of volume distribution across
-  price levels, identifying high-volume nodes and areas of interest
-- Point of Control (POC) identification: Locates the price level with highest traded volume
-- Value Area calculation: Determines the price range containing 70% of volume around the POC
-- Support and resistance level detection: Identifies price levels that have acted as
-  barriers to price movement based on historical price action
-- Spread pattern analysis: Studies bid-ask spread behavior to identify market regime changes
-  and liquidity conditions
-- Market structure analysis: Integrates volume and price information to understand underlying
-  market structure and participant behavior
+Key Features:
+    - Volume profile histogram and Point of Control (POC) calculation
+    - Value area identification and support/resistance detection
+    - Spread analytics and regime change/trend detection
+    - Market structure mapping for trading and research
 
-These analyses are particularly valuable for trading strategy development, trade planning,
-and execution timing, as they provide insights into where market participants have been
-active and where price may react in the future.
+Example Usage:
+    ```python
+    # Assuming orderbook is initialized and populated
+    vp = await orderbook.get_volume_profile(time_window_minutes=60)
+    print(vp["poc"], vp["value_area_high"], vp["value_area_low"])
+    ```
+
+See Also:
+    - `orderbook.base.OrderBookBase`
+    - `orderbook.analytics.MarketAnalytics`
+    - `orderbook.detection.OrderDetection`
 """
 
 import logging
