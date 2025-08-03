@@ -1,4 +1,56 @@
-"""Statistics, history, and report generation functionality."""
+"""
+Statistics, history, and report generation functionality for ProjectX position management.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides comprehensive reporting and statistics functionality for position
+    management. Includes system statistics, position history tracking,
+    portfolio reports, and real-time validation status for monitoring and analysis.
+
+Key Features:
+    - Comprehensive system statistics and health monitoring
+    - Position history tracking and analysis
+    - Portfolio report generation with detailed analytics
+    - Real-time validation status and compliance checking
+    - Export capabilities for external reporting
+    - Thread-safe operations with proper data handling
+
+Reporting Capabilities:
+    - System statistics and health monitoring
+    - Position history with change tracking
+    - Portfolio reports with risk analysis
+    - Real-time integration validation
+    - Export functionality for external systems
+
+Example Usage:
+    ```python
+    # Get system statistics
+    stats = position_manager.get_position_statistics()
+    print(f"Health: {stats['health_status']}")
+    print(f"Tracking {stats['tracked_positions']} positions")
+
+    # Get position history
+    history = await position_manager.get_position_history("MGC", limit=50)
+    for entry in history[-5:]:
+        print(f"{entry['timestamp']}: Size {entry['position']['size']}")
+
+    # Generate comprehensive report
+    report = await position_manager.export_portfolio_report()
+    print(f"Portfolio Report - {report['report_timestamp']}")
+    print(f"Positions: {report['portfolio_summary']['total_positions']}")
+
+    # Check real-time validation
+    status = position_manager.get_realtime_validation_status()
+    print(f"Real-time enabled: {status['realtime_enabled']}")
+    ```
+
+See Also:
+    - `position_manager.core.PositionManager`
+    - `position_manager.analytics.PositionAnalyticsMixin`
+    - `position_manager.risk.RiskManagementMixin`
+"""
 
 from datetime import datetime
 from typing import TYPE_CHECKING, Any

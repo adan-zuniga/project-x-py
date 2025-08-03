@@ -1,6 +1,9 @@
 """
 Async bracket order strategies for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides mixin logic for placing and managing bracket orders—sophisticated, three-legged
     order strategies consisting of entry, stop loss, and take profit orders. Ensures risk
@@ -11,13 +14,27 @@ Key Features:
     - Price/side validation and position link management
     - Automatic risk management: stops and targets managed with entry
     - Integrates with core OrderManager and position tracking
+    - Comprehensive error handling and validation
+    - Real-time tracking of all bracket components
+
+Bracket Order Components:
+    - Entry Order: Primary order to establish position (limit or market)
+    - Stop Loss Order: Risk management order triggered if price moves against position
+    - Take Profit Order: Profit target order triggered if price moves favorably
+
+The bracket order ensures that risk management is in place immediately when the entry
+order fills, providing consistent trade management without manual intervention.
 
 Example Usage:
     ```python
     # Assuming om is an instance of OrderManager
     await om.place_bracket_order(
-        contract_id="MGC", side=0, size=1,
-        entry_price=2050.0, stop_loss_price=2040.0, take_profit_price=2070.0
+        contract_id="MGC",
+        side=0,
+        size=1,
+        entry_price=2050.0,
+        stop_loss_price=2040.0,
+        take_profit_price=2070.0,
     )
     ```
 
@@ -40,7 +57,14 @@ logger = logging.getLogger(__name__)
 
 
 class BracketOrderMixin:
-    """Mixin for bracket order functionality."""
+    """
+    Mixin for bracket order functionality.
+
+    Provides methods for placing and managing bracket orders, which are sophisticated
+    three-legged order strategies that combine entry, stop loss, and take profit orders
+    into a single atomic operation. This ensures consistent risk management and trade
+    automation.
+    """
 
     async def place_bracket_order(
         self: "OrderManagerProtocol",
@@ -65,6 +89,12 @@ class BracketOrderMixin:
         The advantage of bracket orders is automatic risk management - the stop loss and
         take profit orders are placed immediately when the entry fills, ensuring consistent
         trade management. Each order is tracked and associated with the position.
+
+        This method performs comprehensive validation to ensure:
+        - Stop loss is properly positioned relative to entry price
+        - Take profit is properly positioned relative to entry price
+        - All prices are aligned to instrument tick sizes
+        - Order sizes are valid and positive
 
         Args:
             contract_id: The contract ID to trade (e.g., "MGC", "MES", "F.US.EP")
@@ -94,6 +124,18 @@ class BracketOrderMixin:
 
         Raises:
             ProjectXOrderError: If bracket order validation or placement fails
+
+        Example:
+            >>> # Place a bullish bracket order
+            >>> bracket = await om.place_bracket_order(
+            ...     contract_id="MGC",
+            ...     side=0,
+            ...     size=1,
+            ...     entry_price=2050.0,
+            ...     stop_loss_price=2040.0,
+            ...     take_profit_price=2070.0,
+            ... )
+            >>> print(f"Entry: {bracket.entry_order_id}, Stop: {bracket.stop_order_id}")
         """
         try:
             # Validate prices

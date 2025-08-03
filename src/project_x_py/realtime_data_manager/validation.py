@@ -1,4 +1,79 @@
-"""Payload parsing and validation functionality for real-time data."""
+"""
+Payload parsing and validation functionality for real-time data.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides payload parsing and validation functionality for real-time data from ProjectX Gateway.
+    Implements comprehensive validation of quote and trade payloads with flexible parsing
+    to handle various SignalR data formats and ensure data integrity.
+
+Key Features:
+    - Comprehensive payload validation for ProjectX Gateway data
+    - Flexible parsing for various SignalR data formats
+    - Symbol matching and validation for instrument filtering
+    - JSON parsing for string payloads
+    - Error handling and logging for validation failures
+    - Real-time validation status monitoring
+
+Validation Capabilities:
+    - Quote payload parsing and validation
+    - Trade payload parsing and validation
+    - Symbol matching for instrument filtering
+    - JSON string parsing for SignalR payloads
+    - Required field validation and error handling
+    - Comprehensive logging for debugging
+
+Example Usage:
+    ```python
+    # Validation happens automatically during data processing
+    # Check validation status for monitoring
+
+    status = manager.get_realtime_validation_status()
+    print(f"Feed active: {status['is_running']}")
+    print(f"Contract ID: {status['contract_id']}")
+    print(f"Ticks processed: {status['ticks_processed']}")
+
+    # Check ProjectX compliance
+    compliance = status["projectx_compliance"]
+    for check, result in compliance.items():
+        print(f"{check}: {result}")
+    ```
+
+Validation Process:
+    1. Payload format detection (dict, list, string)
+    2. JSON parsing for string payloads
+    3. SignalR format handling (contract_id, data_dict)
+    4. Required field validation
+    5. Symbol matching for instrument filtering
+    6. Error handling and logging
+
+Supported Payload Formats:
+    - Direct dictionary payloads
+    - SignalR list format: [contract_id, data_dict]
+    - JSON string payloads
+    - Nested list structures
+
+Validation Rules:
+    - Quote payloads: Require symbol and timestamp fields
+    - Trade payloads: Require symbolId, price, timestamp, volume fields
+    - Symbol matching: Case-insensitive base symbol comparison
+    - Error handling: Comprehensive logging without crashing
+
+Performance Characteristics:
+    - Efficient payload parsing with minimal overhead
+    - Flexible format handling for various SignalR configurations
+    - Comprehensive error handling and logging
+    - Thread-safe validation operations
+
+See Also:
+    - `realtime_data_manager.core.RealtimeDataManager`
+    - `realtime_data_manager.callbacks.CallbackMixin`
+    - `realtime_data_manager.data_access.DataAccessMixin`
+    - `realtime_data_manager.data_processing.DataProcessingMixin`
+    - `realtime_data_manager.memory_management.MemoryManagementMixin`
+"""
 
 import json
 import logging

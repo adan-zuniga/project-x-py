@@ -1,11 +1,100 @@
 """
 Enhanced logging configuration for ProjectX SDK.
 
-This module provides consistent logging patterns and structured logging
-capabilities across the SDK.
+Author: @TexasCoding
+Date: 2025-08-02
 
-Author: TexasCoding
-Date: January 2025
+Overview:
+    Provides consistent logging patterns and structured logging capabilities
+    across the SDK. Includes performance monitoring, API call tracking,
+    and comprehensive logging utilities for debugging and monitoring.
+
+Key Features:
+    - Structured logging with JSON and readable formats
+    - Performance monitoring and timing utilities
+    - API call tracking with detailed metrics
+    - Context-aware logging with operation tracking
+    - Standardized log messages for consistency
+    - Configurable logging levels and outputs
+
+Logging Components:
+    - StructuredFormatter: JSON and readable log formatting
+    - ProjectXLogger: Factory for configured loggers
+    - LogContext: Context manager for operation tracking
+    - LogMessages: Standardized log message constants
+    - Performance monitoring utilities
+    - API call tracking and metrics
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        ProjectXLogger,
+        LogContext,
+        LogMessages,
+        log_performance,
+        log_api_call,
+        configure_sdk_logging,
+    )
+
+    # Configure SDK logging
+    configure_sdk_logging(level=logging.INFO, format_json=True)
+
+    # Get configured logger
+    logger = ProjectXLogger.get_logger(__name__)
+
+    # Use context for operation tracking
+    with LogContext(logger, operation="fetch_orders", user_id=123):
+        logger.info("Starting order fetch")
+        # All logs in this block include the context
+
+    # Log performance metrics
+    start_time = time.time()
+    # ... perform operation ...
+    log_performance(logger, "api_call", start_time)
+
+    # Log API calls with metrics
+    log_api_call(logger, "GET", "/api/orders", status_code=200, duration=0.5)
+
+    # Use standardized messages
+    logger.info(LogMessages.ORDER_PLACED)
+    logger.error(LogMessages.API_ERROR)
+    ```
+
+Logging Features:
+    - Structured logging with consistent format
+    - Performance monitoring with timing metrics
+    - API call tracking with detailed statistics
+    - Context-aware logging for operation tracking
+    - Standardized messages for consistency
+    - Configurable output formats (JSON/readable)
+
+Performance Monitoring:
+    - Automatic timing for operations
+    - Performance metrics and statistics
+    - API call duration tracking
+    - Memory usage monitoring
+    - Error rate tracking and reporting
+
+Standardized Messages:
+    - API operations (request, response, error)
+    - Authentication (start, success, failed, refresh)
+    - Orders (place, cancel, modify, error)
+    - Positions (open, close, error)
+    - Market data (fetch, subscribe, error)
+    - WebSocket (connect, disconnect, error)
+    - Rate limiting (hit, wait, reset)
+    - Cache operations (hit, miss, update)
+
+Performance Characteristics:
+    - Minimal overhead for logging operations
+    - Efficient structured logging with JSON output
+    - Memory-efficient log context management
+    - Thread-safe logging operations
+    - Optimized for high-frequency trading scenarios
+
+See Also:
+    - `utils.error_handler`: Error handling and logging
+    - `utils.async_rate_limiter`: Rate limiting with logging
 """
 
 import json

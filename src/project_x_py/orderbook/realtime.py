@@ -1,6 +1,9 @@
 """
 Async real-time data handling for ProjectX orderbook.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Manages WebSocket callbacks, real-time Level 2 data processing, and live orderbook
     updates for ProjectX via the Gateway. Handles event registration, contract
@@ -40,7 +43,37 @@ from project_x_py.types import DomType
 
 
 class RealtimeHandler:
-    """Handles real-time data updates for the async orderbook."""
+    """
+    Handles real-time data updates for the async orderbook.
+
+    This class manages the integration between the orderbook and ProjectX's real-time
+    data feed, processing WebSocket-based market depth and quote updates. It serves as
+    the bridge between the raw real-time data from the Gateway and the structured
+    orderbook data storage, ensuring that live market updates are properly processed
+    and integrated.
+
+    Key responsibilities:
+    1. WebSocket callback registration and management for market data events
+    2. Processing and filtering of Level 2 market depth updates
+    3. Quote update handling for top-of-book price tracking
+    4. Contract ID validation and symbol matching
+    5. Trade execution detection and orderbook level maintenance
+    6. Event triggering for registered orderbook callbacks
+
+    The handler implements sophisticated logic for:
+    - Distinguishing between different DomType events (trades, depth updates, resets)
+    - Maintaining accurate bid/ask level data through add/remove/update operations
+    - Detecting and classifying trade events based on price movement
+    - Managing orderbook resets and maintaining data consistency
+
+    Thread safety:
+        All data modifications are performed within the orderbook's async lock,
+        ensuring thread-safe operation in concurrent environments.
+
+    Connection management:
+        The handler tracks connection state and subscription status, allowing for
+        proper cleanup and reconnection scenarios.
+    """
 
     def __init__(self, orderbook: OrderBookBase):
         self.orderbook = orderbook
@@ -89,7 +122,21 @@ class RealtimeHandler:
             return False
 
     async def _setup_realtime_callbacks(self) -> None:
-        """Setup callbacks for real-time data processing."""
+        """
+        Setup callbacks for real-time data processing.
+
+        This method registers the necessary callback functions with the real-time client
+        to handle incoming market data events. It establishes the event handlers for:
+        - Market depth updates (Level 2 orderbook data)
+        - Quote updates (best bid/ask price changes)
+
+        The callbacks are registered asynchronously and will be triggered whenever
+        the corresponding market data events are received from the WebSocket feed.
+
+        Note:
+            This method should only be called after the realtime_client has been set
+            and is ready to accept callback registrations.
+        """
         if not self.realtime_client:
             return
 
@@ -102,7 +149,27 @@ class RealtimeHandler:
         await self.realtime_client.add_callback("quote_update", self._on_quote_update)
 
     async def _on_market_depth_update(self, data: dict[str, Any]) -> None:
-        """Callback for market depth updates (Level 2 data)."""
+        """
+        Callback for market depth updates (Level 2 data).
+
+        This method is triggered whenever a market depth update is received from the
+        WebSocket feed. It processes Level 2 orderbook data including bid/ask price
+        level changes, volume updates, and trade executions.
+
+        The method performs the following operations:
+        1. Validates that the update is for the correct contract/instrument
+        2. Processes the market depth data through the orderbook
+        3. Triggers any registered callbacks with processed update information
+
+        Args:
+            data: Market depth update data containing:
+                - contract_id: The contract identifier for the update
+                - data: List of depth entries with price, volume, and type information
+
+        Note:
+            This callback expects data in the ProjectX Gateway format where each
+            depth entry contains DomType information for proper processing.
+        """
         try:
             self.logger.debug(f"Market depth callback received: {list(data.keys())}")
             # The data comes structured as {"contract_id": ..., "data": ...}
@@ -129,7 +196,24 @@ class RealtimeHandler:
             self.logger.error(f"Error processing market depth update: {e}")
 
     async def _on_quote_update(self, data: dict[str, Any]) -> None:
-        """Callback for quote updates."""
+        """
+        Callback for quote updates.
+
+        This method handles quote update events that provide top-of-book information
+        including best bid/ask prices and sizes. Quote updates are typically more
+        frequent than full depth updates and provide real-time insight into the
+        best available prices.
+
+        Args:
+            data: Quote update data containing:
+                - contract_id: The contract identifier for the quote
+                - data: Quote information with bid, ask, bidSize, askSize fields
+
+        Note:
+            Quote updates are processed separately from market depth updates and
+            primarily serve to maintain accurate top-of-book information and
+            trigger quote-specific callbacks for client applications.
+        """
         try:
             # The data comes structured as {"contract_id": ..., "data": ...}
             contract_id = data.get("contract_id", "")
@@ -156,7 +240,33 @@ class RealtimeHandler:
             self.logger.error(f"Error processing quote update: {e}")
 
     def _is_relevant_contract(self, contract_id: str) -> bool:
-        """Check if the contract ID is relevant to this orderbook."""
+        """
+        Check if the contract ID is relevant to this orderbook.
+
+        This method determines whether incoming market data is for the instrument
+        that this orderbook is tracking. It handles various contract ID formats
+        and performs fuzzy matching to accommodate different naming conventions
+        between the orderbook instrument identifier and the full contract IDs
+        received from the Gateway.
+
+        The matching logic handles:
+        - Exact instrument matches
+        - Contract ID prefixes (e.g., "CON.F.US." prefixes)
+        - Symbol extraction from full contract identifiers
+        - Partial matching for related contracts
+
+        Args:
+            contract_id: The contract identifier from the incoming market data
+
+        Returns:
+            bool: True if the contract is relevant to this orderbook, False otherwise
+
+        Example:
+            >>> handler._is_relevant_contract("CON.F.US.ES.H25")  # ES orderbook
+            True
+            >>> handler._is_relevant_contract("CON.F.US.NQ.H25")  # ES orderbook
+            False
+        """
         if contract_id == self.orderbook.instrument:
             return True
 
@@ -175,7 +285,29 @@ class RealtimeHandler:
         return is_match
 
     async def _process_market_depth(self, data: dict[str, Any]) -> None:
-        """Process market depth update from ProjectX Gateway."""
+        """
+        Process market depth update from ProjectX Gateway.
+
+        This method handles the core processing of Level 2 market depth data,
+        converting raw Gateway updates into structured orderbook changes. It
+        processes each depth entry according to its DomType and updates the
+        appropriate orderbook data structures.
+
+        The processing includes:
+        1. Extracting and validating market depth entries
+        2. Recording pre-update best bid/ask for comparison
+        3. Processing each depth entry based on its type (trade, depth update, reset)
+        4. Maintaining orderbook consistency and triggering appropriate callbacks
+
+        Args:
+            data: Market depth data structure containing:
+                - data: List of market depth entries from the Gateway
+                Each entry contains price, volume, timestamp, and type information
+
+        Thread Safety:
+            This method acquires the orderbook lock and processes all updates
+            atomically to ensure data consistency.
+        """
         market_data = data.get("data", [])
         if not market_data:
             return
@@ -216,7 +348,34 @@ class RealtimeHandler:
         pre_update_bid: float | None,
         pre_update_ask: float | None,
     ) -> None:
-        """Process a single depth entry from market data."""
+        """
+        Process a single depth entry from market data.
+
+        This method handles individual market depth entries, routing them to the
+        appropriate processing logic based on their DomType. It ensures that each
+        type of market event (trades, bid/ask updates, resets) is handled correctly
+        and that the orderbook state remains consistent.
+
+        Processing logic by DomType:
+        - TRADE: Records trade execution and updates trade history
+        - BID/ASK: Updates corresponding side of the orderbook
+        - BEST_BID/BEST_ASK: Updates best price levels
+        - NEW_BEST_BID/NEW_BEST_ASK: Handles new best price events
+        - RESET: Clears and resets the entire orderbook
+
+        Args:
+            entry: Single market depth entry containing:
+                - type: DomType integer indicating the event type
+                - price: Price level for the event
+                - volume: Volume associated with the event
+            current_time: Timestamp for the update
+            pre_update_bid: Best bid price before this update batch
+            pre_update_ask: Best ask price before this update batch
+
+        Note:
+            This method should only be called from within _process_market_depth
+            while the orderbook lock is already held.
+        """
         try:
             trade_type = entry.get("type", 0)
             price = float(entry.get("price", 0))
@@ -273,7 +432,36 @@ class RealtimeHandler:
         pre_ask: float | None,
         order_type: str,
     ) -> None:
-        """Process a trade execution."""
+        """
+        Process a trade execution event.
+
+        This method handles actual trade executions (DomType.TRADE), recording the
+        trade in the orderbook's trade history and updating related statistics.
+        It performs trade side classification based on the trade price relative
+        to the best bid/ask prices at the time of execution.
+
+        Trade Classification Logic:
+        - Buy trade: Price >= best ask (aggressive buyer)
+        - Sell trade: Price <= best bid (aggressive seller)
+        - Neutral trade: Price between bid and ask (cannot determine aggressor)
+
+        The method also updates:
+        - Recent trades DataFrame with full trade details
+        - VWAP calculations (numerator and denominator)
+        - Cumulative delta tracking
+        - Trade flow statistics by side and aggression level
+
+        Args:
+            price: Execution price of the trade
+            volume: Number of contracts/shares traded
+            timestamp: Time of trade execution
+            pre_bid: Best bid price before the trade
+            pre_ask: Best ask price before the trade
+            order_type: String representation of the order type
+
+        Note:
+            This method assumes the orderbook lock is already held by the caller.
+        """
         # Determine trade side based on price relative to spread
         side = "unknown"
         if pre_bid is not None and pre_ask is not None:
@@ -355,7 +543,32 @@ class RealtimeHandler:
     async def _update_orderbook_level(
         self, price: float, volume: int, timestamp: datetime, is_bid: bool
     ) -> None:
-        """Update a single orderbook level."""
+        """
+        Update a single orderbook level.
+
+        This method handles updates to individual price levels in the orderbook,
+        including adding new levels, updating existing levels, and removing levels
+        when volume reaches zero. It maintains proper orderbook structure and
+        updates historical tracking for analytics purposes.
+
+        Operations performed:
+        1. Records the update in price level history for pattern detection
+        2. Checks if the price level already exists in the orderbook
+        3. If volume is 0: Removes the price level completely
+        4. If volume > 0 and level exists: Updates volume and timestamp
+        5. If volume > 0 and level doesn't exist: Adds new price level
+        6. Updates the appropriate DataFrame (bids or asks) with new data
+
+        Args:
+            price: Price level to update
+            volume: New volume for the price level (0 means remove)
+            timestamp: Time of the update
+            is_bid: True for bid side updates, False for ask side updates
+
+        Note:
+            This method assumes the orderbook lock is already held and modifies
+            the orderbook DataFrames in-place.
+        """
         # Select the appropriate DataFrame
         orderbook_df = (
             self.orderbook.orderbook_bids if is_bid else self.orderbook.orderbook_asks
@@ -410,7 +623,24 @@ class RealtimeHandler:
             self.orderbook.orderbook_asks = orderbook_df
 
     async def _reset_orderbook(self) -> None:
-        """Reset the orderbook state."""
+        """
+        Reset the orderbook state.
+
+        This method completely clears the orderbook and reinitializes it to an empty
+        state. It's typically called when a DomType.RESET event is received, which
+        indicates that the market data feed is being reset and all previous orderbook
+        data should be discarded.
+
+        The reset operation:
+        1. Clears all bid price levels
+        2. Clears all ask price levels
+        3. Reinitializes DataFrames with proper schema
+        4. Triggers reset callbacks for dependent components
+
+        Note:
+            This method assumes the orderbook lock is already held and should only
+            be called in response to explicit reset events from the data feed.
+        """
         self.orderbook.orderbook_bids = pl.DataFrame(
             {"price": [], "volume": [], "timestamp": []},
             schema={
@@ -430,7 +660,23 @@ class RealtimeHandler:
         self.logger.info("Orderbook reset due to RESET event")
 
     async def disconnect(self) -> None:
-        """Disconnect from real-time data feed."""
+        """
+        Disconnect from real-time data feed.
+
+        This method properly disconnects the orderbook from the real-time data feed,
+        cleaning up subscriptions and resetting connection state. It should be called
+        when the orderbook is no longer needed or when shutting down the application.
+
+        Disconnect operations:
+        1. Unsubscribes from market data for all subscribed contracts
+        2. Clears the set of subscribed contracts
+        3. Resets connection state flags
+        4. Handles any errors during the disconnection process gracefully
+
+        Note:
+            This method is safe to call multiple times and will not raise errors
+            if already disconnected.
+        """
         if self.realtime_client and self.subscribed_contracts:
             try:
                 # Unsubscribe from market data

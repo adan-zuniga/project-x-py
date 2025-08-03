@@ -1,6 +1,9 @@
 """
 Async trading queries: positions and trade history for ProjectX accounts.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Supplies async methods for querying open positions and executed trades for the currently
     authenticated account. Integrates tightly with the authentication/session lifecycle and
@@ -19,6 +22,7 @@ Example Usage:
     import asyncio
     from project_x_py import ProjectX
 
+
     async def main():
         async with ProjectX.from_env() as client:
             await client.authenticate()
@@ -26,6 +30,7 @@ Example Usage:
             trades = await client.search_trades(limit=10)
             print([p.symbol for p in positions])
             print([t.contractId for t in trades])
+
 
     asyncio.run(main())
     ```
@@ -59,13 +64,34 @@ class TradingMixin:
         """
         Get all open positions for the authenticated account.
 
+        This method retrieves all current open positions for the currently selected
+        trading account. It provides a snapshot of the portfolio including position
+        size, entry price, unrealized P&L, and other position details.
+
+        The method automatically ensures authentication before making the API call
+        and handles the conversion of raw position data into strongly-typed Position
+        objects for easier analysis and manipulation.
+
         Returns:
-            List of Position objects representing current holdings
+            list[Position]: List of Position objects representing current holdings,
+                each containing:
+                - symbol: Instrument symbol
+                - quantity: Position size (positive for long, negative for short)
+                - price: Average entry price
+                - unrealized_pnl: Current unrealized profit/loss
+                - contract_id: Unique contract identifier
+                - position_id: Unique position identifier
+                - timestamp: Position open time
+
+        Raises:
+            ProjectXError: If no account is selected or API call fails
+            ProjectXAuthenticationError: If authentication is required
 
         Example:
             >>> positions = await client.get_positions()
             >>> for pos in positions:
             >>>     print(f"{pos.symbol}: {pos.quantity} @ {pos.price}")
+            >>>     print(f"Unrealized P&L: ${pos.unrealized_pnl:,.2f}")
         """
         await self._ensure_authenticated()
 

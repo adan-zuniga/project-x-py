@@ -1,4 +1,101 @@
-"""Portfolio analytics including Sharpe ratio, drawdown analysis, and performance metrics."""
+"""
+Portfolio analytics including Sharpe ratio, drawdown analysis, and performance metrics.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides comprehensive portfolio analytics including Sharpe ratio calculation,
+    drawdown analysis, volatility metrics, and performance evaluation tools.
+    Includes correlation analysis, risk metrics, and portfolio optimization
+    utilities for trading strategy evaluation.
+
+Key Features:
+    - Sharpe ratio calculation with risk-free rate adjustment
+    - Maximum drawdown analysis and duration tracking
+    - Volatility metrics and rolling volatility calculation
+    - Correlation matrix analysis for portfolio diversification
+    - Comprehensive portfolio performance metrics
+    - Risk-adjusted return calculations
+
+Portfolio Analytics:
+    - Performance metrics (Sharpe ratio, volatility, returns)
+    - Risk analysis (drawdown, correlation, diversification)
+    - Portfolio optimization and analysis
+    - Trade-based performance evaluation
+    - Risk-adjusted return calculations
+    - Comprehensive portfolio statistics
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        calculate_sharpe_ratio,
+        calculate_max_drawdown,
+        calculate_volatility_metrics,
+        calculate_correlation_matrix,
+        calculate_portfolio_metrics,
+    )
+
+    # Calculate Sharpe ratio
+    data = data.with_columns(pl.col("close").pct_change().alias("returns"))
+    sharpe = calculate_sharpe_ratio(data)
+    print(f"Sharpe Ratio: {sharpe:.2f}")
+
+    # Calculate maximum drawdown
+    dd_metrics = calculate_max_drawdown(price_data)
+    print(f"Max Drawdown: {dd_metrics['max_drawdown']:.2%}")
+
+    # Calculate volatility metrics
+    vol_metrics = calculate_volatility_metrics(price_data)
+    print(f"Annualized Volatility: {vol_metrics['annualized_volatility']:.2%}")
+
+    # Calculate correlation matrix
+    corr_matrix = calculate_correlation_matrix(ohlcv_data)
+    print(corr_matrix)
+
+    # Portfolio performance from trades
+    trades = [
+        {"pnl": 500, "size": 1, "timestamp": "2024-01-01"},
+        {"pnl": -200, "size": 2, "timestamp": "2024-01-02"},
+    ]
+    metrics = calculate_portfolio_metrics(trades)
+    print(f"Total Return: {metrics['total_return']:.2%}")
+    ```
+
+Performance Metrics:
+    - Sharpe Ratio: Risk-adjusted return measure
+    - Maximum Drawdown: Largest peak-to-trough decline
+    - Volatility: Standard deviation of returns
+    - Annualized Metrics: Yearly performance measures
+    - Rolling Volatility: Time-varying volatility analysis
+
+Risk Analysis:
+    - Drawdown Duration: Length of recovery periods
+    - Correlation Analysis: Portfolio diversification
+    - Volatility Metrics: Risk measurement and analysis
+    - Risk-Adjusted Returns: Performance relative to risk
+    - Portfolio Optimization: Risk-return optimization
+
+Portfolio Statistics:
+    - Total Return: Overall portfolio performance
+    - Win Rate: Percentage of profitable trades
+    - Profit Factor: Gross profit to gross loss ratio
+    - Average Win/Loss: Mean profitable/unprofitable trade
+    - Largest Win/Loss: Extreme trade performance
+    - Expectancy: Expected value per trade
+
+Performance Characteristics:
+    - Efficient calculation algorithms
+    - Memory-optimized for large datasets
+    - Fast portfolio analysis for real-time evaluation
+    - Polars DataFrame integration for performance
+    - Optimized for high-frequency portfolio monitoring
+
+See Also:
+    - `utils.trading_calculations`: Trading calculations and math
+    - `utils.pattern_detection`: Pattern detection for analysis
+    - `utils.data_utils`: Data processing and analysis
+"""
 
 from typing import Any
 

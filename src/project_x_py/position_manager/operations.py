@@ -1,4 +1,51 @@
-"""Direct position operations (close, partial close, etc.)."""
+"""
+Direct position operations for ProjectX position management.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides direct position operations including closing positions, partial closes,
+    and bulk operations. Integrates with ProjectX API for immediate position
+    management with comprehensive error handling and logging.
+
+Key Features:
+    - Direct position closure via ProjectX API
+    - Partial position closes with size control
+    - Bulk position operations for portfolio management
+    - Comprehensive error handling and logging
+    - Thread-safe operations with proper authentication
+    - Integration with position tracking and order management
+
+Position Operations:
+    - close_position_direct: Close entire position immediately
+    - partially_close_position: Close specific number of contracts
+    - close_all_positions: Bulk close all positions or by contract
+    - close_position_by_contract: Smart close with size detection
+
+Example Usage:
+    ```python
+    # Close entire position
+    result = await position_manager.close_position_direct("MGC")
+    if result["success"]:
+        print(f"Position closed: {result.get('orderId')}")
+
+    # Partial close for profit taking
+    result = await position_manager.partially_close_position("NQ", 5)
+
+    # Bulk close all positions
+    result = await position_manager.close_all_positions()
+    print(f"Closed {result['closed']}/{result['total_positions']} positions")
+
+    # Smart close with size detection
+    result = await position_manager.close_position_by_contract("MGC", close_size=3)
+    ```
+
+See Also:
+    - `position_manager.core.PositionManager`
+    - `position_manager.tracking.PositionTrackingMixin`
+    - `position_manager.monitoring.PositionMonitoringMixin`
+"""
 
 from typing import TYPE_CHECKING, Any
 

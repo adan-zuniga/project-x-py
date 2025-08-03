@@ -1,4 +1,82 @@
-"""Pattern detection utilities for candlestick and chart patterns."""
+"""
+Pattern detection utilities for candlestick and chart patterns.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides pattern detection utilities for candlestick and chart patterns
+    commonly used in technical analysis. Includes candlestick pattern recognition,
+    chart pattern detection, and comprehensive pattern analysis for trading signals.
+
+Key Features:
+    - Candlestick pattern detection (Doji, Hammer, Shooting Star)
+    - Chart pattern recognition (Double Tops, Double Bottoms)
+    - Bullish/Bearish candle classification
+    - Pattern strength and confidence scoring
+    - Comprehensive pattern analysis
+    - Polars DataFrame integration
+
+Pattern Detection:
+    - Candlestick patterns for short-term analysis
+    - Chart patterns for medium-term analysis
+    - Pattern strength and reliability metrics
+    - Bullish/Bearish signal classification
+    - Volume and price pattern correlation
+    - Technical analysis pattern recognition
+
+Example Usage:
+    ```python
+    from project_x_py.utils import detect_candlestick_patterns, detect_chart_patterns
+
+    # Detect candlestick patterns
+    patterns = detect_candlestick_patterns(ohlcv_data)
+    doji_count = patterns.filter(pl.col("doji") == True).height
+    print(f"Doji patterns found: {doji_count}")
+
+    # Check for specific patterns
+    bullish_candles = patterns.filter(pl.col("bullish_candle") == True)
+    hammers = patterns.filter(pl.col("hammer") == True)
+
+    # Detect chart patterns
+    chart_patterns = detect_chart_patterns(price_data, window=20)
+    print(f"Double tops found: {len(chart_patterns['double_tops'])}")
+    print(f"Double bottoms found: {len(chart_patterns['double_bottoms'])}")
+    ```
+
+Candlestick Patterns:
+    - Doji: Very small body relative to range (indecision)
+    - Hammer: Small body, long lower shadow, little upper shadow (bullish)
+    - Shooting Star: Small body, long upper shadow, little lower shadow (bearish)
+    - Bullish/Bearish candles: Based on body direction
+    - Long body candles: Strong moves with large body relative to range
+
+Chart Patterns:
+    - Double Tops: Two similar highs with valley in between (bearish)
+    - Double Bottoms: Two similar lows with peak in between (bullish)
+    - Breakouts: Price breaking above/below key levels
+    - Trend Reversals: Pattern-based reversal signals
+
+Pattern Analysis Features:
+    - Pattern strength calculation
+    - Volume confirmation analysis
+    - Price level validation
+    - Pattern reliability scoring
+    - Multi-timeframe pattern analysis
+    - Pattern completion tracking
+
+Performance Characteristics:
+    - Efficient pattern detection algorithms
+    - Memory-optimized for large datasets
+    - Fast pattern recognition for real-time analysis
+    - Polars DataFrame integration for performance
+    - Optimized for high-frequency pattern detection
+
+See Also:
+    - `utils.portfolio_analytics`: Portfolio analysis and metrics
+    - `utils.trading_calculations`: Trading calculations and math
+    - `utils.data_utils`: Data processing and analysis
+"""
 
 from typing import Any
 

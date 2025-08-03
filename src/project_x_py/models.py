@@ -1,10 +1,115 @@
 """
 ProjectX Data Models
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
-This module contains all data model classes for the ProjectX API client.
+Overview:
+    Contains all data model classes for the ProjectX API client. Provides
+    comprehensive data structures for trading entities, configuration,
+    and real-time events. All models use dataclasses for type safety
+    and automatic serialization/deserialization.
+
+Key Features:
+    - Comprehensive trading entity models (Instrument, Order, Position, Trade)
+    - Configuration models with default values
+    - Real-time event models for WebSocket data
+    - Type-safe dataclass implementations
+    - Automatic serialization/deserialization
+    - Comprehensive field documentation and examples
+
+Data Models:
+    - Trading Entities: Instrument, Order, Position, Trade, Account
+    - Configuration: ProjectXConfig with default TopStepX endpoints
+    - Responses: OrderPlaceResponse, BracketOrderResponse
+    - Events: OrderUpdateEvent, PositionUpdateEvent, MarketDataEvent
+
+Example Usage:
+    ```python
+    from project_x_py.models import (
+        Instrument,
+        Order,
+        Position,
+        Trade,
+        Account,
+        ProjectXConfig,
+        OrderPlaceResponse,
+    )
+
+    # Create instrument model
+    instrument = Instrument(
+        id="CON.F.US.MGC.M25",
+        name="MGCH25",
+        description="Mini Gold Futures March 2025",
+        tickSize=0.1,
+        tickValue=1.0,
+        activeContract=True,
+    )
+
+    # Create order model
+    order = Order(
+        id=12345,
+        accountId=1001,
+        contractId="CON.F.US.MGC.M25",
+        creationTimestamp="2024-01-01T10:00:00Z",
+        updateTimestamp="2024-01-01T10:00:05Z",
+        status=1,  # Open
+        type=1,  # Limit
+        side=0,  # Bid
+        size=5,
+        limitPrice=2050.0,
+    )
+
+    # Create position model
+    position = Position(
+        id=67890,
+        accountId=1001,
+        contractId="CON.F.US.MGC.M25",
+        creationTimestamp="2024-01-01T10:00:00Z",
+        type=1,  # Long
+        size=5,
+        averagePrice=2050.0,
+    )
+
+    # Create configuration
+    config = ProjectXConfig(
+        api_url="https://api.topstepx.com/api",
+        user_hub_url="https://rtc.topstepx.com/hubs/user",
+        market_hub_url="https://rtc.topstepx.com/hubs/market",
+        timezone="America/Chicago",
+    )
+    ```
+
+Trading Entity Models:
+    - Instrument: Tradeable financial instruments with tick information
+    - Order: Trading orders with status, type, and execution details
+    - Position: Open trading positions with size and average price
+    - Trade: Executed trades with P&L and fee information
+    - Account: Trading accounts with balance and permissions
+
+Configuration Models:
+    - ProjectXConfig: Client configuration with endpoints and settings
+    - Default TopStepX endpoints for production use
+    - Customizable for different ProjectX deployments
+    - Comprehensive validation and error handling
+
+Event Models:
+    - OrderUpdateEvent: Real-time order status updates
+    - PositionUpdateEvent: Real-time position changes
+    - MarketDataEvent: Real-time market data updates
+
+Model Features:
+    - Type-safe dataclass implementations
+    - Comprehensive field documentation
+    - Automatic serialization/deserialization
+    - Validation and error handling
+    - Default values for optional fields
+    - Enum support for status and type fields
+
+See Also:
+    - `config`: Configuration management utilities
+    - `exceptions`: Error handling for model validation
+    - `types`: Type definitions and protocols
 """
 
 from dataclasses import dataclass

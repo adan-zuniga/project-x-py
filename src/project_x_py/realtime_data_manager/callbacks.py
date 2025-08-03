@@ -1,4 +1,94 @@
-"""Callback management and event handling for real-time data updates."""
+"""
+Callback management and event handling for real-time data updates.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides callback management and event handling functionality for real-time data updates.
+    Implements an event-driven system that allows registering callbacks for specific data events,
+    enabling reactive trading systems that respond to real-time market events.
+
+Key Features:
+    - Event-driven callback system for real-time data processing
+    - Support for both async and sync callbacks
+    - Multiple callbacks per event type
+    - Error isolation to prevent callback failures
+    - Thread-safe callback registration and management
+    - Comprehensive event data structures
+
+Event Types:
+    - "new_bar": Triggered when a new OHLCV bar is created in any timeframe
+    - "data_update": Triggered on every tick update with price and volume information
+
+Callback Capabilities:
+    - Registration and removal of callbacks for specific events
+    - Support for both synchronous and asynchronous callback functions
+    - Error handling and isolation to prevent callback failures
+    - Event data structures with comprehensive market information
+    - Thread-safe operations with proper error handling
+
+Example Usage:
+    ```python
+    # Register an async callback for new bar events
+    async def on_new_bar(data):
+        tf = data["timeframe"]
+        bar = data["data"]
+        print(
+            f"New {tf} bar: O={bar['open']}, H={bar['high']}, L={bar['low']}, C={bar['close']}"
+        )
+
+        # Implement trading logic based on the new bar
+        if tf == "5min" and bar["close"] > bar["open"]:
+            # Bullish bar detected
+            print(f"Bullish 5min bar detected at {data['bar_time']}")
+
+            # Trigger trading logic (implement your strategy here)
+            # await strategy.on_bullish_bar(data)
+
+
+    # Register the callback
+    await data_manager.add_callback("new_bar", on_new_bar)
+
+
+    # You can also use regular (non-async) functions
+    def on_data_update(data):
+        # This is called on every tick - keep it lightweight!
+        print(f"Price update: {data['price']}")
+
+
+    await data_manager.add_callback("data_update", on_data_update)
+    ```
+
+Event Data Structures:
+    "new_bar" event data contains:
+        {
+            "timeframe": "5min",                  # The timeframe of the bar
+            "bar_time": datetime(2023,5,1,10,0),  # Bar timestamp (timezone-aware)
+            "data": {                             # Complete bar data
+                "timestamp": datetime(...),       # Bar timestamp
+                "open": 1950.5,                   # Opening price
+                "high": 1955.2,                   # High price
+                "low": 1950.0,                    # Low price
+                "close": 1954.8,                  # Closing price
+                "volume": 128                     # Bar volume
+            }
+        }
+
+    "data_update" event data contains:
+        {
+            "timestamp": datetime(2023,5,1,10,0,15),  # Tick timestamp
+            "price": 1954.75,                         # Current price
+            "volume": 1                               # Tick volume
+        }
+
+See Also:
+    - `realtime_data_manager.core.RealtimeDataManager`
+    - `realtime_data_manager.data_access.DataAccessMixin`
+    - `realtime_data_manager.data_processing.DataProcessingMixin`
+    - `realtime_data_manager.memory_management.MemoryManagementMixin`
+    - `realtime_data_manager.validation.ValidationMixin`
+"""
 
 import asyncio
 import logging

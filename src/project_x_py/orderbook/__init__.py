@@ -1,6 +1,9 @@
 """
 Async Level 2 orderbook toolkit for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides a complete async suite for Level 2 orderbook analysis, real-time market
     microstructure, and market depth analytics. Integrates with ProjectX for
@@ -12,20 +15,51 @@ Key Features:
     - Market imbalance, support/resistance, and trade flow stats
     - Memory-efficient, thread-safe, event-driven architecture
     - Component-based design for extensibility
+    - Advanced market microstructure analysis
+    - Comprehensive trade flow classification
+    - Automatic memory management and cleanup
+
+Orderbook Components:
+    - Base OrderBook: Core data structures and thread-safe operations
+    - Market Analytics: Imbalance, depth, delta, and liquidity analysis
+    - Order Detection: Iceberg orders, clusters, and hidden liquidity detection
+    - Volume Profile: Support/resistance levels and volume distribution
+    - Memory Manager: Automatic cleanup and memory optimization
+    - Realtime Handler: WebSocket integration and real-time data processing
+
+Real-time Capabilities:
+    - WebSocket-based Level 2 market depth updates
+    - Immediate trade execution detection and classification
+    - Real-time spread and price level monitoring
+    - Event-driven callback system for custom logic
+    - Automatic data validation and error handling
 
 Example Usage:
     ```python
     from project_x_py import ProjectX, create_orderbook
     import asyncio
 
+
     async def main():
         client = ProjectX()
         await client.connect()
         orderbook = create_orderbook("MNQ", project_x=client)
         await orderbook.initialize(realtime_client=client.realtime_client)
+
+        # Get basic orderbook snapshot
         snapshot = await orderbook.get_orderbook_snapshot(levels=10)
-        print(snapshot["best_bid"], snapshot["spread"])
+        print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
+
+        # Advanced analytics
+        imbalance = await orderbook.get_market_imbalance(levels=5)
+        print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
+
+        # Detection algorithms
+        icebergs = await orderbook.detect_iceberg_orders()
+        print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
+
         await orderbook.cleanup()
+
 
     asyncio.run(main())
     ```
@@ -116,6 +150,26 @@ class OrderBook(OrderBookBase):
         component, which periodically cleans up historical data based on configurable
         parameters to prevent memory leaks during long-running sessions.
 
+    Real-time Features:
+        - WebSocket-based Level 2 market depth updates
+        - Immediate trade execution detection and classification
+        - Real-time spread and price level monitoring
+        - Event-driven callback system for custom logic
+        - Automatic data validation and error handling
+
+    Analytics Capabilities:
+        - Market imbalance analysis and ratio calculations
+        - Orderbook depth analysis within price ranges
+        - Cumulative delta tracking and trade flow statistics
+        - Liquidity level identification and concentration analysis
+        - Comprehensive orderbook statistics and health metrics
+
+    Detection Algorithms:
+        - Iceberg order detection with confidence scoring
+        - Order clustering analysis for institutional activity
+        - Advanced market microstructure metrics
+        - Hidden liquidity and volume pattern recognition
+
     Example:
         >>> orderbook = OrderBook("ES", project_x_client)
         >>> await orderbook.initialize(realtime_client)
@@ -131,6 +185,10 @@ class OrderBook(OrderBookBase):
         >>> # Detection algorithms
         >>> icebergs = await orderbook.detect_iceberg_orders()
         >>> clusters = await orderbook.detect_order_clusters()
+        >>>
+        >>> # Volume profiling
+        >>> profile = await orderbook.get_volume_profile()
+        >>> support_resistance = await orderbook.get_support_resistance_levels()
         >>>
         >>> # Cleanup when done
         >>> await orderbook.cleanup()
@@ -227,31 +285,61 @@ class OrderBook(OrderBookBase):
 
     # Delegate analytics methods
     async def get_market_imbalance(self, levels: int = 10) -> dict[str, Any]:
-        """Calculate order flow imbalance between bid and ask sides."""
+        """
+        Calculate order flow imbalance between bid and ask sides.
+
+        Delegates to MarketAnalytics.get_market_imbalance().
+        See MarketAnalytics.get_market_imbalance() for complete documentation.
+        """
         return await self.analytics.get_market_imbalance(levels)
 
     async def get_orderbook_depth(self, price_range: float) -> dict[str, Any]:
-        """Analyze orderbook depth within a price range."""
+        """
+        Analyze orderbook depth within a price range.
+
+        Delegates to MarketAnalytics.get_orderbook_depth().
+        See MarketAnalytics.get_orderbook_depth() for complete documentation.
+        """
         return await self.analytics.get_orderbook_depth(price_range)
 
     async def get_cumulative_delta(
         self, time_window_minutes: int = 60
     ) -> dict[str, Any]:
-        """Get cumulative delta (buy volume - sell volume) over time window."""
+        """
+        Get cumulative delta (buy volume - sell volume) over time window.
+
+        Delegates to MarketAnalytics.get_cumulative_delta().
+        See MarketAnalytics.get_cumulative_delta() for complete documentation.
+        """
         return await self.analytics.get_cumulative_delta(time_window_minutes)
 
     async def get_trade_flow_summary(self) -> dict[str, Any]:
-        """Get comprehensive trade flow statistics."""
+        """
+        Get comprehensive trade flow statistics.
+
+        Delegates to MarketAnalytics.get_trade_flow_summary().
+        See MarketAnalytics.get_trade_flow_summary() for complete documentation.
+        """
         return await self.analytics.get_trade_flow_summary()
 
     async def get_liquidity_levels(
         self, min_volume: int = 100, levels: int = 20
     ) -> dict[str, Any]:
-        """Identify significant liquidity levels in the orderbook."""
+        """
+        Identify significant liquidity levels in the orderbook.
+
+        Delegates to MarketAnalytics.get_liquidity_levels().
+        See MarketAnalytics.get_liquidity_levels() for complete documentation.
+        """
         return await self.analytics.get_liquidity_levels(min_volume, levels)
 
     async def get_statistics(self) -> dict[str, Any]:
-        """Get comprehensive orderbook statistics."""
+        """
+        Get comprehensive orderbook statistics.
+
+        Delegates to MarketAnalytics.get_statistics().
+        See MarketAnalytics.get_statistics() for complete documentation.
+        """
         return await self.analytics.get_statistics()
 
     # Delegate detection methods
@@ -261,7 +349,12 @@ class OrderBook(OrderBookBase):
         volume_threshold: int | None = None,
         time_window_minutes: int | None = None,
     ) -> dict[str, Any]:
-        """Detect potential iceberg orders based on price level refresh patterns."""
+        """
+        Detect potential iceberg orders based on price level refresh patterns.
+
+        Delegates to OrderDetection.detect_iceberg_orders().
+        See OrderDetection.detect_iceberg_orders() for complete documentation.
+        """
         return await self.detection.detect_iceberg_orders(
             min_refreshes, volume_threshold, time_window_minutes
         )
@@ -269,20 +362,35 @@ class OrderBook(OrderBookBase):
     async def detect_order_clusters(
         self, min_cluster_size: int = 3, price_tolerance: float = 0.1
     ) -> list[dict[str, Any]]:
-        """Detect clusters of orders at similar price levels."""
+        """
+        Detect clusters of orders at similar price levels.
+
+        Delegates to OrderDetection.detect_order_clusters().
+        See OrderDetection.detect_order_clusters() for complete documentation.
+        """
         return await self.detection.detect_order_clusters(
             min_cluster_size, price_tolerance
         )
 
     async def get_advanced_market_metrics(self) -> dict[str, Any]:
-        """Calculate advanced market microstructure metrics."""
+        """
+        Calculate advanced market microstructure metrics.
+
+        Delegates to OrderDetection.get_advanced_market_metrics().
+        See OrderDetection.get_advanced_market_metrics() for complete documentation.
+        """
         return await self.detection.get_advanced_market_metrics()
 
     # Delegate profile methods
     async def get_volume_profile(
         self, time_window_minutes: int = 60, price_bins: int = 20
     ) -> dict[str, Any]:
-        """Calculate volume profile showing volume distribution by price."""
+        """
+        Calculate volume profile showing volume distribution by price.
+
+        Delegates to VolumeProfile.get_volume_profile().
+        See VolumeProfile.get_volume_profile() for complete documentation.
+        """
         return await self.profile.get_volume_profile(time_window_minutes, price_bins)
 
     async def get_support_resistance_levels(
@@ -291,18 +399,33 @@ class OrderBook(OrderBookBase):
         min_touches: int = 3,
         price_tolerance: float = 0.1,
     ) -> dict[str, Any]:
-        """Identify support and resistance levels based on price history."""
+        """
+        Identify support and resistance levels based on price history.
+
+        Delegates to VolumeProfile.get_support_resistance_levels().
+        See VolumeProfile.get_support_resistance_levels() for complete documentation.
+        """
         return await self.profile.get_support_resistance_levels(
             lookback_minutes, min_touches, price_tolerance
         )
 
     async def get_spread_analysis(self, window_minutes: int = 30) -> dict[str, Any]:
-        """Analyze bid-ask spread patterns over time."""
+        """
+        Analyze bid-ask spread patterns over time.
+
+        Delegates to VolumeProfile.get_spread_analysis().
+        See VolumeProfile.get_spread_analysis() for complete documentation.
+        """
         return await self.profile.get_spread_analysis(window_minutes)
 
     # Delegate memory methods
     async def get_memory_stats(self) -> dict[str, Any]:
-        """Get comprehensive memory usage statistics."""
+        """
+        Get comprehensive memory usage statistics.
+
+        Delegates to MemoryManager.get_memory_stats().
+        See MemoryManager.get_memory_stats() for complete documentation.
+        """
         return await self.memory_manager.get_memory_stats()
 
     async def cleanup(self) -> None:

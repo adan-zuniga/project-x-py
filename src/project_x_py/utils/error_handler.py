@@ -1,11 +1,96 @@
 """
 Centralized error handling utilities for ProjectX SDK.
 
-This module provides consistent error handling patterns, logging, and retry logic
-across the entire SDK.
+Author: @TexasCoding
+Date: 2025-08-02
 
-Author: TexasCoding
-Date: January 2025
+Overview:
+    Provides consistent error handling patterns, logging, and retry logic
+    across the entire SDK. Implements decorators, context managers, and
+    utilities for robust error handling in async and sync operations.
+
+Key Features:
+    - Decorator-based error handling for functions and methods
+    - Automatic retry logic with exponential backoff
+    - Rate limit handling with automatic delay
+    - Response validation and error context
+    - Comprehensive logging and error reporting
+    - Support for both async and sync operations
+
+Error Handling Patterns:
+    - @handle_errors: General error handling with logging
+    - @retry_on_network_error: Automatic retry for network issues
+    - @handle_rate_limit: Rate limit handling with automatic delay
+    - @validate_response: Response structure validation
+    - ErrorContext: Context manager for batch operations
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        handle_errors,
+        retry_on_network_error,
+        handle_rate_limit,
+        validate_response,
+        ErrorContext,
+    )
+
+
+    # General error handling
+    @handle_errors("fetch market data", reraise=False)
+    async def get_market_data():
+        # Implementation
+        pass
+
+
+    # Network retry with exponential backoff
+    @retry_on_network_error(max_attempts=3, initial_delay=1.0)
+    async def api_call():
+        # Implementation
+        pass
+
+
+    # Rate limit handling
+    @handle_rate_limit(fallback_delay=60.0)
+    async def make_api_call():
+        # Implementation
+        pass
+
+
+    # Response validation
+    @validate_response(required_fields=["id", "status"])
+    async def get_order(order_id: str):
+        # Implementation
+        pass
+
+
+    # Batch operation error handling
+    async with ErrorContext("process orders") as ctx:
+        for order in orders:
+            try:
+                await process_order(order)
+            except Exception as e:
+                ctx.add_error(order.id, e)
+    ```
+
+Error Handling Benefits:
+    - Consistent error handling across all SDK operations
+    - Automatic retry logic for transient failures
+    - Rate limit compliance with automatic delays
+    - Comprehensive logging for debugging
+    - Graceful degradation with fallback options
+    - Type-safe error handling with proper exceptions
+
+Performance Characteristics:
+    - Minimal overhead for error handling
+    - Efficient retry logic with exponential backoff
+    - Memory-efficient error context management
+    - Thread-safe operations for concurrent access
+    - Optimized for high-frequency trading scenarios
+
+See Also:
+    - `utils.error_messages`: Standardized error messages
+    - `utils.logging_config`: Logging for error reporting
+    - `utils.async_rate_limiter`: Rate limiting utilities
 """
 
 import asyncio

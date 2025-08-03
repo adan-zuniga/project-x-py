@@ -1,4 +1,80 @@
-"""Data access methods for retrieving OHLCV data."""
+"""
+Data access methods for retrieving OHLCV data.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides data access and retrieval methods for OHLCV (Open, High, Low, Close, Volume)
+    data across multiple timeframes. Implements thread-safe data access with comprehensive
+    filtering and retrieval capabilities for real-time trading applications.
+
+Key Features:
+    - Thread-safe data access with asyncio locks
+    - Multi-timeframe OHLCV data retrieval
+    - Current price access with real-time updates
+    - Memory-efficient data filtering and limiting
+    - Timezone-aware timestamp handling
+    - Comprehensive data validation and error handling
+
+Data Access Capabilities:
+    - Individual timeframe data retrieval with optional bar limits
+    - Multi-timeframe data access for comprehensive analysis
+    - Current market price access from tick or bar data
+    - Memory-efficient data copying and filtering
+    - Thread-safe operations with proper locking
+    - Comprehensive error handling and validation
+
+Example Usage:
+    ```python
+    # Get the most recent 100 bars of 5-minute data
+    data_5m = await manager.get_data("5min", bars=100)
+
+    if data_5m is not None:
+        print(f"Got {len(data_5m)} bars of 5-minute data")
+
+        # Get the most recent close price
+        latest_close = data_5m["close"].last()
+        print(f"Latest close price: {latest_close}")
+
+        # Calculate a simple moving average
+        if len(data_5m) >= 20:
+            sma_20 = data_5m["close"].tail(20).mean()
+            print(f"20-bar SMA: {sma_20}")
+
+    # Get current market price
+    current_price = await manager.get_current_price()
+    if current_price is not None:
+        print(f"Current price: ${current_price:.2f}")
+
+    # Get multi-timeframe data
+    mtf_data = await manager.get_mtf_data()
+    for tf, data in mtf_data.items():
+        print(f"{tf}: {len(data)} bars")
+    ```
+
+Data Structures:
+    OHLCV DataFrame columns:
+        - timestamp: Bar timestamp (timezone-aware datetime)
+        - open: Opening price for the period
+        - high: Highest price during the period
+        - low: Lowest price during the period
+        - close: Closing price for the period
+        - volume: Volume traded during the period
+
+Performance Characteristics:
+    - Thread-safe operations with minimal locking overhead
+    - Memory-efficient data copying and filtering
+    - Optimized for real-time trading applications
+    - Support for large datasets with sliding window management
+
+See Also:
+    - `realtime_data_manager.core.RealtimeDataManager`
+    - `realtime_data_manager.callbacks.CallbackMixin`
+    - `realtime_data_manager.data_processing.DataProcessingMixin`
+    - `realtime_data_manager.memory_management.MemoryManagementMixin`
+    - `realtime_data_manager.validation.ValidationMixin`
+"""
 
 import logging
 from typing import TYPE_CHECKING

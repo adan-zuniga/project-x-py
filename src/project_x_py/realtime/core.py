@@ -1,14 +1,61 @@
 """
 Async ProjectX Realtime Client for ProjectX Gateway API
 
-This module provides an async Python client for the ProjectX real-time API, which provides
-access to the ProjectX trading platform real-time events via SignalR WebSocket connections.
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides an async Python client for the ProjectX real-time API, which provides
+    access to the ProjectX trading platform real-time events via SignalR WebSocket
+    connections. Implements dual-hub architecture for user and market data streams.
 
 Key Features:
-- Full async/await support for all operations
-- Asyncio-based connection management
-- Non-blocking event processing
-- Async callbacks for all events
+    - Full async/await support for all operations
+    - Asyncio-based connection management
+    - Non-blocking event processing
+    - Async callbacks for all events
+    - Dual-hub SignalR connections (User + Market)
+    - Automatic reconnection with exponential backoff
+    - JWT token authentication and refresh handling
+    - Thread-safe event processing and callback execution
+    - Connection health monitoring and statistics
+
+Architecture:
+    - Pure event forwarding (no business logic)
+    - No data caching (handled by managers)
+    - No payload parsing (managers handle ProjectX formats)
+    - Minimal stateful operations
+    - Mixin-based design for modular functionality
+
+Real-time Hubs:
+    - User Hub: Account, position, and order updates
+    - Market Hub: Quote, trade, and market depth data
+
+Example Usage:
+    ```python
+    # Create async client with ProjectX Gateway URLs
+    client = ProjectXRealtimeClient(jwt_token, account_id)
+
+    # Register async managers for event handling
+    await client.add_callback("position_update", position_manager.handle_update)
+    await client.add_callback("order_update", order_manager.handle_update)
+    await client.add_callback("quote_update", data_manager.handle_quote)
+
+    # Connect and subscribe
+    if await client.connect():
+        await client.subscribe_user_updates()
+        await client.subscribe_market_data(["CON.F.US.MGC.M25"])
+    ```
+
+Event Types (per ProjectX Gateway docs):
+    User Hub: GatewayUserAccount, GatewayUserPosition, GatewayUserOrder, GatewayUserTrade
+    Market Hub: GatewayQuote, GatewayDepth, GatewayTrade
+
+Integration:
+    - AsyncPositionManager handles position events and caching
+    - AsyncOrderManager handles order events and tracking
+    - AsyncRealtimeDataManager handles market data and caching
+    - This client only handles connections and event forwarding
 """
 
 import asyncio
@@ -43,16 +90,31 @@ class ProjectXRealtimeClient(
         - JWT token refresh and reconnection
         - Connection health monitoring
         - Async event callbacks
+        - Thread-safe event processing and callback execution
+        - Comprehensive connection statistics and health tracking
 
     Architecture:
         - Pure event forwarding (no business logic)
         - No data caching (handled by managers)
         - No payload parsing (managers handle ProjectX formats)
         - Minimal stateful operations
+        - Mixin-based design for modular functionality
 
     Real-time Hubs (per ProjectX Gateway docs):
         - User Hub: Account, position, and order updates
         - Market Hub: Quote, trade, and market depth data
+
+    Connection Management:
+        - Dual-hub SignalR connections with automatic reconnection
+        - JWT token authentication via Authorization headers
+        - Connection health monitoring and error handling
+        - Thread-safe operations with proper lock management
+
+    Event Processing:
+        - Cross-thread event scheduling for asyncio compatibility
+        - Support for both async and sync callbacks
+        - Error isolation to prevent callback failures
+        - Event statistics and flow monitoring
 
     Example:
         >>> # Create async client with ProjectX Gateway URLs

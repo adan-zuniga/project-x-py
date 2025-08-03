@@ -1,8 +1,8 @@
 """
 ProjectX Indicators - Volume Indicators
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     Implements volume-based indicators for ProjectX, allowing traders to confirm
@@ -18,6 +18,7 @@ Key Features:
 Example Usage:
     ```python
     from project_x_py.indicators import calculate_vwap
+
     data_with_vwap = calculate_vwap(ohlcv_data, period=20)
     ```
 
@@ -35,7 +36,18 @@ from project_x_py.indicators.base import VolumeIndicator, ema_alpha
 
 
 class OBV(VolumeIndicator):
-    """On-Balance Volume indicator."""
+    """
+    On-Balance Volume (OBV) indicator.
+
+    OBV is a cumulative volume indicator that relates volume to price change. It
+    adds volume on days when the price closes higher and subtracts volume on days
+    when the price closes lower. The cumulative total shows whether volume is
+    flowing into or out of a security.
+
+    OBV is used to confirm price trends and identify potential reversals. When
+    OBV and price are moving in the same direction, it confirms the trend. When
+    they diverge, it may signal a potential reversal.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -100,7 +112,17 @@ class OBV(VolumeIndicator):
 
 
 class VWAP(VolumeIndicator):
-    """Volume Weighted Average Price indicator."""
+    """
+    Volume Weighted Average Price (VWAP) indicator.
+
+    VWAP is the average price weighted by volume. It provides a benchmark price
+    that represents the average price at which a security has traded throughout
+    the day, taking into account both price and volume.
+
+    VWAP is commonly used by institutional traders to assess whether they are
+    buying or selling at favorable prices relative to the market average. It can
+    also be used to identify potential support and resistance levels.
+    """
 
     def __init__(self) -> None:
         super().__init__(

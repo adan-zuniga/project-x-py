@@ -1,14 +1,15 @@
 """
 ProjectX Indicators - Technical Analysis Library
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     ProjectX Indicators provides a comprehensive, extensible technical analysis library
-    similar to TA-Lib, built on Polars DataFrames. It offers both class-based and
-    function-based interfaces for over 60 technical indicators, with seamless integration
-    for vectorized backtesting and strategy development in ProjectX and beyond.
+    similar to TA-Lib, built on Polars DataFrames for high-performance financial analysis.
+    It offers both class-based and function-based interfaces for over 60 technical indicators,
+    with seamless integration for vectorized backtesting and strategy development in ProjectX
+    and beyond.
 
 Key Features:
     - Wide range of indicators: trend/overlap, momentum, volatility, volume, and patterns
@@ -16,19 +17,42 @@ Key Features:
     - All indicators operate on Polars DataFrames for speed and modern analytics
     - Utilities for indicator discovery, grouping, and docstring access
     - Clean API and naming convention for easy scripting and research
+    - Built-in caching and validation for optimal performance
+    - Support for custom indicators through base classes
+
+Indicator Categories:
+    - Overlap Studies: SMA, EMA, BBANDS, DEMA, TEMA, WMA, SAR, etc.
+    - Momentum Indicators: RSI, MACD, STOCH, CCI, ADX, AROON, etc.
+    - Volatility Indicators: ATR, NATR, TRANGE, STDDEV
+    - Volume Indicators: OBV, VWAP, AD, ADOSC
+    - Pattern Indicators: FVG (Fair Value Gap), ORDERBLOCK, WAE (Waddah Attar Explosion)
 
 Example Usage:
     ```python
     # Class-based interface
     from project_x_py.indicators import RSI, SMA
+
     rsi = RSI()
     data_with_rsi = rsi.calculate(ohlcv_data, period=14)
 
     # Function-based interface (TA-Lib style)
     from project_x_py.indicators import calculate_rsi, calculate_sma
+
     data_with_rsi = calculate_rsi(ohlcv_data, period=14)
     data_with_sma = calculate_sma(ohlcv_data, period=20)
+
+    # Pattern detection
+    from project_x_py.indicators import FVG, ORDERBLOCK
+
+    fvg_data = FVG().calculate(ohlcv_data, min_gap_size=0.001)
+    order_blocks = ORDERBLOCK().calculate(ohlcv_data, min_volume_percentile=75)
     ```
+
+Performance Notes:
+    - All indicators use vectorized operations for optimal speed
+    - Built-in caching prevents redundant calculations
+    - Memory-efficient Polars DataFrame operations
+    - Supports large datasets with minimal memory overhead
 
 See Also:
     - `project_x_py.indicators.base` (abstract base classes/utilities)

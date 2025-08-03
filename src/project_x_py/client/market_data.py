@@ -1,6 +1,9 @@
 """
 Async instrument search, selection, and historical bar data for ProjectX clients.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides async methods for instrument discovery, smart contract selection, and retrieval
     of historical OHLCV bar data, with Polars DataFrame output for high-performance analysis.
@@ -21,11 +24,13 @@ Example Usage:
     import asyncio
     from project_x_py import ProjectX
 
+
     async def main():
         async with ProjectX.from_env() as client:
             instrument = await client.get_instrument("ES")
             bars = await client.get_bars("ES", days=3, interval=15)
             print(bars.head())
+
 
     asyncio.run(main())
     ```
@@ -144,17 +149,30 @@ class MarketDataMixin:
         """
         Select the best matching contract from search results.
 
-        This method implements smart contract selection logic for futures:
-        - Exact matches are preferred
-        - For futures, selects the front month contract
-        - For micro contracts, ensures correct symbol (e.g., MNQ for micro Nasdaq)
+        This method implements smart contract selection logic for futures and other
+        instruments, ensuring the most appropriate contract is selected based on
+        the search criteria. The selection algorithm follows these priorities:
+
+        1. Exact symbol match (case-insensitive)
+        2. For futures contracts:
+           - Identifies the base symbol (e.g., "ES" from "ESM23")
+           - Groups contracts by base symbol
+           - Selects the front month contract (chronologically closest expiration)
+        3. For micro contracts, ensures proper matching (e.g., "MNQ" for micro Nasdaq)
+        4. Falls back to the first result if no better match is found
+
+        The futures month codes follow CME convention: F(Jan), G(Feb), H(Mar), J(Apr),
+        K(May), M(Jun), N(Jul), Q(Aug), U(Sep), V(Oct), X(Nov), Z(Dec)
 
         Args:
-            instruments: List of instrument dictionaries from search
-            search_symbol: Original search symbol
+            instruments: List of instrument dictionaries from search results
+            search_symbol: Original search symbol provided by the user
 
         Returns:
-            Best matching instrument dictionary
+            dict[str, Any]: Best matching instrument dictionary with complete contract details
+
+        Raises:
+            ProjectXInstrumentError: If no instruments are found for the given symbol
         """
         if not instruments:
             raise ProjectXInstrumentError(f"No instruments found for: {search_symbol}")

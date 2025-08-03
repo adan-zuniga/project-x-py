@@ -1,8 +1,8 @@
 """
 ProjectX Indicators - Base Classes
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     Provides abstract base classes and shared validation/utilities for all ProjectX
@@ -20,6 +20,7 @@ Key Features:
 Example Usage:
     ```python
     from project_x_py.indicators.base import BaseIndicator
+
 
     class MyCustomIndicator(BaseIndicator):
         def calculate(self, data, period=10):
@@ -50,8 +51,21 @@ class BaseIndicator(ABC):
     """
     Base class for all technical indicators.
 
-    Provides common validation, error handling, and utility methods
-    that all indicators can inherit from.
+    Provides common validation, error handling, caching, and utility methods
+    that all indicators can inherit from. This abstract base class ensures
+    consistent behavior across all indicators while providing performance
+    optimizations through intelligent caching.
+
+    Key Features:
+        - Automatic parameter validation and data checking
+        - Built-in caching system to avoid redundant calculations
+        - Standardized error handling with IndicatorError exceptions
+        - Support for both class-based and function-based usage
+        - Memory-efficient operations with Polars DataFrames
+
+    All custom indicators should inherit from this class or one of its
+    specialized subclasses (OverlapIndicator, MomentumIndicator, etc.)
+    for consistent behavior and optimal performance.
     """
 
     def __init__(self, name: str, description: str = "") -> None:
@@ -124,12 +138,28 @@ class BaseIndicator(ABC):
         """
         Calculate the indicator values.
 
+        This method must be implemented by all indicator subclasses. It should
+        perform the core calculation logic for the specific indicator, including
+        parameter validation, data processing, and result generation.
+
+        The method should:
+        1. Validate input data and parameters using inherited validation methods
+        2. Perform the indicator-specific calculations
+        3. Return a DataFrame with the original data plus new indicator columns
+        4. Handle edge cases (insufficient data, invalid parameters, etc.)
+
         Args:
-            data: Input DataFrame with OHLCV data
-            **kwargs: Additional parameters specific to each indicator
+            data: Input DataFrame with OHLCV data (must contain required columns)
+            **kwargs: Additional parameters specific to each indicator (period,
+                     thresholds, column names, etc.)
 
         Returns:
-            DataFrame with indicator columns added
+            pl.DataFrame: DataFrame with original data plus new indicator columns.
+                         The indicator values should be added as new columns with
+                         descriptive names (e.g., "rsi", "macd", "bb_upper").
+
+        Raises:
+            IndicatorError: If data validation fails or calculation cannot proceed
         """
 
     def _generate_cache_key(self, data: pl.DataFrame, **kwargs: Any) -> str:
@@ -230,13 +260,25 @@ def safe_division(
     """
     Safe division that handles division by zero.
 
+    This utility function creates a Polars expression that performs division
+    while safely handling cases where the denominator is zero. It's commonly
+    used in technical indicator calculations where division operations might
+    encounter zero values.
+
     Args:
-        numerator: Numerator expression
-        denominator: Denominator expression
-        default: Default value when denominator is zero
+        numerator: Numerator expression (pl.Expr)
+        denominator: Denominator expression (pl.Expr)
+        default: Default value to return when denominator is zero (default: 0.0)
 
     Returns:
-        Polars expression for safe division
+        pl.Expr: Polars expression that performs safe division, returning the
+                default value when denominator is zero
+
+    Example:
+        >>> # Safe division in RSI calculation
+        >>> gain = pl.col("close").diff().filter(pl.col("close").diff() > 0)
+        >>> loss = -pl.col("close").diff().filter(pl.col("close").diff() < 0)
+        >>> rs = safe_division(gain.rolling_mean(14), loss.rolling_mean(14))
     """
     return pl.when(denominator != 0).then(numerator / denominator).otherwise(default)
 
@@ -273,10 +315,22 @@ def ema_alpha(period: int) -> float:
     """
     Calculate EMA alpha (smoothing factor) from period.
 
+    This utility function calculates the smoothing factor (alpha) used in
+    Exponential Moving Average calculations. The alpha determines how much
+    weight is given to recent prices versus older prices.
+
+    Formula: alpha = 2 / (period + 1)
+
     Args:
-        period: EMA period
+        period: EMA period (number of periods for the moving average)
 
     Returns:
-        Alpha value for EMA calculation
+        float: Alpha value (smoothing factor) between 0 and 1
+
+    Example:
+        >>> alpha = ema_alpha(14)  # Returns 0.1333...
+        >>> # Higher alpha = more weight to recent prices
+        >>> alpha_short = ema_alpha(5)  # 0.3333...
+        >>> alpha_long = ema_alpha(50)  # 0.0392...
     """
     return 2.0 / (period + 1)

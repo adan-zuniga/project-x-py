@@ -1,4 +1,96 @@
-"""Market hours, session information, and contract validation utilities."""
+"""
+Market hours, session information, and contract validation utilities.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides market hours checking, session information, and contract validation
+    utilities for trading applications. Includes CME futures market hours,
+    contract ID validation, and symbol extraction for ProjectX trading.
+
+Key Features:
+    - CME futures market hours checking
+    - Detailed market session information
+    - Contract ID validation and parsing
+    - Symbol extraction from contract IDs
+    - Timeframe conversion utilities
+    - Timezone-aware market operations
+
+Market Utilities:
+    - Market hours validation for CME futures
+    - Session timing and next session calculations
+    - Contract ID format validation
+    - Symbol extraction and parsing
+    - Timeframe string conversion to seconds
+    - Timezone-aware market operations
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        is_market_hours,
+        get_market_session_info,
+        validate_contract_id,
+        extract_symbol_from_contract_id,
+        convert_timeframe_to_seconds,
+    )
+
+    # Check if market is open
+    if is_market_hours():
+        print("Market is open")
+    else:
+        print("Market is closed")
+
+    # Get detailed session information
+    session_info = get_market_session_info()
+    print(f"Market open: {session_info['is_open']}")
+    print(f"Next session: {session_info['next_session_start']}")
+
+    # Validate contract IDs
+    if validate_contract_id("CON.F.US.MGC.M25"):
+        print("Valid contract ID")
+
+    # Extract symbol from contract ID
+    symbol = extract_symbol_from_contract_id("CON.F.US.MGC.M25")
+    # Returns: "MGC"
+
+    # Convert timeframe to seconds
+    seconds = convert_timeframe_to_seconds("5min")
+    # Returns: 300
+    ```
+
+Market Hours (CME Futures):
+    - Sunday 5 PM CT to Friday 4 PM CT
+    - Daily maintenance break: 4 PM - 5 PM CT
+    - Saturday: Closed
+    - Friday after 4 PM CT: Closed until Sunday 5 PM CT
+    - Sunday before 5 PM CT: Closed until 5 PM CT
+
+Contract ID Formats:
+    - Full format: "CON.F.US.MGC.M25" (CON.F.US.SYMBOL.MONTHYEAR)
+    - Simple format: "MGC" (base symbol)
+    - Validation for both formats
+    - Symbol extraction from full contract IDs
+
+Timeframe Conversion:
+    - Second-based: "1sec", "5sec", "10sec", "15sec", "30sec"
+    - Minute-based: "1min", "5min", "15min", "30min"
+    - Hour-based: "1hr", "4hr"
+    - Day-based: "1day"
+    - Week-based: "1week"
+    - Month-based: "1month"
+
+Performance Characteristics:
+    - Fast market hours checking
+    - Efficient contract ID validation
+    - Memory-efficient string operations
+    - Timezone-aware calculations
+    - Optimized for high-frequency trading scenarios
+
+See Also:
+    - `utils.trading_calculations`: Trading calculations and math
+    - `utils.data_utils`: Data processing and analysis
+"""
 
 import re
 from datetime import datetime, timedelta

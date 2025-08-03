@@ -1,4 +1,60 @@
-"""Real-time position tracking and callback management."""
+"""
+Real-time position tracking and callback management for ProjectX position management.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides real-time position tracking and callback management functionality for
+    position management. Includes WebSocket integration, position update processing,
+    closure detection, and event-driven callback system for custom monitoring.
+
+Key Features:
+    - Real-time position tracking via WebSocket integration
+    - Position update processing and closure detection
+    - Event-driven callback system for custom monitoring
+    - Position history tracking and change detection
+    - Payload validation and error handling
+    - Thread-safe operations with proper lock management
+
+Tracking Capabilities:
+    - Real-time position updates via WebSocket feeds
+    - Position closure detection (size=0)
+    - Position history tracking with change detection
+    - Event-driven callbacks for position updates
+    - Payload validation and API compliance checking
+    - Integration with monitoring and alert systems
+
+Example Usage:
+    ```python
+    # Register position update callbacks
+    async def on_position_update(data):
+        pos = data.get("data", {})
+        print(f"Position updated: {pos.get('contractId')} size: {pos.get('size')}")
+
+
+    await position_manager.add_callback("position_update", on_position_update)
+
+
+    # Register position closure callbacks
+    async def on_position_closed(data):
+        pos = data.get("data", {})
+        print(f"Position closed: {pos.get('contractId')}")
+
+
+    await position_manager.add_callback("position_closed", on_position_closed)
+
+    # Get position history
+    history = await position_manager.get_position_history("MGC", limit=10)
+    for entry in history:
+        print(f"{entry['timestamp']}: {entry['size_change']:+d} contracts")
+    ```
+
+See Also:
+    - `position_manager.core.PositionManager`
+    - `position_manager.monitoring.PositionMonitoringMixin`
+    - `position_manager.reporting.PositionReportingMixin`
+"""
 
 import asyncio
 import logging

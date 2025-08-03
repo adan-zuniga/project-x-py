@@ -1,6 +1,9 @@
 """
 Async volume profile and support/resistance analytics for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Implements volume profile, POC, value area, support/resistance, and spread
     analysis for the ProjectX async orderbook. Enables market structure research,
@@ -72,12 +75,58 @@ class VolumeProfile:
         """
         Calculate volume profile showing volume distribution by price.
 
+        Volume profile analysis reveals where the most trading activity has occurred
+        by creating a histogram of volume distribution across price levels. This is
+        a fundamental tool for identifying key areas of market interest, support/
+        resistance levels, and understanding market structure.
+
+        Key Metrics Calculated:
+        1. Point of Control (POC): The price level with the highest volume
+        2. Value Area: The range containing 70% of the total volume around the POC
+        3. Price bins: Histogram bins showing volume at each price level
+        4. Volume distribution: Complete breakdown of trading activity
+
+        The analysis works by:
+        - Filtering trades within the specified time window
+        - Dividing the price range into equal-sized bins
+        - Calculating total volume for each price bin
+        - Identifying the POC as the bin with maximum volume
+        - Expanding around the POC to find the value area (70% of volume)
+
         Args:
-            time_window_minutes: Time window to analyze
-            price_bins: Number of price bins for histogram
+            time_window_minutes: Time window to analyze in minutes (default: 60).
+                Larger windows provide more data but may include less relevant
+                historical information.
+            price_bins: Number of price bins for the histogram (default: 20).
+                More bins provide finer granularity but may fragment the data;
+                fewer bins provide smoother distribution but less detail.
 
         Returns:
-            Dict containing volume profile analysis
+            Dict containing comprehensive volume profile analysis:
+                price_bins: List of price bin centers
+                volumes: List of volumes corresponding to each price bin
+                poc: Point of Control price (highest volume price)
+                value_area_high: Upper boundary of the value area
+                value_area_low: Lower boundary of the value area
+                total_volume: Total volume analyzed
+                time_window_minutes: Time window used for analysis
+
+        Example:
+            >>> # Get 1-hour volume profile with 30 price bins
+            >>> profile = await orderbook.get_volume_profile(
+            ...     time_window_minutes=60, price_bins=30
+            ... )
+            >>> print(f"POC at {profile['poc']}")
+            >>> print(
+            ...     f"Value area: {profile['value_area_low']} - {profile['value_area_high']}"
+            ... )
+            >>> print(f"Total volume: {profile['total_volume']}")
+            >>>
+            >>> # Find bins with highest activity
+            >>> max_vol_idx = profile["volumes"].index(max(profile["volumes"]))
+            >>> print(
+            ...     f"Highest volume: {profile['volumes'][max_vol_idx]} at {profile['price_bins'][max_vol_idx]}"
+            ... )
         """
         async with self.orderbook.orderbook_lock:
             try:
@@ -214,13 +263,66 @@ class VolumeProfile:
         """
         Identify support and resistance levels based on price history.
 
+        This method analyzes historical price action to identify significant support
+        and resistance levels where price has repeatedly reacted. These levels are
+        critical for trading decisions as they often represent areas where price
+        may reverse or consolidate.
+
+        Algorithm Overview:
+        1. Collects price points from recent trades and orderbook levels
+        2. Groups nearby prices within the tolerance range
+        3. Counts how many times each price cluster was "touched"
+        4. Identifies clusters with sufficient touches as support/resistance
+        5. Classifies levels as support (below current price) or resistance (above)
+
+        A "touch" is counted when:
+        - A trade occurs at or near the price level
+        - The orderbook shows significant volume at the level
+        - Price approaches but doesn't significantly break through the level
+
+        Strength Assessment:
+        - More touches indicate stronger levels
+        - Recent touches are weighted more heavily
+        - Volume at the level increases its significance
+
         Args:
-            lookback_minutes: Time window to analyze
-            min_touches: Minimum price touches to qualify as S/R
-            price_tolerance: Price range to consider as same level
+            lookback_minutes: Time window to analyze in minutes (default: 120).
+                Longer periods capture more historical levels but may include
+                outdated information. Shorter periods focus on recent structure.
+            min_touches: Minimum number of price touches required for a level
+                to qualify as support/resistance (default: 3). Higher values
+                identify only the strongest levels.
+            price_tolerance: Price range to group similar levels (default: 0.1).
+                This should be adjusted based on the instrument's tick size and
+                typical price movement.
 
         Returns:
-            Dict containing support and resistance levels
+            Dict containing support and resistance analysis:
+                support_levels: List of identified support levels, each containing:
+                    - price: The support price level
+                    - touches: Number of times price touched this level
+                    - strength: Relative strength score (0.0 to 1.0)
+                    - last_touch: Timestamp of most recent touch
+                    - volume_at_level: Average volume when price was at this level
+                resistance_levels: List of identified resistance levels (same format)
+                strongest_support: The support level with highest strength score
+                strongest_resistance: The resistance level with highest strength score
+                current_price: Current market price for reference
+                analysis_window: Time window used for the analysis
+
+        Example:
+            >>> # Find strong support/resistance over 4 hours
+            >>> levels = await orderbook.get_support_resistance_levels(
+            ...     lookback_minutes=240, min_touches=5, price_tolerance=0.25
+            ... )
+            >>> print(f"Found {len(levels['support_levels'])} support levels")
+            >>> for level in levels["support_levels"]:
+            ...     print(
+            ...         f"Support at {level['price']}: {level['touches']} touches, strength {level['strength']:.2f}"
+            ...     )
+            >>>
+            >>> if levels["strongest_resistance"]:
+            ...     print(f"Key resistance: {levels['strongest_resistance']['price']}")
         """
         async with self.orderbook.orderbook_lock:
             try:

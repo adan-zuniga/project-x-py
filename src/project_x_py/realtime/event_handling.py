@@ -1,4 +1,71 @@
-"""Event handling and callback management for real-time client."""
+"""
+Event handling and callback management for real-time client.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides event handling and callback management functionality for the ProjectX
+    real-time client, including event forwarding, callback registration, and
+    cross-thread event processing for asyncio compatibility.
+
+Key Features:
+    - Event forwarding from SignalR to registered callbacks
+    - Support for both async and sync callbacks
+    - Cross-thread event scheduling for asyncio compatibility
+    - Error isolation to prevent callback failures
+    - Thread-safe callback registration and management
+    - Event statistics and flow monitoring
+
+Event Handling Capabilities:
+    - User events: Account, position, order, and trade updates
+    - Market events: Quote, trade, and market depth data
+    - Cross-thread event processing for SignalR compatibility
+    - Callback registration and management
+    - Event statistics and health monitoring
+    - Error handling and recovery
+
+Example Usage:
+    ```python
+    # Register callbacks for different event types
+    async def on_position_update(data):
+        print(f"Position update: {data}")
+
+
+    async def on_quote_update(data):
+        contract = data["contract_id"]
+        quote = data["data"]
+        print(f"{contract}: {quote['bid']} x {quote['ask']}")
+
+
+    await client.add_callback("position_update", on_position_update)
+    await client.add_callback("quote_update", on_quote_update)
+
+    # Remove specific callbacks
+    await client.remove_callback("position_update", on_position_update)
+
+    # Multiple callbacks for same event
+    await client.add_callback("trade_execution", log_trade)
+    await client.add_callback("trade_execution", update_pnl)
+    ```
+
+Event Types:
+    User Events:
+        - account_update: Balance, margin, buying power changes
+        - position_update: Position opens, changes, closes
+        - order_update: Order placement, fills, cancellations
+        - trade_execution: Individual trade fills
+
+    Market Events:
+        - quote_update: Bid/ask price changes
+        - market_trade: Executed market trades
+        - market_depth: Order book updates
+
+See Also:
+    - `realtime.core.ProjectXRealtimeClient`
+    - `realtime.connection_management.ConnectionManagementMixin`
+    - `realtime.subscriptions.SubscriptionsMixin`
+"""
 
 import asyncio
 from collections.abc import Callable, Coroutine

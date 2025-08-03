@@ -1,4 +1,72 @@
-"""Data manipulation and DataFrame utilities."""
+"""
+Data manipulation and DataFrame utilities.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides data manipulation and DataFrame utilities for Polars DataFrames.
+    Includes safe data access methods, data snapshot creation for debugging,
+    and comprehensive data analysis tools for trading applications.
+
+Key Features:
+    - Safe Polars DataFrame access methods
+    - Comprehensive data snapshot creation for debugging
+    - Statistical analysis and data validation
+    - Time range detection and analysis
+    - Memory-efficient data processing
+    - Error handling for data operations
+
+Data Utilities:
+    - Safe row counting and value extraction
+    - Data snapshot creation with statistics
+    - Time range analysis for time series data
+    - Statistical summaries for numeric columns
+    - Data validation and error handling
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        get_polars_rows,
+        get_polars_last_value,
+        create_data_snapshot,
+    )
+
+    # Safe data access
+    row_count = get_polars_rows(df)
+    last_price = get_polars_last_value(df, "close")
+
+    # Create comprehensive data snapshot
+    snapshot = create_data_snapshot(ohlcv_data, "MGC 5min data")
+    print(f"Rows: {snapshot['row_count']}")
+    print(f"Timespan: {snapshot['timespan']}")
+    print(f"Statistics: {snapshot['statistics']}")
+
+    # Handle empty data safely
+    if df.is_empty():
+        print("No data available")
+    else:
+        last_value = get_polars_last_value(df, "price")
+    ```
+
+Data Snapshot Features:
+    - Comprehensive data statistics and metadata
+    - Time range detection for time series data
+    - Statistical summaries for numeric columns
+    - Memory usage and performance metrics
+    - Error handling for malformed data
+
+Performance Characteristics:
+    - Safe data access with proper error handling
+    - Memory-efficient operations for large datasets
+    - Optimized for Polars DataFrame operations
+    - Comprehensive debugging and analysis tools
+
+See Also:
+    - `utils.trading_calculations`: Trading-specific data calculations
+    - `utils.portfolio_analytics`: Portfolio analysis and metrics
+    - `utils.pattern_detection`: Pattern detection for data analysis
+"""
 
 from datetime import datetime
 from typing import Any

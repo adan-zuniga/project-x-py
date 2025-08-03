@@ -1,8 +1,8 @@
 """
 ProjectX Indicators - Order Block (OB) Indicator
 
-Author: TexasCoding
-Date: August 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     Implements the Order Block indicator, which detects likely institutional supply/demand
@@ -18,6 +18,7 @@ Key Features:
 Example Usage:
     ```python
     from project_x_py.indicators import OrderBlock
+
     ob = OrderBlock()
     data_with_ob = ob.calculate(ohlcv_data, min_volume_percentile=70)
     ```
@@ -36,7 +37,18 @@ from project_x_py.indicators.base import BaseIndicator
 
 
 class OrderBlock(BaseIndicator):
-    """Order Block indicator for identifying institutional order zones."""
+    """
+    Order Block (OB) indicator for identifying institutional order zones.
+
+    Order Blocks are areas in price action where significant institutional orders
+    are believed to have been placed. They are identified by specific price action
+    patterns that suggest large market participants have established positions.
+
+    Order Blocks can act as support/resistance zones because institutional orders
+    often remain active and can influence price movement when price returns to
+    these areas. They are commonly used in institutional trading analysis and
+    smart money concepts.
+    """
 
     def __init__(self) -> None:
         super().__init__(

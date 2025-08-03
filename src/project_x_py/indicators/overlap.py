@@ -1,8 +1,8 @@
 """
 ProjectX Indicators - Overlap Studies (Trend Indicators)
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     Contains all trend-following (overlap) indicators for ProjectX, including
@@ -20,6 +20,7 @@ Key Features:
 Example Usage:
     ```python
     from project_x_py.indicators import calculate_sma
+
     data_with_sma = calculate_sma(ohlcv_data, period=20)
     ```
 
@@ -37,7 +38,16 @@ from project_x_py.indicators.base import OverlapIndicator, ema_alpha
 
 
 class SMA(OverlapIndicator):
-    """Simple Moving Average indicator."""
+    """
+    Simple Moving Average (SMA) indicator.
+
+    SMA is the most basic type of moving average, calculated as the arithmetic mean
+    of prices over a specified period. It provides a smoothed representation of price
+    trends by reducing noise and highlighting the underlying direction of price movement.
+
+    SMA gives equal weight to all prices in the calculation period, making it less
+    responsive to recent price changes compared to exponential moving averages.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -80,7 +90,17 @@ class SMA(OverlapIndicator):
 
 
 class EMA(OverlapIndicator):
-    """Exponential Moving Average indicator."""
+    """
+    Exponential Moving Average (EMA) indicator.
+
+    EMA is a type of moving average that gives more weight to recent prices compared
+    to older prices. This makes it more responsive to recent price changes and better
+    at identifying trend changes early.
+
+    The smoothing factor (alpha) determines how much weight is given to recent prices.
+    A higher alpha means more weight to recent prices, making the EMA more responsive
+    but potentially more volatile.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -124,7 +144,21 @@ class EMA(OverlapIndicator):
 
 
 class BBANDS(OverlapIndicator):
-    """Bollinger Bands indicator."""
+    """
+    Bollinger Bands indicator.
+
+    Bollinger Bands consist of three lines:
+    - Middle Band: Simple moving average of the price
+    - Upper Band: Middle band + (standard deviation x multiplier)
+    - Lower Band: Middle band - (standard deviation x multiplier)
+
+    The bands expand and contract based on market volatility. When bands contract,
+    it often indicates low volatility and potential for a breakout. When bands expand,
+    it indicates high volatility and potential trend continuation.
+
+    Bollinger Bands are commonly used to identify overbought/oversold conditions
+    and potential reversal points in the market.
+    """
 
     def __init__(self) -> None:
         super().__init__(

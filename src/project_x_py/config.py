@@ -1,12 +1,91 @@
 """
 ProjectX Configuration Management
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
-This module handles configuration for the ProjectX client, including
-environment variables, config files, and default settings.
+Overview:
+    Handles configuration for the ProjectX client, including environment variables,
+    config files, and default settings. Provides comprehensive configuration management
+    with priority-based loading, validation, and customization for different deployment
+    environments.
 
+Key Features:
+    - Priority-based configuration loading (Environment > Config file > Defaults)
+    - Environment variable support with automatic type conversion
+    - Configuration file management with JSON format
+    - Configuration validation and error handling
+    - Custom configuration creation for different endpoints
+    - Authentication configuration management
+    - Environment setup validation and status checking
+
+Configuration Sources:
+    - Environment variables with PROJECTX_ prefix
+    - JSON configuration files with customizable paths
+    - Default configuration with TopStepX endpoints
+    - Custom configuration for different ProjectX deployments
+
+Example Usage:
+    ```python
+    from project_x_py.config import (
+        load_default_config,
+        create_custom_config,
+        ConfigManager,
+        check_environment,
+    )
+
+    # Load default configuration
+    config = load_default_config()
+
+    # Create custom configuration
+    custom_config = create_custom_config(
+        user_hub_url="https://custom.projectx.com/hubs/user",
+        market_hub_url="https://custom.projectx.com/hubs/market",
+    )
+
+    # Use configuration manager
+    manager = ConfigManager("config.json")
+    config = manager.load_config()
+
+    # Check environment setup
+    status = check_environment()
+    if status["auth_configured"]:
+        print("Authentication configured")
+    else:
+        print(f"Missing: {status['missing_required']}")
+    ```
+
+Configuration Priority:
+    1. Environment variables (highest priority)
+    2. Configuration file (JSON format)
+    3. Default values (lowest priority)
+
+Environment Variables:
+    - PROJECTX_API_URL: Base API URL
+    - PROJECTX_REALTIME_URL: WebSocket URL
+    - PROJECTX_USER_HUB_URL: User hub URL
+    - PROJECTX_MARKET_HUB_URL: Market hub URL
+    - PROJECTX_TIMEZONE: Timezone for timestamps
+    - PROJECTX_TIMEOUT_SECONDS: Request timeout
+    - PROJECTX_RETRY_ATTEMPTS: Retry attempts
+    - PROJECTX_RETRY_DELAY_SECONDS: Retry delay
+    - PROJECTX_REQUESTS_PER_MINUTE: Rate limiting
+    - PROJECTX_BURST_LIMIT: Burst limit
+
+Authentication Variables:
+    - PROJECT_X_API_KEY: API key for authentication
+    - PROJECT_X_USERNAME: Username for authentication
+
+Configuration Validation:
+    - URL format validation for all endpoints
+    - Numeric value validation for timeouts and limits
+    - Timezone validation using pytz
+    - Authentication credential validation
+    - Comprehensive error reporting
+
+See Also:
+    - `models.ProjectXConfig`: Configuration data model
+    - `utils.environment`: Environment variable utilities
 """
 
 import json

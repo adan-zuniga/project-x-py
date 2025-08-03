@@ -1,6 +1,9 @@
 """
 Async market analytics for ProjectX orderbook.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Implements advanced quantitative analytics for the async orderbook, extracting
     actionable insights on market structure, order flow, liquidity, and trade intensity.
@@ -12,12 +15,31 @@ Key Features:
     - Cumulative delta and trade flow statistics
     - VWAP, spread, and volume breakdowns
     - Statistical summaries for trading strategy development
+    - Real-time analytics with thread-safe operations
+    - Comprehensive error handling and graceful degradation
+    - Configurable analysis parameters and time windows
+
+Analytics Categories:
+    - Market Imbalance: Buy/sell pressure analysis and ratio calculations
+    - Orderbook Depth: Liquidity analysis within price ranges
+    - Trade Flow: Cumulative delta and trade classification statistics
+    - Liquidity Analysis: Significant liquidity level identification
+    - Spread Analysis: Bid-ask spread characteristics and patterns
+    - Statistical Summaries: Comprehensive orderbook health metrics
 
 Example Usage:
     ```python
     # Assuming orderbook is initialized and receiving data
     imbalance = await orderbook.get_market_imbalance(levels=10)
     print(imbalance["imbalance_ratio"], imbalance["analysis"])
+
+    # Depth analysis
+    depth = await orderbook.get_orderbook_depth(price_range=5.0)
+    print(f"Bid depth: {depth['bid_depth']['total_volume']}")
+
+    # Trade flow analysis
+    delta = await orderbook.get_cumulative_delta(time_window_minutes=60)
+    print(f"Cumulative delta: {delta['cumulative_delta']}")
     ```
 
 See Also:
@@ -54,15 +76,24 @@ class MarketAnalytics:
     3. Trade flow analysis - Classifying aggressive vs. passive executions
     4. Cumulative delta tracking - Measuring net buying/selling pressure over time
     5. Significant liquidity levels - Identifying potential support/resistance
+    6. Spread analysis - Bid-ask spread characteristics and patterns
+    7. Statistical summaries - Comprehensive orderbook health metrics
 
     Each method follows a consistent pattern:
     - Thread-safe execution through the orderbook lock
     - Comprehensive error handling and logging
     - Return of structured analysis results with multiple metrics
     - Optional time filtering when appropriate
+    - Configurable parameters for analysis sensitivity
 
     These analytics are designed to be used by trading strategies, market analysis tools,
     and visualization components that need deeper insights beyond raw orderbook data.
+
+    Performance Characteristics:
+        - All methods are optimized for real-time analysis
+        - Thread-safe operations with minimal lock contention
+        - Graceful degradation when data is insufficient
+        - Memory-efficient calculations using Polars DataFrames
     """
 
     def __init__(self, orderbook: OrderBookBase):

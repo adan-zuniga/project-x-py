@@ -1,11 +1,90 @@
 """
 ProjectX Custom Exceptions
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
-This module defines custom exception classes for the ProjectX API client.
+Overview:
+    Defines custom exception classes for the ProjectX API client. Provides
+    comprehensive error handling with categorized exceptions for different
+    types of errors, including authentication, network, data validation,
+    and trading-specific errors.
 
+Key Features:
+    - Hierarchical exception structure with base ProjectXError
+    - Categorized exceptions for different error types
+    - Error code support for programmatic error handling
+    - Response data preservation for debugging
+    - Comprehensive error context and metadata
+    - Type-safe exception handling across the SDK
+
+Exception Categories:
+    - Authentication: Login, token, and permission errors
+    - Connection: Network, timeout, and SSL errors
+    - Server: Server-side errors and API issues
+    - Client: Client-side errors and invalid requests
+    - Data: Validation, parsing, and format errors
+    - Trading: Order, position, and instrument errors
+
+Example Usage:
+    ```python
+    from project_x_py.exceptions import (
+        ProjectXError,
+        ProjectXAuthenticationError,
+        ProjectXRateLimitError,
+        ProjectXOrderError,
+    )
+
+    try:
+        await client.authenticate()
+    except ProjectXAuthenticationError as e:
+        print(f"Authentication failed: {e}")
+        print(f"Error code: {e.error_code}")
+
+    try:
+        await order_manager.place_order(...)
+    except ProjectXRateLimitError as e:
+        print(f"Rate limit exceeded: {e}")
+        # Handle rate limiting with retry logic
+
+    try:
+        await client.get_instrument("INVALID")
+    except ProjectXInstrumentError as e:
+        print(f"Instrument error: {e}")
+
+    # Generic error handling
+    try:
+        # API operation
+        pass
+    except ProjectXError as e:
+        print(f"ProjectX error: {e}")
+        if e.response_data:
+            print(f"Response data: {e.response_data}")
+    ```
+
+Exception Hierarchy:
+    - ProjectXError: Base exception for all ProjectX errors
+    - ProjectXAuthenticationError: Authentication and authorization errors
+    - ProjectXRateLimitError: Rate limiting and throttling errors
+    - ProjectXServerError: Server-side errors (5xx status codes)
+    - ProjectXClientError: Client-side errors (4xx status codes)
+    - ProjectXConnectionError: Network and connection errors
+    - ProjectXDataError: Data validation and processing errors
+    - ProjectXOrderError: Order placement and management errors
+    - ProjectXPositionError: Position management errors
+    - ProjectXInstrumentError: Instrument-related errors
+
+Error Handling Features:
+    - Error code support for programmatic handling
+    - Response data preservation for debugging
+    - Comprehensive error context and metadata
+    - Type-safe exception handling
+    - Hierarchical error categorization
+    - Consistent error message formatting
+
+See Also:
+    - `utils.error_handler`: Error handling decorators and utilities
+    - `utils.error_messages`: Standardized error messages
 """
 
 from typing import Any

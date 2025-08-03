@@ -1,6 +1,9 @@
 """
 Order management utility functions for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides async/sync helpers for price alignment to instrument tick size, contract
     resolution, and other utility operations used throughout the async OrderManager system.
@@ -9,6 +12,16 @@ Key Features:
     - Aligns prices to valid instrument tick size (async and sync)
     - Resolves contract IDs to instrument metadata
     - Precision rounding and validation helpers
+    - Automatic tick size detection from instrument data
+    - Decimal precision handling for accurate price alignment
+
+Utility Functions:
+    - align_price_to_tick: Synchronous price alignment to tick size
+    - align_price_to_tick_size: Async price alignment with instrument lookup
+    - resolve_contract_id: Contract ID resolution to instrument details
+
+These utilities ensure that all order prices are properly aligned to instrument
+tick sizes, preventing "Invalid price" errors from the exchange.
 
 Example Usage:
     ```python
@@ -16,6 +29,8 @@ Example Usage:
     aligned = align_price_to_tick(2052.17, 0.25)
     # Resolving contract ID
     details = await resolve_contract_id("MNQ", project_x_client)
+    # Async price alignment with automatic tick size detection
+    aligned_price = await align_price_to_tick_size(2052.17, "MGC", client)
     ```
 
 See Also:
@@ -56,14 +71,33 @@ async def align_price_to_tick_size(
     """
     Align a price to the instrument's tick size.
 
+    This function automatically retrieves the instrument's tick size and aligns the
+    provided price to the nearest valid tick. This prevents "Invalid price" errors
+    from the exchange by ensuring all prices conform to the instrument's pricing
+    requirements.
+
+    The function performs the following operations:
+    1. Retrieves instrument data to determine tick size
+    2. Uses precise decimal arithmetic for accurate alignment
+    3. Handles various contract ID formats (simple symbols and full contract IDs)
+    4. Returns the original price if alignment fails (graceful degradation)
+
     Args:
-        price: The price to align
-        contract_id: Contract ID to get tick size from
-        project_x: ProjectX client instance
+        price: The price to align (can be None)
+        contract_id: Contract ID to get tick size from (e.g., "MGC", "F.US.EP.U25")
+        project_x: ProjectX client instance for instrument lookup
 
     Returns:
-        float: Price aligned to tick size
-        None: If price is None
+        float: Price aligned to tick size, or None if input price is None
+
+    Example:
+        >>> # Align a price for MGC (tick size 0.1)
+        >>> aligned = await align_price_to_tick_size(2052.17, "MGC", client)
+        >>> print(aligned)  # 2052.2
+
+        >>> # Align a price for ES (tick size 0.25)
+        >>> aligned = await align_price_to_tick_size(5000.17, "ES", client)
+        >>> print(aligned)  # 5000.25
     """
     try:
         if price is None:

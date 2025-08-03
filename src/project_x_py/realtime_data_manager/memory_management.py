@@ -1,4 +1,74 @@
-"""Memory management and cleanup functionality for real-time data."""
+"""
+Memory management and cleanup functionality for real-time data.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides memory management and cleanup functionality for real-time data processing.
+    Implements efficient memory management with sliding window storage, automatic cleanup,
+    and comprehensive statistics tracking to prevent memory leaks and optimize performance.
+
+Key Features:
+    - Automatic memory cleanup with configurable intervals
+    - Sliding window storage for efficient memory usage
+    - Background cleanup tasks with proper error handling
+    - Comprehensive memory statistics and monitoring
+    - Garbage collection optimization
+    - Thread-safe memory operations
+
+Memory Management Capabilities:
+    - Automatic cleanup of old OHLCV data with sliding windows
+    - Tick buffer management with size limits
+    - Background periodic cleanup tasks
+    - Memory statistics tracking and monitoring
+    - Garbage collection optimization after cleanup
+    - Error handling and recovery for memory issues
+
+Example Usage:
+    ```python
+    # Memory management is handled automatically
+    # Access memory statistics for monitoring
+
+    stats = manager.get_memory_stats()
+    print(f"Total bars in memory: {stats['total_bars']}")
+    print(f"Ticks processed: {stats['ticks_processed']}")
+    print(f"Bars cleaned: {stats['bars_cleaned']}")
+
+    # Check timeframe-specific statistics
+    for tf, count in stats["timeframe_bar_counts"].items():
+        print(f"{tf}: {count} bars")
+
+    # Memory management happens automatically in background
+    # No manual intervention required
+    ```
+
+Memory Management Strategy:
+    - Sliding window: Keep only recent data (configurable limits)
+    - Automatic cleanup: Periodic cleanup of old data
+    - Tick buffering: Limited tick data storage for current price access
+    - Garbage collection: Force GC after significant cleanup operations
+    - Statistics tracking: Comprehensive monitoring of memory usage
+
+Performance Characteristics:
+    - Minimal memory footprint with sliding window storage
+    - Automatic cleanup prevents memory leaks
+    - Background tasks with proper error handling
+    - Efficient garbage collection optimization
+    - Thread-safe operations with proper locking
+
+Configuration:
+    - max_bars_per_timeframe: Maximum bars to keep per timeframe (default: 1000)
+    - tick_buffer_size: Maximum tick data to buffer (default: 1000)
+    - cleanup_interval: Time between cleanup operations (default: 300 seconds)
+
+See Also:
+    - `realtime_data_manager.core.RealtimeDataManager`
+    - `realtime_data_manager.callbacks.CallbackMixin`
+    - `realtime_data_manager.data_access.DataAccessMixin`
+    - `realtime_data_manager.data_processing.DataProcessingMixin`
+    - `realtime_data_manager.validation.ValidationMixin`
+"""
 
 import asyncio
 import gc

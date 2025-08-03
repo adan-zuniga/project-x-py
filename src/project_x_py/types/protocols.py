@@ -1,8 +1,88 @@
 """
 Protocol definitions for type checking across the ProjectX SDK.
 
-This module consolidates all protocol definitions used for type checking
-throughout the SDK, ensuring consistent interfaces between components.
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Consolidates all protocol definitions used for type checking throughout the SDK,
+    ensuring consistent interfaces between components. Provides comprehensive interface
+    definitions for all major SDK components and their interactions.
+
+Key Features:
+    - Protocol definitions for all major SDK components
+    - Interface validation for component interactions
+    - Type safety for async/await patterns
+    - Comprehensive attribute and method definitions
+    - Support for mixin-based architecture
+    - Type checking for real-time data flows
+
+Protocol Categories:
+    - Client Protocols: ProjectXClientProtocol for main client interface
+    - Manager Protocols: OrderManagerProtocol, PositionManagerProtocol for business logic
+    - Real-time Protocols: ProjectXRealtimeClientProtocol, RealtimeDataManagerProtocol
+    - Component Interfaces: Comprehensive interface definitions for all SDK components
+
+Example Usage:
+    ```python
+    from project_x_py.types.protocols import (
+        ProjectXClientProtocol,
+        OrderManagerProtocol,
+        PositionManagerProtocol,
+        RealtimeDataManagerProtocol,
+    )
+
+
+    # Implement protocol for custom client
+    class MyCustomClient:
+        def __init__(self):
+            self.session_token: str = ""
+            self._authenticated: bool = False
+            self.logger = logging.getLogger(__name__)
+
+        async def authenticate(self) -> None:
+            # Implementation
+            pass
+
+        async def get_instrument(self, symbol: str) -> Instrument:
+            # Implementation
+            pass
+
+
+    # Type checking ensures protocol compliance
+    def process_client(client: ProjectXClientProtocol) -> None:
+        # Can safely use all protocol methods
+        pass
+
+
+    # Use in manager implementations
+    class MyOrderManager:
+        def __init__(self, project_x: ProjectXClientProtocol):
+            self.project_x = project_x
+
+        async def place_order(self, contract_id: str, side: int) -> OrderPlaceResponse:
+            # Implementation using protocol methods
+            pass
+    ```
+
+Protocol Definitions:
+    - ProjectXClientProtocol: Main client interface with authentication, HTTP, cache, and trading methods
+    - OrderManagerProtocol: Order management interface with tracking, placement, and modification methods
+    - PositionManagerProtocol: Position management interface with tracking, analytics, and operations
+    - RealtimeDataManagerProtocol: Real-time data management interface with processing and access methods
+    - ProjectXRealtimeClientProtocol: Real-time client interface with connection and event handling
+
+Interface Benefits:
+    - Compile-time type checking for all component interactions
+    - Clear interface definitions for component development
+    - Support for dependency injection and testing
+    - Consistent method signatures across implementations
+    - Type safety for async/await patterns and real-time data flows
+
+See Also:
+    - `types.base`: Core type definitions and constants
+    - `types.trading`: Trading operation types and enums
+    - `types.market_data`: Market data structures and configurations
 """
 
 import asyncio

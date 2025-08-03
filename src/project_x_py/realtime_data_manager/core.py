@@ -1,8 +1,97 @@
 """
 Core RealtimeDataManager class for efficient real-time OHLCV data management.
 
-This module provides the main RealtimeDataManager class that handles real-time
-market data processing across multiple timeframes.
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides the main RealtimeDataManager class that handles real-time market data
+    processing across multiple timeframes. Implements efficient OHLCV (Open, High, Low, Close, Volume)
+    data management with WebSocket integration, automatic bar creation, and comprehensive memory management.
+
+Key Features:
+    - Multi-timeframe OHLCV data management with real-time updates
+    - WebSocket integration for zero-latency tick processing
+    - Automatic bar creation and maintenance across all timeframes
+    - Memory-efficient sliding window storage with automatic cleanup
+    - Event-driven callback system for new bars and data updates
+    - Timezone-aware timestamp handling (default: CME Central Time)
+    - Thread-safe operations with asyncio locks
+    - Comprehensive health monitoring and statistics
+
+Architecture:
+    - Mixin-based design for modular functionality
+    - Dependency injection for ProjectX client and realtime client
+    - Event-driven processing with callback system
+    - Memory management with automatic cleanup
+    - Thread-safe operations with proper locking
+
+Performance Benefits:
+    - 95% reduction in API calls compared to polling
+    - Sub-second data freshness with WebSocket feeds
+    - Synchronized data across all timeframes
+    - Minimal latency for trading signals
+    - Resilience to network issues
+
+Example Usage:
+    ```python
+    # Create shared async realtime client
+    async_realtime_client = ProjectXRealtimeClient(config)
+    await async_realtime_client.connect()
+
+    # Initialize async data manager with dependency injection
+    manager = RealtimeDataManager(
+        instrument="MGC",  # Mini Gold futures
+        project_x=async_project_x_client,  # For historical data loading
+        realtime_client=async_realtime_client,
+        timeframes=["1min", "5min", "15min", "1hr"],
+        timezone="America/Chicago",  # CME timezone
+    )
+
+    # Load historical data for all timeframes
+    if await manager.initialize(initial_days=30):
+        print("Historical data loaded successfully")
+
+    # Start real-time feed (registers callbacks with existing client)
+    if await manager.start_realtime_feed():
+        print("Real-time OHLCV feed active")
+
+
+    # Register callback for new bars
+    async def on_new_bar(data):
+        timeframe = data["timeframe"]
+        bar_data = data["data"]
+        print(f"New {timeframe} bar: Close={bar_data['close']}")
+
+
+    await manager.add_callback("new_bar", on_new_bar)
+
+    # Access multi-timeframe OHLCV data in your trading loop
+    data_5m = await manager.get_data("5min", bars=100)
+    data_15m = await manager.get_data("15min", bars=50)
+    mtf_data = await manager.get_mtf_data()  # All timeframes at once
+
+    # Get current market price (latest tick or bar close)
+    current_price = await manager.get_current_price()
+
+    # When done, clean up resources
+    await manager.cleanup()
+    ```
+
+Supported Timeframes:
+    - Second-based: "1sec", "5sec", "10sec", "15sec", "30sec"
+    - Minute-based: "1min", "5min", "15min", "30min"
+    - Hour-based: "1hr", "4hr"
+    - Day-based: "1day"
+    - Week-based: "1week"
+    - Month-based: "1month"
+
+See Also:
+    - `realtime_data_manager.callbacks.CallbackMixin`
+    - `realtime_data_manager.data_access.DataAccessMixin`
+    - `realtime_data_manager.data_processing.DataProcessingMixin`
+    - `realtime_data_manager.memory_management.MemoryManagementMixin`
+    - `realtime_data_manager.validation.ValidationMixin`
 """
 
 import asyncio

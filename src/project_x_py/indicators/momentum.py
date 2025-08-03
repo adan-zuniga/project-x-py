@@ -1,8 +1,8 @@
 """
 ProjectX Indicators - Momentum Indicators
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     Provides a suite of momentum indicators for ProjectX, covering oscillators and
@@ -20,6 +20,7 @@ Key Features:
 Example Usage:
     ```python
     from project_x_py.indicators import calculate_rsi
+
     data_with_rsi = calculate_rsi(ohlcv_data, period=14)
     ```
 
@@ -41,7 +42,16 @@ from project_x_py.indicators.base import (
 
 
 class RSI(MomentumIndicator):
-    """Relative Strength Index indicator."""
+    """
+    Relative Strength Index (RSI) momentum oscillator.
+
+    RSI is a momentum oscillator that measures the speed and magnitude of price
+    movements. It oscillates between 0 and 100, with readings above 70 typically
+    indicating overbought conditions and readings below 30 indicating oversold conditions.
+
+    The indicator uses Wilder's smoothing method for calculating average gains and losses,
+    providing a more responsive measure of momentum compared to simple moving averages.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -55,20 +65,31 @@ class RSI(MomentumIndicator):
         **kwargs: Any,
     ) -> pl.DataFrame:
         """
-        Calculate Relative Strength Index.
+        Calculate Relative Strength Index (RSI).
+
+        RSI is calculated using Wilder's smoothing method:
+        1. Calculate price changes (current price - previous price)
+        2. Separate gains (positive changes) and losses (negative changes)
+        3. Calculate exponential moving averages of gains and losses
+        4. Apply the RSI formula: RSI = 100 - (100 / (1 + RS))
+           where RS = Average Gain / Average Loss
 
         Args:
             data: DataFrame with OHLCV data
-            column: Column to calculate RSI for
-            period: Period for RSI calculation
+            **kwargs: Additional parameters:
+                column: Column to calculate RSI for (default: "close")
+                period: Period for RSI calculation (default: 14)
 
         Returns:
-            DataFrame with RSI column added
+            pl.DataFrame: DataFrame with original data plus RSI column.
+                         The RSI column is named "rsi_{period}" (e.g., "rsi_14")
 
         Example:
             >>> rsi = RSI()
             >>> data_with_rsi = rsi.calculate(ohlcv_data, period=14)
             >>> print(data_with_rsi.columns)  # Now includes 'rsi_14'
+            >>> # Filter overbought conditions
+            >>> overbought = data_with_rsi.filter(pl.col("rsi_14") > 70)
         """
         # Extract parameters from kwargs
         column: str = kwargs.get("column", "close")
@@ -136,7 +157,18 @@ class RSI(MomentumIndicator):
 
 
 class MACD(MomentumIndicator):
-    """Moving Average Convergence Divergence indicator."""
+    """
+    Moving Average Convergence Divergence (MACD) indicator.
+
+    MACD is a trend-following momentum indicator that shows the relationship between
+    two moving averages of a security's price. It consists of three components:
+    - MACD Line: Difference between fast and slow exponential moving averages
+    - Signal Line: Exponential moving average of the MACD line
+    - Histogram: Difference between MACD line and signal line
+
+    MACD is used to identify trend changes, momentum shifts, and potential buy/sell
+    signals based on crossovers and divergences.
+    """
 
     def __init__(self) -> None:
         super().__init__(

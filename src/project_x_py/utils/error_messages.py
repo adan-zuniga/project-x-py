@@ -1,11 +1,92 @@
 """
 Standardized error messages for ProjectX SDK.
 
-This module provides consistent error messages and error formatting
-utilities to ensure uniform error reporting across the SDK.
+Author: @TexasCoding
+Date: 2025-08-02
 
-Author: TexasCoding
-Date: January 2025
+Overview:
+    Provides consistent error messages and error formatting utilities to ensure
+    uniform error reporting across the SDK. Includes standardized error codes,
+    message templates, and error context creation for comprehensive error handling.
+
+Key Features:
+    - Standardized error messages for common scenarios
+    - Error code categorization for different error types
+    - Error message formatting with dynamic values
+    - Error context creation with metadata
+    - Exception enhancement with additional context
+    - Comprehensive error categorization system
+
+Error Categories:
+    - Authentication: Login, token, and permission errors
+    - Connection: Network, timeout, and SSL errors
+    - API: Endpoint, method, and server errors
+    - Data: Validation, parsing, and format errors
+    - Trading: Order, position, and instrument errors
+    - WebSocket: Connection, subscription, and message errors
+    - Configuration: Missing, invalid, and parse errors
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        ErrorMessages,
+        ErrorCode,
+        format_error_message,
+        create_error_context,
+        enhance_exception,
+    )
+
+    # Use standardized error messages
+    error_msg = format_error_message(
+        ErrorMessages.API_RESOURCE_NOT_FOUND, resource="order/123"
+    )
+    # Returns: "Resource not found: order/123"
+
+    # Create error context
+    context = create_error_context("place_order", order_id="123", side="buy")
+
+    # Enhance exceptions with context
+    try:
+        # Some operation
+        pass
+    except Exception as e:
+        enhanced_error = enhance_exception(e, "place_order", order_id="123")
+        raise enhanced_error
+
+    # Get error code for categorization
+    error_code = get_error_code(exception)
+    if error_code == ErrorCode.API_RATE_LIMIT:
+        # Handle rate limit error
+        pass
+    ```
+
+Error Message Features:
+    - Template-based messages with dynamic values
+    - Comprehensive error categorization
+    - Standardized error codes for programmatic handling
+    - Rich error context with metadata
+    - Exception enhancement with additional information
+    - Consistent error reporting across all modules
+
+Error Code Categories:
+    - 1xxx: Authentication errors (AUTH_REQUIRED, AUTH_INVALID, etc.)
+    - 2xxx: Connection errors (CONN_FAILED, CONN_TIMEOUT, etc.)
+    - 3xxx: API errors (API_NOT_FOUND, API_RATE_LIMIT, etc.)
+    - 4xxx: Data errors (DATA_VALIDATION, DATA_PARSING, etc.)
+    - 5xxx: Trading errors (ORDER_INVALID, POSITION_NOT_FOUND, etc.)
+    - 6xxx: WebSocket errors (WS_CONNECTION, WS_AUTH, etc.)
+    - 9xxx: Internal errors (INTERNAL_ERROR, NOT_IMPLEMENTED, etc.)
+
+Performance Characteristics:
+    - Efficient error message formatting
+    - Minimal memory overhead for error context
+    - Fast error code categorization
+    - Thread-safe error handling operations
+    - Optimized for high-frequency error scenarios
+
+See Also:
+    - `utils.error_handler`: Error handling decorators and utilities
+    - `utils.logging_config`: Logging for error reporting
 """
 
 from datetime import UTC

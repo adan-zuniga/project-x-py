@@ -1,4 +1,66 @@
-"""Subscription management for real-time client."""
+"""
+Subscription management for real-time client.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides subscription management functionality for the ProjectX real-time client,
+    including user updates, market data subscriptions, and dynamic subscription
+    management for specific contracts and data types.
+
+Key Features:
+    - User update subscriptions (account, position, order, trade events)
+    - Market data subscriptions (quotes, trades, market depth)
+    - Dynamic subscription management for specific contracts
+    - Subscription tracking for reconnection handling
+    - Thread-safe subscription operations
+    - Comprehensive error handling and logging
+
+Subscription Capabilities:
+    - User Hub: Account, position, order, and trade subscriptions
+    - Market Hub: Quote, trade, and market depth subscriptions
+    - Contract-specific market data subscriptions
+    - Subscription management and tracking
+    - Reconnection handling with subscription restoration
+    - Error handling and recovery
+
+Example Usage:
+    ```python
+    # Subscribe to user updates
+    if await client.connect():
+        await client.subscribe_user_updates()
+
+        # Subscribe to market data for specific contracts
+        await client.subscribe_market_data(["MGC", "NQ", "ES"])
+
+        # Add more contracts dynamically
+        await client.subscribe_market_data(["YM"])
+
+        # Unsubscribe from specific contracts
+        await client.unsubscribe_market_data(["YM"])
+
+        # Unsubscribe from user updates
+        await client.unsubscribe_user_updates()
+    ```
+
+Subscription Types:
+    User Subscriptions:
+        - SubscribeAccounts: Account balance and margin updates
+        - SubscribeOrders: Order lifecycle events
+        - SubscribePositions: Position changes and closures
+        - SubscribeTrades: Trade execution events
+
+    Market Subscriptions:
+        - SubscribeContractQuotes: Real-time bid/ask data
+        - SubscribeContractTrades: Executed trade data
+        - SubscribeContractMarketDepth: Order book data
+
+See Also:
+    - `realtime.core.ProjectXRealtimeClient`
+    - `realtime.connection_management.ConnectionManagementMixin`
+    - `realtime.event_handling.EventHandlingMixin`
+"""
 
 import asyncio
 from typing import TYPE_CHECKING

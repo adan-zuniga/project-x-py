@@ -1,6 +1,9 @@
 """
 Async HTTP/2 client, rate-limiting, and robust error handling for ProjectX SDK.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Implements the async HTTP/2 client logic for ProjectX API access, including connection
     pooling, automatic retry on transient errors, and adaptive rate limiting. All API calls
@@ -21,10 +24,12 @@ Example Usage:
     import asyncio
     from project_x_py import ProjectX
 
+
     async def main():
         async with ProjectX.from_env() as client:
             status = await client.get_health_status()
             print(status["api_status"], status["client_stats"]["api_calls"])
+
 
     asyncio.run(main())
     ```
@@ -119,7 +124,20 @@ class HttpMixin:
         return client
 
     async def _ensure_client(self: "ProjectXClientProtocol") -> httpx.AsyncClient:
-        """Ensure HTTP client is initialized."""
+        """
+        Ensure HTTP client is initialized and ready for API requests.
+
+        This method lazily initializes the HTTP client when needed, creating a new
+        client instance if one doesn't exist. It's used internally before making
+        any API requests to ensure a valid client connection is available.
+
+        Returns:
+            httpx.AsyncClient: The initialized HTTP client instance
+
+        Note:
+            This method is called automatically by _make_request and doesn't need
+            to be called directly in normal usage.
+        """
         if self._client is None:
             self._client = await self._create_client()
         return self._client

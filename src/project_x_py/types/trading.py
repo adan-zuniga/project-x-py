@@ -1,8 +1,104 @@
 """
 Trading-related type definitions for orders and positions.
 
-This module contains type definitions for trading operations including
-order management, position tracking, and execution statistics.
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Contains type definitions for trading operations including order management,
+    position tracking, and execution statistics. Provides comprehensive type safety
+    for all trading-related operations and data structures.
+
+Key Features:
+    - Order side and type enumerations for trading operations
+    - Order status tracking and management
+    - Position side definitions for long/short positions
+    - Order statistics tracking and reporting
+    - Type safety for all trading operations
+    - Comprehensive enum definitions for ProjectX trading
+
+Type Categories:
+    - Order Types: OrderSide, OrderType, OrderStatus for order management
+    - Position Types: PositionSide for position tracking
+    - Statistics: OrderStats for order execution tracking
+
+Example Usage:
+    ```python
+    from project_x_py.types.trading import (
+        OrderSide,
+        OrderType,
+        OrderStatus,
+        PositionSide,
+        OrderStats,
+    )
+
+
+    # Use order side enumeration
+    def place_order(side: OrderSide, size: int) -> None:
+        if side == OrderSide.BUY:
+            print(f"Placing buy order for {size} contracts")
+        else:
+            print(f"Placing sell order for {size} contracts")
+
+
+    # Use order type enumeration
+    def create_order(order_type: OrderType, price: float) -> None:
+        if order_type == OrderType.MARKET:
+            print("Creating market order")
+        elif order_type == OrderType.LIMIT:
+            print(f"Creating limit order at {price}")
+        elif order_type == OrderType.STOP:
+            print(f"Creating stop order at {price}")
+
+
+    # Use order status tracking
+    def track_order_status(status: OrderStatus) -> None:
+        if status == OrderStatus.OPEN:
+            print("Order is open and active")
+        elif status == OrderStatus.FILLED:
+            print("Order has been filled")
+        elif status == OrderStatus.CANCELLED:
+            print("Order has been cancelled")
+
+
+    # Use position side enumeration
+    def manage_position(side: PositionSide, size: int) -> None:
+        if side == PositionSide.LONG:
+            print(f"Long position: {size} contracts")
+        elif side == PositionSide.SHORT:
+            print(f"Short position: {size} contracts")
+        else:
+            print("Flat position")
+
+
+    # Use order statistics
+    def track_order_stats(stats: OrderStats) -> None:
+        print(f"Orders placed: {stats['orders_placed']}")
+        print(f"Orders cancelled: {stats['orders_cancelled']}")
+        print(f"Orders modified: {stats['orders_modified']}")
+    ```
+
+Order Types:
+    - OrderSide: BUY=0, SELL=1 for order direction
+    - OrderType: MARKET=0, LIMIT=1, STOP=2, STOP_LIMIT=3, TRAILING_STOP=4
+    - OrderStatus: PENDING=0, OPEN=1, FILLED=2, CANCELLED=3, REJECTED=4, EXPIRED=5
+
+Position Types:
+    - PositionSide: LONG=0, SHORT=1, FLAT=2 for position direction
+
+Statistics Types:
+    - OrderStats: Comprehensive order execution statistics with timestamps
+
+Trading Operations:
+    - Order placement with side and type specifications
+    - Order status tracking and management
+    - Position side management for long/short positions
+    - Order statistics tracking for performance analysis
+
+See Also:
+    - `types.base`: Core type definitions and constants
+    - `types.market_data`: Market data structures and configurations
+    - `types.protocols`: Protocol definitions for type checking
 """
 
 from datetime import datetime

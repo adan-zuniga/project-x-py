@@ -1,24 +1,68 @@
 """Async rate limiting for API calls.
 
-This module provides a thread-safe, async rate limiter using a sliding window
-algorithm. It ensures that no more than a specified number of requests are
-made within a given time window.
+Author: @TexasCoding
+Date: 2025-08-02
 
-Example:
-    >>> limiter = RateLimiter(
-    ...     max_requests=60, window_seconds=60
-    ... )  # 60 requests per minute
-    >>> async def make_api_call():
-    ...     await limiter.acquire()
-    ...     # Make your API call here
-    ...     response = await client.get("/api/endpoint")
-    ...     return response
+Overview:
+    Provides a thread-safe, async rate limiter using a sliding window algorithm.
+    Ensures that no more than a specified number of requests are made within a
+    given time window. Essential for respecting API rate limits and preventing
+    server overload in high-frequency trading applications.
 
-The rate limiter is particularly useful for:
-- Respecting API rate limits
-- Preventing server overload
-- Implementing fair usage policies
-- Testing rate-limited scenarios
+Key Features:
+    - Thread-safe using asyncio locks
+    - Accurate sliding window implementation
+    - Automatic cleanup of old request timestamps
+    - Memory-efficient with bounded history
+    - Zero CPU usage while waiting
+    - Support for both async and sync operations
+
+Rate Limiting Benefits:
+    - Respecting API rate limits to avoid 429 errors
+    - Preventing server overload and connection drops
+    - Implementing fair usage policies across multiple clients
+    - Testing rate-limited scenarios and edge cases
+    - Ensuring consistent API performance
+
+Example Usage:
+    ```python
+    from project_x_py.utils import RateLimiter
+
+    # Create rate limiter for 60 requests per minute
+    limiter = RateLimiter(max_requests=60, window_seconds=60)
+
+
+    async def make_api_call():
+        await limiter.acquire()  # Wait if necessary
+        # Make your API call here
+        response = await client.get("/api/endpoint")
+        return response
+
+
+    # Use in bulk operations
+    async def bulk_api_calls():
+        tasks = [make_api_call() for _ in range(100)]
+        results = await asyncio.gather(*tasks)
+        # This will take ~1.67 minutes (100 requests / 60 per minute)
+    ```
+
+Algorithm Details:
+    - Sliding window tracks exact timestamp of each request
+    - Automatically removes requests outside the time window
+    - Calculates precise wait time based on oldest relevant request
+    - Memory bounded to prevent excessive storage usage
+    - Thread-safe operations with proper asyncio locking
+
+Performance Characteristics:
+    - Minimal memory overhead with automatic cleanup
+    - Zero CPU usage during wait periods
+    - Accurate rate limiting with sub-second precision
+    - Thread-safe for concurrent operations
+    - Efficient for high-frequency trading scenarios
+
+See Also:
+    - `utils.error_handler`: Error handling for rate limit errors
+    - `utils.logging_config`: Logging for rate limit monitoring
 """
 
 import asyncio

@@ -1,6 +1,9 @@
 """
 In-memory caching for instrument and market data with TTL and performance tracking.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides efficient, per-symbol in-memory caching for instrument metadata and historical
     market data. Uses time-based TTL (time-to-live) for automatic expiry and memory cleanup,
@@ -67,7 +70,20 @@ class CacheMixin:
         self.cache_hit_count = 0
 
     async def _cleanup_cache(self: "ProjectXClientProtocol") -> None:
-        """Clean up expired cache entries."""
+        """
+        Clean up expired cache entries to manage memory usage.
+
+        This method removes expired entries from both instrument and market data caches
+        based on the configured TTL (time-to-live). It helps prevent unbounded memory
+        growth during long-running sessions by:
+
+        1. Removing instrument cache entries that have exceeded their TTL
+        2. Removing market data cache entries that have exceeded their TTL
+        3. Triggering garbage collection when a significant number of entries are removed
+
+        The method is called periodically during normal API operations and updates
+        the last_cache_cleanup timestamp to track when cleanup was last performed.
+        """
         current_time = time.time()
 
         # Clean instrument cache

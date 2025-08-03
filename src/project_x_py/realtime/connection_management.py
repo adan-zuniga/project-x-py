@@ -1,4 +1,56 @@
-"""Connection management functionality for real-time client."""
+"""
+Connection management functionality for real-time client.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides connection management functionality for the ProjectX real-time client,
+    including SignalR hub setup, connection establishment, reconnection handling,
+    and JWT token refresh capabilities.
+
+Key Features:
+    - Dual-hub SignalR connection setup and management
+    - Automatic reconnection with exponential backoff
+    - JWT token authentication and refresh handling
+    - Connection health monitoring and error handling
+    - Thread-safe operations with proper lock management
+    - Comprehensive connection statistics and health tracking
+
+Connection Management Capabilities:
+    - SignalR hub setup with ProjectX Gateway configuration
+    - Connection establishment and health monitoring
+    - Automatic reconnection with configurable intervals
+    - JWT token refresh and reconnection handling
+    - Connection event handling and error processing
+    - Statistics tracking and health reporting
+
+Example Usage:
+    ```python
+    # Setup and connect
+    client = ProjectXRealtimeClient(jwt_token, account_id)
+    await client.setup_connections()
+
+    if await client.connect():
+        print("Connected to ProjectX Gateway")
+
+        # Check connection status
+        if client.is_connected():
+            print("Both hubs connected")
+
+        # Get connection statistics
+        stats = client.get_stats()
+        print(f"Events received: {stats['events_received']}")
+
+        # Update JWT token on refresh
+        await client.update_jwt_token(new_jwt_token)
+    ```
+
+See Also:
+    - `realtime.core.ProjectXRealtimeClient`
+    - `realtime.event_handling.EventHandlingMixin`
+    - `realtime.subscriptions.SubscriptionsMixin`
+"""
 
 import asyncio
 import logging

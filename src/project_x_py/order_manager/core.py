@@ -1,6 +1,9 @@
 """
 Async OrderManager core for ProjectX trading.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Contains the main OrderManager class, orchestrating all async order operations
     (placement, modification, cancellation, tracking) and integrating mixins for
@@ -81,6 +84,8 @@ class OrderManager(
         - Async-safe operations for concurrent trading
         - Order callback registration for custom event handling
         - Performance optimization with local order caching
+        - Comprehensive error handling and validation
+        - Thread-safe operations with async locks
 
     Order Status Enum Values:
         - 0: None (undefined)
@@ -102,6 +107,10 @@ class OrderManager(
         - 5: TrailingStop
         - 6: JoinBid
         - 7: JoinAsk
+
+    The OrderManager combines multiple mixins to provide a unified interface for all
+    order-related operations, ensuring consistent behavior and comprehensive functionality
+    across different order types and strategies.
     """
 
     def __init__(self, project_x_client: "ProjectXBase"):
@@ -158,6 +167,8 @@ class OrderManager(
         2. Fills, cancellations and rejections are processed in real-time
         3. The order_manager caches order data to reduce API calls
         4. Callbacks can be triggered for custom event handling
+        5. WebSocket connections are established for live updates
+        6. Order tracking is optimized for minimal latency
 
         Args:
             realtime_client: Optional AsyncProjectXRealtimeClient for live order tracking.
@@ -166,6 +177,11 @@ class OrderManager(
 
         Returns:
             bool: True if initialization successful, False otherwise.
+
+        Note:
+            Real-time tracking is highly recommended for production trading as it
+            provides immediate order status updates and significantly reduces API
+            rate limit consumption.
         """
         try:
             # Set up real-time integration if provided
@@ -223,9 +239,17 @@ class OrderManager(
         to prevent "Invalid price" errors from the exchange. The method is thread-safe and can be
         called concurrently from multiple tasks.
 
+        The method performs several important operations:
+        1. Validates all input parameters (size, prices, etc.)
+        2. Aligns all prices to the instrument's tick size
+        3. Ensures proper account authentication
+        4. Places the order via the ProjectX API
+        5. Updates internal statistics and tracking
+        6. Logs the operation for debugging
+
         Args:
             contract_id: The contract ID to trade (e.g., "MGC", "MES", "F.US.EP")
-            order_type: Order type integer value
+            order_type: Order type integer value (1=Limit, 2=Market, 4=Stop, 5=TrailingStop)
             side: Order side integer value: 0=Buy, 1=Sell
             size: Number of contracts to trade (positive integer)
             limit_price: Limit price for limit orders, automatically aligned to tick size.
@@ -240,6 +264,13 @@ class OrderManager(
 
         Raises:
             ProjectXOrderError: If order placement fails due to invalid parameters or API errors
+
+        Example:
+            >>> # Place a limit buy order
+            >>> response = await om.place_order(
+            ...     contract_id="MGC", order_type=1, side=0, size=1, limit_price=2050.0
+            ... )
+            >>> print(f"Order placed: {response.orderId}")
         """
         # Add logging context
         with LogContext(

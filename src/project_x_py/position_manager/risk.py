@@ -1,4 +1,54 @@
-"""Risk metrics and position sizing functionality."""
+"""
+Risk metrics and position sizing functionality for ProjectX position management.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides comprehensive risk management and position sizing functionality for
+    position management. Includes portfolio risk assessment, position sizing
+    calculations, and risk warning generation for effective risk management.
+
+Key Features:
+    - Portfolio risk assessment and concentration analysis
+    - Position sizing calculations with configurable risk parameters
+    - Risk warning generation and threshold monitoring
+    - Diversification scoring and portfolio health metrics
+    - Configurable risk settings and thresholds
+    - Thread-safe operations with proper error handling
+
+Risk Management Capabilities:
+    - Portfolio risk assessment with concentration analysis
+    - Position sizing with fixed-risk calculations
+    - Risk warning generation based on configurable thresholds
+    - Diversification scoring and portfolio health metrics
+    - Account balance integration for percentage-based risk
+
+Example Usage:
+    ```python
+    # Analyze portfolio risk
+    risk_metrics = await position_manager.get_risk_metrics()
+    print(f"Portfolio risk: {risk_metrics['portfolio_risk']:.2%}")
+    print(f"Diversification: {risk_metrics['diversification_score']:.2f}")
+
+    # Check for risk warnings
+    if risk_metrics["risk_warnings"]:
+        for warning in risk_metrics["risk_warnings"]:
+            print(f"⚠️  {warning}")
+
+    # Calculate position size
+    sizing = await position_manager.calculate_position_size(
+        "MGC", risk_amount=500.0, entry_price=2050.0, stop_price=2040.0
+    )
+    print(f"Suggested size: {sizing['suggested_size']} contracts")
+    print(f"Risk: ${sizing['total_risk']:.2f} ({sizing['risk_percentage']:.1f}%)")
+    ```
+
+See Also:
+    - `position_manager.core.PositionManager`
+    - `position_manager.analytics.PositionAnalyticsMixin`
+    - `position_manager.monitoring.PositionMonitoringMixin`
+"""
 
 from typing import TYPE_CHECKING, Any
 

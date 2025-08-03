@@ -1,6 +1,9 @@
 """
 Async detection algorithms for ProjectX orderbook.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Implements sophisticated detection logic for iceberg orders, clusters, and
     hidden liquidity in the ProjectX async orderbook. Uses historical price
@@ -12,12 +15,31 @@ Key Features:
     - Order clustering and spread concentration analysis
     - Market microstructure and hidden volume metrics
     - Configurable detection sensitivity and parameters
+    - Advanced market metrics and book pressure analysis
+    - Real-time detection with historical pattern recognition
+    - Comprehensive error handling and graceful degradation
+
+Detection Algorithms:
+    - Iceberg Orders: Large orders split into smaller pieces to hide true size
+    - Order Clusters: Groups of orders at similar price levels indicating coordination
+    - Market Microstructure: Book pressure, trade intensity, and price concentration
+    - Hidden Liquidity: Volume patterns suggesting institutional activity
+    - Advanced Metrics: Comprehensive market structure analysis
 
 Example Usage:
     ```python
     # Assuming orderbook is initialized and populated
     icebergs = await orderbook.detect_iceberg_orders(min_refreshes=5)
     print([i["price"] for i in icebergs["iceberg_levels"]])
+
+    # Order clustering analysis
+    clusters = await orderbook.detect_order_clusters(min_cluster_size=3)
+    for cluster in clusters:
+        print(f"Cluster at {cluster['center_price']}: {cluster['total_volume']}")
+
+    # Advanced market metrics
+    metrics = await orderbook.get_advanced_market_metrics()
+    print(f"Book pressure ratio: {metrics['book_pressure']['pressure_ratio']}")
     ```
 
 See Also:
@@ -51,6 +73,8 @@ class OrderDetection:
        that may represent coordinated activity or key liquidity zones
     3. Advanced market metrics - Calculates metrics like book pressure and
        price concentration to reveal hidden market dynamics
+    4. Hidden liquidity detection - Identifies volume patterns suggesting institutional activity
+    5. Market microstructure analysis - Comprehensive market structure metrics
 
     Each detection algorithm follows these principles:
     - Configurable sensitivity with reasonable defaults
@@ -58,10 +82,17 @@ class OrderDetection:
     - Comprehensive metadata to explain the reasoning behind detections
     - Thread-safe implementation through orderbook lock usage
     - Proper error handling with graceful degradation
+    - Real-time detection with historical pattern recognition
 
     The detection methods leverage the historical data accumulated by the orderbook
     to identify patterns over time rather than just analyzing the current state,
     allowing for more sophisticated and reliable detections.
+
+    Performance Characteristics:
+        - Real-time detection capabilities with minimal latency
+        - Memory-efficient algorithms using historical data
+        - Configurable detection sensitivity and parameters
+        - Thread-safe operations with proper lock management
     """
 
     def __init__(self, orderbook: OrderBookBase):
@@ -186,7 +217,22 @@ class OrderDetection:
                 }
 
     def _analyze_volume_replenishment(self, history: list[dict[str, Any]]) -> int:
-        """Count volume replenishment events in price level history."""
+        """
+        Count volume replenishment events in price level history.
+
+        This method analyzes the volume history for a specific price level to identify
+        patterns that suggest iceberg order activity. Iceberg orders typically show
+        repeated replenishment where volume decreases (due to fills) and then
+        immediately increases again (new iceberg slice revealed).
+
+        Args:
+            history: List of volume updates for a price level, each containing:
+                - volume: Volume at the price level
+                - timestamp: Time of the update
+
+        Returns:
+            int: Number of replenishment events detected
+        """
         if len(history) < 2:
             return 0
 
@@ -204,7 +250,27 @@ class OrderDetection:
     def _calculate_iceberg_confidence(
         self, history: list[dict[str, Any]], replenishments: int
     ) -> float:
-        """Calculate confidence score for iceberg detection."""
+        """
+        Calculate confidence score for iceberg detection.
+
+        This method computes a confidence score (0.0 to 1.0) indicating how likely
+        it is that the observed price level behavior represents an iceberg order.
+        The score is based on multiple factors that are characteristic of iceberg
+        order patterns.
+
+        Scoring components:
+        1. Refresh frequency (40%): More frequent refreshes increase confidence
+        2. Replenishment pattern (40%): More replenishment events increase confidence
+        3. Volume consistency (20%): Consistent volume sizes increase confidence
+
+        Args:
+            history: List of volume updates for the price level
+            replenishments: Number of replenishment events detected
+
+        Returns:
+            float: Confidence score between 0.0 and 1.0 where higher values
+                indicate stronger evidence of iceberg order activity
+        """
         if not history:
             return 0.0
 
@@ -227,7 +293,31 @@ class OrderDetection:
     def _estimate_iceberg_hidden_size(
         self, history: list[dict[str, Any]], avg_volume: float
     ) -> float:
-        """Estimate the hidden size of an iceberg order."""
+        """
+        Estimate the hidden size of an iceberg order.
+
+        This method attempts to estimate the total size of an iceberg order based
+        on the observed refresh patterns and volume behavior. The estimation
+        considers how frequently the order refreshes and the average volume
+        displayed to project the total hidden quantity.
+
+        The estimation algorithm:
+        1. Calculates refresh rate based on history length over time window
+        2. Projects total activity by scaling average volume by refresh rate
+        3. Subtracts visible volume to estimate hidden portion
+
+        Args:
+            history: List of volume updates for the price level
+            avg_volume: Average volume observed at this price level
+
+        Returns:
+            float: Estimated hidden size of the iceberg order. Returns 0 if
+                the estimation suggests no hidden volume.
+
+        Note:
+            This is a heuristic estimation and actual hidden sizes may vary
+            significantly. Use for relative comparison rather than absolute sizing.
+        """
         # Simple estimation based on refresh frequency and volume
         refresh_rate = len(history) / 10  # Assume 10 minute window
         estimated_total = avg_volume * refresh_rate * 10  # Project over time
@@ -283,7 +373,38 @@ class OrderDetection:
         min_cluster_size: int,
         price_tolerance: float,
     ) -> list[dict[str, Any]]:
-        """Find order clusters in orderbook data."""
+        """
+        Find order clusters in orderbook data.
+
+        This method identifies clusters of orders at similar price levels within
+        the orderbook. Clusters represent areas where multiple orders are grouped
+        closely together, which may indicate institutional activity, key price
+        levels, or coordinated trading behavior.
+
+        Algorithm:
+        1. Sorts orderbook by price (descending for bids, ascending for asks)
+        2. Iterates through price levels to find groups within tolerance
+        3. Forms clusters by grouping nearby prices
+        4. Filters clusters that meet minimum size requirements
+        5. Calculates cluster statistics (center price, volume, etc.)
+
+        Args:
+            orderbook_df: DataFrame containing orderbook data with price/volume columns
+            side: "bid" or "ask" to specify which side of the book to analyze
+            min_cluster_size: Minimum number of orders required to form a cluster
+            price_tolerance: Maximum price difference to group orders together
+
+        Returns:
+            List of cluster dictionaries, each containing:
+                - side: "bid" or "ask"
+                - center_price: Average price of the cluster
+                - price_range: (min_price, max_price) tuple
+                - total_volume: Sum of all volumes in the cluster
+                - order_count: Number of price levels in the cluster
+                - avg_order_size: Average volume per price level
+                - prices: List of all prices in the cluster
+                - volumes: List of all volumes in the cluster
+        """
         if orderbook_df.is_empty():
             return []
 

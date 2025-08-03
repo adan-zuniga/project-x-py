@@ -1,24 +1,96 @@
 """
 ProjectX Python SDK for Trading Applications
 
-A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing developers
-with tools to build sophisticated trading strategies and applications. This library offers
-comprehensive access to:
+Author: @TexasCoding
+Date: 2025-08-02
 
-- Market data retrieval and real-time streaming
-- Account management and authentication
-- Order placement, modification, and cancellation
-- Position management and portfolio analytics
-- Trade history and execution analysis
-- Advanced technical indicators and market analysis
-- Level 2 orderbook depth and market microstructure
+Overview:
+    A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing
+    developers with tools to build sophisticated trading strategies and applications.
+    This library offers comprehensive access to real-time market data, order management,
+    position tracking, and advanced analytics for algorithmic trading.
+
+Key Features:
+    - Real-time market data streaming and historical data access
+    - Comprehensive order management (market, limit, stop, bracket orders)
+    - Position tracking and portfolio analytics
+    - Level 2 orderbook depth and market microstructure analysis
+    - Advanced technical indicators and pattern recognition
+    - Risk management and position sizing tools
+    - Multi-timeframe data management and analysis
+    - WebSocket-based real-time updates and event handling
+
+Core Components:
+    - ProjectX: Main client for API interactions and authentication
+    - OrderManager: Order placement, modification, and tracking
+    - PositionManager: Position monitoring, analytics, and risk management
+    - OrderBook: Level 2 market depth analysis and order flow
+    - RealtimeDataManager: Multi-timeframe real-time data processing
+    - ProjectXRealtimeClient: WebSocket-based real-time connections
+
+Trading Capabilities:
+    - Market data retrieval and real-time streaming
+    - Account management and authentication
+    - Order placement, modification, and cancellation
+    - Position management and portfolio analytics
+    - Trade history and execution analysis
+    - Advanced technical indicators and market analysis
+    - Level 2 orderbook depth and market microstructure
+    - Risk management and position sizing
+
+Example Usage:
+    ```python
+    from project_x_py import ProjectX, OrderManager, PositionManager
+
+    # Basic client setup
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+
+        # Get market data
+        bars = await client.get_bars("MGC", days=5)
+        instrument = await client.get_instrument("MGC")
+
+        # Place orders
+        order_manager = OrderManager(client)
+        response = await order_manager.place_market_order(
+            contract_id=instrument.id,
+            side=0,  # Buy
+            size=1,
+        )
+
+        # Track positions
+        position_manager = PositionManager(client)
+        positions = await position_manager.get_all_positions()
+
+        # Create complete trading suite
+        suite = await create_trading_suite(
+            instrument="MGC", project_x=client, timeframes=["1min", "5min", "15min"]
+        )
+    ```
+
+Architecture Benefits:
+    - Async-first design for high-performance trading applications
+    - Comprehensive error handling and retry logic
+    - Rate limiting and connection management
+    - Real-time data processing with WebSocket integration
+    - Modular design for flexible trading system development
+    - Type-safe operations with comprehensive validation
 
 **Important**: This is a development toolkit/SDK, not a trading strategy itself.
 It provides the infrastructure to help developers create their own trading applications
 that integrate with the ProjectX platform.
 
+Version: 2.0.5
 Author: TexasCoding
-Date: January 2025
+
+See Also:
+    - `client`: Main client for API interactions
+    - `order_manager`: Order management and tracking
+    - `position_manager`: Position monitoring and analytics
+    - `orderbook`: Level 2 market depth analysis
+    - `realtime_data_manager`: Real-time data processing
+    - `indicators`: Technical analysis and indicators
+    - `utils`: Utility functions and calculations
 """
 
 from typing import Any

@@ -1,6 +1,9 @@
 """
 Base async orderbook functionality for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Defines the core data structures and foundational async methods for the ProjectX
     orderbook system. Implements thread-safe storage, trade history, best price/spread
@@ -12,6 +15,17 @@ Key Features:
     - Price level refreshment for iceberg/cluster analysis
     - Async callback/event registration for orderbook events
     - Configurable memory management and cleanup
+    - Real-time data validation and error handling
+    - Comprehensive orderbook snapshot generation
+    - Trade flow classification and statistics
+
+Core Data Structures:
+    - orderbook_bids/asks: Polars DataFrames for price level storage
+    - recent_trades: Trade execution history with classification
+    - price_level_history: Historical price level updates for analysis
+    - best_bid/ask_history: Top-of-book price tracking
+    - spread_history: Bid-ask spread monitoring
+    - trade_flow_stats: Aggressive/passive trade classification
 
 Example Usage:
     ```python
@@ -19,6 +33,18 @@ Example Usage:
     base = OrderBookBase("MNQ")
     await base.get_best_bid_ask()
     await base.add_callback("trade", lambda d: print(d))
+
+    # Get orderbook snapshot
+    snapshot = await base.get_orderbook_snapshot(levels=5)
+    print(f"Best bid: {snapshot['best_bid']}, Best ask: {snapshot['best_ask']}")
+
+
+    # Register callbacks for real-time events
+    async def on_trade(data):
+        print(f"Trade: {data['volume']} @ {data['price']}")
+
+
+    await base.add_callback("trade", on_trade)
     ```
 
 See Also:
@@ -72,6 +98,8 @@ class OrderBookBase:
     4. Provide thread-safe data access through locks
     5. Implement the callback registration system
     6. Support price level history tracking for advanced analytics
+    7. Manage trade flow statistics and classification
+    8. Handle real-time data validation and error recovery
 
     This base class is designed to be extended by the full OrderBook implementation,
     which adds specialized components for analytics, detection algorithms, and real-time
@@ -80,6 +108,20 @@ class OrderBookBase:
     Thread safety:
         All public methods acquire the appropriate locks before accessing shared data
         structures, making them safe to call from multiple asyncio tasks concurrently.
+
+    Data Structures:
+        - orderbook_bids/asks: Polars DataFrames storing price levels with volumes
+        - recent_trades: Trade execution history with side classification
+        - price_level_history: Historical updates for iceberg/cluster analysis
+        - best_bid/ask_history: Top-of-book price tracking over time
+        - spread_history: Bid-ask spread monitoring and statistics
+        - trade_flow_stats: Aggressive/passive trade classification metrics
+
+    Performance Characteristics:
+        - Memory-efficient Polars DataFrame operations
+        - Thread-safe concurrent access patterns
+        - Real-time data processing capabilities
+        - Automatic memory management integration
     """
 
     def __init__(
@@ -584,7 +626,22 @@ class OrderBookBase:
                 )
 
     async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
-        """Trigger all callbacks for a specific event type."""
+        """
+        Trigger all callbacks for a specific event type.
+
+        This method executes all registered callbacks for a given event type,
+        handling both synchronous and asynchronous callback functions. It
+        ensures that callback failures don't prevent other callbacks from
+        executing or affect the orderbook's operation.
+
+        Args:
+            event_type: The type of event that occurred (e.g., "trade", "depth_update")
+            data: Event data to pass to the callbacks
+
+        Note:
+            Callback errors are logged but do not raise exceptions to prevent
+            disrupting the orderbook's operation.
+        """
         callbacks = self.callbacks.get(event_type, [])
         for callback in callbacks:
             try:

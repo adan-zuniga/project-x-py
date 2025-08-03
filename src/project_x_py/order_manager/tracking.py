@@ -1,6 +1,9 @@
 """
 Async order tracking and real-time monitoring for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Implements mixin logic for tracking order status, maintaining local state and cache,
     and handling real-time updates from websocket events. Supports callback registration
@@ -12,12 +15,31 @@ Key Features:
     - Async event/callback system for fills, cancels, rejections
     - Cache clearing, health/status reporting, and metrics
     - Integrates with OrderManager main class
+    - WebSocket-based order status updates
+    - Local caching for performance optimization
+    - Comprehensive order lifecycle monitoring
+
+Real-time Tracking Capabilities:
+    - Immediate order status change detection
+    - Fill and cancellation event processing
+    - Order-to-position relationship tracking
+    - Custom callback registration for events
+    - Cache-based performance optimization
+    - Health monitoring and validation
 
 Example Usage:
     ```python
     # Assuming om is an instance of OrderManager
     await om.initialize(realtime_client)
     tracked = await om.get_tracked_order_status("12345")
+
+
+    # Register callback for order events
+    def on_order_fill(order_data):
+        print(f"Order {order_data['id']} filled!")
+
+
+    om.add_callback("order_fill", on_order_fill)
     ```
 
 See Also:
@@ -39,7 +61,14 @@ logger = logging.getLogger(__name__)
 
 
 class OrderTrackingMixin:
-    """Mixin for order tracking and real-time monitoring functionality."""
+    """
+    Mixin for order tracking and real-time monitoring functionality.
+
+    Provides comprehensive order tracking capabilities including real-time status monitoring,
+    local caching for performance optimization, callback registration for custom event
+    handling, and order-to-position relationship management. This enables efficient
+    order lifecycle monitoring and automated trading strategies.
+    """
 
     # Type hints for mypy - these attributes are provided by the main class
     if TYPE_CHECKING:

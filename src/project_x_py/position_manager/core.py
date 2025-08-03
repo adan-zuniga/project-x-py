@@ -1,8 +1,66 @@
 """
 Core PositionManager class for comprehensive position operations.
 
-This module provides the main PositionManager class that handles all position-related
-operations including tracking, monitoring, analysis, and management.
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides the main PositionManager class that handles all position-related
+    operations including tracking, monitoring, analysis, and management.
+    Integrates multiple mixins to provide comprehensive position lifecycle
+    management with real-time capabilities and risk management.
+
+Key Features:
+    - Real-time position tracking via WebSocket integration
+    - Portfolio-level position management and analytics
+    - Automated P&L calculation and risk metrics
+    - Position sizing and risk management tools
+    - Event-driven position updates and closure detection
+    - Async-safe operations for concurrent access
+    - Comprehensive position operations (close, partial close)
+    - Statistics, history, and report generation
+
+Position Manager Components:
+    - PositionTrackingMixin: Real-time position tracking and callbacks
+    - PositionAnalyticsMixin: P&L calculations and portfolio analytics
+    - RiskManagementMixin: Risk metrics and position sizing
+    - PositionMonitoringMixin: Position monitoring and alerts
+    - PositionOperationsMixin: Direct position operations
+    - PositionReportingMixin: Statistics, history, and reports
+
+Example Usage:
+    ```python
+    from project_x_py import ProjectX
+    from project_x_py.position_manager import PositionManager
+
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        pm = PositionManager(client)
+
+        # Initialize with real-time tracking
+        await pm.initialize(realtime_client=client.realtime_client)
+
+        # Get current positions
+        positions = await pm.get_all_positions()
+
+        # Calculate P&L with market prices
+        prices = {"MGC": 2050.0, "NQ": 15500.0}
+        pnl = await pm.calculate_portfolio_pnl(prices)
+
+        # Risk analysis
+        risk = await pm.get_risk_metrics()
+
+        # Position operations
+        await pm.close_position_direct("MGC")
+    ```
+
+See Also:
+    - `position_manager.analytics.PositionAnalyticsMixin`
+    - `position_manager.risk.RiskManagementMixin`
+    - `position_manager.monitoring.PositionMonitoringMixin`
+    - `position_manager.operations.PositionOperationsMixin`
+    - `position_manager.reporting.PositionReportingMixin`
+    - `position_manager.tracking.PositionTrackingMixin`
 """
 
 import asyncio
@@ -46,12 +104,26 @@ class PositionManager(
 
     Features:
         - Complete async position lifecycle management
-        - Real-time position tracking and monitoring
-        - Portfolio-level position management
+        - Real-time position tracking and monitoring via WebSocket
+        - Portfolio-level position management and analytics
         - Automated P&L calculation and risk metrics
         - Position sizing and risk management tools
-        - Event-driven position updates (closures detected from type=0/size=0)
+        - Event-driven position updates (closures detected from size=0)
         - Async-safe operations for concurrent access
+        - Comprehensive position operations (close, partial close, bulk operations)
+        - Statistics, history, and report generation
+
+    Real-time Capabilities:
+        - WebSocket-based position updates and closure detection
+        - Immediate position change notifications
+        - Event-driven callbacks for custom monitoring
+        - Automatic position synchronization with order management
+
+    Risk Management:
+        - Portfolio risk assessment and concentration analysis
+        - Position sizing calculations with configurable risk parameters
+        - Risk warnings and threshold monitoring
+        - Diversification scoring and portfolio health metrics
 
     Example Usage:
         >>> # Create async position manager with dependency injection

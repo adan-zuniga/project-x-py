@@ -1,4 +1,52 @@
-"""Position monitoring and alerts functionality."""
+"""
+Position monitoring and alerts functionality for ProjectX position management.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides position monitoring and alert functionality for real-time position
+    tracking. Includes automated monitoring loops, configurable alerts, and
+    event-driven notifications for position changes and risk thresholds.
+
+Key Features:
+    - Real-time position monitoring via WebSocket or polling
+    - Configurable position alerts with multiple trigger types
+    - Automated monitoring loops with error handling
+    - Event-driven alert notifications and callbacks
+    - Thread-safe operations with proper lock management
+    - Comprehensive monitoring statistics and health tracking
+
+Monitoring Capabilities:
+    - Real-time position updates and closure detection
+    - Configurable alerts for P&L thresholds, size changes, and risk limits
+    - Automated monitoring with configurable refresh intervals
+    - Alert triggering and notification management
+    - Monitoring health tracking and statistics
+
+Example Usage:
+    ```python
+    # Add position alerts
+    await position_manager.add_position_alert("MGC", max_loss=-500.0)
+    await position_manager.add_position_alert("NQ", max_gain=1000.0)
+
+    # Start monitoring
+    await position_manager.start_monitoring(refresh_interval=30)
+
+
+    # Register alert callbacks
+    async def on_alert(data):
+        print(f"Alert triggered: {data['message']}")
+
+
+    await position_manager.add_callback("position_alert", on_alert)
+    ```
+
+See Also:
+    - `position_manager.core.PositionManager`
+    - `position_manager.tracking.PositionTrackingMixin`
+    - `position_manager.risk.RiskManagementMixin`
+"""
 
 import asyncio
 import logging

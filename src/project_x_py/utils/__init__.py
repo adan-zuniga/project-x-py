@@ -1,11 +1,95 @@
 """
 ProjectX Utility Functions
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
-This module contains utility functions used throughout the ProjectX client.
-Note: Technical indicators have been moved to the indicators module.
+Overview:
+    Contains utility functions used throughout the ProjectX client. Provides
+    generic, reusable functionality for data processing, error handling,
+    logging, market analysis, and trading calculations. All utilities are
+    stateless, pure functions designed for cross-module compatibility.
+
+Key Features:
+    - Generic utility functions for data processing and manipulation
+    - Comprehensive error handling and logging utilities
+    - Market analysis and pattern detection tools
+    - Trading calculations and risk management utilities
+    - Environment configuration and validation helpers
+    - Rate limiting and performance optimization tools
+
+Utility Categories:
+    - Core Utilities: Rate limiting, data manipulation, environment handling
+    - Error Handling: Decorators, context managers, standardized error messages
+    - Logging: Structured logging, performance monitoring, API call tracking
+    - Market Analysis: Session info, contract validation, pattern detection
+    - Portfolio Analytics: Performance metrics, correlation analysis, drawdown calculation
+    - Trading Calculations: Position sizing, risk management, tick value calculations
+
+Example Usage:
+    ```python
+    from project_x_py.utils import (
+        # Error handling
+        handle_errors,
+        retry_on_network_error,
+        ErrorContext,
+        # Trading calculations
+        calculate_tick_value,
+        calculate_position_sizing,
+        round_to_tick_size,
+        # Market utilities
+        is_market_hours,
+        get_market_session_info,
+        validate_contract_id,
+        # Portfolio analytics
+        calculate_sharpe_ratio,
+        calculate_max_drawdown,
+        calculate_portfolio_metrics,
+        # Pattern detection
+        detect_candlestick_patterns,
+        detect_chart_patterns,
+        # Data utilities
+        create_data_snapshot,
+        get_polars_last_value,
+    )
+
+
+    # Use error handling decorators
+    @handle_errors("fetch market data")
+    async def get_market_data():
+        # Implementation
+        pass
+
+
+    # Use trading calculations
+    tick_value = calculate_tick_value(0.5, 0.1, 1.0)  # 5 ticks
+    position_size = calculate_position_sizing(50000, 0.02, 2050, 2040)
+
+    # Use market utilities
+    if is_market_hours():
+        print("Market is open")
+
+    # Use portfolio analytics
+    sharpe = calculate_sharpe_ratio(returns_data)
+    drawdown = calculate_max_drawdown(price_data)
+    ```
+
+Architecture Principles:
+    - Generic and reusable across different contexts
+    - Work with standard data types (DataFrames, numbers, strings)
+    - No domain-specific knowledge or dependencies
+    - Stateless and pure functions
+    - Comprehensive error handling and logging
+
+Note: Technical indicators have been moved to the indicators module for better organization.
+
+See Also:
+    - `utils.async_rate_limiter`: Rate limiting for API calls
+    - `utils.error_handler`: Error handling decorators and context managers
+    - `utils.trading_calculations`: Trading math and risk management
+    - `utils.portfolio_analytics`: Performance metrics and analysis
+    - `utils.market_utils`: Market session and contract utilities
+    - `utils.pattern_detection`: Technical pattern detection
 """
 
 # Data utilities

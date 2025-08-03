@@ -1,6 +1,9 @@
 """
 Async memory management for ProjectX orderbook.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides memory/resource management for high-frequency orderbook data. Handles
     cleanup, trimming, stats, and garbage collection for deep market data streams,
@@ -11,6 +14,16 @@ Key Features:
     - Configurable memory and history retention policies
     - Memory usage/statistics reporting for diagnostics
     - Async task-based cleanup with thread safety
+    - Automatic garbage collection and memory optimization
+    - Comprehensive memory usage monitoring and reporting
+    - Configurable cleanup intervals and retention policies
+
+Memory Management Strategies:
+    - Trade History: Limits recent trades to prevent unbounded growth
+    - Orderbook Depth: Maintains optimal number of price levels
+    - Price History: Time-based cleanup of historical price level data
+    - Market History: Trimming of best prices, spreads, and delta history
+    - Garbage Collection: Automatic memory cleanup after major operations
 
 Example Usage:
     ```python
@@ -19,6 +32,14 @@ Example Usage:
     await orderbook.memory_manager.cleanup_old_data()
     stats = await orderbook.memory_manager.get_memory_stats()
     print(stats["recent_trades_count"])
+
+    # Monitor memory usage
+    memory_stats = await orderbook.get_memory_stats()
+    print(f"Orderbook size: {memory_stats['orderbook_bids_count']} bids")
+    print(f"Recent trades: {memory_stats['recent_trades_count']}")
+    print(
+        f"Items cleaned: {memory_stats['trades_cleaned'] + memory_stats['depth_cleaned']}"
+    )
     ```
 
 See Also:
@@ -56,6 +77,8 @@ class MemoryManager:
     4. Trimming of market data history (bids, asks, spreads, deltas)
     5. Providing memory usage statistics for monitoring
     6. Triggering garbage collection when appropriate
+    7. Automatic memory optimization and resource management
+    8. Comprehensive memory usage reporting and diagnostics
 
     The memory manager runs as an asynchronous background task that periodically
     checks and cleans up data structures based on the configured limits. It uses
@@ -75,6 +98,12 @@ class MemoryManager:
         - Maximum history entries per price level
         - Time window for price history retention
         - Maximum entries for various history trackers
+
+    Performance Characteristics:
+        - Asynchronous background cleanup with minimal impact on real-time operations
+        - Configurable cleanup intervals and retention policies
+        - Automatic garbage collection after major cleanup operations
+        - Comprehensive memory usage monitoring and reporting
     """
 
     def __init__(self, orderbook: "OrderBookBase", config: MemoryConfig):
@@ -113,7 +142,25 @@ class MemoryManager:
         self.logger.info("Memory manager stopped")
 
     async def _periodic_cleanup(self) -> None:
-        """Periodically clean up old data to manage memory usage."""
+        """
+        Periodically clean up old data to manage memory usage.
+
+        This method runs as a background task, performing cleanup operations
+        at regular intervals defined by the configuration. It ensures that
+        memory usage remains bounded during long-running sessions by removing
+        old data that is no longer needed for analysis.
+
+        The cleanup loop:
+        1. Sleeps for the configured cleanup interval
+        2. Calls cleanup_old_data() to perform actual cleanup
+        3. Handles cancellation gracefully when the memory manager stops
+        4. Logs any errors but continues operation
+
+        Note:
+            This method runs continuously until the memory manager is stopped.
+            It's designed to be robust and continue operation even if individual
+            cleanup operations fail.
+        """
         while self._running:
             try:
                 await asyncio.sleep(self.config.cleanup_interval)
@@ -181,7 +228,23 @@ class MemoryManager:
                 self.logger.error(f"Error during cleanup: {e}")
 
     async def _cleanup_price_history(self, current_time: datetime) -> None:
-        """Clean up old price level history."""
+        """
+        Clean up old price level history.
+
+        This method removes old entries from the price level history tracking
+        system to prevent unbounded memory growth. It applies both time-based
+        and count-based limits to maintain a reasonable amount of historical
+        data for analytics while preventing memory leaks.
+
+        Cleanup operations:
+        1. Removes history entries older than the configured time window
+        2. Limits each price level to maximum number of history entries
+        3. Removes empty history collections to free memory
+        4. Updates cleanup statistics
+
+        Args:
+            current_time: Current timestamp for age-based cleanup calculations
+        """
         cutoff_time = current_time - timedelta(
             minutes=self.config.price_history_window_minutes
         )
@@ -205,7 +268,22 @@ class MemoryManager:
                 del self.orderbook.price_level_history[key]
 
     async def _cleanup_market_history(self) -> None:
-        """Clean up market data history (best prices, spreads, etc.)."""
+        """
+        Clean up market data history (best prices, spreads, etc.).
+
+        This method manages the size of various history tracking lists to prevent
+        unbounded memory growth. It trims historical data collections to their
+        configured maximum sizes while preserving the most recent entries.
+
+        Collections managed:
+        - Best bid history: Price and timestamp of best bid over time
+        - Best ask history: Price and timestamp of best ask over time
+        - Spread history: Bid-ask spread values over time
+        - Delta history: Cumulative delta calculations over time
+
+        Each collection is trimmed to keep only the most recent entries up to
+        the configured maximum size, with removed entries tracked in statistics.
+        """
         # Best bid/ask history
         if len(self.orderbook.best_bid_history) > self.config.max_best_price_history:
             removed = (

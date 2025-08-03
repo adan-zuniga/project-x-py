@@ -1,8 +1,8 @@
 """
 ProjectX Indicators - Volatility Indicators
 
-Author: TexasCoding
-Date: June 2025
+Author: @TexasCoding
+Date: 2025-08-02
 
 Overview:
     Implements volatility-focused indicators for ProjectX, quantifying price range,
@@ -19,6 +19,7 @@ Key Features:
 Example Usage:
     ```python
     from project_x_py.indicators import calculate_atr
+
     data_with_atr = calculate_atr(ohlcv_data, period=14)
     ```
 
@@ -36,7 +37,18 @@ from project_x_py.indicators.base import VolatilityIndicator, safe_division
 
 
 class ATR(VolatilityIndicator):
-    """Average True Range indicator."""
+    """
+    Average True Range (ATR) volatility indicator.
+
+    ATR measures market volatility by analyzing the range of price movements. It
+    considers the true range, which is the greatest of the following three values:
+    1. Current High - Current Low
+    2. |Current High - Previous Close|
+    3. |Current Low - Previous Close|
+
+    ATR is used to measure volatility and can help determine stop-loss levels,
+    position sizing, and identify periods of high or low market volatility.
+    """
 
     def __init__(self) -> None:
         super().__init__(

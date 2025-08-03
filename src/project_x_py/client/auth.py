@@ -1,6 +1,9 @@
 """
 Authentication and account management for ProjectX async clients.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     This module implements the complete authentication lifecycle for ProjectX, including
     secure login using API key and username, JWT token handling, account selection, and
@@ -21,6 +24,7 @@ Example Usage:
     import asyncio
     from project_x_py import ProjectX
 
+
     async def main():
         async with ProjectX.from_env() as client:
             await client.authenticate()
@@ -28,6 +32,7 @@ Example Usage:
             accounts = await client.list_accounts()
             for acc in accounts:
                 print(acc.name, acc.balance)
+
 
     asyncio.run(main())
     ```
@@ -75,12 +80,35 @@ class AuthenticationMixin:
         self.account_info: Account | None = None
 
     async def _refresh_authentication(self: "ProjectXClientProtocol") -> None:
-        """Refresh authentication if token is expired or about to expire."""
+        """
+        Refresh authentication if token is expired or about to expire.
+
+        This method checks if the current authentication token needs refreshing
+        based on its expiration time and initiates a full re-authentication
+        if necessary. It's used internally to maintain session validity during
+        long-running operations without requiring explicit user intervention.
+
+        The refresh logic is controlled by the _should_refresh_token method,
+        which implements the token expiration policy (currently refreshing
+        when a token is within 5 minutes of expiration).
+        """
         if self._should_refresh_token():
             await self.authenticate()
 
     def _should_refresh_token(self: "ProjectXClientProtocol") -> bool:
-        """Check if token should be refreshed."""
+        """
+        Check if the authentication token should be refreshed.
+
+        This method determines whether the current JWT token needs to be refreshed
+        based on its expiration time. It implements the token refresh policy by
+        checking:
+
+        1. If no token expiry exists (not authenticated or expiry unknown)
+        2. If the token is within 5 minutes of expiration (configurable buffer)
+
+        Returns:
+            bool: True if token refresh is needed, False otherwise
+        """
         if not self.token_expiry:
             return True
 
@@ -191,7 +219,25 @@ class AuthenticationMixin:
         )
 
     async def _ensure_authenticated(self: "ProjectXClientProtocol") -> None:
-        """Ensure client is authenticated before making API calls."""
+        """
+        Ensure client is authenticated before making API calls.
+
+        This method checks the authentication state and token validity before
+        allowing API operations to proceed. If the client is not authenticated
+        or if the authentication token is expired/about to expire, it will
+        automatically trigger the full authentication flow.
+
+        The method performs two key checks:
+        1. Whether the client has successfully authenticated (_authenticated flag)
+        2. Whether the token needs refreshing (via _should_refresh_token)
+
+        This provides a seamless authentication experience by handling token
+        expiration transparently without requiring explicit refresh calls.
+
+        Note:
+            This method is called internally by API methods and doesn't need
+            to be called directly in normal usage.
+        """
         if not self._authenticated or self._should_refresh_token():
             await self.authenticate()
 

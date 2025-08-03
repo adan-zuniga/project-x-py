@@ -1,6 +1,9 @@
 """
 Async position-based order management for ProjectX.
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 Overview:
     Provides mixin logic for managing orders at the position level: closing open positions,
     adding stop losses/take profits, and synchronizing/canceling related orders as position
@@ -11,12 +14,24 @@ Key Features:
     - Automatic order/position tracking and synchronization
     - Bulk cancellation and modification of position-related orders
     - Integrates with order callbacks and bracket strategies
+    - Position size change handling and order synchronization
+    - Comprehensive position-order relationship management
+
+Position Management Capabilities:
+    - Close positions using market or limit orders
+    - Add stop losses to protect existing positions
+    - Add take profit orders for profit targets
+    - Track orders associated with specific positions
+    - Synchronize order sizes with position changes
+    - Cancel all orders when positions are closed
 
 Example Usage:
     ```python
     # Assuming om is an instance of OrderManager
     await om.close_position("MNQ")
     await om.add_stop_loss("MNQ", stop_price=2030.0)
+    await om.add_take_profit("MNQ", limit_price=2070.0)
+    await om.cancel_position_orders("MNQ", ["stop", "target"])
     ```
 
 See Also:
@@ -38,7 +53,14 @@ logger = logging.getLogger(__name__)
 
 
 class PositionOrderMixin:
-    """Mixin for position-related order management."""
+    """
+    Mixin for position-related order management.
+
+    Provides methods for managing orders in relation to existing positions, including
+    closing positions, adding protective orders (stop losses, take profits), and
+    synchronizing order sizes with position changes. This enables automated risk
+    management and position-based trading strategies.
+    """
 
     async def close_position(
         self: "OrderManagerProtocol",

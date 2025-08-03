@@ -1,6 +1,9 @@
 """
 Async ProjectX Python SDK - Core Async Client Module
 
+Author: @TexasCoding
+Date: 2025-08-02
+
 This module contains the async version of the ProjectX client class for the ProjectX Python SDK.
 It provides a comprehensive asynchronous interface for interacting with the ProjectX Trading Platform
 Gateway API, enabling developers to build high-performance trading applications.

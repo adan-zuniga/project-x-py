@@ -1,4 +1,49 @@
-"""P&L calculations and portfolio analytics."""
+"""
+P&L calculations and portfolio analytics for ProjectX position management.
+
+Author: @TexasCoding
+Date: 2025-08-02
+
+Overview:
+    Provides comprehensive P&L calculations and portfolio analytics for position
+    management. Includes individual position P&L calculations, portfolio-level
+    analysis, and integration with market prices for accurate profit/loss tracking.
+
+Key Features:
+    - Individual position P&L calculations with point value support
+    - Portfolio-level P&L aggregation across all positions
+    - Market price integration for real-time P&L tracking
+    - Configurable point values for accurate dollar calculations
+    - Comprehensive P&L breakdowns and analysis
+    - Thread-safe operations with proper error handling
+
+Analytics Capabilities:
+    - Position-specific P&L with entry price vs current market price
+    - Portfolio aggregation with missing price handling
+    - Point value integration for accurate dollar calculations
+    - Real-time P&L updates with market price changes
+    - Comprehensive P&L reporting and analysis
+
+Example Usage:
+    ```python
+    # Calculate individual position P&L
+    position = await position_manager.get_position("MGC")
+    pnl = await position_manager.calculate_position_pnl(
+        position, current_price=2050.0, point_value=10.0
+    )
+    print(f"P&L: ${pnl['unrealized_pnl']:.2f}")
+
+    # Portfolio P&L with current market prices
+    prices = {"MGC": 2050.0, "NQ": 15500.0, "ES": 4400.0}
+    portfolio_pnl = await position_manager.calculate_portfolio_pnl(prices)
+    print(f"Total P&L: ${portfolio_pnl['total_pnl']:.2f}")
+    ```
+
+See Also:
+    - `position_manager.core.PositionManager`
+    - `position_manager.risk.RiskManagementMixin`
+    - `position_manager.reporting.PositionReportingMixin`
+"""
 
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -10,7 +55,32 @@ if TYPE_CHECKING:
 
 
 class PositionAnalyticsMixin:
-    """Mixin for P&L calculations and portfolio analytics."""
+    """
+    Mixin for P&L calculations and portfolio analytics.
+
+    Provides comprehensive P&L calculation capabilities for individual positions
+    and portfolio-level analysis. Includes support for point values, market price
+    integration, and detailed P&L breakdowns for accurate profit/loss tracking.
+
+    Key Features:
+        - Individual position P&L with entry vs current price calculations
+        - Portfolio-level P&L aggregation with missing price handling
+        - Point value integration for accurate dollar calculations
+        - Real-time P&L updates with market price changes
+        - Comprehensive P&L reporting and analysis
+        - Thread-safe operations with proper error handling
+
+    P&L Calculation Methods:
+        - calculate_position_pnl: Individual position P&L with point values
+        - calculate_portfolio_pnl: Portfolio aggregation with market prices
+        - get_portfolio_pnl: Portfolio structure with placeholder P&L
+
+    Performance Characteristics:
+        - Real-time P&L calculations with minimal latency
+        - Memory-efficient operations for large portfolios
+        - Graceful handling of missing market prices
+        - Thread-safe operations with proper lock management
+    """
 
     async def calculate_position_pnl(
         self: "PositionManagerProtocol",
