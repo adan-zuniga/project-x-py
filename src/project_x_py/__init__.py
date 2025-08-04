@@ -231,14 +231,11 @@ __all__ = [
     "calculate_vwap",
     "calculate_williams_r",
     "create_custom_config",
-    # Factory functions (async-only)
-    "create_data_manager",
-    "create_initialized_trading_suite",
-    "create_order_manager",
+    # Factory functions (async-only) - BEING REMOVED IN v3.0.0
+    "create_initialized_trading_suite",  # TODO: Remove after examples updated
     "create_orderbook",
-    "create_position_manager",
-    "create_realtime_client",
-    "create_trading_suite",
+    "create_realtime_client",  # TODO: Remove after examples updated
+    "create_trading_suite",  # TODO: Remove after examples updated
     "get_env_var",
     "load_default_config",
     "load_topstepx_config",
@@ -456,68 +453,10 @@ async def create_initialized_trading_suite(
     )
 
 
-def create_order_manager(
-    project_x: ProjectXBase,
-    realtime_client: ProjectXRealtimeClient | None = None,
-) -> OrderManager:
-    """
-    Create an async order manager instance.
-
-    Args:
-        project_x: Authenticated ProjectX client
-        realtime_client: Optional real-time client for order updates
-
-    Returns:
-        Configured OrderManager instance
-
-    Example:
-        order_manager = create_order_manager(project_x, realtime_client)
-        response = await order_manager.place_market_order(
-            contract_id=instrument.id,
-            side=0,  # Buy
-            size=1
-        )
-    """
-    order_manager = OrderManager(project_x)
-    if realtime_client:
-        # This would need to be done in an async context
-        # For now, just store the client
-        order_manager.realtime_client = realtime_client
-    return order_manager
+# REMOVED: create_order_manager - Use TradingSuite.create() instead
 
 
-def create_position_manager(
-    project_x: ProjectXBase,
-    realtime_client: ProjectXRealtimeClient | None = None,
-    order_manager: OrderManager | None = None,
-) -> PositionManager:
-    """
-    Create an async position manager instance.
-
-    Args:
-        project_x: Authenticated ProjectX client
-        realtime_client: Optional real-time client for position updates
-        order_manager: Optional order manager for integrated order cleanup
-
-    Returns:
-        Configured PositionManager instance
-
-    Example:
-        position_manager = create_position_manager(
-            project_x,
-            realtime_client,
-            order_manager
-        )
-        positions = await position_manager.get_all_positions()
-    """
-    position_manager = PositionManager(project_x)
-    if realtime_client:
-        # This would need to be done in an async context
-        # For now, just store the client
-        position_manager.realtime_client = realtime_client
-    if order_manager:
-        position_manager.order_manager = order_manager
-    return position_manager
+# REMOVED: create_position_manager - Use TradingSuite.create() instead
 
 
 def create_realtime_client(
@@ -551,40 +490,4 @@ def create_realtime_client(
     )
 
 
-def create_data_manager(
-    instrument: str,
-    project_x: ProjectXBase,
-    realtime_client: ProjectXRealtimeClient,
-    timeframes: list[str] | None = None,
-) -> RealtimeDataManager:
-    """
-    Create a real-time data manager instance.
-
-    Args:
-        instrument: Trading instrument symbol (e.g., "MGC", "MNQ")
-        project_x: Authenticated ProjectX client
-        realtime_client: Real-time client for WebSocket data
-        timeframes: List of timeframes to track (default: ["5min"])
-
-    Returns:
-        Configured RealtimeDataManager instance
-
-    Example:
-        data_manager = create_data_manager(
-            instrument="MGC",
-            project_x=client,
-            realtime_client=realtime_client,
-            timeframes=["1min", "5min", "15min"]
-        )
-        await data_manager.initialize()
-        await data_manager.start_realtime_feed()
-    """
-    if timeframes is None:
-        timeframes = ["5min"]
-
-    return RealtimeDataManager(
-        instrument=instrument,
-        project_x=project_x,
-        realtime_client=realtime_client,
-        timeframes=timeframes,
-    )
+# REMOVED: create_data_manager - Use TradingSuite.create() instead

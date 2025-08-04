@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example demonstrating JoinBid and JoinAsk order types.
+Example demonstrating JoinBid and JoinAsk order types with v3.0.0 TradingSuite.
 
 JoinBid and JoinAsk orders are passive liquidity-providing orders that automatically
 place limit orders at the current best bid or ask price. They're useful for:
@@ -8,6 +8,8 @@ place limit orders at the current best bid or ask price. They're useful for:
 - Providing liquidity
 - Minimizing market impact
 - Getting favorable queue position
+
+Updated for v3.0.0: Uses new TradingSuite for simplified initialization.
 """
 
 import asyncio
@@ -18,26 +20,23 @@ from pathlib import Path
 # Add src to Python path for development
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from project_x_py import ProjectX, create_order_manager
+from project_x_py import TradingSuite
 
 
 async def main():
     """Demonstrate JoinBid and JoinAsk order placement."""
-    # Initialize client
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
+    # Initialize trading suite with simplified API (v3.0.0)
+    suite = await TradingSuite.create("MNQ")
 
-        # Create order manager
-        order_manager = create_order_manager(client)
-
+    try:
         # Contract to trade
         contract = "MNQ"
 
         print(f"=== JoinBid and JoinAsk Order Example for {contract} ===\n")
 
         # Get current market data to show context
-        bars = await client.get_bars(contract, days=1, timeframe="1min")
-        if bars and not bars.is_empty():
+        bars = await suite.client.get_bars(contract, days=1)
+        if bars is not None and not bars.is_empty():
             latest = bars.tail(1)
             print(f"Current market context:")
             print(f"  Last price: ${latest['close'][0]:,.2f}")
@@ -47,7 +46,7 @@ async def main():
         try:
             # Example 1: Place a JoinBid order
             print("1. Placing JoinBid order (buy at best bid)...")
-            join_bid_response = await order_manager.place_join_bid_order(
+            join_bid_response = await suite.orders.place_join_bid_order(
                 contract_id=contract, size=1
             )
 
@@ -63,7 +62,7 @@ async def main():
 
             # Example 2: Place a JoinAsk order
             print("2. Placing JoinAsk order (sell at best ask)...")
-            join_ask_response = await order_manager.place_join_ask_order(
+            join_ask_response = await suite.orders.place_join_ask_order(
                 contract_id=contract, size=1
             )
 
@@ -76,7 +75,7 @@ async def main():
 
             # Show order status
             print("3. Checking order status...")
-            active_orders = await order_manager.get_active_orders()
+            active_orders = await suite.orders.get_active_orders()
 
             print(f"\nActive orders: {len(active_orders)}")
             for order in active_orders:
@@ -90,14 +89,14 @@ async def main():
             # Cancel orders to clean up
             print("\n4. Cancelling orders...")
             if join_bid_response.success:
-                cancel_result = await order_manager.cancel_order(
+                cancel_result = await suite.orders.cancel_order(
                     join_bid_response.orderId
                 )
                 if cancel_result.success:
                     print(f"✅ JoinBid order {join_bid_response.orderId} cancelled")
 
             if join_ask_response.success:
-                cancel_result = await order_manager.cancel_order(
+                cancel_result = await suite.orders.cancel_order(
                     join_ask_response.orderId
                 )
                 if cancel_result.success:
@@ -113,6 +112,10 @@ async def main():
         print("- These are passive orders that provide liquidity")
         print("- The actual fill price depends on market conditions")
         print("- Useful for market making and minimizing market impact")
+
+    finally:
+        # Clean disconnect
+        await suite.disconnect()
 
 
 if __name__ == "__main__":

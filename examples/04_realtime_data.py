@@ -28,8 +28,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from project_x_py import (
-    ProjectX,
-    create_initialized_trading_suite,
+    TradingSuite,
     setup_logging,
 )
 

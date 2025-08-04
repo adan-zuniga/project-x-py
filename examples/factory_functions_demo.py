@@ -1,187 +1,199 @@
 """
-Example demonstrating the factory functions for creating trading components.
+Example demonstrating the new v3.0.0 TradingSuite for simplified SDK usage.
 
-This example shows how to use the convenient factory functions to create
-trading components with minimal boilerplate code.
+This example shows how the new TradingSuite replaces all the old factory
+functions with a single, intuitive API.
+
+BREAKING CHANGE: This example has been updated for v3.0.0.
+The old factory functions are obsolete and will be removed.
 """
 
 import asyncio
 
-from project_x_py import (
-    ProjectX,
-    create_data_manager,
-    create_order_manager,
-    create_orderbook,
-    create_position_manager,
-    create_realtime_client,
-    create_trading_suite,
-)
+from project_x_py import TradingSuite, setup_logging
 
 
-async def simple_component_creation():
-    """Demonstrate creating individual components."""
+async def simple_trading_suite():
+    """Demonstrate the simplest way to create a trading suite."""
     print("=" * 60)
-    print("SIMPLE COMPONENT CREATION")
+    print("SIMPLE TRADING SUITE CREATION (v3.0.0)")
     print("=" * 60)
 
-    # Create async client using factory
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        if client.account_info is None:
-            print("❌ No account info found")
-            return
-        print(f"✅ Created client: {client.account_info.name}")
+    # One line replaces all the old factory functions!
+    suite = await TradingSuite.create("MNQ")
 
-        # Get JWT token for real-time
-        jwt_token = client.session_token
-        account_id = client.account_info.id
+    print("✅ TradingSuite created with single line!")
+    print(f"   Account: {suite.client.account_info.name}")
+    print(f"   Instrument: {suite.instrument}")
+    print(f"   Connected: {suite.is_connected}")
 
-        # Create async realtime client
-        realtime_client = create_realtime_client(jwt_token, str(account_id))
-        print("✅ Created realtime client")
+    # All components are ready to use
+    print("\n📦 Available Components:")
+    print(f"   - Client: {suite.client}")
+    print(f"   - Data Manager: {suite.data}")
+    print(f"   - Order Manager: {suite.orders}")
+    print(f"   - Position Manager: {suite.positions}")
+    print(f"   - Real-time Client: {suite.realtime}")
 
-        # Create individual managers
-        order_manager = create_order_manager(client, realtime_client)
-        await order_manager.initialize()
-        print("✅ Created order manager")
+    # Get some data
+    current_price = await suite.data.get_current_price()
+    print(f"\n💰 Current {suite.instrument} price: ${current_price:,.2f}")
 
-        position_manager = create_position_manager(
-            client, realtime_client, order_manager
-        )
-        await position_manager.initialize(realtime_client, order_manager)
-        print("✅ Created position manager with order synchronization")
-
-        # Find an instrument
-        instruments = await client.search_instruments("MGC")
-        if instruments:
-            instrument = instruments[0]
-
-            # Create data manager
-            _data_manager = create_data_manager(
-                instrument.id, client, realtime_client, timeframes=["1min", "5min"]
-            )
-            print("✅ Created data manager")
-
-            # Create orderbook
-            orderbook = create_orderbook(
-                instrument.id, realtime_client=realtime_client, project_x=client
-            )
-            await orderbook.initialize(realtime_client)
-            print("✅ Created orderbook")
-
-        # Clean up
-        await realtime_client.cleanup()
+    # Clean disconnect
+    await suite.disconnect()
+    print("✅ Disconnected cleanly")
 
 
-async def complete_suite_creation():
-    """Demonstrate creating a complete trading suite with one function."""
+async def trading_suite_with_options():
+    """Demonstrate creating a trading suite with custom options."""
     print("\n" + "=" * 60)
-    print("COMPLETE TRADING SUITE CREATION")
+    print("TRADING SUITE WITH CUSTOM OPTIONS")
     print("=" * 60)
 
-    # Create async client
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        if client.account_info is None:
-            print("❌ No account info found")
-            return
-        print(f"✅ Authenticated: {client.account_info.name}")
+    # Create with specific timeframes and features
+    suite = await TradingSuite.create(
+        "MGC",
+        timeframes=["1min", "5min", "15min", "1hr"],
+        features=["orderbook"],
+        initial_days=10,
+    )
 
-        # Find instrument
-        instruments = await client.search_instruments("MGC")
-        if not instruments:
-            print("❌ No instruments found")
-            return
+    print("✅ TradingSuite created with custom options!")
+    print(f"   Instrument: {suite.instrument}")
+    print(f"   Timeframes: {suite.config.timeframes}")
+    print(f"   Features: {[f.value for f in suite.config.features]}")
+    print(f"   Has OrderBook: {suite.orderbook is not None}")
 
-        instrument = instruments[0]
-
-        # Create complete trading suite with one function
-        suite = await create_trading_suite(
-            instrument=instrument.id,
-            project_x=client,
-            jwt_token=client.session_token,
-            account_id=str(client.account_info.id),
-            timeframes=["5sec", "1min", "5min", "15min"],
+    # Show suite statistics
+    stats = suite.get_stats()
+    print("\n📊 Suite Statistics:")
+    print(f"   Connected: {stats['connected']}")
+    print(f"   Real-time events: {stats['realtime']['events_received']}")
+    if "orderbook" in stats:
+        print(
+            f"   OrderBook depth: {stats['orderbook']['bid_depth']} bids, {stats['orderbook']['ask_depth']} asks"
         )
 
-        print("\n📦 Trading Suite Components:")
-        print(f"  ✅ Realtime Client: {suite['realtime_client'].__class__.__name__}")
-        print(f"  ✅ Data Manager: {suite['data_manager'].__class__.__name__}")
-        print(f"  ✅ OrderBook: {suite['orderbook'].__class__.__name__}")
-        print(f"  ✅ Order Manager: {suite['order_manager'].__class__.__name__}")
-        print(f"  ✅ Position Manager: {suite['position_manager'].__class__.__name__}")
+    await suite.disconnect()
 
-        # Connect and initialize
-        print("\n🔌 Connecting to real-time services...")
-        if await suite["realtime_client"].connect():
-            print("✅ Connected")
 
-            # Subscribe to data
-            await suite["realtime_client"].subscribe_user_updates()
-            await suite["realtime_client"].subscribe_market_data(
-                [instrument.activeContract]
-            )
+async def trading_suite_context_manager():
+    """Demonstrate using TradingSuite as a context manager."""
+    print("\n" + "=" * 60)
+    print("TRADING SUITE AS CONTEXT MANAGER")
+    print("=" * 60)
 
-            # Initialize data manager
-            await suite["data_manager"].initialize(initial_days=1)
-            await suite["data_manager"].start_realtime_feed()
+    # Automatic cleanup with context manager
+    async with await TradingSuite.create("ES", timeframes=["5min", "15min"]) as suite:
+        print("✅ TradingSuite created and entered context")
+        print(f"   Trading: {suite.instrument}")
 
-            print("\n📊 Suite is ready for trading!")
+        # Place an order
+        positions = await suite.positions.get_all_positions()
+        print(f"   Current positions: {len(positions)}")
 
-            # Show some data
-            await asyncio.sleep(2)  # Let some data come in
+        # Get market data
+        bars = await suite.client.get_bars(suite.instrument, days=1)
+        if bars is not None and not bars.is_empty():
+            latest = bars.tail(1)
+            print(f"   Latest close: ${latest['close'][0]:,.2f}")
 
-            # Get current data
-            for timeframe in ["5sec", "1min", "5min"]:
-                data = await suite["data_manager"].get_data(timeframe)
-                if data and len(data) > 0:
-                    last = data[-1]
-                    print(
-                        f"\n{timeframe} Latest: C=${last['close']:.2f} V={last['volume']}"
-                    )
+    print("✅ Context exited - automatic cleanup completed")
 
-            # Get orderbook
-            snapshot = await suite["orderbook"].get_orderbook_snapshot()
-            if snapshot:
-                spread = await suite["orderbook"].get_bid_ask_spread()
-                print(f"\nOrderBook: Bid=${spread['bid']:.2f} Ask=${spread['ask']:.2f}")
 
-            # Get positions
-            positions = await suite["position_manager"].get_all_positions()
-            print(f"\nPositions: {len(positions)} open")
+async def old_vs_new_comparison():
+    """Show the dramatic simplification from old factory functions to TradingSuite."""
+    print("\n" + "=" * 60)
+    print("OLD vs NEW COMPARISON")
+    print("=" * 60)
 
-            # Clean up
-            await suite["data_manager"].stop_realtime_feed()
-            await suite["realtime_client"].cleanup()
-            print("\n✅ Cleanup completed")
+    print("❌ OLD WAY (v2.x) - Complex with many factory functions:")
+    print("""
+    # Required 50+ lines of code:
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
+        
+        realtime_client = create_realtime_client(
+            jwt_token=client.session_token,
+            account_id=str(client.account_info.id)
+        )
+        
+        data_manager = create_data_manager(
+            instrument="MNQ",
+            project_x=client,
+            realtime_client=realtime_client,
+            timeframes=["1min", "5min"]
+        )
+        
+        order_manager = create_order_manager(client, realtime_client)
+        position_manager = create_position_manager(client, realtime_client, order_manager)
+        
+        await realtime_client.connect()
+        await realtime_client.subscribe_user_updates()
+        await position_manager.initialize(realtime_client, order_manager)
+        await data_manager.initialize()
+        
+        instrument_info = await client.get_instrument("MNQ")
+        await realtime_client.subscribe_market_data([instrument_info.id])
+        await data_manager.start_realtime_feed()
+        
+        # ... finally ready to trade ...
+    """)
+
+    print("\n✅ NEW WAY (v3.0) - Simple and intuitive:")
+    print("""
+    # Just 1 line!
+    suite = await TradingSuite.create("MNQ")
+    # Everything is ready to use!
+    """)
+
+    print("\n🎯 Benefits:")
+    print("   - 98% less code")
+    print("   - No manual wiring")
+    print("   - No initialization steps")
+    print("   - Automatic resource management")
+    print("   - Type-safe with full IDE support")
 
 
 async def main():
     """Run all demonstrations."""
-    print("\n🚀 ASYNC FACTORY FUNCTIONS DEMONSTRATION\n")
+    logger = setup_logging(level="INFO")
+    logger.info("Starting TradingSuite v3.0.0 Demo")
 
-    # Show simple component creation
-    await simple_component_creation()
+    print("\n" + "🚀 " * 20)
+    print("TRADINGSUITE v3.0.0 DEMONSTRATION")
+    print("Replacing all factory functions with one simple API")
+    print("🚀 " * 20 + "\n")
 
-    # Show complete suite creation
-    await complete_suite_creation()
+    try:
+        # Run demonstrations
+        await simple_trading_suite()
+        await trading_suite_with_options()
+        await trading_suite_context_manager()
+        await old_vs_new_comparison()
 
-    print("\n🎯 Key Benefits of Factory Functions:")
-    print("  1. Less boilerplate code")
-    print("  2. Consistent initialization")
-    print("  3. Proper dependency injection")
-    print("  4. Type hints and documentation")
-    print("  5. Easy to use for beginners")
+        print("\n" + "=" * 60)
+        print("✅ ALL DEMONSTRATIONS COMPLETED SUCCESSFULLY!")
+        print("=" * 60)
 
-    print("\n📚 Factory Functions Available:")
-    print("  - create_client() - Create ProjectX client")
-    print("  - create_realtime_client() - Create real-time WebSocket client")
-    print("  - create_order_manager() - Create order manager")
-    print("  - create_position_manager() - Create position manager")
-    print("  - create_data_manager() - Create OHLCV data manager")
-    print("  - create_orderbook() - Create market depth orderbook")
-    print("  - create_trading_suite() - Create complete trading toolkit")
+        print("\n📚 Summary:")
+        print("   - TradingSuite.create() replaces ALL factory functions")
+        print("   - Single line initialization")
+        print("   - Automatic connection and subscription management")
+        print("   - Built-in cleanup with context managers")
+        print("   - Feature flags for optional components")
+        print("\n🎉 Welcome to v3.0.0!")
+
+    except Exception as e:
+        logger.error(f"Error in demo: {e}")
+        raise
 
 
 if __name__ == "__main__":
+    print("\n📋 Requirements:")
+    print("   - Set PROJECT_X_API_KEY environment variable")
+    print("   - Set PROJECT_X_USERNAME environment variable")
+    print("   - Have valid ProjectX account credentials")
+    print("\nRun with: ./test.sh examples/factory_functions_demo.py\n")
+
     asyncio.run(main())
