@@ -35,6 +35,7 @@ Example Usage:
 
 import json
 from contextlib import AbstractAsyncContextManager
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from types import TracebackType
@@ -46,6 +47,7 @@ from project_x_py.client import ProjectX
 from project_x_py.client.base import ProjectXBase
 from project_x_py.event_bus import EventBus, EventType
 from project_x_py.order_manager import OrderManager
+from project_x_py.order_tracker import OrderChainBuilder, OrderTracker
 from project_x_py.orderbook import OrderBook
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
@@ -196,6 +198,7 @@ class TradingSuite:
         # State tracking
         self._connected = False
         self._initialized = False
+        self._created_at = datetime.now()
         self._client_context: AbstractAsyncContextManager[ProjectXBase] | None = (
             None  # Will be set by create() method
         )
@@ -544,6 +547,75 @@ class TradingSuite:
             handler: Specific handler to remove (None for all)
         """
         await self.events.off(event, handler)
+
+    def track_order(self, order: Any = None) -> OrderTracker:
+        """
+        Create an OrderTracker for comprehensive order lifecycle management.
+
+        This provides automatic order state tracking with async waiting capabilities,
+        eliminating the need for manual order status polling.
+
+        Args:
+            order: Optional order to track immediately (Order, OrderPlaceResponse, or order ID)
+
+        Returns:
+            OrderTracker instance (use as context manager)
+
+        Example:
+            ```python
+            # Track a new order
+            async with suite.track_order() as tracker:
+                order = await suite.orders.place_limit_order(
+                    contract_id=instrument.id,
+                    side=OrderSide.BUY,
+                    size=1,
+                    price=current_price - 10,
+                )
+                tracker.track(order)
+
+                try:
+                    filled = await tracker.wait_for_fill(timeout=60)
+                    print(f"Order filled at {filled.filledPrice}")
+                except TimeoutError:
+                    await tracker.modify_or_cancel(new_price=current_price - 5)
+            ```
+        """
+        tracker = OrderTracker(self, order)
+        return tracker
+
+    def order_chain(self) -> OrderChainBuilder:
+        """
+        Create an order chain builder for complex order structures.
+
+        Provides a fluent API for building multi-part orders (entry + stops + targets)
+        with clean, readable syntax.
+
+        Returns:
+            OrderChainBuilder instance
+
+        Example:
+            ```python
+            # Build a bracket order with stops and targets
+            order_chain = (
+                suite.order_chain()
+                .market_order(size=2)
+                .with_stop_loss(offset=50)
+                .with_take_profit(offset=100)
+                .with_trail_stop(offset=25, trigger_offset=50)
+            )
+
+            result = await order_chain.execute()
+
+            # Or use a limit entry
+            order_chain = (
+                suite.order_chain()
+                .limit_order(size=1, price=16000)
+                .with_stop_loss(price=15950)
+                .with_take_profit(price=16100)
+            )
+            ```
+        """
+        return OrderChainBuilder(self)
 
     async def wait_for(
         self, event: EventType | str, timeout: float | None = None

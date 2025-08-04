@@ -156,6 +156,19 @@ from project_x_py.models import (
     Trade,
 )
 from project_x_py.order_manager import OrderManager
+from project_x_py.order_templates import (
+    ATRStopTemplate,
+    BreakoutTemplate,
+    OrderTemplate,
+    RiskRewardTemplate,
+    ScalpingTemplate,
+    get_template,
+)
+from project_x_py.order_tracker import (
+    OrderChainBuilder,
+    OrderLifecycleError,
+    OrderTracker,
+)
 from project_x_py.orderbook import (
     OrderBook,
     create_orderbook,
@@ -210,9 +223,13 @@ __all__ = [
     "Order",
     # Core classes (now async-only but with original names)
     "OrderBook",
+    "OrderChainBuilder",
+    "OrderLifecycleError",
     "OrderManager",
     "OrderManagerConfig",
     "OrderPlaceResponse",
+    "OrderTemplate",
+    "OrderTracker",
     "OrderSide",
     "OrderStatus",
     "OrderType",
@@ -245,6 +262,12 @@ __all__ = [
     # Version info
     "__author__",
     "__version__",
+    # Order Templates
+    "ATRStopTemplate",
+    "BreakoutTemplate",
+    "RiskRewardTemplate",
+    "ScalpingTemplate",
+    "get_template",
     # Technical Analysis
     "calculate_adx",
     "calculate_atr",
