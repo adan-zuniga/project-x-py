@@ -162,6 +162,7 @@ from project_x_py.orderbook import (
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient as ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
+from project_x_py.trading_suite import Features, TradingSuite, TradingSuiteConfig
 
 # Utility functions
 from project_x_py.utils import (
@@ -182,6 +183,7 @@ __all__ = [
     "BracketOrderResponse",
     # Configuration
     "ConfigManager",
+    "Features",
     "Instrument",
     "Order",
     # Core classes (now async-only but with original names)
@@ -207,6 +209,8 @@ __all__ = [
     "RateLimiter",
     "RealtimeDataManager",
     "Trade",
+    "TradingSuite",
+    "TradingSuiteConfig",
     # Version info
     "__author__",
     "__version__",
