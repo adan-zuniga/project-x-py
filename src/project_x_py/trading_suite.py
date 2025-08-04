@@ -34,8 +34,10 @@ Example Usage:
 """
 
 import json
+from contextlib import AbstractAsyncContextManager
 from enum import Enum
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 import yaml
@@ -139,7 +141,9 @@ class TradingSuite:
         # State tracking
         self._connected = False
         self._initialized = False
-        self._client_context = None  # Will be set by create() method
+        self._client_context: AbstractAsyncContextManager[ProjectXBase] | None = (
+            None  # Will be set by create() method
+        )
 
         logger.info(
             f"TradingSuite created for {config.instrument} "
@@ -403,6 +407,7 @@ class TradingSuite:
                 await self._client_context.__aexit__(None, None, None)
             except Exception as e:
                 logger.error(f"Error cleaning up client context: {e}")
+                # Continue with cleanup even if there's an error
 
         self._connected = False
         self._initialized = False
@@ -414,7 +419,12 @@ class TradingSuite:
             await self._initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit with cleanup."""
         await self.disconnect()
 
