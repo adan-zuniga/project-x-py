@@ -1,0 +1,333 @@
+"""Event-driven architecture for ProjectX SDK v3.0.0.
+
+This module provides a unified event system for all SDK components,
+replacing scattered callback systems with a centralized event bus.
+"""
+
+import asyncio
+import logging
+from collections import defaultdict
+from collections.abc import Callable
+from enum import Enum
+from typing import Any
+from weakref import WeakSet
+
+logger = logging.getLogger(__name__)
+
+
+class EventType(Enum):
+    """Unified event types for all SDK components."""
+
+    # Market Data Events
+    NEW_BAR = "new_bar"
+    DATA_UPDATE = "data_update"
+    QUOTE_UPDATE = "quote_update"
+    TRADE_TICK = "trade_tick"
+    ORDERBOOK_UPDATE = "orderbook_update"
+    MARKET_DEPTH_UPDATE = "market_depth_update"
+
+    # Order Events
+    ORDER_PLACED = "order_placed"
+    ORDER_FILLED = "order_filled"
+    ORDER_PARTIAL_FILL = "order_partial_fill"
+    ORDER_CANCELLED = "order_cancelled"
+    ORDER_REJECTED = "order_rejected"
+    ORDER_EXPIRED = "order_expired"
+    ORDER_MODIFIED = "order_modified"
+
+    # Position Events
+    POSITION_OPENED = "position_opened"
+    POSITION_CLOSED = "position_closed"
+    POSITION_UPDATED = "position_updated"
+    POSITION_PNL_UPDATE = "position_pnl_update"
+
+    # Risk Events
+    RISK_LIMIT_WARNING = "risk_limit_warning"
+    RISK_LIMIT_EXCEEDED = "risk_limit_exceeded"
+    STOP_LOSS_TRIGGERED = "stop_loss_triggered"
+    TAKE_PROFIT_TRIGGERED = "take_profit_triggered"
+
+    # System Events
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    RECONNECTING = "reconnecting"
+    AUTHENTICATED = "authenticated"
+    ERROR = "error"
+    WARNING = "warning"
+
+    # Performance Events
+    MEMORY_WARNING = "memory_warning"
+    RATE_LIMIT_WARNING = "rate_limit_warning"
+    LATENCY_WARNING = "latency_warning"
+
+
+class Event:
+    """Container for event data."""
+
+    def __init__(self, type: EventType | str, data: Any, source: str | None = None):
+        """Initialize event.
+
+        Args:
+            type: Event type (EventType enum or string)
+            data: Event payload data
+            source: Optional source component name
+        """
+        self.type = type if isinstance(type, EventType) else EventType(type)
+        self.data = data
+        self.source = source
+        self.timestamp = asyncio.get_event_loop().time()
+
+
+class EventBus:
+    """Unified event system for all SDK components.
+
+    Provides centralized event handling with support for:
+    - Multiple handlers per event
+    - One-time handlers
+    - Wildcard event subscriptions
+    - Async event emission
+    - Weak references to prevent memory leaks
+    """
+
+    def __init__(self):
+        """Initialize EventBus."""
+        # Use defaultdict for cleaner handler management
+        self._handlers: dict[EventType, list[Callable]] = defaultdict(list)
+        self._once_handlers: dict[EventType, list[Callable]] = defaultdict(list)
+        self._wildcard_handlers: list[Callable] = []
+
+        # Track active tasks to prevent garbage collection
+        self._active_tasks: WeakSet = WeakSet()
+
+        # Event history for debugging (optional, configurable)
+        self._history_enabled = False
+        self._event_history: list[Event] = []
+        self._max_history_size = 1000
+
+    async def on(self, event: EventType | str, handler: Callable) -> None:
+        """Register handler for event type.
+
+        Args:
+            event: Event type to listen for
+            handler: Async callable to handle events
+        """
+        event_type = event if isinstance(event, EventType) else EventType(event)
+
+        if not asyncio.iscoroutinefunction(handler):
+            raise ValueError(f"Handler {handler.__name__} must be async")
+
+        self._handlers[event_type].append(handler)
+        logger.debug(f"Registered handler {handler.__name__} for {event_type.value}")
+
+    async def once(self, event: EventType | str, handler: Callable) -> None:
+        """Register one-time handler for event type.
+
+        Handler will be automatically removed after first invocation.
+
+        Args:
+            event: Event type to listen for
+            handler: Async callable to handle event once
+        """
+        event_type = event if isinstance(event, EventType) else EventType(event)
+
+        if not asyncio.iscoroutinefunction(handler):
+            raise ValueError(f"Handler {handler.__name__} must be async")
+
+        self._once_handlers[event_type].append(handler)
+        logger.debug(
+            f"Registered one-time handler {handler.__name__} for {event_type.value}"
+        )
+
+    async def on_any(self, handler: Callable) -> None:
+        """Register handler for all events.
+
+        Args:
+            handler: Async callable to handle all events
+        """
+        if not asyncio.iscoroutinefunction(handler):
+            raise ValueError(f"Handler {handler.__name__} must be async")
+
+        self._wildcard_handlers.append(handler)
+        logger.debug(f"Registered wildcard handler {handler.__name__}")
+
+    async def off(
+        self, event: EventType | str | None = None, handler: Callable | None = None
+    ) -> None:
+        """Remove event handler(s).
+
+        Args:
+            event: Event type to remove handler from (None for all)
+            handler: Specific handler to remove (None for all)
+        """
+        if event is None:
+            # Remove all handlers
+            self._handlers.clear()
+            self._once_handlers.clear()
+            if handler is None:
+                self._wildcard_handlers.clear()
+            else:
+                self._wildcard_handlers = [
+                    h for h in self._wildcard_handlers if h != handler
+                ]
+        else:
+            event_type = event if isinstance(event, EventType) else EventType(event)
+
+            if handler is None:
+                # Remove all handlers for this event
+                self._handlers[event_type].clear()
+                self._once_handlers[event_type].clear()
+            else:
+                # Remove specific handler
+                self._handlers[event_type] = [
+                    h for h in self._handlers[event_type] if h != handler
+                ]
+                self._once_handlers[event_type] = [
+                    h for h in self._once_handlers[event_type] if h != handler
+                ]
+
+    async def emit(
+        self, event: EventType | str, data: Any, source: str | None = None
+    ) -> None:
+        """Emit event to all registered handlers.
+
+        Args:
+            event: Event type to emit
+            data: Event payload data
+            source: Optional source component name
+        """
+        event_obj = Event(event, data, source)
+
+        # Store in history if enabled
+        if self._history_enabled:
+            self._event_history.append(event_obj)
+            if len(self._event_history) > self._max_history_size:
+                self._event_history.pop(0)
+
+        # Get all handlers for this event
+        handlers = []
+
+        # Regular handlers
+        handlers.extend(self._handlers.get(event_obj.type, []))
+
+        # One-time handlers
+        once_handlers = self._once_handlers.get(event_obj.type, [])
+        handlers.extend(once_handlers)
+
+        # Wildcard handlers
+        handlers.extend(self._wildcard_handlers)
+
+        # Remove one-time handlers
+        if once_handlers:
+            self._once_handlers[event_obj.type] = []
+
+        # Execute all handlers concurrently
+        if handlers:
+            tasks = []
+            for handler in handlers:
+                task = asyncio.create_task(self._execute_handler(handler, event_obj))
+                self._active_tasks.add(task)
+                tasks.append(task)
+
+            # Don't wait for handlers to complete (fire-and-forget)
+            # This prevents slow handlers from blocking event emission
+            for task in tasks:
+                task.add_done_callback(self._active_tasks.discard)
+
+    async def _execute_handler(self, handler: Callable, event: Event) -> None:
+        """Execute event handler with error handling.
+
+        Args:
+            handler: Async callable to execute
+            event: Event object to pass to handler
+        """
+        try:
+            await handler(event)
+        except Exception as e:
+            logger.error(
+                f"Error in event handler {handler.__name__} for {event.type.value}: {e}"
+            )
+            # Emit error event (but avoid infinite recursion)
+            if event.type != EventType.ERROR:
+                await self.emit(
+                    EventType.ERROR,
+                    {
+                        "original_event": event.type.value,
+                        "handler": handler.__name__,
+                        "error": str(e),
+                    },
+                    source="EventBus",
+                )
+
+    async def wait_for(
+        self, event: EventType | str, timeout: float | None = None
+    ) -> Event:
+        """Wait for specific event to occur.
+
+        Args:
+            event: Event type to wait for
+            timeout: Optional timeout in seconds
+
+        Returns:
+            Event object when received
+
+        Raises:
+            asyncio.TimeoutError: If timeout expires
+        """
+        event_type = event if isinstance(event, EventType) else EventType(event)
+        future = asyncio.Future()
+
+        async def handler(evt: Event):
+            if not future.done():
+                future.set_result(evt)
+
+        await self.once(event_type, handler)
+
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError:
+            # Remove handler if timeout
+            await self.off(event_type, handler)
+            raise
+
+    def enable_history(self, max_size: int = 1000) -> None:
+        """Enable event history for debugging.
+
+        Args:
+            max_size: Maximum number of events to store
+        """
+        self._history_enabled = True
+        self._max_history_size = max_size
+        self._event_history = []
+
+    def get_history(self) -> list[Event]:
+        """Get event history.
+
+        Returns:
+            List of recent events (empty if history disabled)
+        """
+        return self._event_history.copy()
+
+    def clear_history(self) -> None:
+        """Clear event history."""
+        self._event_history.clear()
+
+    def get_handler_count(self, event: EventType | str | None = None) -> int:
+        """Get number of registered handlers.
+
+        Args:
+            event: Event type to check (None for total)
+
+        Returns:
+            Number of handlers
+        """
+        if event is None:
+            total = sum(len(handlers) for handlers in self._handlers.values())
+            total += sum(len(handlers) for handlers in self._once_handlers.values())
+            total += len(self._wildcard_handlers)
+            return total
+        else:
+            event_type = event if isinstance(event, EventType) else EventType(event)
+            count = len(self._handlers.get(event_type, []))
+            count += len(self._once_handlers.get(event_type, []))
+            count += len(self._wildcard_handlers)
+            return count

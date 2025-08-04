@@ -150,6 +150,7 @@ class PositionManager(
     def __init__(
         self,
         project_x_client: "ProjectXBase",
+        event_bus: Any,
         config: PositionManagerConfig | None = None,
     ):
         """
@@ -161,6 +162,8 @@ class PositionManager(
         Args:
             project_x_client (ProjectX): The authenticated ProjectX client instance
                 used for all API operations. Must be properly authenticated before use.
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including position updates, P&L changes, and risk alerts.
             config: Optional configuration for position management behavior. If not provided,
                 default values will be used for all configuration options.
 
@@ -172,7 +175,7 @@ class PositionManager(
             order_manager (OrderManager | None): Optional order manager for sync
             tracked_positions (dict[str, Position]): Current positions by contract ID
             position_history (dict[str, list[dict]]): Historical position changes
-            position_callbacks (dict[str, list[Any]]): Event callbacks by type
+            event_bus (Any): EventBus instance for unified event handling
             position_alerts (dict[str, dict]): Active position alerts by contract
             stats (dict): Comprehensive tracking statistics
             risk_settings (dict): Risk management configuration
@@ -187,6 +190,7 @@ class PositionManager(
         PositionMonitoringMixin.__init__(self)
 
         self.project_x = project_x_client
+        self.event_bus = event_bus  # Store the event bus for emitting events
         self.logger = ProjectXLogger.get_logger(__name__)
 
         # Store configuration with defaults
@@ -574,7 +578,7 @@ class PositionManager(
         async with self.position_lock:
             self.tracked_positions.clear()
             self.position_history.clear()
-            self.position_callbacks.clear()
+            # EventBus handles all callbacks now
             self.position_alerts.clear()
 
         # Clear order manager integration

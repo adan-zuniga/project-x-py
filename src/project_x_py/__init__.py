@@ -109,6 +109,9 @@ from project_x_py.config import (
     load_topstepx_config,
 )
 
+# Event system
+from project_x_py.event_bus import EventBus, EventType
+
 # Exceptions
 from project_x_py.exceptions import (
     ProjectXAuthenticationError,
@@ -198,6 +201,9 @@ __all__ = [
     "BracketOrderResponse",
     # Configuration
     "ConfigManager",
+    # Event System
+    "EventBus",
+    "EventType",
     "Features",
     "HealthStatusResponse",
     "Instrument",

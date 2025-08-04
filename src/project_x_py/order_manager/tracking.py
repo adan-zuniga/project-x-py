@@ -86,8 +86,7 @@ class OrderTrackingMixin:
         self.tracked_orders: dict[str, dict[str, Any]] = {}  # order_id -> order_data
         self.order_status_cache: dict[str, int] = {}  # order_id -> last_known_status
 
-        # Order callbacks (tracking is centralized in realtime client)
-        self.order_callbacks: dict[str, list[Any]] = defaultdict(list)
+        # EventBus is now used for all event handling
 
         # Order-Position relationship tracking for synchronization
         self.position_orders: dict[str, dict[str, list[int]]] = defaultdict(
@@ -149,13 +148,51 @@ class OrderTrackingMixin:
 
             # Update our cache with the actual order data
             async with self.order_lock:
+                old_status = self.order_status_cache.get(str(order_id))
+                new_status = actual_order_data.get("status", 0)
+
                 self.tracked_orders[str(order_id)] = actual_order_data
-                self.order_status_cache[str(order_id)] = actual_order_data.get(
-                    "status", 0
-                )
+                self.order_status_cache[str(order_id)] = new_status
                 logger.info(
                     f"✅ Order {order_id} added to cache. Total tracked: {len(self.tracked_orders)}"
                 )
+
+            # Emit events based on status changes
+            if old_status != new_status:
+                # Map status values to event types
+                status_events = {
+                    2: "order_filled",  # Filled
+                    3: "order_cancelled",  # Cancelled
+                    4: "order_expired",  # Expired
+                    5: "order_rejected",  # Rejected
+                }
+
+                if new_status in status_events:
+                    await self._trigger_callbacks(
+                        status_events[new_status],
+                        {
+                            "order_id": order_id,
+                            "order_data": actual_order_data,
+                            "old_status": old_status,
+                            "new_status": new_status,
+                        },
+                    )
+
+                # Check for partial fills
+                fills = actual_order_data.get("fills", [])
+                filled_size = sum(fill.get("size", 0) for fill in fills)
+                total_size = actual_order_data.get("size", 0)
+
+                if filled_size > 0 and filled_size < total_size:
+                    await self._trigger_callbacks(
+                        "order_partial_fill",
+                        {
+                            "order_id": order_id,
+                            "order_data": actual_order_data,
+                            "filled_size": filled_size,
+                            "total_size": total_size,
+                        },
+                    )
 
             # Call any registered callbacks
             if str(order_id) in self.order_callbacks:
@@ -240,20 +277,13 @@ class OrderTrackingMixin:
         callback: Callable[[dict[str, Any]], None],
     ) -> None:
         """
-        Register a callback function for specific order events.
+        DEPRECATED: Use TradingSuite.on() with EventType enum instead.
 
-        Allows you to listen for order fills, cancellations, rejections, and other
-        order status changes to build custom monitoring and notification systems.
-        Callbacks can be synchronous functions or asynchronous coroutines.
-
-        Args:
-            event_type: Type of event to listen for
-            callback: Function or coroutine to call when event occurs.
+        This method is provided for backward compatibility only and will be removed in v4.0.
         """
-        if event_type not in self.order_callbacks:
-            self.order_callbacks[event_type] = []
-        self.order_callbacks[event_type].append(callback)
-        logger.debug(f"Registered callback for {event_type}")
+        logger.warning(
+            "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
+        )
 
     async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
         """
@@ -263,15 +293,26 @@ class OrderTrackingMixin:
             event_type: Type of event that occurred
             data: Event data to pass to callbacks
         """
-        if event_type in self.order_callbacks:
-            for callback in self.order_callbacks[event_type]:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(data)
-                    else:
-                        callback(data)
-                except Exception as e:
-                    logger.error(f"Error in {event_type} callback: {e}")
+        # Emit event through EventBus
+        from project_x_py.event_bus import EventType
+
+        # Map order event types to EventType enum
+        event_mapping = {
+            "order_placed": EventType.ORDER_PLACED,
+            "order_filled": EventType.ORDER_FILLED,
+            "order_partial_fill": EventType.ORDER_PARTIAL_FILL,
+            "order_cancelled": EventType.ORDER_CANCELLED,
+            "order_rejected": EventType.ORDER_REJECTED,
+            "order_expired": EventType.ORDER_EXPIRED,
+            "order_modified": EventType.ORDER_MODIFIED,
+        }
+
+        if event_type in event_mapping:
+            await self.event_bus.emit(
+                event_mapping[event_type], data, source="OrderManager"
+            )
+
+        # Legacy callbacks have been removed - use EventBus
 
     def clear_order_tracking(self: "OrderManagerProtocol") -> None:
         """
@@ -299,8 +340,4 @@ class OrderTrackingMixin:
             "order_cache_size": len(self.order_status_cache),
             "position_links": len(self.order_to_position),
             "monitored_positions": len(self.position_orders),
-            "callbacks_registered": {
-                event_type: len(callbacks)
-                for event_type, callbacks in self.order_callbacks.items()
-            },
         }

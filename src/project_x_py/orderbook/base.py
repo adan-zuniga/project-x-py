@@ -132,6 +132,7 @@ class OrderBookBase:
     def __init__(
         self,
         instrument: str,
+        event_bus: Any,
         project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
         config: OrderbookConfig | None = None,
@@ -147,6 +148,7 @@ class OrderBookBase:
         """
         self.instrument = instrument
         self.project_x = project_x
+        self.event_bus = event_bus  # Store the event bus for emitting events
         self.timezone = pytz.timezone(timezone_str)
         self.logger = ProjectXLogger.get_logger(__name__)
 
@@ -230,7 +232,7 @@ class OrderBookBase:
         self.order_type_stats: dict[str, int] = defaultdict(int)
 
         # Callbacks for orderbook events
-        self.callbacks: dict[str, list[CallbackType]] = defaultdict(list)
+        # EventBus is now used for all event handling
 
         # Price level refresh history for advanced analytics
         self.price_level_history: dict[tuple[float, str], list[dict[str, Any]]] = (
@@ -659,7 +661,9 @@ class OrderBookBase:
             >>> await orderbook.add_callback("best_bid_change", on_best_bid_change)
         """
         async with self._callback_lock:
-            self.callbacks[event_type].append(callback)
+            logger.warning(
+                "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
+            )
             logger.debug(
                 LogMessages.CALLBACK_REGISTERED,
                 extra={"event_type": event_type, "component": "orderbook"},
@@ -669,12 +673,13 @@ class OrderBookBase:
     async def remove_callback(self, event_type: str, callback: CallbackType) -> None:
         """Remove a registered callback."""
         async with self._callback_lock:
-            if event_type in self.callbacks and callback in self.callbacks[event_type]:
-                self.callbacks[event_type].remove(callback)
-                logger.debug(
-                    LogMessages.CALLBACK_REMOVED,
-                    extra={"event_type": event_type, "component": "orderbook"},
-                )
+            logger.warning(
+                "remove_callback is deprecated. Use TradingSuite.off() with EventType enum instead."
+            )
+            logger.debug(
+                LogMessages.CALLBACK_REMOVED,
+                extra={"event_type": event_type, "component": "orderbook"},
+            )
 
     async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
         """
@@ -693,25 +698,30 @@ class OrderBookBase:
             Callback errors are logged but do not raise exceptions to prevent
             disrupting the orderbook's operation.
         """
-        callbacks = self.callbacks.get(event_type, [])
-        for callback in callbacks:
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(data)
-                else:
-                    callback(data)
-            except Exception as e:
-                self.logger.error(
-                    LogMessages.DATA_ERROR,
-                    extra={"operation": f"callback_{event_type}", "error": str(e)},
-                )
+        # Emit event through EventBus
+        from project_x_py.event_bus import EventType
+
+        # Map orderbook event types to EventType enum
+        event_mapping = {
+            "orderbook_update": EventType.ORDERBOOK_UPDATE,
+            "market_depth": EventType.MARKET_DEPTH_UPDATE,
+            "depth_update": EventType.MARKET_DEPTH_UPDATE,
+            "quote_update": EventType.QUOTE_UPDATE,
+            "trade": EventType.TRADE_TICK,
+        }
+
+        if event_type in event_mapping:
+            await self.event_bus.emit(
+                event_mapping[event_type], data, source="OrderBook"
+            )
+
+        # Legacy callbacks have been removed - use EventBus
 
     @handle_errors("cleanup", reraise=False)
     async def cleanup(self) -> None:
         """Clean up resources."""
         await self.memory_manager.stop()
-        async with self._callback_lock:
-            self.callbacks.clear()
+        # EventBus handles all event cleanup
         logger.info(
             LogMessages.CLEANUP_COMPLETE,
             extra={"component": "OrderBook"},

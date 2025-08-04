@@ -117,7 +117,10 @@ class OrderManager(
     """
 
     def __init__(
-        self, project_x_client: "ProjectXBase", config: OrderManagerConfig | None = None
+        self,
+        project_x_client: "ProjectXBase",
+        event_bus: Any,
+        config: OrderManagerConfig | None = None,
     ):
         """
         Initialize the OrderManager with an ProjectX client and optional configuration.
@@ -131,6 +134,8 @@ class OrderManager(
             project_x_client: ProjectX client instance for API access. This client
                 should already be authenticated or authentication should be handled
                 separately before attempting order operations.
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including order placements, fills, and cancellations.
             config: Optional configuration for order management behavior. If not provided,
                 default values will be used for all configuration options.
         """
@@ -138,6 +143,7 @@ class OrderManager(
         OrderTrackingMixin.__init__(self)
 
         self.project_x = project_x_client
+        self.event_bus = event_bus  # Store the event bus for emitting events
         self.logger = ProjectXLogger.get_logger(__name__)
 
         # Store configuration with defaults
@@ -397,6 +403,23 @@ class OrderManager(
                         "contract_id": contract_id,
                         "side": side,
                         "size": size,
+                    },
+                )
+
+                # Emit order placed event
+                await self._trigger_callbacks(
+                    "order_placed",
+                    {
+                        "order_id": result.orderId,
+                        "contract_id": contract_id,
+                        "order_type": order_type,
+                        "side": side,
+                        "size": size,
+                        "limit_price": aligned_limit_price,
+                        "stop_price": aligned_stop_price,
+                        "trail_price": aligned_trail_price,
+                        "custom_tag": custom_tag,
+                        "response": result,
                     },
                 )
 
@@ -661,6 +684,20 @@ class OrderManager(
                 self.logger.info(
                     LogMessages.ORDER_MODIFIED, extra={"order_id": order_id}
                 )
+
+                # Emit order modified event
+                await self._trigger_callbacks(
+                    "order_modified",
+                    {
+                        "order_id": order_id,
+                        "modifications": {
+                            "limit_price": aligned_limit,
+                            "stop_price": aligned_stop,
+                            "size": size,
+                        },
+                    },
+                )
+
                 return True
             else:
                 error_msg = (
@@ -762,11 +799,8 @@ class OrderManager(
                         "total": total_count,
                     }
 
-            # Count callbacks
-            callback_counts = {
-                event_type: len(callbacks)
-                for event_type, callbacks in self.order_callbacks.items()
-            }
+            # Callbacks now handled through EventBus
+            callback_counts = {}
 
             # Calculate performance metrics
             fill_rate = (
@@ -849,7 +883,7 @@ class OrderManager(
             self.order_status_cache.clear()
             self.order_to_position.clear()
             self.position_orders.clear()
-            self.order_callbacks.clear()
+            # EventBus handles all callbacks now
 
         # Clean up realtime client if it exists
         if self.realtime_client:

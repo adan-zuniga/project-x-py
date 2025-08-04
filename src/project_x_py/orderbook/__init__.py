@@ -204,6 +204,7 @@ class OrderBook(OrderBookBase):
     def __init__(
         self,
         instrument: str,
+        event_bus: Any,
         project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
         config: "OrderbookConfig | None" = None,
@@ -213,11 +214,13 @@ class OrderBook(OrderBookBase):
 
         Args:
             instrument: Trading instrument symbol
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including market depth updates and trade ticks.
             project_x: Optional ProjectX client for tick size lookup
             timezone_str: Timezone for timestamps (default: America/Chicago)
             config: Optional configuration for orderbook behavior
         """
-        super().__init__(instrument, project_x, timezone_str, config)
+        super().__init__(instrument, event_bus, project_x, timezone_str, config)
 
         # Initialize components
         self.realtime_handler = RealtimeHandler(self)
@@ -454,6 +457,7 @@ class OrderBook(OrderBookBase):
 
 def create_orderbook(
     instrument: str,
+    event_bus: Any,
     project_x: "ProjectXBase | None" = None,
     realtime_client: "ProjectXRealtimeClient | None" = None,
     timezone_str: str = DEFAULT_TIMEZONE,
@@ -503,4 +507,4 @@ def create_orderbook(
     # Note: realtime_client is passed to initialize() separately to allow
     # for async initialization
     _ = realtime_client  # Mark as intentionally unused
-    return OrderBook(instrument, project_x, timezone_str)
+    return OrderBook(instrument, event_bus, project_x, timezone_str)

@@ -44,6 +44,7 @@ import yaml
 
 from project_x_py.client import ProjectX
 from project_x_py.client.base import ProjectXBase
+from project_x_py.event_bus import EventBus, EventType
 from project_x_py.order_manager import OrderManager
 from project_x_py.orderbook import OrderBook
 from project_x_py.position_manager import PositionManager
@@ -145,6 +146,7 @@ class TradingSuite:
         client: Underlying ProjectX API client
         realtime: WebSocket connection manager
         config: Suite configuration
+        events: Unified event bus for all components
     """
 
     def __init__(
@@ -164,7 +166,10 @@ class TradingSuite:
         self.config = config
         self.instrument = config.instrument
 
-        # Initialize core components with typed configs
+        # Initialize unified event bus
+        self.events = EventBus()
+
+        # Initialize core components with typed configs and event bus
         self.data = RealtimeDataManager(
             instrument=config.instrument,
             project_x=client,
@@ -172,11 +177,14 @@ class TradingSuite:
             timeframes=config.timeframes,
             timezone=config.timezone,
             config=config.get_data_manager_config(),
+            event_bus=self.events,
         )
 
-        self.orders = OrderManager(client, config=config.get_order_manager_config())
+        self.orders = OrderManager(
+            client, config=config.get_order_manager_config(), event_bus=self.events
+        )
         self.positions = PositionManager(
-            client, config=config.get_position_manager_config()
+            client, config=config.get_position_manager_config(), event_bus=self.events
         )
 
         # Optional components
@@ -395,6 +403,7 @@ class TradingSuite:
                     timezone_str=self.config.timezone,
                     project_x=self.client,
                     config=self.config.get_orderbook_config(),
+                    event_bus=self.events,
                 )
                 await self.orderbook.initialize(
                     realtime_client=self.realtime,
@@ -480,6 +489,79 @@ class TradingSuite:
     def is_connected(self) -> bool:
         """Check if all components are connected and ready."""
         return self._connected and self.realtime.is_connected()
+
+    async def on(self, event: EventType | str, handler: Any) -> None:
+        """
+        Register event handler through unified event bus.
+
+        This is the single interface for all event handling in the SDK,
+        replacing the scattered callback systems across components.
+
+        Args:
+            event: Event type to listen for (EventType enum or string)
+            handler: Async callable to handle events
+
+        Example:
+            ```python
+            async def handle_new_bar(event):
+                bar = event.data
+                print(f"New bar: {bar['close']} at {bar['timestamp']}")
+
+
+            async def handle_position_closed(event):
+                position = event.data
+                print(f"Position closed: P&L = {position.pnl}")
+
+
+            # Register handlers
+            await suite.on(EventType.NEW_BAR, handle_new_bar)
+            await suite.on(EventType.POSITION_CLOSED, handle_position_closed)
+            await suite.on("order_filled", handle_order_filled)
+            ```
+        """
+        await self.events.on(event, handler)
+
+    async def once(self, event: EventType | str, handler: Any) -> None:
+        """
+        Register one-time event handler.
+
+        Handler will be automatically removed after first invocation.
+
+        Args:
+            event: Event type to listen for
+            handler: Async callable to handle event once
+        """
+        await self.events.once(event, handler)
+
+    async def off(
+        self, event: EventType | str | None = None, handler: Any | None = None
+    ) -> None:
+        """
+        Remove event handler(s).
+
+        Args:
+            event: Event type to remove handler from (None for all)
+            handler: Specific handler to remove (None for all)
+        """
+        await self.events.off(event, handler)
+
+    async def wait_for(
+        self, event: EventType | str, timeout: float | None = None
+    ) -> Any:
+        """
+        Wait for specific event to occur.
+
+        Args:
+            event: Event type to wait for
+            timeout: Optional timeout in seconds
+
+        Returns:
+            Event object when received
+
+        Raises:
+            TimeoutError: If timeout expires
+        """
+        return await self.events.wait_for(event, timeout)
 
     def get_stats(self) -> TradingSuiteStats:
         """

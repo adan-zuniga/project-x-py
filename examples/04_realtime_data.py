@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from project_x_py import (
+    EventType,
     TradingSuite,
     setup_logging,
 )
@@ -241,17 +242,16 @@ async def main():
         await display_memory_stats(data_manager)
         await demonstrate_historical_analysis(data_manager)
 
-        # OPTIONAL: Register callbacks for custom event handling
+        # OPTIONAL: Register event handlers for custom event handling
         # The RealtimeDataManager already processes data internally to build OHLCV bars.
-        # These callbacks are only needed if you want to react to specific events.
-        print("\n🔔 Registering optional callbacks for demonstration...")
+        # These event handlers are only needed if you want to react to specific events.
+        print("\n🔔 Registering optional event handlers for demonstration...")
         try:
-            # Note: "data_update" callback is not actually triggered by the current implementation
-            # Only "new_bar" events are currently supported for external callbacks
-            await data_manager.add_callback("new_bar", new_bar_callback)
-            print("✅ Optional callbacks registered!")
+            # Use the EventBus through TradingSuite
+            suite.on(EventType.NEW_BAR, new_bar_callback)
+            print("✅ Optional event handlers registered!")
         except Exception as e:
-            print(f"⚠️ Callback registration error: {e}")
+            print(f"⚠️ Event handler registration error: {e}")
 
         # Note: Real-time feed is already started by TradingSuite
         # The data manager is already receiving and processing quotes to build OHLCV bars

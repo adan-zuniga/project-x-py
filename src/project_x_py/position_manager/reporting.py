@@ -303,7 +303,6 @@ class PositionReportingMixin:
             dict[str, Any]: Validation and compliance status containing:
                 - realtime_enabled (bool): WebSocket integration active
                 - tracked_positions_count (int): Positions in cache
-                - position_callbacks_registered (int): Update callbacks
                 - payload_validation (dict):
                     * enabled (bool): Validation active
                     * required_fields (list[str]): Expected fields
@@ -339,9 +338,6 @@ class PositionReportingMixin:
         return {
             "realtime_enabled": self._realtime_enabled,
             "tracked_positions_count": len(self.tracked_positions),
-            "position_callbacks_registered": len(
-                self.position_callbacks.get("position_update", [])
-            ),
             "payload_validation": {
                 "enabled": True,
                 "required_fields": [

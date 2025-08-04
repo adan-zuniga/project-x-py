@@ -208,6 +208,7 @@ class OrderManagerProtocol(Protocol):
 
     project_x: ProjectXClientProtocol
     realtime_client: "ProjectXRealtimeClient | None"
+    event_bus: Any  # EventBus instance
     order_lock: asyncio.Lock
     _realtime_enabled: bool
     stats: dict[str, Any]  # Comprehensive statistics tracking
@@ -215,7 +216,6 @@ class OrderManagerProtocol(Protocol):
     # From tracking mixin
     tracked_orders: dict[str, dict[str, Any]]
     order_status_cache: dict[str, int]
-    order_callbacks: dict[str, list[Any]]
     position_orders: dict[str, dict[str, list[int]]]
     order_to_position: dict[int, str]
 
@@ -325,6 +325,7 @@ class PositionManagerProtocol(Protocol):
 
     project_x: ProjectXClientProtocol
     logger: Any
+    event_bus: Any  # EventBus instance
     position_lock: asyncio.Lock
     realtime_client: "ProjectXRealtimeClient | None"
     _realtime_enabled: bool
@@ -332,7 +333,6 @@ class PositionManagerProtocol(Protocol):
     _order_sync_enabled: bool
     tracked_positions: dict[str, "Position"]
     position_history: dict[str, list[dict[str, Any]]]
-    position_callbacks: dict[str, list[Any]]
     _monitoring_active: bool
     _monitoring_task: "asyncio.Task[None] | None"
     position_alerts: dict[str, dict[str, Any]]
@@ -406,6 +406,7 @@ class RealtimeDataManagerProtocol(Protocol):
     instrument: str
     project_x: ProjectXClientProtocol
     realtime_client: "ProjectXRealtimeClient"
+    event_bus: Any  # EventBus instance
     logger: Any
     timezone: Any  # pytz.tzinfo.BaseTzInfo
 
@@ -420,7 +421,6 @@ class RealtimeDataManagerProtocol(Protocol):
     # Synchronization
     data_lock: asyncio.Lock
     is_running: bool
-    callbacks: dict[str, list[Any]]
     indicator_cache: defaultdict[str, dict[str, Any]]
 
     # Contract and subscription

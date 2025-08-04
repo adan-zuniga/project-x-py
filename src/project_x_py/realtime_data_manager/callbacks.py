@@ -90,7 +90,6 @@ See Also:
     - `realtime_data_manager.validation.ValidationMixin`
 """
 
-import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
@@ -102,7 +101,7 @@ logger = logging.getLogger(__name__)
 
 
 class CallbackMixin:
-    """Mixin for managing callbacks and event handling."""
+    """Mixin for event handling through EventBus."""
 
     async def add_callback(
         self: "RealtimeDataManagerProtocol",
@@ -110,23 +109,22 @@ class CallbackMixin:
         callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None] | None],
     ) -> None:
         """
-        Register a callback for specific data events.
+        DEPRECATED: Use TradingSuite.on() with EventType enum instead.
 
-        This method allows you to register callback functions that will be triggered when
-        specific events occur in the data manager. Callbacks can be either synchronous functions
-        or asynchronous coroutines. This event-driven approach enables building reactive
-        trading systems that respond to real-time market events.
+        This method is provided for backward compatibility only and will be removed in v4.0.
+        Please migrate to the new EventBus system:
+
+        ```python
+        # Old way (deprecated)
+        await data_manager.add_callback("new_bar", callback)
+
+        # New way
+        await suite.on(EventType.NEW_BAR, callback)
+        ```
 
         Args:
-            event_type: Type of event to listen for. Supported event types:
-                - "new_bar": Triggered when a new OHLCV bar is created in any timeframe.
-                  The callback receives data with timeframe, bar_time, and complete bar data.
-                - "data_update": Triggered on every tick update.
-                  The callback receives timestamp, price, and volume information.
-
-            callback: Function or coroutine to call when the event occurs.
-                Both synchronous functions and async coroutines are supported.
-                The function should accept a single dictionary parameter with event data.
+            event_type: Type of event to listen for
+            callback: Function or coroutine to call when the event occurs
 
         Event Data Structures:
             "new_bar" event data contains:
@@ -190,23 +188,46 @@ class CallbackMixin:
             - Exceptions in callbacks are caught and logged, preventing them from
               affecting the data manager's operation
         """
-        self.callbacks[event_type].append(callback)
+        # Map old event types to EventType enum
+        from project_x_py.event_bus import EventType
+
+        event_mapping = {
+            "new_bar": EventType.NEW_BAR,
+            "data_update": EventType.DATA_UPDATE,
+            "quote_update": EventType.QUOTE_UPDATE,
+            "trade_tick": EventType.TRADE_TICK,
+            "market_trade": EventType.TRADE_TICK,
+        }
+
+        if event_type in event_mapping:
+            await self.event_bus.on(event_mapping[event_type], callback)
+        else:
+            self.logger.warning(f"Unknown event type: {event_type}")
 
     async def _trigger_callbacks(
         self: "RealtimeDataManagerProtocol", event_type: str, data: dict[str, Any]
     ) -> None:
         """
-        Trigger all callbacks for a specific event type.
+        Emit events through EventBus.
 
         Args:
             event_type: Type of event to trigger
             data: Data to pass to callbacks
         """
-        for callback in self.callbacks.get(event_type, []):
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(data)
-                else:
-                    callback(data)
-            except Exception as e:
-                self.logger.error(f"Error in {event_type} callback: {e}")
+        from project_x_py.event_bus import EventType
+
+        # Map event types to EventType enum
+        event_mapping = {
+            "new_bar": EventType.NEW_BAR,
+            "data_update": EventType.DATA_UPDATE,
+            "quote_update": EventType.QUOTE_UPDATE,
+            "trade_tick": EventType.TRADE_TICK,
+            "market_trade": EventType.TRADE_TICK,
+        }
+
+        if event_type in event_mapping:
+            await self.event_bus.emit(
+                event_mapping[event_type], data, source="RealtimeDataManager"
+            )
+        else:
+            self.logger.warning(f"Unknown event type: {event_type}")

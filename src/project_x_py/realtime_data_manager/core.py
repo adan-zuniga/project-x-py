@@ -232,6 +232,7 @@ class RealtimeDataManager(
         instrument: str,
         project_x: "ProjectXBase",
         realtime_client: "ProjectXRealtimeClient",
+        event_bus: Any,
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
         config: DataManagerConfig | None = None,
@@ -254,6 +255,9 @@ class RealtimeDataManager(
             realtime_client: ProjectXRealtimeClient instance for live market data.
                 The client does not need to be connected yet, as the manager will handle
                 connection when start_realtime_feed() is called.
+
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including new bars, data updates, and errors.
 
             timeframes: List of timeframes to track (default: ["5min"] if None provided).
                 Available timeframes include:
@@ -306,6 +310,7 @@ class RealtimeDataManager(
         self.instrument: str = instrument
         self.project_x: ProjectXBase = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
+        self.event_bus = event_bus  # Store the event bus for emitting events
 
         self.logger = ProjectXLogger.get_logger(__name__)
 
@@ -352,7 +357,7 @@ class RealtimeDataManager(
         # Async synchronization
         self.data_lock: asyncio.Lock = asyncio.Lock()
         self.is_running: bool = False
-        self.callbacks: dict[str, list[Any]] = defaultdict(list)
+        # EventBus is now used for all event handling
         self.indicator_cache: defaultdict[str, dict[str, Any]] = defaultdict(dict)
 
         # Contract ID for real-time subscriptions
@@ -670,7 +675,7 @@ class RealtimeDataManager(
         async with self.data_lock:
             self.data.clear()
             self.current_tick_data.clear()
-            self.callbacks.clear()
+            # EventBus handles all event cleanup
             self.indicator_cache.clear()
 
         self.logger.info("✅ RealtimeDataManager cleanup completed")

@@ -101,7 +101,7 @@ class PositionTrackingMixin:
         # Position tracking (maintains local state for business logic)
         self.tracked_positions: dict[str, Position] = {}
         self.position_history: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        self.position_callbacks: dict[str, list[Any]] = defaultdict(list)
+        # EventBus is now used for all event handling
 
     async def _setup_realtime_callbacks(self) -> None:
         """
@@ -324,7 +324,25 @@ class PositionTrackingMixin:
                 # Position is open/updated - create or update position
                 # ProjectX payload structure matches our Position model fields
                 position: Position = Position(**actual_position_data)
+
+                # Check if this is a new position (didn't exist before)
+                is_new_position = contract_id not in self.tracked_positions
                 self.tracked_positions[contract_id] = position
+
+                # Emit appropriate event
+                if is_new_position:
+                    # New position opened
+                    await self._trigger_callbacks(
+                        "position_opened", actual_position_data
+                    )
+                    self.stats["positions_opened"] = (
+                        self.stats.get("positions_opened", 0) + 1
+                    )
+                else:
+                    # Existing position updated
+                    await self._trigger_callbacks(
+                        "position_update", actual_position_data
+                    )
 
                 # Synchronize orders - update order sizes if position size changed
                 if (
@@ -374,14 +392,24 @@ class PositionTrackingMixin:
             - Errors in callbacks are logged but don't stop other callbacks
             - Supports both sync and async callback functions
         """
-        for callback in self.position_callbacks.get(event_type, []):
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(data)
-                else:
-                    callback(data)
-            except Exception as e:
-                self.logger.error(f"Error in {event_type} callback: {e}")
+        # Emit event through EventBus
+        from project_x_py.event_bus import EventType
+
+        # Map position event types to EventType enum
+        event_mapping = {
+            "position_opened": EventType.POSITION_OPENED,
+            "position_closed": EventType.POSITION_CLOSED,
+            "position_update": EventType.POSITION_UPDATED,
+            "position_pnl_update": EventType.POSITION_PNL_UPDATE,
+            "position_alert": EventType.RISK_LIMIT_WARNING,  # Map alerts to risk warnings
+        }
+
+        if event_type in event_mapping:
+            await self.event_bus.emit(
+                event_mapping[event_type], data, source="PositionManager"
+            )
+
+        # Legacy callbacks have been removed - use EventBus
 
     async def add_callback(
         self,
@@ -419,4 +447,6 @@ class PositionTrackingMixin:
             ...     "position_closed", on_position_closed
             ... )
         """
-        self.position_callbacks[event_type].append(callback)
+        self.logger.warning(
+            "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
+        )
