@@ -800,7 +800,7 @@ class OrderManager(
                     }
 
             # Callbacks now handled through EventBus
-            callback_counts = {}
+            callback_counts: dict[str, int] = {}
 
             # Calculate performance metrics
             fill_rate = (

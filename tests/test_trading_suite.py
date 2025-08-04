@@ -23,11 +23,12 @@ async def test_trading_suite_create():
         name="TEST_ACCOUNT",
         balance=100000.0,
         canTrade=True,
+        isVisible=True,
         simulated=True,
-        accountType="TEST",
     )
     mock_client.session_token = "mock_jwt_token"
     mock_client.config = MagicMock()
+    mock_client.authenticate = AsyncMock()
     mock_client.get_instrument = AsyncMock(return_value=MagicMock(id="MNQ_CONTRACT_ID"))
 
     mock_context = AsyncMock()
@@ -37,6 +38,7 @@ async def test_trading_suite_create():
     # Mock RealtimeClient
     mock_realtime = MagicMock()
     mock_realtime.connect = AsyncMock(return_value=True)
+    mock_realtime.disconnect = AsyncMock(return_value=None)
     mock_realtime.subscribe_user_updates = AsyncMock(return_value=True)
     mock_realtime.subscribe_market_data = AsyncMock(return_value=True)
     mock_realtime.is_connected.return_value = True
@@ -46,6 +48,8 @@ async def test_trading_suite_create():
     mock_data_manager = MagicMock()
     mock_data_manager.initialize = AsyncMock(return_value=True)
     mock_data_manager.start_realtime_feed = AsyncMock(return_value=True)
+    mock_data_manager.stop_realtime_feed = AsyncMock(return_value=None)
+    mock_data_manager.cleanup = AsyncMock(return_value=None)
     mock_data_manager.get_current_price = AsyncMock(return_value=16500.25)
     mock_data_manager.get_memory_stats.return_value = {"bars": 1000}
 
@@ -96,8 +100,8 @@ async def test_trading_suite_create():
                     stats = suite.get_stats()
                     assert stats["connected"] is True
                     assert stats["instrument"] == "MNQ"
-                    assert "realtime" in stats
-                    assert "data_manager" in stats
+                    assert stats["realtime_connected"] is True
+                    assert "data_manager" in stats["components"]
 
                     # Test disconnect
                     await suite.disconnect()
@@ -118,11 +122,12 @@ async def test_trading_suite_with_features():
         name="TEST_ACCOUNT",
         balance=100000.0,
         canTrade=True,
+        isVisible=True,
         simulated=True,
-        accountType="TEST",
     )
     mock_client.session_token = "mock_jwt_token"
     mock_client.config = MagicMock()
+    mock_client.authenticate = AsyncMock()
     mock_client.get_instrument = AsyncMock(return_value=MagicMock(id="MGC_CONTRACT_ID"))
 
     mock_context = AsyncMock()
@@ -131,6 +136,7 @@ async def test_trading_suite_with_features():
     # Mock orderbook
     mock_orderbook = MagicMock()
     mock_orderbook.initialize = AsyncMock(return_value=True)
+    mock_orderbook.cleanup = AsyncMock(return_value=None)
     mock_orderbook.orderbook_bids = []
     mock_orderbook.orderbook_asks = []
     mock_orderbook.recent_trades = []
@@ -138,32 +144,60 @@ async def test_trading_suite_with_features():
     with patch(
         "project_x_py.trading_suite.ProjectX.from_env", return_value=mock_context
     ):
-        with patch("project_x_py.trading_suite.ProjectXRealtimeClient"):
-            with patch("project_x_py.trading_suite.RealtimeDataManager"):
+        # Create proper mocks for realtime and data manager
+        mock_realtime = MagicMock()
+        mock_realtime.connect = AsyncMock(return_value=True)
+        mock_realtime.disconnect = AsyncMock(return_value=None)
+        mock_realtime.subscribe_user_updates = AsyncMock(return_value=True)
+        mock_realtime.subscribe_market_data = AsyncMock(return_value=True)
+        mock_realtime.is_connected.return_value = True
+
+        mock_data_manager = MagicMock()
+        mock_data_manager.initialize = AsyncMock(return_value=True)
+        mock_data_manager.start_realtime_feed = AsyncMock(return_value=True)
+        mock_data_manager.stop_realtime_feed = AsyncMock(return_value=None)
+        mock_data_manager.cleanup = AsyncMock(return_value=None)
+
+        mock_position_manager = MagicMock()
+        mock_position_manager.initialize = AsyncMock(return_value=True)
+
+        with patch(
+            "project_x_py.trading_suite.ProjectXRealtimeClient",
+            return_value=mock_realtime,
+        ):
+            with patch(
+                "project_x_py.trading_suite.RealtimeDataManager",
+                return_value=mock_data_manager,
+            ):
                 with patch(
-                    "project_x_py.trading_suite.OrderBook", return_value=mock_orderbook
+                    "project_x_py.trading_suite.PositionManager",
+                    return_value=mock_position_manager,
                 ):
-                    # Create suite with orderbook feature
-                    suite = await TradingSuite.create(
-                        "MGC",
-                        timeframes=["1min", "5min", "15min"],
-                        features=["orderbook"],
-                        initial_days=10,
-                    )
+                    with patch(
+                        "project_x_py.trading_suite.OrderBook",
+                        return_value=mock_orderbook,
+                    ):
+                        # Create suite with orderbook feature
+                        suite = await TradingSuite.create(
+                            "MGC",
+                            timeframes=["1min", "5min", "15min"],
+                            features=["orderbook"],
+                            initial_days=10,
+                        )
 
-                    # Verify configuration
-                    assert suite.config.instrument == "MGC"
-                    assert suite.config.timeframes == ["1min", "5min", "15min"]
-                    assert Features.ORDERBOOK in suite.config.features
-                    assert suite.config.initial_days == 10
+                        # Verify configuration
+                        assert suite.config.instrument == "MGC"
+                        assert suite.config.timeframes == ["1min", "5min", "15min"]
+                        assert Features.ORDERBOOK in suite.config.features
+                        assert suite.config.initial_days == 10
 
-                    # Verify orderbook was created
-                    assert suite.orderbook is not None
-                    assert suite.orderbook == mock_orderbook
+                        # Verify orderbook was created
+                        assert suite.orderbook is not None
+                        assert suite.orderbook == mock_orderbook
 
-                    # Verify stats include orderbook
-                    stats = suite.get_stats()
-                    assert "orderbook" in stats
+                        # Verify stats include orderbook
+                        stats = suite.get_stats()
+                        assert "orderbook" in stats["components"]
 
 
 @pytest.mark.asyncio
@@ -176,39 +210,70 @@ async def test_trading_suite_context_manager():
         name="TEST_ACCOUNT",
         balance=100000.0,
         canTrade=True,
+        isVisible=True,
         simulated=True,
-        accountType="TEST",
     )
     mock_client.session_token = "mock_jwt_token"
     mock_client.config = MagicMock()
+    mock_client.authenticate = AsyncMock()
+    mock_client.get_instrument = AsyncMock(return_value=MagicMock(id="ES_CONTRACT_ID"))
 
     mock_context = AsyncMock()
     mock_context.__aenter__.return_value = mock_client
 
     disconnect_called = False
 
+    # Mock RealtimeClient
+    mock_realtime = MagicMock()
+    mock_realtime.connect = AsyncMock(return_value=True)
+    mock_realtime.disconnect = AsyncMock(return_value=None)
+    mock_realtime.subscribe_user_updates = AsyncMock(return_value=True)
+    mock_realtime.subscribe_market_data = AsyncMock(return_value=True)
+    mock_realtime.is_connected.return_value = True
+
+    # Mock data manager
+    mock_data_manager = MagicMock()
+    mock_data_manager.initialize = AsyncMock(return_value=True)
+    mock_data_manager.start_realtime_feed = AsyncMock(return_value=True)
+    mock_data_manager.stop_realtime_feed = AsyncMock(return_value=None)
+    mock_data_manager.cleanup = AsyncMock(return_value=None)
+
+    # Mock position manager
+    mock_position_manager = MagicMock()
+    mock_position_manager.initialize = AsyncMock(return_value=True)
+
     with patch(
         "project_x_py.trading_suite.ProjectX.from_env", return_value=mock_context
     ):
-        with patch("project_x_py.trading_suite.ProjectXRealtimeClient"):
-            with patch("project_x_py.trading_suite.RealtimeDataManager"):
-                # Use as context manager
-                async with await TradingSuite.create("ES") as suite:
-                    assert suite.instrument == "ES"
-                    assert suite._initialized is True
+        with patch(
+            "project_x_py.trading_suite.ProjectXRealtimeClient",
+            return_value=mock_realtime,
+        ):
+            with patch(
+                "project_x_py.trading_suite.RealtimeDataManager",
+                return_value=mock_data_manager,
+            ):
+                with patch(
+                    "project_x_py.trading_suite.PositionManager",
+                    return_value=mock_position_manager,
+                ):
+                    # Use as context manager
+                    async with await TradingSuite.create("ES") as suite:
+                        assert suite.instrument == "ES"
+                        assert suite._initialized is True
 
-                    # Patch disconnect to track if it was called
-                    original_disconnect = suite.disconnect
+                        # Patch disconnect to track if it was called
+                        original_disconnect = suite.disconnect
 
-                    async def mock_disconnect():
-                        nonlocal disconnect_called
-                        disconnect_called = True
-                        await original_disconnect()
+                        async def mock_disconnect():
+                            nonlocal disconnect_called
+                            disconnect_called = True
+                            await original_disconnect()
 
-                    suite.disconnect = mock_disconnect
+                        suite.disconnect = mock_disconnect
 
-                # Verify disconnect was called on exit
-                assert disconnect_called is True
+                    # Verify disconnect was called on exit
+                    assert disconnect_called is True
 
 
 def test_trading_suite_config():

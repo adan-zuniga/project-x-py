@@ -115,18 +115,19 @@ class PositionReportingMixin:
         self.stats["position_updates"] += 1
 
         # Calculate performance metrics
-        closed_positions = [p for p in self.tracked_positions.values() if p.size == 0]
-        winning_positions = [p for p in closed_positions if p.realized_pnl > 0]
+        # Note: Position model doesn't have realized_pnl, so we use stats tracking instead
+        closed_positions_count = self.stats.get("closed_positions", 0)
+        winning_positions_count = self.stats.get("winning_positions", 0)
 
         win_rate = (
-            len(winning_positions) / len(closed_positions) if closed_positions else 0.0
+            winning_positions_count / closed_positions_count
+            if closed_positions_count > 0
+            else 0.0
         )
 
-        # Calculate profit factor (gross profit / gross loss)
-        gross_profit = sum(p.realized_pnl for p in winning_positions)
-        gross_loss = abs(
-            sum(p.realized_pnl for p in closed_positions if p.realized_pnl < 0)
-        )
+        # Calculate profit factor from stats
+        gross_profit = self.stats.get("gross_profit", 0.0)
+        gross_loss = abs(self.stats.get("gross_loss", 0.0))
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
 
         # Calculate average metrics

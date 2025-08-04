@@ -65,6 +65,8 @@ See Also:
     - `project_x_py.indicators.waddah_attar`
 """
 
+from typing import Any
+
 import polars as pl
 
 # Base classes and utilities
@@ -1002,22 +1004,22 @@ def WAE(
     )
 
 
-def DOJI(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def DOJI(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     """Doji candlestick pattern (TA-Lib style)."""
     return calculate_doji(data, **kwargs)
 
 
-def HAMMER(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def HAMMER(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     """Hammer candlestick pattern (TA-Lib style)."""
     return calculate_hammer(data, **kwargs)
 
 
-def SHOOTINGSTAR(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def SHOOTINGSTAR(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     """Shooting Star candlestick pattern (TA-Lib style)."""
     return calculate_shootingstar(data, **kwargs)
 
 
-def BULLISHENGULFING(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def BULLISHENGULFING(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     """Bullish Engulfing pattern (TA-Lib style)."""
     return calculate_bullishengulfing(data, **kwargs)
 

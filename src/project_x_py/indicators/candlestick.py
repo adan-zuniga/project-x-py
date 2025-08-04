@@ -320,19 +320,19 @@ class BullishEngulfing(BaseIndicator):
 # Convenience functions
 
 
-def calculate_doji(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_doji(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return Doji().calculate(data, **kwargs)
 
 
-def calculate_hammer(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_hammer(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return Hammer().calculate(data, **kwargs)
 
 
-def calculate_shootingstar(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_shootingstar(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return ShootingStar().calculate(data, **kwargs)
 
 
-def calculate_bullishengulfing(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_bullishengulfing(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return BullishEngulfing().calculate(data, **kwargs)
 
 

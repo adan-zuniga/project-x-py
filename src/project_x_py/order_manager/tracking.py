@@ -73,12 +73,14 @@ class OrderTrackingMixin:
     # Type hints for mypy - these attributes are provided by the main class
     if TYPE_CHECKING:
         from asyncio import Lock
+        from typing import Any
 
         from project_x_py.realtime import ProjectXRealtimeClient
 
         order_lock: Lock
         realtime_client: ProjectXRealtimeClient | None
         _realtime_enabled: bool
+        event_bus: Any  # EventBus instance
 
     def __init__(self) -> None:
         """Initialize tracking attributes."""
@@ -194,10 +196,7 @@ class OrderTrackingMixin:
                         },
                     )
 
-            # Call any registered callbacks
-            if str(order_id) in self.order_callbacks:
-                for callback in self.order_callbacks[str(order_id)]:
-                    await callback(order_data)
+            # Legacy callbacks have been removed - use EventBus
 
         except Exception as e:
             logger.error(f"Error handling order update: {e}")

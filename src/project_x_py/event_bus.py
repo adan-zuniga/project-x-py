@@ -7,7 +7,7 @@ replacing scattered callback systems with a centralized event bus.
 import asyncio
 import logging
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from enum import Enum
 from typing import Any
 from weakref import WeakSet
@@ -89,22 +89,30 @@ class EventBus:
     - Weak references to prevent memory leaks
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize EventBus."""
         # Use defaultdict for cleaner handler management
-        self._handlers: dict[EventType, list[Callable]] = defaultdict(list)
-        self._once_handlers: dict[EventType, list[Callable]] = defaultdict(list)
-        self._wildcard_handlers: list[Callable] = []
+        self._handlers: dict[
+            EventType, list[Callable[[Event], Coroutine[Any, Any, None]]]
+        ] = defaultdict(list)
+        self._once_handlers: dict[
+            EventType, list[Callable[[Event], Coroutine[Any, Any, None]]]
+        ] = defaultdict(list)
+        self._wildcard_handlers: list[Callable[[Event], Coroutine[Any, Any, None]]] = []
 
         # Track active tasks to prevent garbage collection
-        self._active_tasks: WeakSet = WeakSet()
+        self._active_tasks: WeakSet[asyncio.Task[Any]] = WeakSet()
 
         # Event history for debugging (optional, configurable)
         self._history_enabled = False
         self._event_history: list[Event] = []
         self._max_history_size = 1000
 
-    async def on(self, event: EventType | str, handler: Callable) -> None:
+    async def on(
+        self,
+        event: EventType | str,
+        handler: Callable[[Event], Coroutine[Any, Any, None]],
+    ) -> None:
         """Register handler for event type.
 
         Args:
@@ -119,7 +127,11 @@ class EventBus:
         self._handlers[event_type].append(handler)
         logger.debug(f"Registered handler {handler.__name__} for {event_type.value}")
 
-    async def once(self, event: EventType | str, handler: Callable) -> None:
+    async def once(
+        self,
+        event: EventType | str,
+        handler: Callable[[Event], Coroutine[Any, Any, None]],
+    ) -> None:
         """Register one-time handler for event type.
 
         Handler will be automatically removed after first invocation.
@@ -138,7 +150,9 @@ class EventBus:
             f"Registered one-time handler {handler.__name__} for {event_type.value}"
         )
 
-    async def on_any(self, handler: Callable) -> None:
+    async def on_any(
+        self, handler: Callable[[Event], Coroutine[Any, Any, None]]
+    ) -> None:
         """Register handler for all events.
 
         Args:
@@ -151,7 +165,9 @@ class EventBus:
         logger.debug(f"Registered wildcard handler {handler.__name__}")
 
     async def off(
-        self, event: EventType | str | None = None, handler: Callable | None = None
+        self,
+        event: EventType | str | None = None,
+        handler: Callable[[Event], Coroutine[Any, Any, None]] | None = None,
     ) -> None:
         """Remove event handler(s).
 
@@ -233,7 +249,9 @@ class EventBus:
             for task in tasks:
                 task.add_done_callback(self._active_tasks.discard)
 
-    async def _execute_handler(self, handler: Callable, event: Event) -> None:
+    async def _execute_handler(
+        self, handler: Callable[[Event], Coroutine[Any, Any, None]], event: Event
+    ) -> None:
         """Execute event handler with error handling.
 
         Args:
@@ -274,9 +292,9 @@ class EventBus:
             asyncio.TimeoutError: If timeout expires
         """
         event_type = event if isinstance(event, EventType) else EventType(event)
-        future = asyncio.Future()
+        future: asyncio.Future[Event] = asyncio.Future()
 
-        async def handler(evt: Event):
+        async def handler(evt: Event) -> None:
             if not future.done():
                 future.set_result(evt)
 

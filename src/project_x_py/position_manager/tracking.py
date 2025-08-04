@@ -87,6 +87,7 @@ class PositionTrackingMixin:
         stats: dict[str, Any]
         order_manager: OrderManager | None
         _order_sync_enabled: bool
+        event_bus: Any  # EventBus instance
 
         # Methods from other mixins
         async def _check_position_alerts(
@@ -316,7 +317,7 @@ class PositionTrackingMixin:
 
                 # Synchronize orders - cancel related orders when position is closed
                 if self._order_sync_enabled and self.order_manager:
-                    await self.order_manager.on_position_closed(contract_id)
+                    await self.order_manager.on_position_closed(contract_id)  # type: ignore[misc]
 
                 # Trigger position_closed callbacks with the closure data
                 await self._trigger_callbacks("position_closed", actual_position_data)
@@ -350,7 +351,7 @@ class PositionTrackingMixin:
                     and self.order_manager
                     and old_size != position_size
                 ):
-                    await self.order_manager.on_position_changed(
+                    await self.order_manager.on_position_changed(  # type: ignore[misc]
                         contract_id, old_size, position_size
                     )
 
