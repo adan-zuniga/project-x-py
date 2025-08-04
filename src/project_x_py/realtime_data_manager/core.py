@@ -114,6 +114,7 @@ from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
+from project_x_py.types.stats_types import RealtimeDataManagerStats
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,
@@ -354,11 +355,28 @@ class RealtimeDataManager(
         self.cleanup_interval: float = 300.0  # 5 minutes between cleanups
         self.last_cleanup: float = time.time()
 
-        # Performance monitoring
-        self.memory_stats: dict[str, Any] = {
+        # Comprehensive statistics tracking
+        self.memory_stats = {
+            "bars_processed": 0,
+            "ticks_processed": 0,
+            "quotes_processed": 0,
+            "trades_processed": 0,
+            "timeframe_stats": {tf: {"bars": 0, "updates": 0} for tf in timeframes},
+            "avg_processing_time_ms": 0.0,
+            "data_latency_ms": 0.0,
+            "buffer_utilization": 0.0,
+            "total_bars_stored": 0,
+            "memory_usage_mb": 0.0,
+            "compression_ratio": 1.0,
+            "updates_per_minute": 0.0,
+            "last_update": None,
+            "data_freshness_seconds": 0.0,
+            "data_validation_errors": 0,
+            "connection_interruptions": 0,
+            "recovery_attempts": 0,
+            # Legacy fields for backward compatibility
             "total_bars": 0,
             "bars_cleaned": 0,
-            "ticks_processed": 0,
             "last_cleanup": time.time(),
         }
 

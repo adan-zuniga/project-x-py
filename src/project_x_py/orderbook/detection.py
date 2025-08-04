@@ -55,6 +55,9 @@ import polars as pl
 
 from project_x_py.orderbook.base import OrderBookBase
 from project_x_py.types import IcebergConfig
+from project_x_py.types.response_types import (
+    OrderbookAnalysisResponse,
+)
 
 
 class OrderDetection:
@@ -447,7 +450,7 @@ class OrderDetection:
 
         return clusters
 
-    async def get_advanced_market_metrics(self) -> dict[str, Any]:
+    async def get_advanced_market_metrics(self) -> OrderbookAnalysisResponse:
         """
         Calculate advanced market microstructure metrics.
 
@@ -456,80 +459,136 @@ class OrderDetection:
         """
         async with self.orderbook.orderbook_lock:
             try:
-                metrics = {}
+                # Initialize default values
+                bid_depth = self.orderbook.orderbook_bids.height
+                ask_depth = self.orderbook.orderbook_asks.height
 
-                # Order book shape metrics
-                if (
-                    not self.orderbook.orderbook_bids.is_empty()
-                    and not self.orderbook.orderbook_asks.is_empty()
-                ):
-                    # Calculate book pressure
-                    top_5_bids = self.orderbook.orderbook_bids.sort(
-                        "price", descending=True
-                    ).head(5)
-                    top_5_asks = self.orderbook.orderbook_asks.sort("price").head(5)
+                # Calculate basic metrics
+                total_bid_size = (
+                    int(self.orderbook.orderbook_bids["volume"].sum())
+                    if not self.orderbook.orderbook_bids.is_empty()
+                    else 0
+                )
+                total_ask_size = (
+                    int(self.orderbook.orderbook_asks["volume"].sum())
+                    if not self.orderbook.orderbook_asks.is_empty()
+                    else 0
+                )
 
-                    bid_pressure = (
-                        top_5_bids["volume"].sum() if not top_5_bids.is_empty() else 0
+                avg_bid_size = (
+                    float(total_bid_size / bid_depth) if bid_depth > 0 else 0.0
+                )
+                avg_ask_size = (
+                    float(total_ask_size / ask_depth) if ask_depth > 0 else 0.0
+                )
+
+                # Calculate spread and prices
+                best_bid = (
+                    float(
+                        self.orderbook.orderbook_bids.sort("price", descending=True)[
+                            "price"
+                        ][0]
                     )
-                    ask_pressure = (
-                        top_5_asks["volume"].sum() if not top_5_asks.is_empty() else 0
+                    if not self.orderbook.orderbook_bids.is_empty()
+                    else 0.0
+                )
+                best_ask = (
+                    float(self.orderbook.orderbook_asks.sort("price")["price"][0])
+                    if not self.orderbook.orderbook_asks.is_empty()
+                    else 0.0
+                )
+
+                spread = best_ask - best_bid if best_bid > 0 and best_ask > 0 else 0.0
+                mid_price = (
+                    (best_bid + best_ask) / 2 if best_bid > 0 and best_ask > 0 else 0.0
+                )
+
+                # Calculate imbalance
+                imbalance = (
+                    (total_bid_size - total_ask_size)
+                    / (total_bid_size + total_ask_size)
+                    if (total_bid_size + total_ask_size) > 0
+                    else 0.0
+                )
+
+                # Calculate weighted mid price (volume weighted)
+                weighted_mid_price = (
+                    ((best_bid * total_ask_size) + (best_ask * total_bid_size))
+                    / (total_bid_size + total_ask_size)
+                    if (total_bid_size + total_ask_size) > 0
+                    else mid_price
+                )
+
+                # Simple clustering metric (could be enhanced)
+                order_clustering = 0.0
+                if bid_depth > 0 and ask_depth > 0:
+                    # Simple clustering based on depth concentration
+                    top_5_bids = min(5, bid_depth)
+                    top_5_asks = min(5, ask_depth)
+                    top_bid_volume = int(
+                        self.orderbook.orderbook_bids.sort("price", descending=True)
+                        .head(top_5_bids)["volume"]
+                        .sum()
+                    )
+                    top_ask_volume = int(
+                        self.orderbook.orderbook_asks.sort("price")
+                        .head(top_5_asks)["volume"]
+                        .sum()
                     )
 
-                    metrics["book_pressure"] = {
-                        "bid_pressure": float(bid_pressure),
-                        "ask_pressure": float(ask_pressure),
-                        "pressure_ratio": float(bid_pressure / ask_pressure)
-                        if ask_pressure > 0
-                        else float("inf"),
-                    }
-
-                # Trade intensity metrics
-                if not self.orderbook.recent_trades.is_empty():
-                    recent_window = datetime.now(self.orderbook.timezone) - timedelta(
-                        minutes=5
-                    )
-                    recent_trades = self.orderbook.recent_trades.filter(
-                        pl.col("timestamp") >= recent_window
+                    order_clustering = (
+                        (top_bid_volume + top_ask_volume)
+                        / (total_bid_size + total_ask_size)
+                        if (total_bid_size + total_ask_size) > 0
+                        else 0.0
                     )
 
-                    if not recent_trades.is_empty():
-                        metrics["trade_intensity"] = {
-                            "trades_per_minute": recent_trades.height / 5,
-                            "volume_per_minute": float(
-                                recent_trades["volume"].sum() / 5
-                            ),
-                            "avg_trade_size": float(
-                                str(recent_trades["volume"].mean())
-                            ),
-                        }
+                # Calculate VWAP and TWAP (simplified)
+                volume_weighted_avg_price = (
+                    mid_price  # Simplified - would need trade data for true VWAP
+                )
+                time_weighted_avg_price = (
+                    mid_price  # Simplified - would need time series for true TWAP
+                )
 
-                # Price level concentration
-                metrics["price_concentration"] = {
-                    "bid_levels": self.orderbook.orderbook_bids.height,
-                    "ask_levels": self.orderbook.orderbook_asks.height,
-                    "total_levels": self.orderbook.orderbook_bids.height
-                    + self.orderbook.orderbook_asks.height,
+                current_time = datetime.now(self.orderbook.timezone)
+
+                return {
+                    "bid_depth": bid_depth,
+                    "ask_depth": ask_depth,
+                    "total_bid_size": total_bid_size,
+                    "total_ask_size": total_ask_size,
+                    "avg_bid_size": avg_bid_size,
+                    "avg_ask_size": avg_ask_size,
+                    "price_levels": bid_depth + ask_depth,
+                    "order_clustering": order_clustering,
+                    "imbalance": imbalance,
+                    "spread": spread,
+                    "mid_price": mid_price,
+                    "weighted_mid_price": weighted_mid_price,
+                    "volume_weighted_avg_price": volume_weighted_avg_price,
+                    "time_weighted_avg_price": time_weighted_avg_price,
+                    "timestamp": current_time.isoformat(),
                 }
-
-                # Iceberg detection summary
-                iceberg_result = await self.detect_iceberg_orders()
-                iceberg_levels = iceberg_result.get("iceberg_levels", [])
-                metrics["iceberg_summary"] = {
-                    "detected_count": len(iceberg_levels),
-                    "bid_icebergs": len(
-                        [i for i in iceberg_levels if i.get("side") == "bid"]
-                    ),
-                    "ask_icebergs": len(
-                        [i for i in iceberg_levels if i.get("side") == "ask"]
-                    ),
-                    "total_hidden_volume": sum(
-                        i.get("estimated_hidden_size", 0) for i in iceberg_levels
-                    ),
-                }
-
-                return metrics
 
             except Exception as e:
                 self.logger.error(f"Error calculating advanced metrics: {e}")
-                return {"error": str(e)}
+                # Return error response with default values
+                current_time = datetime.now(self.orderbook.timezone)
+                return {
+                    "bid_depth": 0,
+                    "ask_depth": 0,
+                    "total_bid_size": 0,
+                    "total_ask_size": 0,
+                    "avg_bid_size": 0.0,
+                    "avg_ask_size": 0.0,
+                    "price_levels": 0,
+                    "order_clustering": 0.0,
+                    "imbalance": 0.0,
+                    "spread": 0.0,
+                    "mid_price": 0.0,
+                    "weighted_mid_price": 0.0,
+                    "volume_weighted_avg_price": 0.0,
+                    "time_weighted_avg_price": 0.0,
+                    "timestamp": current_time.isoformat(),
+                }

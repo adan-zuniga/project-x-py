@@ -210,9 +210,7 @@ class BracketOrderMixin:
                     target_response.orderId
                 )
 
-            self.stats["bracket_orders_placed"] = (
-                self.stats["bracket_orders_placed"] + 1
-            )
+            self.stats["bracket_orders"] += 1
             logger.info(
                 f"✅ Bracket order placed: Entry={entry_response.orderId}, "
                 f"Stop={stop_response.orderId if stop_response else 'None'}, "

@@ -57,12 +57,15 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from project_x_py.types import PositionManagerProtocol
+    from project_x_py.types.stats_types import PositionManagerStats
 
 
 class PositionReportingMixin:
     """Mixin for statistics, history, and report generation."""
 
-    def get_position_statistics(self: "PositionManagerProtocol") -> dict[str, Any]:
+    def get_position_statistics(
+        self: "PositionManagerProtocol",
+    ) -> "PositionManagerStats":
         """
         Get comprehensive position management statistics and health information.
 
@@ -104,22 +107,64 @@ class PositionReportingMixin:
             Statistics are cumulative since manager initialization.
             Use export_portfolio_report() for more detailed analysis.
         """
+        # Update current positions count
+        self.stats["open_positions"] = len(
+            [p for p in self.tracked_positions.values() if p.size != 0]
+        )
+        self.stats["total_positions"] = len(self.tracked_positions)
+        self.stats["position_updates"] += 1
+
+        # Calculate performance metrics
+        closed_positions = [p for p in self.tracked_positions.values() if p.size == 0]
+        winning_positions = [p for p in closed_positions if p.realized_pnl > 0]
+
+        win_rate = (
+            len(winning_positions) / len(closed_positions) if closed_positions else 0.0
+        )
+
+        # Calculate profit factor (gross profit / gross loss)
+        gross_profit = sum(p.realized_pnl for p in winning_positions)
+        gross_loss = abs(
+            sum(p.realized_pnl for p in closed_positions if p.realized_pnl < 0)
+        )
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
+
+        # Calculate average metrics
+        position_sizes = [
+            abs(p.size) for p in self.tracked_positions.values() if p.size != 0
+        ]
+        avg_position_size = (
+            sum(position_sizes) / len(position_sizes) if position_sizes else 0.0
+        )
+        largest_position = max(position_sizes) if position_sizes else 0
+
         return {
-            "statistics": self.stats.copy(),
-            "realtime_enabled": self._realtime_enabled,
-            "order_sync_enabled": self._order_sync_enabled,
-            "monitoring_active": self._monitoring_active,
-            "tracked_positions": len(self.tracked_positions),
-            "active_alerts": len(
-                [a for a in self.position_alerts.values() if not a["triggered"]]
-            ),
-            "callbacks_registered": {
-                event: len(callbacks)
-                for event, callbacks in self.position_callbacks.items()
-            },
-            "risk_settings": self.risk_settings.copy(),
-            "health_status": (
-                "active" if self.project_x._authenticated else "inactive"
+            "open_positions": self.stats["open_positions"],
+            "closed_positions": self.stats["closed_positions"],
+            "total_positions": self.stats["total_positions"],
+            "total_pnl": self.stats["total_pnl"],
+            "realized_pnl": self.stats["realized_pnl"],
+            "unrealized_pnl": self.stats["unrealized_pnl"],
+            "best_position_pnl": self.stats["best_position_pnl"],
+            "worst_position_pnl": self.stats["worst_position_pnl"],
+            "avg_position_size": avg_position_size,
+            "largest_position": largest_position,
+            "avg_hold_time_minutes": self.stats["avg_hold_time_minutes"],
+            "longest_hold_time_minutes": self.stats["longest_hold_time_minutes"],
+            "win_rate": win_rate,
+            "profit_factor": profit_factor,
+            "sharpe_ratio": self.stats["sharpe_ratio"],
+            "max_drawdown": self.stats["max_drawdown"],
+            "total_risk": self.stats["total_risk"],
+            "max_position_risk": self.stats["max_position_risk"],
+            "portfolio_correlation": self.stats["portfolio_correlation"],
+            "var_95": self.stats["var_95"],
+            "position_updates": self.stats["position_updates"],
+            "risk_calculations": self.stats["risk_calculations"],
+            "last_position_update": (
+                self.stats["last_position_update"].isoformat()
+                if self.stats["last_position_update"]
+                else None
             ),
         }
 

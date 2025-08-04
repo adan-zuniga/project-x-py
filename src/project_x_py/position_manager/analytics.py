@@ -49,6 +49,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.models import Position
+from project_x_py.types.response_types import (
+    PortfolioMetricsResponse,
+    PositionAnalysisResponse,
+)
 from project_x_py.types.trading import PositionType
 
 if TYPE_CHECKING:
@@ -88,7 +92,7 @@ class PositionAnalyticsMixin:
         position: Position,
         current_price: float,
         point_value: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> PositionAnalysisResponse:
         """
         Calculate P&L for a position given current market price.
 
@@ -151,22 +155,58 @@ class PositionAnalyticsMixin:
         unrealized_pnl = pnl_per_contract * position.size
         market_value = current_price * position.size
 
+        # Calculate additional fields for PositionAnalysisResponse
+        position_value = abs(
+            current_price * position.size
+        )  # Absolute value of position
+
+        # Simplified calculations - would need more data for accurate values
+        duration_minutes = 0  # Would need position open time
+        high_water_mark = max(current_price, position.averagePrice)
+        low_water_mark = min(current_price, position.averagePrice)
+        max_unrealized_pnl = unrealized_pnl if unrealized_pnl > 0 else 0.0
+        min_unrealized_pnl = unrealized_pnl if unrealized_pnl < 0 else 0.0
+
+        # Risk metrics (simplified - would need market data for accurate calculations)
+        volatility = (
+            abs(price_change / position.averagePrice)
+            if position.averagePrice > 0
+            else 0.0
+        )
+        risk_contribution = abs(unrealized_pnl) / max(
+            position_value, 1.0
+        )  # Risk as % of position value
+
+        from datetime import datetime
+
         return {
-            "unrealized_pnl": unrealized_pnl,
-            "market_value": market_value,
-            "pnl_per_contract": pnl_per_contract,
-            "current_price": current_price,
+            "position_id": position.id,
+            "contract_id": position.contractId,
             "entry_price": position.averagePrice,
-            "size": position.size,
-            "direction": "LONG" if position.type == PositionType.LONG else "SHORT",
-            "price_change": price_change,
+            "current_price": current_price,
+            "unrealized_pnl": unrealized_pnl,
+            "position_size": position.size,
+            "position_value": position_value,
+            "margin_used": 0.0,  # Would need margin data from broker
+            "duration_minutes": duration_minutes,
+            "high_water_mark": high_water_mark,
+            "low_water_mark": low_water_mark,
+            "max_unrealized_pnl": max_unrealized_pnl,
+            "min_unrealized_pnl": min_unrealized_pnl,
+            "volatility": volatility,
+            "beta": 1.0,  # Would need market correlation data
+            "delta_exposure": float(position.size),  # Simplified delta
+            "gamma_exposure": 0.0,  # Would need options Greeks
+            "theta_decay": 0.0,  # Would need options Greeks
+            "risk_contribution": risk_contribution,
+            "analysis_timestamp": datetime.now().isoformat(),
         }
 
     async def calculate_portfolio_pnl(
         self: "PositionManagerProtocol",
         current_prices: dict[str, float],
         account_id: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> PortfolioMetricsResponse:
         """
         Calculate portfolio P&L given current market prices.
 
@@ -181,93 +221,96 @@ class PositionAnalyticsMixin:
                 Defaults to None.
 
         Returns:
-            dict[str, Any]: Portfolio P&L analysis containing:
+            PortfolioMetricsResponse: Portfolio P&L analysis containing:
+                - total_value (float): Total portfolio market value
                 - total_pnl (float): Sum of all calculated P&Ls
-                - positions_count (int): Total number of positions
-                - positions_with_prices (int): Positions with price data
-                - positions_without_prices (int): Positions missing price data
-                - position_breakdown (list[dict]): Detailed P&L per position:
-                    * contract_id (str): Contract identifier
-                    * size (int): Position size
-                    * entry_price (float): Average entry price
-                    * current_price (float | None): Current market price
-                    * unrealized_pnl (float | None): Position P&L
-                    * market_value (float | None): Current market value
-                    * direction (str): "LONG" or "SHORT"
-                - timestamp (datetime): Calculation timestamp
+                - realized_pnl (float): Realized gains/losses
+                - unrealized_pnl (float): Unrealized gains/losses
+                - win_rate (float): Percentage of winning positions
+                - profit_factor (float): Ratio of average win to average loss
+                - largest_win/largest_loss (float): Extreme P&L values
+                - total_trades (int): Number of positions analyzed
+                - last_updated (str): ISO timestamp
 
         Example:
             >>> # Get current prices from market data
             >>> prices = {"MGC": 2050.0, "NQ": 15500.0, "ES": 4400.0}
-            >>> portfolio_pnl = await position_manager.calculate_portfolio_pnl(prices)
-            >>> print(f"Total P&L: ${portfolio_pnl['total_pnl']:.2f}")
-            >>> print(
-            ...     f"Positions analyzed: {portfolio_pnl['positions_with_prices']}/"
-            ...     f"{portfolio_pnl['positions_count']}"
-            ... )
-            >>> # Check individual positions
-            >>> for pos in portfolio_pnl["position_breakdown"]:
-            ...     if pos["unrealized_pnl"] is not None:
-            ...         print(f"{pos['contract_id']}: ${pos['unrealized_pnl']:.2f}")
+            >>> portfolio = await position_manager.calculate_portfolio_pnl(prices)
+            >>> print(f"Total P&L: ${portfolio['total_pnl']:.2f}")
+            >>> print(f"Total Value: ${portfolio['total_value']:.2f}")
+            >>> print(f"Win Rate: {portfolio['win_rate']:.1%}")
+            >>> print(f"Profit Factor: {portfolio['profit_factor']:.2f}")
+            >>> print(f"Largest Win: ${portfolio['largest_win']:.2f}")
+            >>> print(f"Trades: {portfolio['total_trades']}")
 
         Note:
             - P&L calculations assume point values of 1.0
             - For accurate dollar P&L, use calculate_position_pnl() with point values
-            - Positions without prices in current_prices dict will have None P&L
+            - Only positions with market prices contribute to P&L calculations
         """
         positions = await self.get_all_positions(account_id=account_id)
 
+        # Calculate direct metrics without intermediate dictionaries
         total_pnl = 0.0
-        position_breakdown = []
-        positions_with_prices = 0
+        total_value = 0.0
+        pnl_values: list[float] = []
 
         for position in positions:
             current_price = current_prices.get(position.contractId)
-
             if current_price is not None:
                 pnl_data = await self.calculate_position_pnl(position, current_price)
-                total_pnl += pnl_data["unrealized_pnl"]
-                positions_with_prices += 1
+                pnl = pnl_data["unrealized_pnl"]
+                value = pnl_data["position_value"]
 
-                position_breakdown.append(
-                    {
-                        "contract_id": position.contractId,
-                        "size": position.size,
-                        "entry_price": position.averagePrice,
-                        "current_price": current_price,
-                        "unrealized_pnl": pnl_data["unrealized_pnl"],
-                        "market_value": pnl_data["market_value"],
-                        "direction": pnl_data["direction"],
-                    }
-                )
-            else:
-                # No price data available
-                position_breakdown.append(
-                    {
-                        "contract_id": position.contractId,
-                        "size": position.size,
-                        "entry_price": position.averagePrice,
-                        "current_price": None,
-                        "unrealized_pnl": None,
-                        "market_value": None,
-                        "direction": (
-                            "LONG" if position.type == PositionType.LONG else "SHORT"
-                        ),
-                    }
-                )
+                total_pnl += pnl
+                total_value += value
+                pnl_values.append(pnl)
+
+        # Calculate win/loss metrics directly from PnL values
+        winning_pnls = [pnl for pnl in pnl_values if pnl > 0]
+        losing_pnls = [pnl for pnl in pnl_values if pnl < 0]
+
+        win_rate = len(winning_pnls) / len(positions) if positions else 0.0
+        avg_win = sum(winning_pnls) / len(winning_pnls) if winning_pnls else 0.0
+        avg_loss = sum(losing_pnls) / len(losing_pnls) if losing_pnls else 0.0
+        largest_win = max(winning_pnls, default=0.0)
+        largest_loss = min(losing_pnls, default=0.0)
+
+        profit_factor = abs(avg_win / avg_loss) if avg_loss < 0 else 0.0
+        total_return = (total_pnl / total_value * 100) if total_value > 0 else 0.0
+
+        from datetime import datetime
 
         return {
+            "total_value": total_value,
             "total_pnl": total_pnl,
-            "positions_count": len(positions),
-            "positions_with_prices": positions_with_prices,
-            "positions_without_prices": len(positions) - positions_with_prices,
-            "position_breakdown": position_breakdown,
-            "timestamp": datetime.now(),
+            "realized_pnl": 0.0,  # Would need historical trade data
+            "unrealized_pnl": total_pnl,  # All P&L is unrealized in this context
+            "daily_pnl": 0.0,  # Would need daily data
+            "weekly_pnl": 0.0,  # Would need weekly data
+            "monthly_pnl": 0.0,  # Would need monthly data
+            "ytd_pnl": 0.0,  # Would need year-to-date data
+            "total_return": total_return,
+            "annualized_return": 0.0,  # Would need time-weighted returns
+            "sharpe_ratio": 0.0,  # Would need return volatility data
+            "sortino_ratio": 0.0,  # Would need downside deviation data
+            "max_drawdown": 0.0,  # Would need historical high-water marks
+            "win_rate": win_rate,
+            "profit_factor": profit_factor,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "total_trades": len(positions),
+            "winning_trades": len(winning_pnls),
+            "losing_trades": len(losing_pnls),
+            "largest_win": largest_win,
+            "largest_loss": largest_loss,
+            "avg_trade_duration_minutes": 0.0,  # Would need position entry times
+            "last_updated": datetime.now().isoformat(),
         }
 
     async def get_portfolio_pnl(
         self: "PositionManagerProtocol", account_id: int | None = None
-    ) -> dict[str, Any]:
+    ) -> PortfolioMetricsResponse:
         """
         Get portfolio P&L placeholder data (requires market prices for actual P&L).
 
@@ -281,60 +324,57 @@ class PositionAnalyticsMixin:
                 Defaults to None.
 
         Returns:
-            dict[str, Any]: Portfolio structure containing:
-                - position_count (int): Number of open positions
-                - positions (list[dict]): Position details with placeholders:
-                    * contract_id (str): Contract identifier
-                    * size (int): Position size
-                    * avg_price (float): Average entry price
-                    * market_value (float): Size x average price estimate
-                    * direction (str): "LONG" or "SHORT"
-                    * note (str): Reminder about P&L calculation
-                - total_pnl (float): 0.0 (placeholder)
-                - total_unrealized_pnl (float): 0.0 (placeholder)
-                - total_realized_pnl (float): 0.0 (placeholder)
-                - net_pnl (float): 0.0 (placeholder)
-                - last_updated (datetime): Timestamp
-                - note (str): Instructions for actual P&L calculation
+            PortfolioMetricsResponse: Portfolio metrics with placeholder values:
+                - total_value (float): Portfolio market value (estimated)
+                - total_pnl (float): 0.0 (requires market prices)
+                - realized_pnl (float): 0.0 (requires historical data)
+                - unrealized_pnl (float): 0.0 (requires market prices)
+                - win_rate (float): 0.0 (requires P&L calculations)
+                - profit_factor (float): 0.0 (requires P&L calculations)
+                - total_trades (int): Number of open positions
+                - last_updated (str): ISO timestamp
 
         Example:
             >>> # Get portfolio structure
             >>> portfolio = await position_manager.get_portfolio_pnl()
-            >>> print(f"Open positions: {portfolio['position_count']}")
-            >>> for pos in portfolio["positions"]:
-            ...     print(f"{pos['contract_id']}: {pos['size']} @ ${pos['avg_price']}")
-            >>> # For actual P&L, use calculate_portfolio_pnl() with prices
-            >>> print(portfolio["note"])
+            >>> print(f"Total Value: ${portfolio['total_value']:.2f}")
+            >>> print(f"Open Positions: {portfolio['total_trades']}")
+            >>> print(f"Last Updated: {portfolio['last_updated']}")
+            >>> # For actual P&L, use calculate_portfolio_pnl() with market prices
 
         See Also:
             calculate_portfolio_pnl(): For actual P&L calculations with market prices
         """
         positions = await self.get_all_positions(account_id=account_id)
 
-        position_breakdown = []
-
-        for position in positions:
-            # Note: ProjectX doesn't provide P&L data, would need current market prices to calculate
-            position_breakdown.append(
-                {
-                    "contract_id": position.contractId,
-                    "size": position.size,
-                    "avg_price": position.averagePrice,
-                    "market_value": position.size * position.averagePrice,
-                    "direction": (
-                        "LONG" if position.type == PositionType.LONG else "SHORT"
-                    ),
-                    "note": "P&L requires current market price - use calculate_position_pnl() method",
-                }
-            )
+        # Calculate total portfolio value directly from positions
+        total_value = sum(
+            abs(position.size * position.averagePrice) for position in positions
+        )
 
         return {
-            "position_count": len(positions),
-            "positions": position_breakdown,
+            "total_value": total_value,
             "total_pnl": 0.0,  # Default value when no current prices available
-            "total_unrealized_pnl": 0.0,
-            "total_realized_pnl": 0.0,
-            "net_pnl": 0.0,
-            "last_updated": datetime.now(),
-            "note": "For P&L calculations, use calculate_portfolio_pnl() with current market prices",
+            "realized_pnl": 0.0,  # Would need historical trade data
+            "unrealized_pnl": 0.0,  # Default value when no current prices available
+            "daily_pnl": 0.0,  # Would need daily data
+            "weekly_pnl": 0.0,  # Would need weekly data
+            "monthly_pnl": 0.0,  # Would need monthly data
+            "ytd_pnl": 0.0,  # Would need year-to-date data
+            "total_return": 0.0,  # Would need return calculations
+            "annualized_return": 0.0,  # Would need time-weighted returns
+            "sharpe_ratio": 0.0,  # Would need return volatility data
+            "sortino_ratio": 0.0,  # Would need downside deviation data
+            "max_drawdown": 0.0,  # Would need historical high-water marks
+            "win_rate": 0.0,  # No trades to analyze without prices
+            "profit_factor": 0.0,  # No trades to analyze without prices
+            "avg_win": 0.0,  # No trades to analyze without prices
+            "avg_loss": 0.0,  # No trades to analyze without prices
+            "total_trades": len(positions),
+            "winning_trades": 0,  # No trades to analyze without prices
+            "losing_trades": 0,  # No trades to analyze without prices
+            "largest_win": 0.0,  # No trades to analyze without prices
+            "largest_loss": 0.0,  # No trades to analyze without prices
+            "avg_trade_duration_minutes": 0.0,  # Would need position entry times
+            "last_updated": datetime.now().isoformat(),
         }

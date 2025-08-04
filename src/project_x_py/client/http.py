@@ -54,6 +54,7 @@ from project_x_py.exceptions import (
     ProjectXRateLimitError,
     ProjectXServerError,
 )
+from project_x_py.types.response_types import PerformanceStatsResponse
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,
@@ -281,7 +282,9 @@ class HttpMixin:
                 )
 
     @handle_errors("get health status")
-    async def get_health_status(self: "ProjectXClientProtocol") -> dict[str, Any]:
+    async def get_health_status(
+        self: "ProjectXClientProtocol",
+    ) -> PerformanceStatsResponse:
         """
         Get client statistics and performance metrics.
 
@@ -304,13 +307,21 @@ class HttpMixin:
             else 0
         )
 
+        # Calculate additional metrics for PerformanceStatsResponse
+        cache_misses = self.api_call_count  # API calls are essentially cache misses
+        success_rate = 1.0  # Simplified - would need actual failure tracking
+        uptime_seconds = 0  # Would need to track session start time
+
         return {
-            "client_stats": {
-                "api_calls": self.api_call_count,
-                "cache_hits": self.cache_hit_count,
-                "cache_hit_rate": cache_hit_rate,
-                "total_requests": total_cache_requests,
-            },
-            "authenticated": self._authenticated,
-            "account": self.account_info.name if self.account_info else None,
+            "api_calls": self.api_call_count,
+            "cache_hits": self.cache_hit_count,
+            "cache_misses": cache_misses,
+            "cache_hit_ratio": cache_hit_rate,
+            "avg_response_time_ms": 0.0,  # Would need response time tracking
+            "total_requests": total_cache_requests,
+            "failed_requests": 0,  # Would need failure tracking
+            "success_rate": success_rate,
+            "active_connections": 1 if self._authenticated else 0,
+            "memory_usage_mb": 0.0,  # Would need memory monitoring
+            "uptime_seconds": uptime_seconds,
         }

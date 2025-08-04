@@ -73,6 +73,10 @@ from project_x_py.types import (
     DomType,
     MemoryConfig,
 )
+from project_x_py.types.market_data import (
+    OrderbookSnapshot,
+    PriceLevelDict,
+)
 from project_x_py.utils import (
     LogMessages,
     ProjectXLogger,
@@ -442,7 +446,7 @@ class OrderBookBase:
             return self._get_orderbook_asks_unlocked(levels)
 
     @handle_errors("get orderbook snapshot")
-    async def get_orderbook_snapshot(self, levels: int = 10) -> dict[str, Any]:
+    async def get_orderbook_snapshot(self, levels: int = 10) -> OrderbookSnapshot:
         """
         Get a complete snapshot of the current orderbook state.
 
@@ -503,9 +507,32 @@ class OrderBookBase:
                 bids = self._get_orderbook_bids_unlocked(levels)
                 asks = self._get_orderbook_asks_unlocked(levels)
 
-                # Convert to lists of dicts
-                bid_levels = bids.to_dicts() if not bids.is_empty() else []
-                ask_levels = asks.to_dicts() if not asks.is_empty() else []
+                # Convert to lists of PriceLevelDict
+                bid_levels: list[PriceLevelDict] = (
+                    [
+                        {
+                            "price": float(row["price"]),
+                            "volume": int(row["volume"]),
+                            "timestamp": row["timestamp"],
+                        }
+                        for row in bids.to_dicts()
+                    ]
+                    if not bids.is_empty()
+                    else []
+                )
+
+                ask_levels: list[PriceLevelDict] = (
+                    [
+                        {
+                            "price": float(row["price"]),
+                            "volume": int(row["volume"]),
+                            "timestamp": row["timestamp"],
+                        }
+                        for row in asks.to_dicts()
+                    ]
+                    if not asks.is_empty()
+                    else []
+                )
 
                 # Calculate totals
                 total_bid_volume = bids["volume"].sum() if not bids.is_empty() else 0
@@ -536,8 +563,6 @@ class OrderBookBase:
                     "bid_count": len(bid_levels),
                     "ask_count": len(ask_levels),
                     "imbalance": imbalance,
-                    "update_count": self.level2_update_count,
-                    "last_update": self.last_orderbook_update,
                 }
 
             except Exception as e:

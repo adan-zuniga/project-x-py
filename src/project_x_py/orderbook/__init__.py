@@ -101,6 +101,12 @@ from project_x_py.types import (
     SyncCallback,
     TradeDict,
 )
+from project_x_py.types.response_types import (
+    LiquidityAnalysisResponse,
+    MarketImpactResponse,
+    OrderbookAnalysisResponse,
+)
+from project_x_py.types.stats_types import OrderbookStats
 
 __all__ = [
     # Types
@@ -284,7 +290,7 @@ class OrderBook(OrderBookBase):
             return False
 
     # Delegate analytics methods
-    async def get_market_imbalance(self, levels: int = 10) -> dict[str, Any]:
+    async def get_market_imbalance(self, levels: int = 10) -> LiquidityAnalysisResponse:
         """
         Calculate order flow imbalance between bid and ask sides.
 
@@ -293,7 +299,7 @@ class OrderBook(OrderBookBase):
         """
         return await self.analytics.get_market_imbalance(levels)
 
-    async def get_orderbook_depth(self, price_range: float) -> dict[str, Any]:
+    async def get_orderbook_depth(self, price_range: float) -> MarketImpactResponse:
         """
         Analyze orderbook depth within a price range.
 
@@ -372,7 +378,7 @@ class OrderBook(OrderBookBase):
             min_cluster_size, price_tolerance
         )
 
-    async def get_advanced_market_metrics(self) -> dict[str, Any]:
+    async def get_advanced_market_metrics(self) -> OrderbookAnalysisResponse:
         """
         Calculate advanced market microstructure metrics.
 
@@ -409,7 +415,9 @@ class OrderBook(OrderBookBase):
             lookback_minutes, min_touches, price_tolerance
         )
 
-    async def get_spread_analysis(self, window_minutes: int = 30) -> dict[str, Any]:
+    async def get_spread_analysis(
+        self, window_minutes: int = 30
+    ) -> LiquidityAnalysisResponse:
         """
         Analyze bid-ask spread patterns over time.
 
@@ -419,7 +427,7 @@ class OrderBook(OrderBookBase):
         return await self.profile.get_spread_analysis(window_minutes)
 
     # Delegate memory methods
-    async def get_memory_stats(self) -> dict[str, Any]:
+    async def get_memory_stats(self) -> OrderbookStats:
         """
         Get comprehensive memory usage statistics.
 

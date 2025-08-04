@@ -174,7 +174,6 @@ from project_x_py.types.stats_types import (
 )
 from project_x_py.types.trading import (
     OrderSide,
-    OrderStats,
     OrderStatus,
     OrderType,
     PositionType,
@@ -259,7 +258,6 @@ __all__ = [
     "TradingSuiteStats",
     # From trading.py
     "OrderSide",
-    "OrderStats",
     "OrderStatus",
     "OrderType",
     "PositionType",

@@ -95,6 +95,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 import httpx
 import polars as pl
 
+from project_x_py.types.response_types import PerformanceStatsResponse
+
 if TYPE_CHECKING:
     from project_x_py.models import (
         Account,
@@ -106,7 +108,6 @@ if TYPE_CHECKING:
         Trade,
     )
     from project_x_py.realtime import ProjectXRealtimeClient
-    from project_x_py.types import OrderStats
     from project_x_py.utils.async_rate_limiter import RateLimiter
 
 
@@ -159,7 +160,7 @@ class ProjectXClientProtocol(Protocol):
     ) -> Any: ...
     async def _create_client(self) -> httpx.AsyncClient: ...
     async def _ensure_client(self) -> httpx.AsyncClient: ...
-    async def get_health_status(self) -> dict[str, Any]: ...
+    async def get_health_status(self) -> PerformanceStatsResponse: ...
 
     # Cache methods
     async def _cleanup_cache(self) -> None: ...
@@ -209,7 +210,7 @@ class OrderManagerProtocol(Protocol):
     realtime_client: "ProjectXRealtimeClient | None"
     order_lock: asyncio.Lock
     _realtime_enabled: bool
-    stats: "OrderStats"
+    stats: dict[str, Any]  # Comprehensive statistics tracking
 
     # From tracking mixin
     tracked_orders: dict[str, dict[str, Any]]

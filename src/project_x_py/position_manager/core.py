@@ -75,6 +75,7 @@ from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.risk import RiskManagementMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
+from project_x_py.types.stats_types import PositionManagerStats
 from project_x_py.utils import (
     LogMessages,
     ProjectXLogger,
@@ -192,13 +193,33 @@ class PositionManager(
         self.order_manager: OrderManager | None = None
         self._order_sync_enabled = False
 
-        # Statistics and metrics
-        self.stats: dict[str, Any] = {
-            "positions_tracked": 0,
+        # Comprehensive statistics tracking
+        self.stats = {
+            "open_positions": 0,
+            "closed_positions": 0,
+            "total_positions": 0,
             "total_pnl": 0.0,
             "realized_pnl": 0.0,
             "unrealized_pnl": 0.0,
-            "positions_closed": 0,
+            "best_position_pnl": 0.0,
+            "worst_position_pnl": 0.0,
+            "avg_position_size": 0.0,
+            "largest_position": 0,
+            "avg_hold_time_minutes": 0.0,
+            "longest_hold_time_minutes": 0.0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "sharpe_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "total_risk": 0.0,
+            "max_position_risk": 0.0,
+            "portfolio_correlation": 0.0,
+            "var_95": 0.0,
+            "position_updates": 0,
+            "risk_calculations": 0,
+            "last_position_update": None,
+            # Legacy fields for backward compatibility in other methods
+            "positions_tracked": 0,
             "positions_partially_closed": 0,
             "last_update_time": None,
             "monitoring_started": None,

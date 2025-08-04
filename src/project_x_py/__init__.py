@@ -210,7 +210,6 @@ __all__ = [
     "OrderManagerConfig",
     "OrderPlaceResponse",
     "OrderSide",
-    "OrderStatsResponse",
     "OrderStatus",
     "OrderType",
     "PerformanceStatsResponse",

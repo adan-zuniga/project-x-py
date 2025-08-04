@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import Order, OrderPlaceResponse
-from project_x_py.types import OrderStats
+from project_x_py.types.stats_types import OrderManagerStats
 from project_x_py.types.trading import OrderStatus
 from project_x_py.utils import (
     ErrorMessages,
@@ -142,13 +142,25 @@ class OrderManager(
         self.realtime_client: ProjectXRealtimeClient | None = None
         self._realtime_enabled = False
 
-        # Statistics
-        self.stats: OrderStats = {
+        # Comprehensive statistics tracking
+        self.stats: dict[str, Any] = {
             "orders_placed": 0,
+            "orders_filled": 0,
             "orders_cancelled": 0,
+            "orders_rejected": 0,
             "orders_modified": 0,
-            "bracket_orders_placed": 0,
+            "market_orders": 0,
+            "limit_orders": 0,
+            "stop_orders": 0,
+            "bracket_orders": 0,
+            "total_volume": 0,
+            "total_value": 0.0,
+            "largest_order": 0,
+            "risk_violations": 0,
+            "order_validation_failures": 0,
             "last_order_time": None,
+            "fill_times_ms": [],
+            "order_response_times_ms": [],
         }
 
         self.logger.info("AsyncOrderManager initialized")
@@ -351,6 +363,9 @@ class OrderManager(
                 # Update statistics
                 self.stats["orders_placed"] += 1
                 self.stats["last_order_time"] = datetime.now()
+                self.stats["total_volume"] += size
+                if size > self.stats["largest_order"]:
+                    self.stats["largest_order"] = size
 
                 self.logger.info(
                     LogMessages.ORDER_PLACED,
@@ -525,9 +540,7 @@ class OrderManager(
                     self.tracked_orders[str(order_id)]["status"] = OrderStatus.CANCELLED
                     self.order_status_cache[str(order_id)] = OrderStatus.CANCELLED
 
-                self.stats["orders_cancelled"] = (
-                    self.stats.get("orders_cancelled", 0) + 1
-                )
+                self.stats["orders_cancelled"] += 1
                 self.logger.info(
                     LogMessages.ORDER_CANCELLED, extra={"order_id": order_id}
                 )
@@ -620,9 +633,7 @@ class OrderManager(
             if response and response.get("success", False):
                 # Update statistics
                 async with self.order_lock:
-                    self.stats["orders_modified"] = (
-                        self.stats.get("orders_modified", 0) + 1
-                    )
+                    self.stats["orders_modified"] += 1
 
                 self.logger.info(
                     LogMessages.ORDER_MODIFIED, extra={"order_id": order_id}
@@ -696,7 +707,7 @@ class OrderManager(
 
             return results
 
-    async def get_order_statistics(self) -> dict[str, Any]:
+    async def get_order_statistics(self) -> OrderManagerStats:
         """
         Get comprehensive order management statistics and system health information.
 
@@ -734,20 +745,75 @@ class OrderManager(
                 for event_type, callbacks in self.order_callbacks.items()
             }
 
+            # Calculate performance metrics
+            fill_rate = (
+                self.stats["orders_filled"] / self.stats["orders_placed"]
+                if self.stats["orders_placed"] > 0
+                else 0.0
+            )
+
+            rejection_rate = (
+                self.stats["orders_rejected"] / self.stats["orders_placed"]
+                if self.stats["orders_placed"] > 0
+                else 0.0
+            )
+
+            avg_fill_time_ms = (
+                sum(self.stats["fill_times_ms"]) / len(self.stats["fill_times_ms"])
+                if self.stats["fill_times_ms"]
+                else 0.0
+            )
+
+            avg_order_response_time_ms = (
+                sum(self.stats["order_response_times_ms"])
+                / len(self.stats["order_response_times_ms"])
+                if self.stats["order_response_times_ms"]
+                else 0.0
+            )
+
+            avg_order_size = (
+                self.stats["total_volume"] / self.stats["orders_placed"]
+                if self.stats["orders_placed"] > 0
+                else 0.0
+            )
+
+            fastest_fill_ms = (
+                min(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
+            )
+            slowest_fill_ms = (
+                max(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
+            )
+
             return {
-                "statistics": self.stats,
-                "realtime_enabled": self._realtime_enabled,
-                "tracked_orders": tracked_orders_count,
-                "position_order_relationships": {
-                    "total_order_position_links": len(self.order_to_position),
-                    "positions_with_orders": len(position_summary),
-                    "total_position_orders": total_position_orders,
-                    "position_summary": position_summary,
-                },
-                "callbacks_registered": callback_counts,
-                "health_status": "healthy"
-                if self._realtime_enabled or tracked_orders_count > 0
-                else "degraded",
+                "orders_placed": self.stats["orders_placed"],
+                "orders_filled": self.stats["orders_filled"],
+                "orders_cancelled": self.stats["orders_cancelled"],
+                "orders_rejected": self.stats["orders_rejected"],
+                "orders_modified": self.stats["orders_modified"],
+                # Performance metrics
+                "fill_rate": fill_rate,
+                "avg_fill_time_ms": avg_fill_time_ms,
+                "rejection_rate": rejection_rate,
+                # Order types
+                "market_orders": self.stats["market_orders"],
+                "limit_orders": self.stats["limit_orders"],
+                "stop_orders": self.stats["stop_orders"],
+                "bracket_orders": self.stats["bracket_orders"],
+                # Timing statistics
+                "last_order_time": self.stats["last_order_time"].isoformat()
+                if self.stats["last_order_time"]
+                else None,
+                "avg_order_response_time_ms": avg_order_response_time_ms,
+                "fastest_fill_ms": fastest_fill_ms,
+                "slowest_fill_ms": slowest_fill_ms,
+                # Volume and value
+                "total_volume": self.stats["total_volume"],
+                "total_value": self.stats["total_value"],
+                "avg_order_size": avg_order_size,
+                "largest_order": self.stats["largest_order"],
+                # Risk metrics
+                "risk_violations": self.stats["risk_violations"],
+                "order_validation_failures": self.stats["order_validation_failures"],
             }
 
     async def cleanup(self) -> None:

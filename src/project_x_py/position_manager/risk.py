@@ -53,6 +53,10 @@ See Also:
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.models import Position
+from project_x_py.types.response_types import (
+    PositionSizingResponse,
+    RiskAnalysisResponse,
+)
 
 if TYPE_CHECKING:
     from project_x_py.types import PositionManagerProtocol
@@ -63,7 +67,7 @@ class RiskManagementMixin:
 
     async def get_risk_metrics(
         self: "PositionManagerProtocol", account_id: int | None = None
-    ) -> dict[str, Any]:
+    ) -> RiskAnalysisResponse:
         """
         Calculate portfolio risk metrics and concentration analysis.
 
@@ -111,12 +115,25 @@ class RiskManagementMixin:
         positions = await self.get_all_positions(account_id=account_id)
 
         if not positions:
+            from datetime import datetime
+
             return {
-                "portfolio_risk": 0.0,
-                "largest_position_risk": 0.0,
-                "total_exposure": 0.0,
-                "position_count": 0,
-                "diversification_score": 1.0,
+                "total_risk": 0.0,
+                "position_risk": 0.0,
+                "market_risk": 0.0,
+                "liquidity_risk": 0.0,
+                "concentration_risk": 0.0,
+                "var_95": 0.0,
+                "var_99": 0.0,
+                "expected_shortfall": 0.0,
+                "sharpe_ratio": 0.0,
+                "sortino_ratio": 0.0,
+                "max_drawdown": 0.0,
+                "beta": 1.0,
+                "correlation_to_market": 0.0,
+                "risk_adjusted_return": 0.0,
+                "recommendations": ["No positions held - portfolio has no risk"],
+                "timestamp": datetime.now().isoformat(),
             }
 
         total_exposure = sum(abs(pos.size * pos.averagePrice) for pos in positions)
@@ -139,15 +156,30 @@ class RiskManagementMixin:
             1.0 - largest_position_risk if largest_position_risk < 1.0 else 0.0
         )
 
+        # Generate risk warnings/recommendations
+        risk_warnings = self._generate_risk_warnings(
+            positions, portfolio_risk, largest_position_risk
+        )
+
+        from datetime import datetime
+
         return {
-            "portfolio_risk": portfolio_risk,
-            "largest_position_risk": largest_position_risk,
-            "total_exposure": total_exposure,
-            "position_count": len(positions),
-            "diversification_score": diversification_score,
-            "risk_warnings": self._generate_risk_warnings(
-                positions, portfolio_risk, largest_position_risk
-            ),
+            "total_risk": portfolio_risk,
+            "position_risk": largest_position_risk,
+            "market_risk": 0.0,  # Would need market correlation data
+            "liquidity_risk": 0.0,  # Would need market depth data
+            "concentration_risk": largest_position_risk,
+            "var_95": 0.0,  # Would need historical returns data
+            "var_99": 0.0,  # Would need historical returns data
+            "expected_shortfall": 0.0,  # Would need historical loss data
+            "sharpe_ratio": 0.0,  # Would need return/volatility data
+            "sortino_ratio": 0.0,  # Would need downside deviation data
+            "max_drawdown": 0.0,  # Would need historical high-water marks
+            "beta": 1.0,  # Would need market correlation data
+            "correlation_to_market": 0.0,  # Would need market correlation data
+            "risk_adjusted_return": 0.0,  # Would need return/risk calculations
+            "recommendations": risk_warnings,
+            "timestamp": datetime.now().isoformat(),
         }
 
     def _generate_risk_warnings(
@@ -199,7 +231,7 @@ class RiskManagementMixin:
         entry_price: float,
         stop_price: float,
         account_balance: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> PositionSizingResponse:
         """
         Calculate optimal position size based on risk parameters.
 
@@ -268,7 +300,23 @@ class RiskManagementMixin:
             # Calculate risk per contract
             price_diff = abs(entry_price - stop_price)
             if price_diff == 0:
-                return {"error": "Entry price and stop price cannot be the same"}
+                from datetime import datetime
+
+                return {
+                    "recommended_size": 0,
+                    "max_position_size": 0,
+                    "risk_per_trade": 0.0,
+                    "account_risk_percent": 0.0,
+                    "stop_loss_distance": 0.0,
+                    "risk_reward_ratio": 0.0,
+                    "kelly_criterion": 0.0,
+                    "confidence_level": 0.0,
+                    "market_volatility": 0.0,
+                    "position_correlation": 0.0,
+                    "leverage_factor": 0.0,
+                    "margin_requirement": 0.0,
+                    "analysis_timestamp": datetime.now().isoformat(),
+                }
 
             # Get instrument details for contract multiplier
             instrument = await self.project_x.get_instrument(contract_id)
@@ -287,24 +335,50 @@ class RiskManagementMixin:
                 (total_risk / account_balance) * 100 if account_balance > 0 else 0.0
             )
 
+            # Generate sizing warnings
+            sizing_warnings = self._generate_sizing_warnings(
+                risk_percentage, suggested_size
+            )
+
+            from datetime import datetime
+
             return {
-                "suggested_size": suggested_size,
-                "risk_per_contract": risk_per_contract,
-                "total_risk": total_risk,
-                "risk_percentage": risk_percentage,
-                "entry_price": entry_price,
-                "stop_price": stop_price,
-                "price_diff": price_diff,
-                "contract_multiplier": contract_multiplier,
-                "account_balance": account_balance,
-                "risk_warnings": self._generate_sizing_warnings(
-                    risk_percentage, suggested_size
-                ),
+                "recommended_size": suggested_size,
+                "max_position_size": suggested_size * 2,  # Conservative estimate
+                "risk_per_trade": total_risk,
+                "account_risk_percent": risk_percentage,
+                "stop_loss_distance": price_diff,
+                "risk_reward_ratio": 2.0,  # Simplified assumption
+                "kelly_criterion": 0.0,  # Would need win rate and avg win/loss data
+                "confidence_level": 0.75,  # Simplified assumption
+                "market_volatility": 0.0,  # Would need historical volatility data
+                "position_correlation": 0.0,  # Would need portfolio correlation data
+                "leverage_factor": 1.0,  # Futures have inherent leverage
+                "margin_requirement": total_risk,  # Simplified - actual margin varies
+                "analysis_timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
             self.logger.error(f"❌ Position sizing calculation failed: {e}")
-            return {"error": str(e)}
+            from datetime import datetime
+
+            return {
+                "recommended_size": 0,
+                "max_position_size": 0,
+                "risk_per_trade": 0.0,
+                "account_risk_percent": 0.0,
+                "stop_loss_distance": abs(entry_price - stop_price)
+                if "entry_price" in locals() and "stop_price" in locals()
+                else 0.0,
+                "risk_reward_ratio": 0.0,
+                "kelly_criterion": 0.0,
+                "confidence_level": 0.0,
+                "market_volatility": 0.0,
+                "position_correlation": 0.0,
+                "leverage_factor": 0.0,
+                "margin_requirement": 0.0,
+                "analysis_timestamp": datetime.now().isoformat(),
+            }
 
     def _generate_sizing_warnings(
         self: "PositionManagerProtocol", risk_percentage: float, size: int

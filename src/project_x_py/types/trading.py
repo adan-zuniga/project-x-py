@@ -20,7 +20,6 @@ Key Features:
 Type Categories:
     - Order Types: OrderSide, OrderType, OrderStatus for order management
     - Position Types: PositionType for position tracking
-    - Statistics: OrderStats for order execution tracking
 
 Example Usage:
     ```python
@@ -29,7 +28,6 @@ Example Usage:
         OrderType,
         OrderStatus,
         PositionType,
-        OrderStats,
     )
 
 
@@ -69,13 +67,6 @@ Example Usage:
             print(f"Short position: {size} contracts")
         else:
             print("Undefined position")
-
-
-    # Use order statistics
-    def track_order_stats(stats: OrderStats) -> None:
-        print(f"Orders placed: {stats['orders_placed']}")
-        print(f"Orders cancelled: {stats['orders_cancelled']}")
-        print(f"Orders modified: {stats['orders_modified']}")
     ```
 
 Order Types:
@@ -87,7 +78,6 @@ Position Types:
     - PositionType: UNDEFINED=0, LONG=1, SHORT=2 for position direction
 
 Statistics Types:
-    - OrderStats: Comprehensive order execution statistics with timestamps
 
 Trading Operations:
     - Order placement with side and type specifications
@@ -137,16 +127,6 @@ class OrderStatus(IntEnum):
     PENDING = 6
 
 
-class OrderStats(TypedDict):
-    """Type definition for order statistics."""
-
-    orders_placed: int
-    orders_cancelled: int
-    orders_modified: int
-    bracket_orders_placed: int
-    last_order_time: datetime | None
-
-
 class PositionType(IntEnum):
     """Position type enumeration."""
 
@@ -164,7 +144,6 @@ class TradeLogType(IntEnum):
 
 __all__ = [
     "OrderSide",
-    "OrderStats",
     "OrderStatus",
     "OrderType",
     "PositionType",
