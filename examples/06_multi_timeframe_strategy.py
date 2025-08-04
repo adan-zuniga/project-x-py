@@ -13,6 +13,8 @@ Demonstrates a complete async multi-timeframe trading strategy using:
 
 Uses MNQ micro contracts for strategy testing.
 
+Updated for v3.0.0: Uses new TradingSuite for simplified initialization.
+
 Usage:
     Run with: ./test.sh (sets environment variables)
     Or: uv run examples/06_multi_timeframe_strategy.py
@@ -25,15 +27,17 @@ import asyncio
 import logging
 import signal
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING
 
 from project_x_py import (
-    ProjectX,
-    ProjectXBase,
-    create_trading_suite,
+    TradingSuite,
+    setup_logging,
 )
 from project_x_py.indicators import RSI, SMA
 from project_x_py.models import BracketOrderResponse, Position
+
+if TYPE_CHECKING:
+    pass
 
 
 class MultiTimeframeStrategy:
@@ -50,23 +54,22 @@ class MultiTimeframeStrategy:
 
     def __init__(
         self,
-        client: ProjectXBase,
-        trading_suite: dict[str, Any],
+        trading_suite: TradingSuite,
         symbol: str = "MNQ",
         max_position_size: int = 2,
         risk_percentage: float = 0.02,
     ):
-        self.client = client
         self.suite = trading_suite
+        self.client = trading_suite.client
         self.symbol = symbol
         self.max_position_size = max_position_size
         self.risk_percentage = risk_percentage
 
         # Extract components
-        self.data_manager = trading_suite["data_manager"]
-        self.order_manager = trading_suite["order_manager"]
-        self.position_manager = trading_suite["position_manager"]
-        self.orderbook = trading_suite["orderbook"]
+        self.data_manager = trading_suite.data
+        self.order_manager = trading_suite.orders
+        self.position_manager = trading_suite.positions
+        self.orderbook = trading_suite.orderbook
 
         # Strategy state
         self.is_running = False
@@ -176,6 +179,10 @@ class MultiTimeframeStrategy:
 
     async def _analyze_orderbook(self):
         """Analyze orderbook for market microstructure."""
+        # Check if orderbook is available
+        if not self.orderbook:
+            return None
+
         best_bid_ask = await self.orderbook.get_best_bid_ask()
         imbalance = await self.orderbook.get_market_imbalance()
 
@@ -276,12 +283,19 @@ class MultiTimeframeStrategy:
             stop_price = entry_price + stop_distance
             side = 1  # Sell
 
-        position_size = await self.position_manager.calculate_position_size(
-            account_balance=account_balance,
-            risk_percentage=self.risk_percentage,
-            entry_price=entry_price,
-            stop_loss_price=stop_price,
-        )
+        # Simple position sizing based on risk
+        # Calculate the dollar risk per contract
+        tick_size = 0.25  # MNQ tick size
+        tick_value = 0.50  # MNQ tick value
+
+        # Risk in ticks
+        risk_in_ticks = stop_distance / tick_size
+        # Risk in dollars per contract
+        risk_per_contract = risk_in_ticks * tick_value
+
+        # Position size based on account risk
+        max_risk_dollars = account_balance * self.risk_percentage
+        position_size = int(max_risk_dollars / risk_per_contract)
 
         # Limit position size
         position_size = min(position_size, self.max_position_size)
@@ -291,11 +305,12 @@ class MultiTimeframeStrategy:
             return
 
         # Get active contract
-        instruments = await self.client.search_instruments(self.symbol)
-        if not instruments:
+        instrument = await self.client.get_instrument(self.symbol)
+        if not instrument:
+            self.logger.error(f"Could not find instrument {self.symbol}")
             return
 
-        contract_id = instruments[0].id
+        contract_id = instrument.id
 
         # Place bracket order
         self.logger.info(
@@ -393,9 +408,8 @@ class MultiTimeframeStrategy:
 
 async def main():
     """Main async function for multi-timeframe strategy."""
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.info("🚀 Starting Async Multi-Timeframe Strategy")
+    logger = setup_logging(level="INFO")
+    logger.info("🚀 Starting Async Multi-Timeframe Strategy (v3.0.0)")
 
     # Signal handler for graceful shutdown
     stop_event = asyncio.Event()
@@ -407,80 +421,63 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
-        # Create async client
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # Create TradingSuite v3 with multi-timeframe support
+        print("\n🏗️ Creating TradingSuite v3 with multi-timeframe support...")
+        suite = await TradingSuite.create(
+            instrument="MNQ",
+            timeframes=["15min", "1hr", "4hr"],
+            features=["orderbook", "realtime_tracking"],
+            initial_days=5,
+        )
 
-            if client.account_info is None:
-                print("❌ No account info found")
-                return
+        print("✅ TradingSuite initialized successfully!")
 
-            print(f"✅ Connected as: {client.account_info.name}")
+        account = suite.client.account_info
+        if not account:
+            print("❌ No account info found")
+            await suite.disconnect()
+            return
 
-            # Create trading suite with all components
-            print("\n🏗️ Creating async trading suite...")
-            suite = await create_trading_suite(
-                instrument="MNQ",
-                project_x=client,
-                jwt_token=client.session_token,
-                account_id=str(client.account_info.id),
-                timeframes=["15min", "1hr", "4hr"],
-            )
+        print(f"   Connected as: {account.name}")
+        print(f"   Account ID: {account.id}")
+        print(f"   Balance: ${account.balance:,.2f}")
 
-            # Connect and initialize
-            print("🔌 Connecting to real-time services...")
-            await suite["realtime_client"].connect()
-            await suite["realtime_client"].subscribe_user_updates()
+        # Create and configure strategy
+        strategy = MultiTimeframeStrategy(
+            trading_suite=suite,
+            symbol="MNQ",
+            max_position_size=2,
+            risk_percentage=0.02,
+        )
 
-            # Initialize data manager
-            print("📊 Loading historical data...")
-            await suite["data_manager"].initialize(initial_days=5)
+        print("\n" + "=" * 60)
+        print("ASYNC MULTI-TIMEFRAME STRATEGY ACTIVE")
+        print("=" * 60)
+        print("\nStrategy Configuration:")
+        print("  Symbol: MNQ")
+        print("  Max Position Size: 2 contracts")
+        print("  Risk per Trade: 2%")
+        print("  Timeframes: 15min, 1hr, 4hr")
+        print("\n⚠️  This strategy can place REAL ORDERS!")
+        print("Press Ctrl+C to stop\n")
 
-            # Subscribe to market data
-            instruments = await client.search_instruments("MNQ")
-            if instruments:
-                await suite["realtime_client"].subscribe_market_data(
-                    [instruments[0].id]
-                )
-                await suite["data_manager"].start_realtime_feed()
+        # Run strategy until stopped
+        strategy_task = asyncio.create_task(
+            strategy.run_strategy_loop(check_interval=30)
+        )
 
-            # Create and configure strategy
-            strategy = MultiTimeframeStrategy(
-                client=client,
-                trading_suite=suite,
-                symbol="MNQ",
-                max_position_size=2,
-                risk_percentage=0.02,
-            )
+        # Wait for stop signal
+        await stop_event.wait()
 
-            print("\n" + "=" * 60)
-            print("ASYNC MULTI-TIMEFRAME STRATEGY ACTIVE")
-            print("=" * 60)
-            print("\nStrategy Configuration:")
-            print("  Symbol: MNQ")
-            print("  Max Position Size: 2 contracts")
-            print("  Risk per Trade: 2%")
-            print("  Timeframes: 15min, 1hr, 4hr")
-            print("\n⚠️  This strategy can place REAL ORDERS!")
-            print("Press Ctrl+C to stop\n")
+        # Stop strategy
+        strategy.stop()
+        strategy_task.cancel()
 
-            # Run strategy until stopped
-            strategy_task = asyncio.create_task(
-                strategy.run_strategy_loop(check_interval=30)
-            )
+        # Cleanup
+        print("\n🧹 Cleaning up...")
+        await suite.disconnect()
 
-            # Wait for stop signal
-            await stop_event.wait()
-
-            # Stop strategy
-            strategy.stop()
-            strategy_task.cancel()
-
-            # Cleanup
-            await suite["data_manager"].stop_realtime_feed()
-            await suite["realtime_client"].cleanup()
-
-            print("\n✅ Strategy stopped successfully")
+        print("\n✅ Strategy stopped successfully")
 
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)
