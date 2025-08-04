@@ -102,7 +102,7 @@ class MarketDataMixin:
             # Check cache first
             cached_instrument = self.get_cached_instrument(symbol)
             if cached_instrument:
-                logger.info(LogMessages.CACHE_HIT, extra={"symbol": symbol})
+                logger.debug(LogMessages.CACHE_HIT, extra={"symbol": symbol})
                 return cached_instrument
 
             logger.debug(LogMessages.CACHE_MISS, extra={"symbol": symbol})

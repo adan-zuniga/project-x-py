@@ -138,7 +138,7 @@ class SubscriptionsMixin:
                 )
                 return False
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"channel": "user_updates", "account_id": self.account_id},
             )
@@ -206,7 +206,7 @@ class SubscriptionsMixin:
                 [int(self.account_id)],  # List with int account ID
             )
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"status": "success", "channel": "user_updates"},
             )
@@ -279,7 +279,7 @@ class SubscriptionsMixin:
                 )
                 return False
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"channel": "market_data", "count": len(contract_ids)},
             )
@@ -336,7 +336,7 @@ class SubscriptionsMixin:
                 except Exception as e:
                     logger.error(
                         LogMessages.WS_ERROR,
-                        extra={"error": f"Failed to subscribe to quotes: {str(e)}"},
+                        extra={"error": f"Failed to subscribe to quotes: {e!s}"},
                     )
                     return False
                 # Subscribe to trades
@@ -350,7 +350,7 @@ class SubscriptionsMixin:
                 except Exception as e:
                     logger.error(
                         LogMessages.WS_ERROR,
-                        extra={"error": f"Failed to subscribe to trades: {str(e)}"},
+                        extra={"error": f"Failed to subscribe to trades: {e!s}"},
                     )
                     return False
 
@@ -365,13 +365,11 @@ class SubscriptionsMixin:
                 except Exception as e:
                     logger.error(
                         LogMessages.WS_ERROR,
-                        extra={
-                            "error": f"Failed to subscribe to market depth: {str(e)}"
-                        },
+                        extra={"error": f"Failed to subscribe to market depth: {e!s}"},
                     )
                     return False
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={
                     "status": "success",
@@ -425,7 +423,9 @@ class SubscriptionsMixin:
                 )
                 return False
 
-            logger.info(LogMessages.DATA_UNSUBSCRIBE, extra={"channel": "user_updates"})
+            logger.debug(
+                LogMessages.DATA_UNSUBSCRIBE, extra={"channel": "user_updates"}
+            )
             loop = asyncio.get_event_loop()
 
             # Unsubscribe from account updates
@@ -463,7 +463,7 @@ class SubscriptionsMixin:
                 self.account_id,
             )
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_UNSUBSCRIBE,
                 extra={"status": "success", "channel": "user_updates"},
             )
@@ -521,7 +521,7 @@ class SubscriptionsMixin:
                 )
                 return False
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_UNSUBSCRIBE,
                 extra={"channel": "market_data", "count": len(contract_ids)},
             )
@@ -564,7 +564,7 @@ class SubscriptionsMixin:
                 [contract_ids],
             )
 
-            logger.info(
+            logger.debug(
                 LogMessages.DATA_UNSUBSCRIBE,
                 extra={
                     "status": "success",

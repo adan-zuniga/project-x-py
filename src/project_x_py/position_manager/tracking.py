@@ -79,10 +79,14 @@ class PositionTrackingMixin:
 
     # Type hints for mypy - these attributes are provided by the main class
     if TYPE_CHECKING:
+        from project_x_py.order_manager import OrderManager
+
         realtime_client: ProjectXRealtimeClient | None
         logger: logging.Logger
         position_lock: Lock
         stats: dict[str, Any]
+        order_manager: OrderManager | None
+        _order_sync_enabled: bool
 
         # Methods from other mixins
         async def _check_position_alerts(
@@ -311,9 +315,8 @@ class PositionTrackingMixin:
                     self.stats["positions_closed"] += 1
 
                 # Synchronize orders - cancel related orders when position is closed
-                # Note: Order synchronization methods will be added to AsyncOrderManager
-                # if self._order_sync_enabled and self.order_manager:
-                #     await self.order_manager.on_position_closed(contract_id)
+                if self._order_sync_enabled and self.order_manager:
+                    await self.order_manager.on_position_closed(contract_id)
 
                 # Trigger position_closed callbacks with the closure data
                 await self._trigger_callbacks("position_closed", actual_position_data)
@@ -324,15 +327,14 @@ class PositionTrackingMixin:
                 self.tracked_positions[contract_id] = position
 
                 # Synchronize orders - update order sizes if position size changed
-                # Note: Order synchronization methods will be added to AsyncOrderManager
-                # if (
-                #     self._order_sync_enabled
-                #     and self.order_manager
-                #     and old_size != position_size
-                # ):
-                #     await self.order_manager.on_position_changed(
-                #         contract_id, old_size, position_size
-                #     )
+                if (
+                    self._order_sync_enabled
+                    and self.order_manager
+                    and old_size != position_size
+                ):
+                    await self.order_manager.on_position_changed(
+                        contract_id, old_size, position_size
+                    )
 
                 # Track position history
                 self.position_history[contract_id].append(
