@@ -1,41 +1,33 @@
 #!/usr/bin/env python3
 """
-Simplified trading strategy example using the enhanced factory functions.
+Simplified trading strategy example using TradingSuite v3.
 
-This example demonstrates how the new auto-initialization features in
-create_trading_suite dramatically reduce boilerplate code.
+This example demonstrates how TradingSuite dramatically reduces boilerplate code
+compared to the old factory functions.
+
+Updated for v3.0.0: Uses new TradingSuite for simplified initialization.
 """
 
 import asyncio
 import logging
 import signal
 from datetime import datetime
-from typing import TYPE_CHECKING
 
-from project_x_py import ProjectX, create_initialized_trading_suite
+from project_x_py import TradingSuite, setup_logging
 from project_x_py.indicators import RSI, SMA
-from project_x_py.models import Instrument, Position
-
-if TYPE_CHECKING:
-    from project_x_py.types.protocols import (
-        OrderManagerProtocol,
-        PositionManagerProtocol,
-        RealtimeDataManagerProtocol,
-    )
+from project_x_py.models import Position
 
 
 class SimplifiedStrategy:
-    """A simple momentum strategy using the enhanced factory functions."""
+    """A simple momentum strategy using TradingSuite v3."""
 
-    def __init__(self, trading_suite: dict, symbol: str):
+    def __init__(self, trading_suite: TradingSuite, symbol: str):
         self.suite = trading_suite
         self.symbol = symbol
-        self.instrument: Instrument = trading_suite["instrument_info"]
-        self.data_manager: RealtimeDataManagerProtocol = trading_suite["data_manager"]
-        self.order_manager: OrderManagerProtocol = trading_suite["order_manager"]
-        self.position_manager: PositionManagerProtocol = trading_suite[
-            "position_manager"
-        ]
+        self.instrument = trading_suite.instrument_info
+        self.data_manager = trading_suite.data
+        self.order_manager = trading_suite.orders
+        self.position_manager = trading_suite.positions
         self.is_running = False
         self.logger = logging.getLogger(__name__)
 
@@ -98,8 +90,7 @@ class SimplifiedStrategy:
 
 async def main():
     """Main function demonstrating simplified setup."""
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+    logger = setup_logging(level="INFO")
 
     # Signal handler for graceful shutdown
     stop_event = asyncio.Event()
@@ -112,49 +103,55 @@ async def main():
 
     try:
         # LOOK HOW SIMPLE THIS IS NOW! 🎉
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
-            if not client.account_info:
-                raise ValueError("No account info found")
-            print(f"✅ Connected as: {client.account_info.name}")
+        # One line to create a fully initialized trading suite!
+        suite = await TradingSuite.create(
+            instrument="MNQ",
+            timeframes=["5min", "15min", "1hr"],
+            initial_days=3,
+        )
 
-            # One line to create a fully initialized trading suite!
-            suite = await create_initialized_trading_suite(
-                instrument="MNQ",
-                project_x=client,
-                timeframes=["5min", "15min", "1hr"],
-                initial_days=3,
-            )
+        print("✅ TradingSuite v3 initialized!")
 
-            # That's it! Everything is connected and ready to use:
-            # ✅ Realtime client connected
-            # ✅ User updates subscribed
-            # ✅ Historical data loaded
-            # ✅ Market data subscribed
-            # ✅ Realtime feeds started
-            # ✅ Orderbook subscribed (if enabled)
+        account = suite.client.account_info
+        if not account:
+            print("❌ No account info found")
+            await suite.disconnect()
+            return
 
-            # Get the instrument info
-            instrument: Instrument = suite["instrument_info"]
+        print(f"   Connected as: {account.name}")
 
-            print("\n🎯 Trading suite fully initialized!")
-            print(f"  Instrument: {instrument.symbolId}")
-            print(f"  Contract: {instrument.activeContract}")
-            print("  Components: All connected and subscribed")
+        # That's it! Everything is connected and ready to use:
+        # ✅ Client authenticated
+        # ✅ Realtime client connected
+        # ✅ User updates subscribed
+        # ✅ Historical data loaded
+        # ✅ Market data subscribed
+        # ✅ Realtime feeds started
+        # ✅ All components wired together
 
-            # Create and run strategy
-            strategy = SimplifiedStrategy(suite, "MNQ")
+        # Get the instrument info
+        instrument = suite.instrument_info
 
-            # Run until stopped
-            strategy_task = asyncio.create_task(strategy.run_loop())
-            await stop_event.wait()
+        print("\n🎯 Trading suite fully initialized!")
+        print(f"  Instrument: {instrument.symbolId if instrument else 'Unknown'}")
+        print(f"  Contract: {instrument.activeContract if instrument else 'Unknown'}")
+        print("  Components: All connected and subscribed")
 
-            # Cleanup (also simplified - just stop the strategy)
-            strategy.stop()
-            strategy_task.cancel()
+        # Create and run strategy
+        strategy = SimplifiedStrategy(suite, "MNQ")
 
-            # The context manager handles all cleanup automatically!
-            print("\n✅ Clean shutdown completed")
+        # Run until stopped
+        strategy_task = asyncio.create_task(strategy.run_loop())
+        await stop_event.wait()
+
+        # Cleanup
+        strategy.stop()
+        strategy_task.cancel()
+
+        # Disconnect TradingSuite
+        await suite.disconnect()
+
+        print("\n✅ Clean shutdown completed")
 
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)
@@ -162,12 +159,13 @@ async def main():
 
 if __name__ == "__main__":
     print("\n" + "=" * 60)
-    print("SIMPLIFIED TRADING STRATEGY EXAMPLE")
+    print("SIMPLIFIED TRADING STRATEGY EXAMPLE (v3.0.0)")
     print("=" * 60)
-    print("\nThis example shows the new auto-initialization features:")
-    print("- Single function call to create trading suite")
+    print("\nThis example shows TradingSuite v3 features:")
+    print("- Single line to create trading suite")
     print("- Automatic connection and subscription handling")
     print("- No boilerplate setup code needed!")
+    print("- Everything wired together automatically")
     print("\nPress Ctrl+C to stop\n")
 
     asyncio.run(main())
