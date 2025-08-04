@@ -114,6 +114,7 @@ from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
+from project_x_py.types.config_types import DataManagerConfig
 from project_x_py.types.stats_types import RealtimeDataManagerStats
 from project_x_py.utils import (
     ErrorMessages,
@@ -233,6 +234,7 @@ class RealtimeDataManager(
         realtime_client: "ProjectXRealtimeClient",
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
+        config: DataManagerConfig | None = None,
     ):
         """
         Initialize the optimized real-time OHLCV data manager with dependency injection.
@@ -263,6 +265,9 @@ class RealtimeDataManager(
             timezone: Timezone for timestamp handling (default: "America/Chicago").
                 This timezone is used for all bar calculations and should typically be set to
                 the exchange timezone for the instrument (e.g., "America/Chicago" for CME).
+
+            config: Optional configuration for data manager behavior. If not provided,
+                default values will be used for all configuration options.
 
         Raises:
             ValueError: If an invalid timeframe is provided.
@@ -303,6 +308,10 @@ class RealtimeDataManager(
         self.realtime_client: ProjectXRealtimeClient = realtime_client
 
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone
@@ -349,10 +358,7 @@ class RealtimeDataManager(
         # Contract ID for real-time subscriptions
         self.contract_id: str | None = None
 
-        # Memory management settings
-        self.max_bars_per_timeframe: int = 1000  # Keep last 1000 bars per timeframe
-        self.tick_buffer_size: int = 1000  # Max tick data to buffer
-        self.cleanup_interval: float = 300.0  # 5 minutes between cleanups
+        # Memory management settings are set in _apply_config_defaults()
         self.last_cleanup: float = time.time()
 
         # Comprehensive statistics tracking
@@ -386,6 +392,26 @@ class RealtimeDataManager(
         self.logger.info(
             "RealtimeDataManager initialized", extra={"instrument": instrument}
         )
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Data management settings
+        self.max_bars_per_timeframe = self.config.get("max_bars_per_timeframe", 1000)
+        self.enable_tick_data = self.config.get("enable_tick_data", True)
+        self.enable_level2_data = self.config.get("enable_level2_data", False)
+        self.buffer_size = self.config.get("buffer_size", 1000)
+        self.compression_enabled = self.config.get("compression_enabled", True)
+        self.data_validation = self.config.get("data_validation", True)
+        self.auto_cleanup = self.config.get("auto_cleanup", True)
+        self.cleanup_interval_minutes = self.config.get("cleanup_interval_minutes", 5)
+        self.historical_data_cache = self.config.get("historical_data_cache", True)
+        self.cache_expiry_hours = self.config.get("cache_expiry_hours", 24)
+
+        # Set memory management attributes based on config
+        self.tick_buffer_size = self.buffer_size
+        self.cleanup_interval = float(
+            self.cleanup_interval_minutes * 60
+        )  # Convert to seconds
 
     @handle_errors("initialize", reraise=False, default_return=False)
     async def initialize(self, initial_days: int = 1) -> bool:

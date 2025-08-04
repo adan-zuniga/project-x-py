@@ -101,6 +101,7 @@ from project_x_py.types import (
     SyncCallback,
     TradeDict,
 )
+from project_x_py.types.config_types import OrderbookConfig
 from project_x_py.types.response_types import (
     LiquidityAnalysisResponse,
     MarketImpactResponse,
@@ -205,6 +206,7 @@ class OrderBook(OrderBookBase):
         instrument: str,
         project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
+        config: "OrderbookConfig | None" = None,
     ):
         """
         Initialize the orderbook.
@@ -213,8 +215,9 @@ class OrderBook(OrderBookBase):
             instrument: Trading instrument symbol
             project_x: Optional ProjectX client for tick size lookup
             timezone_str: Timezone for timestamps (default: America/Chicago)
+            config: Optional configuration for orderbook behavior
         """
-        super().__init__(instrument, project_x, timezone_str)
+        super().__init__(instrument, project_x, timezone_str, config)
 
         # Initialize components
         self.realtime_handler = RealtimeHandler(self)

@@ -75,6 +75,7 @@ from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.risk import RiskManagementMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
+from project_x_py.types.config_types import PositionManagerConfig
 from project_x_py.types.stats_types import PositionManagerStats
 from project_x_py.utils import (
     LogMessages,
@@ -146,9 +147,13 @@ class PositionManager(
         ... )
     """
 
-    def __init__(self, project_x_client: "ProjectXBase"):
+    def __init__(
+        self,
+        project_x_client: "ProjectXBase",
+        config: PositionManagerConfig | None = None,
+    ):
         """
-        Initialize the PositionManager with an ProjectX client.
+        Initialize the PositionManager with an ProjectX client and optional configuration.
 
         Creates a comprehensive position management system with tracking, monitoring,
         alerts, risk management, and optional real-time/order synchronization.
@@ -156,6 +161,8 @@ class PositionManager(
         Args:
             project_x_client (ProjectX): The authenticated ProjectX client instance
                 used for all API operations. Must be properly authenticated before use.
+            config: Optional configuration for position management behavior. If not provided,
+                default values will be used for all configuration options.
 
         Attributes:
             project_x (ProjectX): Reference to the ProjectX client
@@ -181,6 +188,10 @@ class PositionManager(
 
         self.project_x = project_x_client
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Async lock for thread safety
         self.position_lock = asyncio.Lock()
@@ -225,17 +236,43 @@ class PositionManager(
             "monitoring_started": None,
         }
 
-        # Risk management settings
-        self.risk_settings = {
-            "max_portfolio_risk": 0.02,  # 2% of portfolio
-            "max_position_risk": 0.01,  # 1% per position
-            "max_correlation": 0.7,  # Maximum correlation between positions
-            "alert_threshold": 0.005,  # 0.5% threshold for alerts
-        }
-
         self.logger.info(
             LogMessages.MANAGER_INITIALIZED, extra={"manager": "PositionManager"}
         )
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Position management settings
+        self.enable_risk_monitoring = self.config.get("enable_risk_monitoring", True)
+        self.auto_stop_loss = self.config.get("auto_stop_loss", False)
+        self.auto_take_profit = self.config.get("auto_take_profit", False)
+        self.max_position_size = self.config.get("max_position_size", 100)
+        self.max_portfolio_risk = self.config.get("max_portfolio_risk", 0.02)
+        self.position_sizing_method = self.config.get("position_sizing_method", "fixed")
+        self.enable_correlation_analysis = self.config.get(
+            "enable_correlation_analysis", True
+        )
+        self.enable_portfolio_rebalancing = self.config.get(
+            "enable_portfolio_rebalancing", False
+        )
+        self.rebalance_frequency_minutes = self.config.get(
+            "rebalance_frequency_minutes", 60
+        )
+        self.risk_calculation_interval = self.config.get("risk_calculation_interval", 5)
+
+        # Update risk settings from configuration
+        self.risk_settings = {
+            "max_portfolio_risk": self.max_portfolio_risk,
+            "max_position_risk": self.config.get(
+                "max_position_risk", 0.01
+            ),  # 1% per position
+            "max_correlation": self.config.get(
+                "max_correlation", 0.7
+            ),  # Maximum correlation between positions
+            "alert_threshold": self.config.get(
+                "alert_threshold", 0.005
+            ),  # 0.5% threshold for alerts
+        }
 
     @handle_errors("initialize position manager", reraise=False, default_return=False)
     async def initialize(

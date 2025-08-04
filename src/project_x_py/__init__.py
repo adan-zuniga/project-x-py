@@ -177,8 +177,6 @@ from project_x_py.types import (
     PositionManagerConfig,
     PositionType,
     RiskAnalysisResponse,
-    # Configuration types
-    TradingSuiteConfig,
 )
 
 # Utility functions

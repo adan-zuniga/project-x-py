@@ -49,7 +49,13 @@ from project_x_py.orderbook import OrderBook
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
-from project_x_py.types.stats_types import TradingSuiteStats
+from project_x_py.types.config_types import (
+    DataManagerConfig,
+    OrderbookConfig,
+    OrderManagerConfig,
+    PositionManagerConfig,
+)
+from project_x_py.types.stats_types import ComponentStats, TradingSuiteStats
 from project_x_py.utils import ProjectXLogger
 
 logger = ProjectXLogger.get_logger(__name__)
@@ -83,6 +89,43 @@ class TradingSuiteConfig:
         self.initial_days = initial_days
         self.auto_connect = auto_connect
         self.timezone = timezone
+
+    def get_order_manager_config(self) -> OrderManagerConfig:
+        """Get configuration for OrderManager."""
+        return {
+            "enable_bracket_orders": Features.RISK_MANAGER in self.features,
+            "enable_trailing_stops": True,
+            "auto_risk_management": Features.RISK_MANAGER in self.features,
+            "enable_order_validation": True,
+        }
+
+    def get_position_manager_config(self) -> PositionManagerConfig:
+        """Get configuration for PositionManager."""
+        return {
+            "enable_risk_monitoring": Features.RISK_MANAGER in self.features,
+            "enable_correlation_analysis": Features.PERFORMANCE_ANALYTICS
+            in self.features,
+            "enable_portfolio_rebalancing": False,
+        }
+
+    def get_data_manager_config(self) -> DataManagerConfig:
+        """Get configuration for RealtimeDataManager."""
+        return {
+            "max_bars_per_timeframe": 1000,
+            "enable_tick_data": True,
+            "enable_level2_data": Features.ORDERBOOK in self.features,
+            "data_validation": True,
+            "auto_cleanup": True,
+        }
+
+    def get_orderbook_config(self) -> OrderbookConfig:
+        """Get configuration for OrderBook."""
+        return {
+            "max_depth_levels": 100,
+            "max_trade_history": 1000,
+            "enable_analytics": Features.PERFORMANCE_ANALYTICS in self.features,
+            "enable_pattern_detection": True,
+        }
 
 
 class TradingSuite:
@@ -121,17 +164,20 @@ class TradingSuite:
         self.config = config
         self.instrument = config.instrument
 
-        # Initialize core components
+        # Initialize core components with typed configs
         self.data = RealtimeDataManager(
             instrument=config.instrument,
             project_x=client,
             realtime_client=realtime_client,
             timeframes=config.timeframes,
             timezone=config.timezone,
+            config=config.get_data_manager_config(),
         )
 
-        self.orders = OrderManager(client)
-        self.positions = PositionManager(client)
+        self.orders = OrderManager(client, config=config.get_order_manager_config())
+        self.positions = PositionManager(
+            client, config=config.get_position_manager_config()
+        )
 
         # Optional components
         self.orderbook: OrderBook | None = None
@@ -348,6 +394,7 @@ class TradingSuite:
                     instrument=self.instrument,
                     timezone_str=self.config.timezone,
                     project_x=self.client,
+                    config=self.config.get_orderbook_config(),
                 )
                 await self.orderbook.initialize(
                     realtime_client=self.realtime,
@@ -451,46 +498,46 @@ class TradingSuite:
         )
 
         # Build component stats
-        components = {}
+        components: dict[str, ComponentStats] = {}
         if self.orders:
-            components["order_manager"] = {
-                "name": "OrderManager",
-                "status": "connected" if self.orders else "disconnected",
-                "uptime_seconds": uptime_seconds,
-                "last_activity": None,
-                "error_count": 0,
-                "memory_usage_mb": 0.0,
-            }
+            components["order_manager"] = ComponentStats(
+                name="OrderManager",
+                status="connected" if self.orders else "disconnected",
+                uptime_seconds=uptime_seconds,
+                last_activity=None,
+                error_count=0,
+                memory_usage_mb=0.0,
+            )
 
         if self.positions:
-            components["position_manager"] = {
-                "name": "PositionManager",
-                "status": "connected" if self.positions else "disconnected",
-                "uptime_seconds": uptime_seconds,
-                "last_activity": None,
-                "error_count": 0,
-                "memory_usage_mb": 0.0,
-            }
+            components["position_manager"] = ComponentStats(
+                name="PositionManager",
+                status="connected" if self.positions else "disconnected",
+                uptime_seconds=uptime_seconds,
+                last_activity=None,
+                error_count=0,
+                memory_usage_mb=0.0,
+            )
 
         if self.data:
-            components["data_manager"] = {
-                "name": "RealtimeDataManager",
-                "status": "connected" if self.data else "disconnected",
-                "uptime_seconds": uptime_seconds,
-                "last_activity": None,
-                "error_count": 0,
-                "memory_usage_mb": 0.0,
-            }
+            components["data_manager"] = ComponentStats(
+                name="RealtimeDataManager",
+                status="connected" if self.data else "disconnected",
+                uptime_seconds=uptime_seconds,
+                last_activity=None,
+                error_count=0,
+                memory_usage_mb=0.0,
+            )
 
         if self.orderbook:
-            components["orderbook"] = {
-                "name": "OrderBook",
-                "status": "connected" if self.orderbook else "disconnected",
-                "uptime_seconds": uptime_seconds,
-                "last_activity": None,
-                "error_count": 0,
-                "memory_usage_mb": 0.0,
-            }
+            components["orderbook"] = ComponentStats(
+                name="OrderBook",
+                status="connected" if self.orderbook else "disconnected",
+                uptime_seconds=uptime_seconds,
+                last_activity=None,
+                error_count=0,
+                memory_usage_mb=0.0,
+            )
 
         return {
             "suite_id": getattr(self, "suite_id", "unknown"),

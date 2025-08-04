@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import Order, OrderPlaceResponse
+from project_x_py.types.config_types import OrderManagerConfig
 from project_x_py.types.stats_types import OrderManagerStats
 from project_x_py.types.trading import OrderStatus
 from project_x_py.utils import (
@@ -115,9 +116,11 @@ class OrderManager(
     across different order types and strategies.
     """
 
-    def __init__(self, project_x_client: "ProjectXBase"):
+    def __init__(
+        self, project_x_client: "ProjectXBase", config: OrderManagerConfig | None = None
+    ):
         """
-        Initialize the OrderManager with an ProjectX client.
+        Initialize the OrderManager with an ProjectX client and optional configuration.
 
         Creates a new instance of the OrderManager that uses the provided ProjectX client
         for API access. This establishes the foundation for order operations but does not
@@ -128,12 +131,18 @@ class OrderManager(
             project_x_client: ProjectX client instance for API access. This client
                 should already be authenticated or authentication should be handled
                 separately before attempting order operations.
+            config: Optional configuration for order management behavior. If not provided,
+                default values will be used for all configuration options.
         """
         # Initialize mixins
         OrderTrackingMixin.__init__(self)
 
         self.project_x = project_x_client
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Async lock for thread safety
         self.order_lock = asyncio.Lock()
@@ -164,6 +173,20 @@ class OrderManager(
         }
 
         self.logger.info("AsyncOrderManager initialized")
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Set default configuration values
+        self.enable_bracket_orders = self.config.get("enable_bracket_orders", True)
+        self.enable_trailing_stops = self.config.get("enable_trailing_stops", True)
+        self.auto_risk_management = self.config.get("auto_risk_management", False)
+        self.max_order_size = self.config.get("max_order_size", 1000)
+        self.max_orders_per_minute = self.config.get("max_orders_per_minute", 120)
+        self.default_order_type = self.config.get("default_order_type", "limit")
+        self.enable_order_validation = self.config.get("enable_order_validation", True)
+        self.require_confirmation = self.config.get("require_confirmation", False)
+        self.auto_cancel_on_close = self.config.get("auto_cancel_on_close", False)
+        self.order_timeout_minutes = self.config.get("order_timeout_minutes", 60)
 
     async def initialize(
         self, realtime_client: Optional["ProjectXRealtimeClient"] = None

@@ -73,6 +73,7 @@ from project_x_py.types import (
     DomType,
     MemoryConfig,
 )
+from project_x_py.types.config_types import OrderbookConfig
 from project_x_py.types.market_data import (
     OrderbookSnapshot,
     PriceLevelDict,
@@ -133,6 +134,7 @@ class OrderBookBase:
         instrument: str,
         project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
+        config: OrderbookConfig | None = None,
     ):
         """
         Initialize the async orderbook base.
@@ -141,11 +143,16 @@ class OrderBookBase:
             instrument: Trading instrument symbol
             project_x: Optional ProjectX client for tick size lookup
             timezone_str: Timezone for timestamps (default: America/Chicago)
+            config: Optional configuration for orderbook behavior
         """
         self.instrument = instrument
         self.project_x = project_x
         self.timezone = pytz.timezone(timezone_str)
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Cache instrument tick size during initialization
         self._tick_size: Decimal | None = None
@@ -154,8 +161,11 @@ class OrderBookBase:
         self.orderbook_lock = asyncio.Lock()
         self._callback_lock = asyncio.Lock()
 
-        # Memory configuration
-        self.memory_config = MemoryConfig()
+        # Memory configuration (now uses config settings)
+        self.memory_config = MemoryConfig(
+            max_trades=self.max_trade_history,
+            max_depth_entries=self.max_depth_levels,
+        )
         self.memory_manager = MemoryManager(self, self.memory_config)
 
         # Level 2 orderbook storage with Polars DataFrames
@@ -249,6 +259,22 @@ class OrderBookBase:
 
         # Market microstructure analytics
         self.trade_flow_stats: dict[str, int] = defaultdict(int)
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Orderbook settings
+        self.max_depth_levels = self.config.get("max_depth_levels", 100)
+        self.max_trade_history = self.config.get("max_trade_history", 1000)
+        self.enable_market_by_order = self.config.get("enable_market_by_order", False)
+        self.enable_analytics = self.config.get("enable_analytics", True)
+        self.enable_pattern_detection = self.config.get(
+            "enable_pattern_detection", True
+        )
+        self.snapshot_interval_seconds = self.config.get("snapshot_interval_seconds", 1)
+        self.memory_limit_mb = self.config.get("memory_limit_mb", 256)
+        self.compression_level = self.config.get("compression_level", 1)
+        self.enable_delta_updates = self.config.get("enable_delta_updates", True)
+        self.price_precision = self.config.get("price_precision", 4)
 
     def _map_trade_type(self, type_code: int) -> str:
         """Map ProjectX DomType codes to human-readable trade types."""
