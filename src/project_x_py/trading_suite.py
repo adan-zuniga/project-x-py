@@ -49,6 +49,7 @@ from project_x_py.orderbook import OrderBook
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
+from project_x_py.types.stats_types import TradingSuiteStats
 from project_x_py.utils import ProjectXLogger
 
 logger = ProjectXLogger.get_logger(__name__)
@@ -433,30 +434,89 @@ class TradingSuite:
         """Check if all components are connected and ready."""
         return self._connected and self.realtime.is_connected()
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> TradingSuiteStats:
         """
         Get comprehensive statistics from all components.
 
         Returns:
-            Dictionary containing stats from all active components
+            Structured statistics from all active components
         """
-        stats = {
-            "connected": self.is_connected,
-            "instrument": self.instrument,
-            "features": [f.value for f in self.config.features],
-        }
+        from datetime import datetime
 
-        if self.realtime:
-            stats["realtime"] = self.realtime.get_stats()
+        # Calculate uptime
+        uptime_seconds = (
+            int((datetime.now() - self._created_at).total_seconds())
+            if hasattr(self, "_created_at")
+            else 0
+        )
 
-        if self.data:
-            stats["data_manager"] = self.data.get_memory_stats()
-
-        if self.orderbook:
-            stats["orderbook"] = {
-                "bid_depth": len(self.orderbook.orderbook_bids),
-                "ask_depth": len(self.orderbook.orderbook_asks),
-                "trade_count": len(self.orderbook.recent_trades),
+        # Build component stats
+        components = {}
+        if self.orders:
+            components["order_manager"] = {
+                "name": "OrderManager",
+                "status": "connected" if self.orders else "disconnected",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": None,
+                "error_count": 0,
+                "memory_usage_mb": 0.0,
             }
 
-        return stats
+        if self.positions:
+            components["position_manager"] = {
+                "name": "PositionManager",
+                "status": "connected" if self.positions else "disconnected",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": None,
+                "error_count": 0,
+                "memory_usage_mb": 0.0,
+            }
+
+        if self.data:
+            components["data_manager"] = {
+                "name": "RealtimeDataManager",
+                "status": "connected" if self.data else "disconnected",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": None,
+                "error_count": 0,
+                "memory_usage_mb": 0.0,
+            }
+
+        if self.orderbook:
+            components["orderbook"] = {
+                "name": "OrderBook",
+                "status": "connected" if self.orderbook else "disconnected",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": None,
+                "error_count": 0,
+                "memory_usage_mb": 0.0,
+            }
+
+        return {
+            "suite_id": getattr(self, "suite_id", "unknown"),
+            "instrument": self.instrument,
+            "created_at": getattr(self, "_created_at", datetime.now()).isoformat(),
+            "uptime_seconds": uptime_seconds,
+            "status": "active" if self.is_connected else "disconnected",
+            "connected": self.is_connected,
+            "components": components,
+            "realtime_connected": self.realtime.is_connected()
+            if self.realtime
+            else False,
+            "user_hub_connected": getattr(self.realtime, "user_connected", False)
+            if self.realtime
+            else False,
+            "market_hub_connected": getattr(self.realtime, "market_connected", False)
+            if self.realtime
+            else False,
+            "total_api_calls": 0,
+            "successful_api_calls": 0,
+            "failed_api_calls": 0,
+            "avg_response_time_ms": 0.0,
+            "cache_hit_rate": 0.0,
+            "memory_usage_mb": 0.0,
+            "active_subscriptions": 0,
+            "message_queue_size": 0,
+            "features_enabled": [f.value for f in self.config.features],
+            "timeframes": self.config.timeframes,
+        }

@@ -162,6 +162,25 @@ from project_x_py.realtime import ProjectXRealtimeClient as ProjectXRealtimeClie
 from project_x_py.realtime_data_manager import RealtimeDataManager
 from project_x_py.trading_suite import Features, TradingSuite, TradingSuiteConfig
 
+# Type definitions - Import comprehensive type system
+from project_x_py.types import (
+    # Response types for API operations
+    HealthStatusResponse,
+    OrderManagerConfig,
+    # Core types
+    OrderSide,
+    OrderStatsResponse,
+    OrderStatus,
+    OrderType,
+    PerformanceStatsResponse,
+    PortfolioMetricsResponse,
+    PositionManagerConfig,
+    PositionType,
+    RiskAnalysisResponse,
+    # Configuration types
+    TradingSuiteConfig,
+)
+
 # Utility functions
 from project_x_py.utils import (
     RateLimiter,
@@ -182,14 +201,24 @@ __all__ = [
     # Configuration
     "ConfigManager",
     "Features",
+    "HealthStatusResponse",
     "Instrument",
     "Order",
     # Core classes (now async-only but with original names)
     "OrderBook",
     "OrderManager",
+    "OrderManagerConfig",
     "OrderPlaceResponse",
+    "OrderSide",
+    "OrderStatsResponse",
+    "OrderStatus",
+    "OrderType",
+    "PerformanceStatsResponse",
+    "PortfolioMetricsResponse",
     "Position",
     "PositionManager",
+    "PositionManagerConfig",
+    "PositionType",
     "ProjectX",
     # Exceptions
     "ProjectXAuthenticationError",
@@ -206,6 +235,7 @@ __all__ = [
     # Utilities
     "RateLimiter",
     "RealtimeDataManager",
+    "RiskAnalysisResponse",
     "Trade",
     "TradingSuite",
     "TradingSuiteConfig",
