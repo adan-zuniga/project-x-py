@@ -32,7 +32,8 @@ from project_x_py import (
     create_realtime_client,
     setup_logging,
 )
-from project_x_py.models import Order
+from project_x_py.models import Order, OrderPlaceResponse
+from project_x_py.order_manager import OrderManager
 
 
 async def wait_for_user_confirmation(message: str) -> bool:
@@ -51,7 +52,9 @@ async def wait_for_user_confirmation(message: str) -> bool:
         return False
 
 
-async def show_order_status(order_manager, order_id: int, description: str):
+async def show_order_status(
+    order_manager: OrderManager, order_id: int, description: str
+) -> None:
     """Show detailed order status information."""
     print(f"\n📋 {description} Status:")
 
@@ -86,22 +89,19 @@ async def show_order_status(order_manager, order_id: int, description: str):
             print(f"   Order {order_id} not found in API either")
             return
 
-        if api_order:
-            status_map = {1: "Open", 2: "Filled", 3: "Cancelled", 4: "Partially Filled"}
-            status = status_map.get(api_order.status, f"Unknown ({api_order.status})")
-            print(f"   Status: {status} (from API)")
-            print(f"   Side: {'BUY' if api_order.side == 0 else 'SELL'}")
-            print(f"   Size: {api_order.size}")
-            print(f"   Fill Volume: {api_order.fillVolume}")
-        else:
-            print(f"   Order {order_id} not found in API either")
+        status_map = {1: "Open", 2: "Filled", 3: "Cancelled", 4: "Partially Filled"}
+        status = status_map.get(api_order.status, f"Unknown ({api_order.status})")
+        print(f"   Status: {status} (from API)")
+        print(f"   Side: {'BUY' if api_order.side == 0 else 'SELL'}")
+        print(f"   Size: {api_order.size}")
+        print(f"   Fill Volume: {api_order.fillVolume}")
 
     # Check if filled
     is_filled = await order_manager.is_order_filled(order_id)
     print(f"   Filled: {'Yes' if is_filled else 'No'}")
 
 
-async def main():
+async def main() -> bool:
     """Demonstrate comprehensive async order management with real orders."""
     logger = setup_logging(level="INFO")
     print("🚀 Async Order Management Example with REAL ORDERS")
@@ -198,7 +198,7 @@ async def main():
                 await order_manager.initialize()
 
             # Track orders placed in this demo for cleanup
-            demo_orders = []
+            demo_orders: list[int] = []
 
             try:
                 # Example 1: Limit Order (less likely to fill immediately)
@@ -214,11 +214,13 @@ async def main():
                 )
 
                 if await wait_for_user_confirmation("Place limit order?"):
-                    limit_response = await order_manager.place_limit_order(
-                        contract_id=contract_id,
-                        side=0,  # Buy
-                        size=1,
-                        limit_price=float(limit_price),
+                    limit_response: OrderPlaceResponse = (
+                        await order_manager.place_limit_order(  # type: ignore[misc]
+                            contract_id=contract_id,
+                            side=0,  # Buy
+                            size=1,
+                            limit_price=float(limit_price),
+                        )
                     )
 
                     if limit_response and limit_response.success:
@@ -251,7 +253,7 @@ async def main():
                 print("   (Will trigger if price reaches this level)")
 
                 if await wait_for_user_confirmation("Place stop order?"):
-                    stop_response = await order_manager.place_stop_order(
+                    stop_response = await order_manager.place_stop_order(  # type: ignore[misc]
                         contract_id=contract_id,
                         side=0,  # Buy
                         size=1,
@@ -296,7 +298,7 @@ async def main():
                 print("   Risk/Reward: 1:2 ratio")
 
                 if await wait_for_user_confirmation("Place bracket order?"):
-                    bracket_response = await order_manager.place_bracket_order(
+                    bracket_response = await order_manager.place_bracket_order(  # type: ignore[misc]
                         contract_id=contract_id,
                         side=0,  # Buy
                         size=1,
@@ -485,7 +487,7 @@ async def main():
                                 f"Closing {side_text} position: {position.contractId} ({position.size} contracts)"
                             )
 
-                            response = await order_manager.close_position(
+                            response = await order_manager.close_position(  # type: ignore[misc]
                                 position.contractId, method="market"
                             )
 

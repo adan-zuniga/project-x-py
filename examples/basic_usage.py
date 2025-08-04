@@ -72,13 +72,14 @@ async def main():
             # Show performance stats
             print("\n📊 Performance Statistics:")
             health = await client.get_health_status()
-            print(f"  - API Status: {health['api_status']}")
-            print(f"  - API Version: {health['api_version']}")
 
             client_stats = health["client_stats"]
             print(f"  - API calls made: {client_stats['api_calls']}")
             print(f"  - Cache hits: {client_stats['cache_hits']}")
             print(f"  - Cache hit rate: {client_stats['cache_hit_rate']:.1%}")
+            print(f"  - Total requests: {client_stats['total_requests']}")
+            print(f"  - Authenticated: {health['authenticated']}")
+            print(f"  - Account: {health['account']}")
 
     except Exception as e:
         print(f"\n❌ Error: {type(e).__name__}: {e}")

@@ -215,34 +215,29 @@ class TestHttpClient:
         assert call_args["json"] == test_data
 
     @pytest.mark.asyncio
-    async def test_health_status(self, initialized_client, mock_response):
+    async def test_health_status(self, initialized_client):
         """Test health status endpoint."""
         client = initialized_client
 
-        api_response = mock_response(
-            json_data={"status": "healthy", "version": "1.0.0"}
-        )
-        client._client.request.return_value = api_response
+        # Set some values to test
+        client.api_call_count = 10
+        client.cache_hit_count = 5
+        client._authenticated = True
+        client.account_info = type("obj", (object,), {"name": "TestAccount"})()
 
         health = await client.get_health_status()
 
         # Verify the structure matches the expected format
-        assert "api_status" in health
-        assert "api_version" in health
         assert "client_stats" in health
-
-        # Verify key values
-        assert health["api_status"] == "healthy"
-        assert health["api_version"] == "1.0.0"
-        assert isinstance(health["client_stats"], dict)
+        assert "authenticated" in health
+        assert "account" in health
 
         # Verify client stats fields
-        assert "api_calls" in health["client_stats"]
-        assert "cache_hits" in health["client_stats"]
-        assert "cache_hit_rate" in health["client_stats"]
+        assert health["client_stats"]["api_calls"] == 10
+        assert health["client_stats"]["cache_hits"] == 5
+        assert health["client_stats"]["cache_hit_rate"] == 5 / 15  # 5/15
+        assert health["client_stats"]["total_requests"] == 15
 
-        # Verify the API endpoint was called correctly
-        client._client.request.assert_called_once()
-        call_args = client._client.request.call_args[1]
-        assert call_args["method"] == "GET"
-        assert call_args["url"].endswith("/health")
+        # Verify authentication info
+        assert health["authenticated"] is True
+        assert health["account"] == "TestAccount"

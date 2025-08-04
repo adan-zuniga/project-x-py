@@ -72,7 +72,7 @@ async def main():
                 health_task, positions_task, instruments_task
             )
 
-            print(f"✅ Health Check: {health.get('status', 'Unknown')}")
+            print(f"✅ API Calls Made: {health['client_stats']['api_calls']}")
             print(f"✅ Open Positions: {len(positions)}")
             print(f"✅ Found Instruments: {len(instruments)}")
 

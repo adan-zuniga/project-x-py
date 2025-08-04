@@ -424,7 +424,7 @@ class RealtimeDataManager(
             instrument=self.instrument,
             initial_days=initial_days,
         ):
-            self.logger.info(
+            self.logger.debug(
                 LogMessages.DATA_FETCH,
                 extra={"phase": "initialization", "instrument": self.instrument},
             )
@@ -455,7 +455,7 @@ class RealtimeDataManager(
 
                     if bars is not None and not bars.is_empty():
                         self.data[tf_key] = bars
-                        self.logger.info(
+                        self.logger.debug(
                             LogMessages.DATA_RECEIVED,
                             extra={"timeframe": tf_key, "bar_count": len(bars)},
                         )
@@ -465,7 +465,7 @@ class RealtimeDataManager(
                             extra={"timeframe": tf_key, "error": "No data loaded"},
                         )
 
-            self.logger.info(
+            self.logger.debug(
                 LogMessages.DATA_RECEIVED,
                 extra={"status": "initialized", "instrument": self.instrument},
             )
@@ -556,7 +556,7 @@ class RealtimeDataManager(
             )
 
             # Subscribe to market data using the contract ID
-            self.logger.info(
+            self.logger.debug(
                 LogMessages.DATA_SUBSCRIBE, extra={"contract_id": self.contract_id}
             )
             subscription_success = await self.realtime_client.subscribe_market_data(
@@ -572,7 +572,7 @@ class RealtimeDataManager(
                     )
                 )
 
-            self.logger.info(
+            self.logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"status": "success", "contract_id": self.contract_id},
             )
@@ -582,7 +582,7 @@ class RealtimeDataManager(
             # Start cleanup task
             self.start_cleanup_task()
 
-            self.logger.info(
+            self.logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"status": "feed_started", "instrument": self.instrument},
             )

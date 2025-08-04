@@ -28,7 +28,8 @@ Example Usage:
     async def main():
         async with ProjectX.from_env() as client:
             status = await client.get_health_status()
-            print(status["api_status"], status["client_stats"]["api_calls"])
+            print(f"API Calls: {status['client_stats']['api_calls']}")
+            print(f"Cache Hit Rate: {status['client_stats']['cache_hit_rate']:.1%}")
 
 
     asyncio.run(main())
@@ -282,28 +283,19 @@ class HttpMixin:
     @handle_errors("get health status")
     async def get_health_status(self: "ProjectXClientProtocol") -> dict[str, Any]:
         """
-        Get API health status and client statistics.
+        Get client statistics and performance metrics.
 
         Returns:
             Dict containing:
-                - api_status: Current API status
-                - api_version: API version information
                 - client_stats: Client-side statistics including cache performance
+                - authenticated: Whether the client is authenticated
+                - account: Current account name if authenticated
 
         Example:
             >>> status = await client.get_health_status()
-            >>> print(f"API Status: {status['api_status']}")
             >>> print(f"Cache hit rate: {status['client_stats']['cache_hit_rate']:.1%}")
+            >>> print(f"API calls made: {status['client_stats']['api_calls']}")
         """
-        # Get API health
-        try:
-            response = await self._make_request("GET", "/health")
-            api_status = response.get("status", "unknown")
-            api_version = response.get("version", "unknown")
-        except Exception:
-            api_status = "error"
-            api_version = "unknown"
-
         # Calculate client statistics
         total_cache_requests = self.cache_hit_count + self.api_call_count
         cache_hit_rate = (
@@ -313,13 +305,12 @@ class HttpMixin:
         )
 
         return {
-            "api_status": api_status,
-            "api_version": api_version,
             "client_stats": {
                 "api_calls": self.api_call_count,
                 "cache_hits": self.cache_hit_count,
                 "cache_hit_rate": cache_hit_rate,
-                "authenticated": self._authenticated,
-                "account": self.account_info.name if self.account_info else None,
+                "total_requests": total_cache_requests,
             },
+            "authenticated": self._authenticated,
+            "account": self.account_info.name if self.account_info else None,
         }

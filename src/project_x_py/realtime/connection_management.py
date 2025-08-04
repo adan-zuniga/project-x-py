@@ -53,7 +53,6 @@ See Also:
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -125,21 +124,20 @@ class ConnectionManagementMixin:
             user_hub=self.user_hub_url,
             market_hub=self.market_hub_url,
         ):
-            logger.info(LogMessages.WS_CONNECT, extra={"phase": "setup"})
+            logger.debug(LogMessages.WS_CONNECT, extra={"phase": "setup"})
 
             if HubConnectionBuilder is None:
                 raise ImportError("signalrcore is required for real-time functionality")
 
             async with self._connection_lock:
-                # Build user hub connection with JWT in headers
+                # Build user hub connection with JWT as query parameter
+                # SignalR WebSocket connections often need auth tokens in URL, not headers
+                user_url_with_token = (
+                    f"{self.user_hub_url}?access_token={self.jwt_token}"
+                )
                 self.user_connection = (
                     HubConnectionBuilder()
-                    .with_url(
-                        self.user_hub_url,
-                        options={
-                            "headers": {"Authorization": f"Bearer {self.jwt_token}"}
-                        },
-                    )
+                    .with_url(user_url_with_token)
                     .configure_logging(
                         logger.level,
                         socket_trace=False,
@@ -155,19 +153,17 @@ class ConnectionManagementMixin:
                     .build()
                 )
 
-                # Build market hub connection with JWT in headers
+                # Build market hub connection with JWT as query parameter
+                market_url_with_token = (
+                    f"{self.market_hub_url}?access_token={self.jwt_token}"
+                )
                 self.market_connection = (
                     HubConnectionBuilder()
-                    .with_url(
-                        self.market_hub_url,
-                        options={
-                            "headers": {"Authorization": f"Bearer {self.jwt_token}"}
-                        },
-                    )
+                    .with_url(market_url_with_token)
                     .configure_logging(
-                        logging.INFO,
+                        logger.level,
                         socket_trace=False,
-                        handler=logging.StreamHandler(),
+                        handler=None,  # Use None to avoid duplicate logging
                     )
                     .with_automatic_reconnect(
                         {
@@ -213,7 +209,9 @@ class ConnectionManagementMixin:
                 self.market_connection.on("GatewayTrade", self._forward_market_trade)
                 self.market_connection.on("GatewayDepth", self._forward_market_depth)
 
-                logger.info(LogMessages.WS_CONNECTED, extra={"phase": "setup_complete"})
+                logger.debug(
+                    LogMessages.WS_CONNECTED, extra={"phase": "setup_complete"}
+                )
                 self.setup_complete = True
 
     @handle_errors("connect", reraise=False, default_return=False)
@@ -266,7 +264,7 @@ class ConnectionManagementMixin:
             # Store the event loop for cross-thread task scheduling
             self._loop = asyncio.get_event_loop()
 
-            logger.info(LogMessages.WS_CONNECT)
+            logger.debug(LogMessages.WS_CONNECT)
 
             async with self._connection_lock:
                 # Start both connections
@@ -288,12 +286,12 @@ class ConnectionManagementMixin:
                     )
                     return False
 
-                # Wait for connections to establish
-                await asyncio.sleep(0.5)
+                # Wait for connections to establish and stabilize
+                await asyncio.sleep(2.0)  # Increased wait time for connection stability
 
                 if self.user_connected and self.market_connected:
                     self.stats["connected_time"] = datetime.now()
-                    logger.info(LogMessages.WS_CONNECTED)
+                    logger.debug(LogMessages.WS_CONNECTED)
                     return True
                 else:
                     logger.error(
@@ -322,7 +320,7 @@ class ConnectionManagementMixin:
         # SignalR connections are synchronous, so we run them in executor
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, connection.start)
-        logger.info(LogMessages.WS_CONNECTED, extra={"hub": name})
+        logger.debug(LogMessages.WS_CONNECTED, extra={"hub": name})
 
     @handle_errors("disconnect")
     async def disconnect(self: "ProjectXRealtimeClientProtocol") -> None:
@@ -357,7 +355,7 @@ class ConnectionManagementMixin:
             operation="disconnect",
             account_id=self.account_id,
         ):
-            logger.info(LogMessages.WS_DISCONNECT)
+            logger.debug(LogMessages.WS_DISCONNECT)
 
             async with self._connection_lock:
                 if self.user_connection:
@@ -370,7 +368,7 @@ class ConnectionManagementMixin:
                     await loop.run_in_executor(None, self.market_connection.stop)
                     self.market_connected = False
 
-                logger.info(LogMessages.WS_DISCONNECTED)
+                logger.debug(LogMessages.WS_DISCONNECTED)
 
     # Connection event handlers
     def _on_user_hub_open(self: "ProjectXRealtimeClientProtocol") -> None:
@@ -522,7 +520,7 @@ class ConnectionManagementMixin:
             operation="update_jwt_token",
             account_id=self.account_id,
         ):
-            logger.info(LogMessages.AUTH_REFRESH)
+            logger.debug(LogMessages.AUTH_REFRESH)
 
             # Disconnect existing connections
             await self.disconnect()
@@ -542,7 +540,7 @@ class ConnectionManagementMixin:
                 if self._subscribed_contracts:
                     await self.subscribe_market_data(self._subscribed_contracts)
 
-                logger.info(LogMessages.WS_RECONNECT)
+                logger.debug(LogMessages.WS_RECONNECT)
                 return True
             else:
                 logger.error(

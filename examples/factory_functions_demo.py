@@ -45,9 +45,11 @@ async def simple_component_creation():
         await order_manager.initialize()
         print("✅ Created order manager")
 
-        position_manager = create_position_manager(client, realtime_client)
-        await position_manager.initialize()
-        print("✅ Created position manager")
+        position_manager = create_position_manager(
+            client, realtime_client, order_manager
+        )
+        await position_manager.initialize(realtime_client, order_manager)
+        print("✅ Created position manager with order synchronization")
 
         # Find an instrument
         instruments = await client.search_instruments("MGC")

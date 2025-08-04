@@ -97,7 +97,7 @@ from typing import Any
 
 from project_x_py.client.base import ProjectXBase
 
-__version__ = "2.0.8"
+__version__ = "2.0.9"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
@@ -370,6 +370,12 @@ async def create_trading_suite(
     if auto_connect:
         await realtime_client.connect()
         await realtime_client.subscribe_user_updates()
+
+        # Initialize position manager with realtime client and order manager
+        # This enables automatic order cleanup when positions close
+        await position_manager.initialize(
+            realtime_client=realtime_client, order_manager=order_manager
+        )
 
     # Auto-subscribe and initialize if requested
     if auto_subscribe:

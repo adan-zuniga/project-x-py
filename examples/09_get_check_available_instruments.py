@@ -165,11 +165,11 @@ async def main():
                 while True:
                     await asyncio.sleep(60)  # Every minute
                     stats = await client.get_health_status()
-                    if stats["api_calls"] > 0:
+                    if stats["client_stats"]["api_calls"] > 0:
                         print(
-                            f"\n[Stats] API calls: {stats['api_calls']}, "
-                            f"Cache hits: {stats['cache_hits']} "
-                            f"({stats['cache_hit_rate']:.1%} hit rate)"
+                            f"\n[Stats] API calls: {stats['client_stats']['api_calls']}, "
+                            f"Cache hits: {stats['client_stats']['cache_hits']} "
+                            f"({stats['client_stats']['cache_hit_rate']:.1%} hit rate)"
                         )
 
             # Run stats display in background

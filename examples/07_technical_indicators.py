@@ -32,32 +32,56 @@ from project_x_py import (
 )
 from project_x_py.indicators import (
     ADX,
+    AROON,
     ATR,
     BBANDS,
+    CCI,
     EMA,
+    FVG,
     MACD,
+    MFI,
     OBV,
+    ORDERBLOCK,
+    PPO,
     RSI,
     SMA,
     STOCH,
+    ULTOSC,
     VWAP,
+    WAE,
+    WILLR,
 )
+from project_x_py.types.protocols import ProjectXClientProtocol
 
 
 async def calculate_indicators_concurrently(data: pl.DataFrame):
     """Calculate multiple indicators concurrently."""
     # Define indicator calculations (names match lowercase column outputs)
     indicator_tasks = {
+        # Overlap Studies
         "sma_20": lambda df: df.pipe(SMA, period=20),
         "ema_20": lambda df: df.pipe(EMA, period=20),
+        "bbands": lambda df: df.pipe(BBANDS, period=20),
+        # Momentum Indicators
         "rsi_14": lambda df: df.pipe(RSI, period=14),
         "macd": lambda df: df.pipe(MACD),
-        "bbands": lambda df: df.pipe(BBANDS, period=20),
         "stoch": lambda df: df.pipe(STOCH),
+        "cci_20": lambda df: df.pipe(CCI, period=20),
+        "willr_14": lambda df: df.pipe(WILLR, period=14),
+        "ppo": lambda df: df.pipe(PPO),
+        "aroon": lambda df: df.pipe(AROON, period=14),
+        "ultosc": lambda df: df.pipe(ULTOSC),
+        # Volatility Indicators
         "atr_14": lambda df: df.pipe(ATR, period=14),
         "adx_14": lambda df: df.pipe(ADX, period=14),
+        # Volume Indicators
         "obv": lambda df: df.pipe(OBV),
         "vwap": lambda df: df.pipe(VWAP),
+        "mfi_14": lambda df: df.pipe(MFI, period=14),
+        # Pattern Indicators
+        "fvg": lambda df: df.pipe(FVG, min_gap_size=0.001),
+        "orderblock": lambda df: df.pipe(ORDERBLOCK, min_volume_percentile=75),
+        "wae": lambda df: df.pipe(WAE),
     }
 
     # Run all calculations concurrently
@@ -79,13 +103,13 @@ async def calculate_indicators_concurrently(data: pl.DataFrame):
     return result_data
 
 
-async def analyze_multiple_timeframes(client, symbol="MNQ"):
+async def analyze_multiple_timeframes(client: ProjectXClientProtocol, symbol="MNQ"):
     """Analyze indicators across multiple timeframes concurrently."""
     timeframe_configs = [
-        ("5min", 1, 5),  # 1 day of 5-minute bars
-        ("15min", 2, 15),  # 2 days of 15-minute bars
-        ("1hour", 5, 60),  # 5 days of hourly bars
-        ("1day", 30, 1440),  # 30 days of daily bars
+        ("5min", 7, 5),  # 1 day of 5-minute bars
+        ("15min", 10, 15),  # 2 days of 15-minute bars
+        ("1hour", 20, 60),  # 5 days of hourly bars
+        ("1day", 102, 1440),  # 30 days of daily bars
     ]
 
     print(f"\n📊 Analyzing {symbol} across multiple timeframes...")
@@ -119,11 +143,30 @@ async def analyze_multiple_timeframes(client, symbol="MNQ"):
     for analysis in analyses:
         print(f"\n{analysis['timeframe']} Analysis:")
         print(f"  Last Close: ${analysis['close']:.2f}")
-        print(f"  SMA(20): ${analysis['sma']:.2f} ({analysis['sma_signal']})")
-        print(f"  RSI(14): {analysis['rsi']:.2f} ({analysis['rsi_signal']})")
-        print(f"  MACD: {analysis['macd_signal']}")
-        print(f"  Volatility (ATR): ${analysis['atr']:.2f}")
-        print(f"  Trend Strength (ADX): {analysis['adx']:.2f}")
+
+        # Trend Indicators
+        print("\n  📈 Trend Indicators:")
+        print(f"    SMA(20): ${analysis['sma']:.2f} ({analysis['sma_signal']})")
+        print(f"    ADX(14): {analysis['adx']:.2f} (Trend Strength)")
+        print(f"    Aroon: {analysis['aroon_trend']}")
+
+        # Momentum Indicators
+        print("\n  ⚡ Momentum Indicators:")
+        print(f"    RSI(14): {analysis['rsi']:.2f} ({analysis['rsi_signal']})")
+        print(f"    CCI(20): {analysis['cci']:.2f} ({analysis['cci_signal']})")
+        print(f"    Williams %R: {analysis['willr']:.2f} ({analysis['willr_signal']})")
+        print(f"    MFI(14): {analysis['mfi']:.2f} ({analysis['mfi_signal']})")
+        print(f"    MACD: {analysis['macd_signal']}")
+
+        # Volatility
+        print("\n  📊 Volatility:")
+        print(f"    ATR(14): ${analysis['atr']:.2f}")
+
+        # Pattern Recognition
+        print("\n  🎯 Pattern Recognition:")
+        print(f"    Fair Value Gap: {analysis['fvg']}")
+        print(f"    Order Block: {analysis['orderblock']}")
+        print(f"    WAE Signal: {analysis['wae_signal']}")
 
 
 async def analyze_timeframe(timeframe: str, data: pl.DataFrame):
@@ -147,6 +190,37 @@ async def analyze_timeframe(timeframe: str, data: pl.DataFrame):
     atr = last_row["atr_14"].item() if "atr_14" in last_row.columns else None
     adx = last_row["adx_14"].item() if "adx_14" in last_row.columns else None
 
+    # New indicators
+    cci = last_row["cci_20"].item() if "cci_20" in last_row.columns else None
+    willr = last_row["willr_14"].item() if "willr_14" in last_row.columns else None
+    aroon_up = last_row["aroon_up"].item() if "aroon_up" in last_row.columns else None
+    aroon_down = (
+        last_row["aroon_down"].item() if "aroon_down" in last_row.columns else None
+    )
+    mfi = last_row["mfi_14"].item() if "mfi_14" in last_row.columns else None
+
+    # Pattern indicators
+    fvg_bullish = (
+        last_row["fvg_bullish"].item() if "fvg_bullish" in last_row.columns else False
+    )
+    fvg_bearish = (
+        last_row["fvg_bearish"].item() if "fvg_bearish" in last_row.columns else False
+    )
+    ob_bullish = (
+        last_row["ob_bullish"].item() if "ob_bullish" in last_row.columns else False
+    )
+    ob_bearish = (
+        last_row["ob_bearish"].item() if "ob_bearish" in last_row.columns else False
+    )
+    wae_trend = (
+        last_row["wae_trend"].item() if "wae_trend" in last_row.columns else None
+    )
+    wae_explosion = (
+        last_row["wae_explosion"].item()
+        if "wae_explosion" in last_row.columns
+        else None
+    )
+
     # Generate signals
     analysis = {
         "timeframe": timeframe,
@@ -162,6 +236,32 @@ async def analyze_timeframe(timeframe: str, data: pl.DataFrame):
         else "Bearish",
         "atr": atr or 0,
         "adx": adx or 0,
+        "cci": cci or 0,
+        "cci_signal": "Overbought"
+        if (cci or 0) > 100
+        else ("Oversold" if (cci or 0) < -100 else "Neutral"),
+        "willr": willr or -50,
+        "willr_signal": "Overbought"
+        if (willr or -50) > -20
+        else ("Oversold" if (willr or -50) < -80 else "Neutral"),
+        "aroon_trend": "Bullish" if (aroon_up or 0) > (aroon_down or 0) else "Bearish",
+        "mfi": mfi or 50,
+        "mfi_signal": "Overbought"
+        if (mfi or 50) > 80
+        else ("Oversold" if (mfi or 50) < 20 else "Neutral"),
+        "fvg": "Bullish Gap"
+        if fvg_bullish
+        else ("Bearish Gap" if fvg_bearish else "None"),
+        "orderblock": "Bullish OB"
+        if ob_bullish
+        else ("Bearish OB" if ob_bearish else "None"),
+        "wae_signal": "Strong Bullish"
+        if (wae_trend or 0) == 1 and (wae_explosion or 0) > 0
+        else (
+            "Strong Bearish"
+            if (wae_trend or 0) == -1 and (wae_explosion or 0) > 0
+            else "Neutral"
+        ),
     }
 
     return analysis
@@ -189,7 +289,12 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
             return
 
         # Calculate key indicators
-        data = data.pipe(RSI, period=14).pipe(SMA, period=20)
+        data = (
+            data.pipe(RSI, period=14)
+            .pipe(SMA, period=20)
+            .pipe(FVG, min_gap_size=0.001)
+            .pipe(WAE)
+        )
 
         last_row = data.tail(1)
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -221,6 +326,17 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
         else:
             print("  SMA: Not in columns")
 
+        # Pattern indicators
+        if "fvg_bullish" in data.columns and last_row["fvg_bullish"].item():
+            print("  📈 Bullish FVG detected!")
+        if "fvg_bearish" in data.columns and last_row["fvg_bearish"].item():
+            print("  📉 Bearish FVG detected!")
+        if "wae_explosion" in data.columns:
+            wae_val = last_row["wae_explosion"].item()
+            if wae_val is not None and wae_val > 0:
+                trend = "Bullish" if last_row["wae_trend"].item() == 1 else "Bearish"
+                print(f"  💥 WAE {trend} Explosion: {wae_val:.2f}")
+
     # Monitor multiple timeframes
     start_time = asyncio.get_event_loop().time()
 
@@ -234,12 +350,98 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
     print(f"\n✅ Monitoring complete. Received {update_count} updates.")
 
 
+async def analyze_pattern_indicators(client: ProjectXClientProtocol, symbol="MNQ"):
+    """Demonstrate pattern recognition indicators in detail."""
+    print("\n🎯 Pattern Recognition Analysis...")
+
+    # Get hourly data for pattern analysis
+    data = await client.get_bars(symbol, days=10, interval=60)
+    if data is None or data.is_empty():
+        print("No data available for pattern analysis")
+        return
+
+    print(f"  Analyzing {len(data)} hourly bars for patterns...")
+
+    # Calculate pattern indicators
+    pattern_data = (
+        data.pipe(FVG, min_gap_size=0.001, check_mitigation=True)
+        .pipe(ORDERBLOCK, min_volume_percentile=70, check_mitigation=True)
+        .pipe(WAE, sensitivity=150)
+    )
+
+    # Count pattern occurrences
+    fvg_bullish_count = pattern_data["fvg_bullish"].sum()
+    fvg_bearish_count = pattern_data["fvg_bearish"].sum()
+    ob_bullish_count = pattern_data["ob_bullish"].sum()
+    ob_bearish_count = pattern_data["ob_bearish"].sum()
+
+    print("\n  Pattern Summary:")
+    print("    Fair Value Gaps:")
+    print(f"      - Bullish FVGs: {fvg_bullish_count}")
+    print(f"      - Bearish FVGs: {fvg_bearish_count}")
+    print("    Order Blocks:")
+    print(f"      - Bullish OBs: {ob_bullish_count}")
+    print(f"      - Bearish OBs: {ob_bearish_count}")
+
+    # Find recent patterns
+    recent_patterns = pattern_data.tail(20)
+
+    print("\n  Recent Pattern Signals (last 20 bars):")
+    for row in recent_patterns.iter_rows(named=True):
+        timestamp = row["timestamp"]
+        patterns_found = []
+
+        if row.get("fvg_bullish", False):
+            gap_size = row.get("fvg_gap_size", 0)
+            patterns_found.append(f"Bullish FVG (gap: ${gap_size:.2f})")
+        if row.get("fvg_bearish", False):
+            gap_size = row.get("fvg_gap_size", 0)
+            patterns_found.append(f"Bearish FVG (gap: ${gap_size:.2f})")
+        if row.get("ob_bullish", False):
+            patterns_found.append("Bullish Order Block")
+        if row.get("ob_bearish", False):
+            patterns_found.append("Bearish Order Block")
+        if row.get("wae_explosion", 0) > 0:
+            trend = "Bullish" if row.get("wae_trend", 0) == 1 else "Bearish"
+            patterns_found.append(f"WAE {trend} Explosion")
+
+        if patterns_found:
+            print(f"    {timestamp}: {', '.join(patterns_found)}")
+
+    # Analyze current market structure
+    last_row = pattern_data.tail(1)
+    print("\n  Current Market Structure:")
+    print(f"    Price: ${last_row['close'].item():.2f}")
+
+    if (
+        "fvg_nearest_bullish" in last_row.columns
+        and last_row["fvg_nearest_bullish"].item() is not None
+    ):
+        print(f"    Nearest Bullish FVG: ${last_row['fvg_nearest_bullish'].item():.2f}")
+    if (
+        "fvg_nearest_bearish" in last_row.columns
+        and last_row["fvg_nearest_bearish"].item() is not None
+    ):
+        print(f"    Nearest Bearish FVG: ${last_row['fvg_nearest_bearish'].item():.2f}")
+
+    if (
+        "ob_nearest_bullish" in last_row.columns
+        and last_row["ob_nearest_bullish"].item() is not None
+    ):
+        print(f"    Nearest Bullish OB: ${last_row['ob_nearest_bullish'].item():.2f}")
+    if (
+        "ob_nearest_bearish" in last_row.columns
+        and last_row["ob_nearest_bearish"].item() is not None
+    ):
+        print(f"    Nearest Bearish OB: ${last_row['ob_nearest_bearish'].item():.2f}")
+
+
 async def performance_comparison(client, symbol="MNQ"):
     """Compare performance of concurrent vs sequential indicator calculation."""
     print("\n⚡ Performance Comparison: Concurrent vs Sequential")
 
-    # Get test data
-    data = await client.get_bars(symbol, days=5, interval=60)
+    # Get test data - need more for WAE indicator
+    data = await client.get_bars(symbol, days=20, interval=60)
     if data is None or data.is_empty():
         print("No data available for comparison")
         return
@@ -258,6 +460,11 @@ async def performance_comparison(client, symbol="MNQ"):
     seq_data = seq_data.pipe(BBANDS)
     seq_data = seq_data.pipe(ATR, period=14)
     seq_data = seq_data.pipe(ADX, period=14)
+    seq_data = seq_data.pipe(CCI, period=20)
+    seq_data = seq_data.pipe(MFI, period=14)
+    seq_data = seq_data.pipe(FVG, min_gap_size=0.001)
+    seq_data = seq_data.pipe(ORDERBLOCK, min_volume_percentile=75)
+    seq_data = seq_data.pipe(WAE)
 
     sequential_time = time.time() - start_time
     print(f"  Sequential time: {sequential_time:.3f} seconds")
@@ -292,6 +499,9 @@ async def main():
             # Analyze multiple timeframes concurrently
             await analyze_multiple_timeframes(client, "MNQ")
 
+            # Analyze pattern indicators
+            await analyze_pattern_indicators(client, "MNQ")
+
             # Performance comparison
             await performance_comparison(client, "MNQ")
 
@@ -312,7 +522,7 @@ async def main():
                 await realtime_client.subscribe_user_updates()
 
                 # Initialize data manager
-                await data_manager.initialize(initial_days=4)
+                await data_manager.initialize(initial_days=7)
 
                 # Subscribe to market data
                 instruments = await client.search_instruments("MNQ")
