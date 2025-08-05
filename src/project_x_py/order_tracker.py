@@ -55,13 +55,12 @@ See Also:
 import asyncio
 import logging
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from project_x_py.event_bus import EventType
 from project_x_py.models import BracketOrderResponse, Order, OrderPlaceResponse
 
 if TYPE_CHECKING:
-    from project_x_py.order_manager import OrderManager
     from project_x_py.trading_suite import TradingSuite
 
 logger = logging.getLogger(__name__)
@@ -84,7 +83,7 @@ class OrderTracker:
         - Thread-safe operation
     """
 
-    def __init__(self, trading_suite: "TradingSuite", order: Optional[Order] = None):
+    def __init__(self, trading_suite: "TradingSuite", order: Order | None = None):
         """
         Initialize OrderTracker.
 
@@ -96,14 +95,14 @@ class OrderTracker:
         self.order_manager = trading_suite.orders
         self.event_bus = trading_suite.events
         self.order = order
-        self.order_id: Optional[int] = order.id if order else None
+        self.order_id: int | None = order.id if order else None
 
         # State tracking
         self._fill_event = asyncio.Event()
         self._status_events: dict[int, asyncio.Event] = {}
-        self._current_status: Optional[int] = order.status if order else None
-        self._filled_order: Optional[Order] = None
-        self._error: Optional[Exception] = None
+        self._current_status: int | None = order.status if order else None
+        self._filled_order: Order | None = None
+        self._error: Exception | None = None
 
         # Event handlers
         self._event_handlers: list[tuple[EventType, Any]] = []
@@ -116,9 +115,9 @@ class OrderTracker:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Exit the context manager and clean up."""
         await self.cleanup()
@@ -226,10 +225,10 @@ class OrderTracker:
                         "Order fill event received but order not filled"
                     )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(
                 f"Order {self.order_id} not filled within {timeout} seconds"
-            )
+            ) from None
 
     async def wait_for_status(self, status: int, timeout: float = 30.0) -> Order:
         """
@@ -274,13 +273,13 @@ class OrderTracker:
                     f"Status event received but order not in expected state {status}"
                 )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(
                 f"Order {self.order_id} did not reach status {status} within {timeout} seconds"
-            )
+            ) from None
 
     async def modify_or_cancel(
-        self, new_price: Optional[float] = None, new_size: Optional[int] = None
+        self, new_price: float | None = None, new_size: int | None = None
     ) -> bool:
         """
         Attempt to modify the order, or cancel if modification fails.
@@ -318,7 +317,7 @@ class OrderTracker:
             logger.error(f"Failed to cancel order {self.order_id}: {e}")
             raise
 
-    async def get_current_status(self) -> Optional[Order]:
+    async def get_current_status(self) -> Order | None:
         """
         Get the current order status.
 
@@ -379,15 +378,15 @@ class OrderChainBuilder:
 
         # Order configuration
         self.entry_type = "market"
-        self.side: Optional[int] = None
-        self.size: Optional[int] = None
-        self.entry_price: Optional[float] = None
-        self.contract_id: Optional[str] = None
+        self.side: int | None = None
+        self.size: int | None = None
+        self.entry_price: float | None = None
+        self.contract_id: str | None = None
 
         # Risk orders
-        self.stop_loss: Optional[dict[str, Any]] = None
-        self.take_profit: Optional[dict[str, Any]] = None
-        self.trail_stop: Optional[dict[str, Any]] = None
+        self.stop_loss: dict[str, Any] | None = None
+        self.take_profit: dict[str, Any] | None = None
+        self.trail_stop: dict[str, Any] | None = None
 
     def market_order(self, size: int, side: int = 0) -> "OrderChainBuilder":
         """Configure a market order as entry."""
@@ -420,7 +419,7 @@ class OrderChainBuilder:
         return self
 
     def with_stop_loss(
-        self, offset: Optional[float] = None, price: Optional[float] = None
+        self, offset: float | None = None, price: float | None = None
     ) -> "OrderChainBuilder":
         """Add a stop loss to the order chain."""
         self.stop_loss = {"offset": offset, "price": price}
@@ -428,8 +427,8 @@ class OrderChainBuilder:
 
     def with_take_profit(
         self,
-        offset: Optional[float] = None,
-        price: Optional[float] = None,
+        offset: float | None = None,
+        price: float | None = None,
         limit: bool = True,
     ) -> "OrderChainBuilder":
         """Add a take profit to the order chain."""
@@ -437,7 +436,7 @@ class OrderChainBuilder:
         return self
 
     def with_trail_stop(
-        self, offset: float, trigger_offset: Optional[float] = None
+        self, offset: float, trigger_offset: float | None = None
     ) -> "OrderChainBuilder":
         """Add a trailing stop to the order chain."""
         self.trail_stop = {"offset": offset, "trigger_offset": trigger_offset}
@@ -570,13 +569,11 @@ class OrderChainBuilder:
 class OrderLifecycleError(Exception):
     """Exception raised when order lifecycle encounters an error."""
 
-    pass
-
 
 # Convenience function for creating order trackers
 def track_order(
     trading_suite: "TradingSuite",
-    order: Optional[Union[Order, OrderPlaceResponse, int]] = None,
+    order: Union[Order, OrderPlaceResponse, int] | None = None,
 ) -> OrderTracker:
     """
     Create an OrderTracker instance.
@@ -598,7 +595,7 @@ def track_order(
     """
     tracker = OrderTracker(trading_suite)
     if order:
-        if isinstance(order, (Order, OrderPlaceResponse)):
+        if isinstance(order, Order | OrderPlaceResponse):
             tracker.track(order)
         else:  # int
             tracker.order_id = order

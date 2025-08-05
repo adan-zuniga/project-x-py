@@ -35,7 +35,7 @@ Example Usage:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from project_x_py.indicators import ATR
 from project_x_py.models import BracketOrderResponse
@@ -55,11 +55,10 @@ class OrderTemplate(ABC):
         self,
         suite: "TradingSuite",
         side: int,
-        size: Optional[int] = None,
+        size: int | None = None,
         **kwargs: Any,
     ) -> BracketOrderResponse:
         """Create an order using this template."""
-        pass
 
 
 class RiskRewardTemplate(OrderTemplate):
@@ -73,7 +72,7 @@ class RiskRewardTemplate(OrderTemplate):
     def __init__(
         self,
         risk_reward_ratio: float = 2.0,
-        stop_distance: Optional[float] = None,
+        stop_distance: float | None = None,
         use_limit_entry: bool = True,
     ):
         """
@@ -92,9 +91,9 @@ class RiskRewardTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: Optional[int] = None,
-        risk_amount: Optional[float] = None,
-        risk_percent: Optional[float] = None,
+        size: int | None = None,
+        risk_amount: float | None = None,
+        risk_percent: float | None = None,
         entry_offset: float = 0,
         **kwargs: Any,
     ) -> BracketOrderResponse:
@@ -131,7 +130,7 @@ class RiskRewardTemplate(OrderTemplate):
             stop_dist = self.stop_distance
         else:
             # Use 1% of price as default
-            stop_dist = current_price * 0.01
+            stop_dist = current_price * 0.01 if current_price else 0.0
 
         # Calculate position size if needed
         if size is None:
@@ -215,7 +214,7 @@ class ATRStopTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: Optional[int] = None,
+        size: int | None = None,
         use_limit_entry: bool = False,
         entry_offset: float = 0,
         **kwargs: Any,
@@ -236,7 +235,7 @@ class ATRStopTemplate(OrderTemplate):
         # Get data for ATR calculation
         data = await suite.data.get_data(self.timeframe, bars=self.atr_period + 1)
         if data is None or len(data) < self.atr_period:
-            raise ValueError(f"Insufficient data for ATR calculation")
+            raise ValueError("Insufficient data for ATR calculation")
 
         # Calculate ATR
         data_with_atr = data.pipe(ATR, period=self.atr_period)
@@ -308,9 +307,9 @@ class BreakoutTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: Optional[int] = None,
-        breakout_level: Optional[float] = None,
-        range_size: Optional[float] = None,
+        size: int | None = None,
+        breakout_level: float | None = None,
+        range_size: float | None = None,
         lookback_bars: int = 20,
         **kwargs: Any,
     ) -> BracketOrderResponse:
@@ -336,10 +335,9 @@ class BreakoutTemplate(OrderTemplate):
             if not range_stats:
                 raise ValueError("Cannot calculate price range")
 
-            if side == 0:  # BUY - breakout above high
-                breakout_level = range_stats["high"]
-            else:  # SELL - breakout below low
-                breakout_level = range_stats["low"]
+            breakout_level = (
+                range_stats["high"] if side == 0 else range_stats["low"]
+            )  # BUY=high, SELL=low
 
             if range_size is None:
                 range_size = range_stats["range"]
@@ -415,7 +413,7 @@ class ScalpingTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: Optional[int] = None,
+        size: int | None = None,
         check_spread: bool = True,
         **kwargs: Any,
     ) -> BracketOrderResponse:

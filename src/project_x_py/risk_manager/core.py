@@ -236,10 +236,12 @@ class RiskManager:
                 )
 
             # Check trading hours if restricted
-            if self.config.restrict_trading_hours:
-                if not self._is_within_trading_hours():
-                    is_valid = False
-                    reasons.append("Outside allowed trading hours")
+            if (
+                self.config.restrict_trading_hours
+                and not self._is_within_trading_hours()
+            ):
+                is_valid = False
+                reasons.append("Outside allowed trading hours")
 
             # Check for correlated positions
             correlated_count = await self._count_correlated_positions(
@@ -379,7 +381,7 @@ class RiskManager:
             )
             if use_trailing and self.config.trailing_stop_distance > 0:
                 # Monitor position for trailing stop activation
-                asyncio.create_task(
+                _trailing_task = asyncio.create_task(  # noqa: RUF006
                     self._monitor_trailing_stop(
                         position,
                         {
