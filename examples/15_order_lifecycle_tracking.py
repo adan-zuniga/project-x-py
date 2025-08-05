@@ -34,17 +34,18 @@ async def demonstrate_order_tracker():
             print("No price data available")
             return
 
-        print(f"Current price: ${price:,.2f}\n")
+        print(f"Current price: ${price:,.2f}")
+        print(f"Using contract: {suite.instrument_id}\n")
 
         # 1. Basic order tracking with automatic fill detection
         print("1. Basic Order Tracking:")
         async with suite.track_order() as tracker:
             # Place a limit order below market
             order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument,
+                contract_id=suite.instrument_id,
                 side=0,  # BUY
                 size=1,
-                price=price - 50,  # 50 points below market
+                limit_price=price - 50,  # 50 points below market
             )
 
             if not order.success:
@@ -84,10 +85,10 @@ async def demonstrate_order_tracker():
         async with suite.track_order() as tracker:
             # Place a marketable limit order
             order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument,
+                contract_id=suite.instrument_id,
                 side=1,  # SELL
                 size=1,
-                price=price + 10,  # Slightly above market for quick fill
+                limit_price=price + 10,  # Slightly above market for quick fill
             )
 
             if order.success:
@@ -277,10 +278,10 @@ async def demonstrate_advanced_tracking():
             tracker = suite.track_order()
 
             order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument,
+                contract_id=suite.instrument_id,
                 side=0,  # BUY
                 size=1,
-                price=current_price - (10 * (i + 1)),  # Staggered prices
+                limit_price=current_price - (10 * (i + 1)),  # Staggered prices
             )
 
             if order.success:
@@ -344,10 +345,10 @@ async def demonstrate_advanced_tracking():
         # Place and track order
         async with suite.track_order() as tracker:
             order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument,
+                contract_id=suite.instrument_id,
                 side=1,  # SELL
                 size=1,
-                price=current_price + 100,  # Far from market
+                limit_price=current_price + 100,  # Far from market
             )
 
             if order.success:

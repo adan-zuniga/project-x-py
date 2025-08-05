@@ -46,18 +46,21 @@ async def display_best_prices(orderbook):
     best_prices = await orderbook.get_best_bid_ask()
     best_bid = best_prices.get("bid")
     best_ask = best_prices.get("ask")
+    spread = best_prices.get("spread")
 
     print("📊 Best Bid/Ask:", flush=True)
-    if best_bid and best_ask:
-        spread = best_ask["price"] - best_bid["price"]
-        mid_price = (best_bid["price"] + best_ask["price"]) / 2
+    if best_bid is not None and best_ask is not None:
+        # Get top level bids/asks to get sizes
+        bids_df = await orderbook.get_orderbook_bids(levels=1)
+        asks_df = await orderbook.get_orderbook_asks(levels=1)
 
-        print(
-            f"   Best Bid: ${best_bid['price']:,.2f} x {best_bid['size']}", flush=True
-        )
-        print(
-            f"   Best Ask: ${best_ask['price']:,.2f} x {best_ask['size']}", flush=True
-        )
+        bid_size = bids_df["volume"].item() if bids_df.height > 0 else 0
+        ask_size = asks_df["volume"].item() if asks_df.height > 0 else 0
+
+        mid_price = (best_bid + best_ask) / 2
+
+        print(f"   Best Bid: ${best_bid:,.2f} x {bid_size}", flush=True)
+        print(f"   Best Ask: ${best_ask:,.2f} x {ask_size}", flush=True)
         print(f"   Spread: ${spread:.2f}", flush=True)
         print(f"   Mid: ${mid_price:,.2f}", flush=True)
     else:
@@ -66,18 +69,20 @@ async def display_best_prices(orderbook):
 
 async def display_market_depth(orderbook):
     """Display market depth on both sides."""
-    depth = await orderbook.get_market_depth(levels=5)
+    # Get bid and ask levels separately
+    bids_df = await orderbook.get_orderbook_bids(levels=5)
+    asks_df = await orderbook.get_orderbook_asks(levels=5)
 
     print("\n📈 Market Depth (Top 5 Levels):", flush=True)
 
     # Display bids
     print("\n   BIDS:", flush=True)
     total_bid_size = 0
-    if "bids" in depth and depth["bids"]:
-        for i, level in enumerate(depth["bids"][:5]):
-            total_bid_size += level["size"]
+    if not bids_df.is_empty():
+        for i, row in enumerate(bids_df.to_dicts()):
+            total_bid_size += row["volume"]
             print(
-                f"   Level {i + 1}: ${level['price']:,.2f} x {level['size']:>4} | "
+                f"   Level {i + 1}: ${row['price']:,.2f} x {row['volume']:>4} | "
                 f"Total: {total_bid_size:>5}",
                 flush=True,
             )
@@ -87,11 +92,11 @@ async def display_market_depth(orderbook):
     # Display asks
     print("\n   ASKS:", flush=True)
     total_ask_size = 0
-    if "asks" in depth and depth["asks"]:
-        for i, level in enumerate(depth["asks"][:5]):
-            total_ask_size += level["size"]
+    if not asks_df.is_empty():
+        for i, row in enumerate(asks_df.to_dicts()):
+            total_ask_size += row["volume"]
             print(
-                f"   Level {i + 1}: ${level['price']:,.2f} x {level['size']:>4} | "
+                f"   Level {i + 1}: ${row['price']:,.2f} x {row['volume']:>4} | "
                 f"Total: {total_ask_size:>5}",
                 flush=True,
             )
@@ -113,7 +118,7 @@ async def display_market_depth(orderbook):
 
 async def display_trade_flow(orderbook):
     """Display recent trade flow analysis."""
-    trades = await orderbook.get_recent_trades(limit=10)
+    trades = await orderbook.get_recent_trades(count=10)
 
     if not trades:
         print("\n📉 No recent trades available", flush=True)
@@ -121,8 +126,8 @@ async def display_trade_flow(orderbook):
 
     print(f"\n📉 Recent Trade Flow ({len(trades)} trades):", flush=True)
 
-    buy_volume = sum(t["size"] for t in trades if t.get("side") == "buy")
-    sell_volume = sum(t["size"] for t in trades if t.get("side") == "sell")
+    buy_volume = sum(t["volume"] for t in trades if t.get("side") == "buy")
+    sell_volume = sum(t["volume"] for t in trades if t.get("side") == "sell")
     total_volume = buy_volume + sell_volume
 
     if total_volume > 0:
@@ -143,14 +148,19 @@ async def display_trade_flow(orderbook):
         if isinstance(timestamp, datetime):
             timestamp = timestamp.strftime("%H:%M:%S")
         print(
-            f"   {side_emoji} ${trade['price']:,.2f} x {trade['size']} @ {timestamp}",
+            f"   {side_emoji} ${trade['price']:,.2f} x {trade['volume']} @ {timestamp}",
             flush=True,
         )
 
 
 async def display_market_microstructure(orderbook):
     """Display market microstructure analysis."""
-    microstructure = await orderbook.analyze_market_microstructure()
+    # Use get_advanced_market_metrics instead
+    try:
+        microstructure = await orderbook.get_advanced_market_metrics()
+    except AttributeError:
+        # Fallback to basic stats if method doesn't exist
+        microstructure = await orderbook.get_statistics()
 
     print("\n🔬 Market Microstructure:", flush=True)
     print(f"   Bid Depth: {microstructure.get('bid_depth', 0)} levels", flush=True)
@@ -181,20 +191,26 @@ async def display_market_microstructure(orderbook):
 
 async def display_iceberg_detection(orderbook):
     """Display potential iceberg orders."""
-    icebergs = await orderbook.detect_icebergs()
+    # Use detect_iceberg_orders instead of detect_icebergs
+    icebergs = await orderbook.detect_iceberg_orders()
 
     print("\n🧊 Iceberg Detection:", flush=True)
-    if icebergs:
-        for iceberg in icebergs[:3]:  # Show top 3
+    if icebergs and "iceberg_levels" in icebergs:
+        iceberg_list = icebergs["iceberg_levels"]
+        for iceberg in iceberg_list[:3]:  # Show top 3
             side = "BID" if iceberg["side"] == "bid" else "ASK"
             print(
                 f"   Potential {side} iceberg at ${iceberg['price']:,.2f}",
                 flush=True,
             )
-            print(f"     - Visible: {iceberg['visible_size']}", flush=True)
-            print(f"     - Refill Count: {iceberg['refill_count']}", flush=True)
-            print(f"     - Total Volume: {iceberg['total_volume']}", flush=True)
-            print(f"     - Confidence: {iceberg['confidence']:.1%}", flush=True)
+            print(f"     - Visible: {iceberg.get('visible_size', 'N/A')}", flush=True)
+            print(
+                f"     - Refill Count: {iceberg.get('refill_count', 'N/A')}", flush=True
+            )
+            print(
+                f"     - Total Volume: {iceberg.get('total_volume', 'N/A')}", flush=True
+            )
+            print(f"     - Confidence: {iceberg.get('confidence', 0):.1%}", flush=True)
     else:
         print("   No iceberg orders detected", flush=True)
 
@@ -215,19 +231,20 @@ async def monitor_orderbook_realtime(orderbook: OrderBook, duration: int = 45):
         await display_best_prices(orderbook)
 
         # Show depth summary
-        depth = await orderbook.get_market_depth(levels=3)
-        if depth.get("bids") and depth.get("asks"):
-            bid_size = sum(level["size"] for level in depth["bids"][:3])
-            ask_size = sum(level["size"] for level in depth["asks"][:3])
+        bids_df = await orderbook.get_orderbook_bids(levels=3)
+        asks_df = await orderbook.get_orderbook_asks(levels=3)
+        if not bids_df.is_empty() and not asks_df.is_empty():
+            bid_size = bids_df["volume"].sum()
+            ask_size = asks_df["volume"].sum()
             print(f"\n   Top 3 Levels: {bid_size} bids | {ask_size} asks", flush=True)
 
         # Show recent trade
-        trades = await orderbook.get_recent_trades(limit=1)
+        trades = await orderbook.get_recent_trades(count=1)
         if trades:
             trade = trades[0]
             side_emoji = "🟢" if trade.get("side") == "buy" else "🔴"
             print(
-                f"   Last Trade: {side_emoji} ${trade['price']:,.2f} x {trade['size']}",
+                f"   Last Trade: {side_emoji} ${trade['price']:,.2f} x {trade['volume']}",
                 flush=True,
             )
 
@@ -255,11 +272,12 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook):
     # 1. Volume Profile Analysis
     print("\n📊 Volume Profile Analysis:", flush=True)
     try:
-        volume_profile = await orderbook.get_volume_profile(bins=10)
-        if volume_profile:
+        volume_profile = await orderbook.get_volume_profile(price_bins=10)
+        if volume_profile and "profile" in volume_profile:
             print("   Price Range | Volume | Percentage", flush=True)
             print("   " + "-" * 40, flush=True)
-            for level in volume_profile[:5]:  # Show top 5
+            profile_data = volume_profile["profile"]
+            for level in profile_data[:5]:  # Show top 5
                 price_range = f"${level['price_min']:.2f}-${level['price_max']:.2f}"
                 volume = level["volume"]
                 percentage = level.get("percentage", 0)
@@ -297,12 +315,12 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook):
     # 3. Market Impact Analysis
     print("\n💥 Market Impact Analysis:", flush=True)
     try:
-        # Simulate a 10-contract order
-        impact = await orderbook.estimate_market_impact(size=10, side="buy")
+        # Use get_orderbook_depth for market impact analysis
+        impact = await orderbook.get_orderbook_depth(price_range=50.0)
         if impact:
-            print(f"   Simulating BUY 10 contracts:", flush=True)
+            print(f"   Market Impact Analysis (50 tick range):", flush=True)
             print(
-                f"   Estimated Fill Price: ${impact.get('avg_fill_price', 0):,.2f}",
+                f"   Estimated Fill Price: ${impact.get('estimated_fill_price', 0):,.2f}",
                 flush=True,
             )
             print(
@@ -319,21 +337,23 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook):
     # 4. Liquidity Analysis
     print("\n💧 Liquidity Analysis:", flush=True)
     try:
-        liquidity = await orderbook.analyze_liquidity()
-        if liquidity:
+        # Use get_liquidity_levels instead
+        liquidity = await orderbook.get_liquidity_levels()
+        if liquidity and "bid_levels" in liquidity:
+            bid_levels = liquidity.get("bid_levels", [])
+            ask_levels = liquidity.get("ask_levels", [])
+            bid_liquidity = sum(level.get("volume", 0) for level in bid_levels)
+            ask_liquidity = sum(level.get("volume", 0) for level in ask_levels)
             print(
-                f"   Bid Liquidity: ${liquidity.get('bid_liquidity', 0):,.0f}",
+                f"   Bid Liquidity: {bid_liquidity:,} contracts",
                 flush=True,
             )
             print(
-                f"   Ask Liquidity: ${liquidity.get('ask_liquidity', 0):,.0f}",
+                f"   Ask Liquidity: {ask_liquidity:,} contracts",
                 flush=True,
             )
-            print(f"   Avg Spread: ${liquidity.get('avg_spread', 0):.2f}", flush=True)
-            print(
-                f"   Liquidity Score: {liquidity.get('liquidity_score', 0):.1f}/10",
-                flush=True,
-            )
+            print(f"   Significant Bid Levels: {len(bid_levels)}", flush=True)
+            print(f"   Significant Ask Levels: {len(ask_levels)}", flush=True)
         else:
             print("   No liquidity data available", flush=True)
     except Exception as e:
@@ -342,13 +362,22 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook):
     # 5. Spoofing Detection
     print("\n🎭 Spoofing Detection:", flush=True)
     try:
-        spoofing = await orderbook.detect_spoofing()
-        if spoofing:
-            for alert in spoofing[:3]:  # Show top 3
-                print(f"   Potential spoofing at ${alert['price']:,.2f}:", flush=True)
-                print(f"     - Side: {alert['side'].upper()}", flush=True)
-                print(f"     - Pattern: {alert['pattern']}", flush=True)
-                print(f"     - Confidence: {alert['confidence']:.1%}", flush=True)
+        # Use detect_order_clusters as spoofing detection proxy
+        spoofing = await orderbook.detect_order_clusters()
+        if spoofing:  # This is actually order clusters
+            for cluster in spoofing[:3]:  # Show top 3
+                print(
+                    f"   Order cluster at ${cluster.get('center_price', 0):,.2f}:",
+                    flush=True,
+                )
+                print(f"     - Side: {cluster.get('side', 'N/A').upper()}", flush=True)
+                print(
+                    f"     - Size: {cluster.get('cluster_size', 0)} orders", flush=True
+                )
+                print(
+                    f"     - Total Volume: {cluster.get('total_volume', 0):,}",
+                    flush=True,
+                )
         else:
             print("   No spoofing patterns detected", flush=True)
     except Exception as e:
@@ -412,7 +441,7 @@ async def main():
         if account:
             print(f"   Account: {account.name}", flush=True)
             print(f"   Balance: ${account.balance:,.2f}", flush=True)
-            print(f"   Account Type: {account.accountType}", flush=True)
+            print(f"   Simulated: {account.simulated}", flush=True)
 
         # Get orderbook from suite
         orderbook = suite.orderbook
@@ -461,7 +490,7 @@ async def main():
         print("=" * 60, flush=True)
 
         # Memory stats
-        memory_stats = orderbook.get_memory_stats()
+        memory_stats = await orderbook.get_memory_stats()
         print("\n💾 Memory Usage:", flush=True)
         print(f"   Bid Entries: {memory_stats.get('bid_entries', 0):,}", flush=True)
         print(f"   Ask Entries: {memory_stats.get('ask_entries', 0):,}", flush=True)
@@ -486,7 +515,7 @@ async def main():
         print("\n⏹️ Orderbook analysis interrupted by user", flush=True)
         return False
     except Exception as e:
-        logger.error(f"Orderbook analysis failed: {e}", flush=True)
+        logger.error(f"Orderbook analysis failed: {e}")
         print(f"\n❌ Error: {e}", flush=True)
         return False
 

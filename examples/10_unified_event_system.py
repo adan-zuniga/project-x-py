@@ -108,8 +108,18 @@ class UnifiedEventDemo:
         """Handle quote update events."""
         self.event_count["quotes"] += 1
         if self.event_count["quotes"] % 10 == 0:  # Log every 10th quote
+            # Quote data from realtime client has nested structure
             data = event.data
-            logger.info(f"💱 Quote: Bid={data.get('bid')} Ask={data.get('ask')}")
+            if isinstance(data, dict) and "data" in data:
+                # Realtime client format: {'contract_id': ..., 'data': {...}}
+                quote_data = data["data"]
+                bid = quote_data.get("bestBid")
+                ask = quote_data.get("bestAsk")
+            else:
+                # Direct format from data manager
+                bid = data.get("bid")
+                ask = data.get("ask")
+            logger.info(f"💱 Quote: Bid={bid} Ask={ask}")
 
     async def _on_trade_tick(self, event: Any):
         """Handle trade tick events."""

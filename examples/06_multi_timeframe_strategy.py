@@ -426,7 +426,7 @@ async def main():
         suite = await TradingSuite.create(
             instrument="MNQ",
             timeframes=["15min", "1hr", "4hr"],
-            features=["orderbook", "realtime_tracking"],
+            features=["orderbook"],
             initial_days=5,
         )
 

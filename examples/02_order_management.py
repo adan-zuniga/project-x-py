@@ -121,7 +121,7 @@ async def main() -> bool:
     try:
         # Initialize trading suite with TradingSuite v3
         print("\n🔑 Initializing TradingSuite v3...")
-        suite = await TradingSuite.create("MNQ", features=["realtime_tracking"])
+        suite = await TradingSuite.create("MNQ")
 
         account = suite.client.account_info
         if not account:
@@ -333,27 +333,60 @@ async def main() -> bool:
 
                 first_order = demo_orders[0]
                 print(f"Attempting to modify Order #{first_order}")
+
+                # Get order details to determine type
+                order_data = await order_manager.get_tracked_order_status(
+                    str(first_order), wait_for_cache=True
+                )
+
+                if not order_data:
+                    # Fallback to API
+                    api_order = await order_manager.get_order_by_id(first_order)
+                    if api_order and hasattr(api_order, "type"):
+                        # Order types: 1=Limit, 2=Market, 4=Stop
+                        is_stop_order = api_order.type == 4
+                    else:
+                        is_stop_order = False
+                else:
+                    # Check if it has a stop price (indicating stop order)
+                    is_stop_order = bool(order_data.get("stopPrice"))
+
                 await show_order_status(
                     order_manager, first_order, "Before Modification"
                 )
 
-                # Try modifying the order (move price closer to market)
-                new_limit_price = current_price - Decimal("5.0")  # Closer to market
-                print(f"\nModifying to new limit price: ${new_limit_price:.2f}")
-
-                if await wait_for_user_confirmation("Modify order?"):
-                    modify_success = await order_manager.modify_order(
-                        order_id=first_order, limit_price=float(new_limit_price)
+                # Modify based on order type
+                if is_stop_order:
+                    # For stop orders, modify the stop price
+                    new_stop_price = current_price + Decimal("10.0")  # Move stop closer
+                    print(
+                        f"\nModifying stop order to new stop price: ${new_stop_price:.2f}"
                     )
 
-                    if modify_success:
-                        print(f"✅ Order {first_order} modified successfully")
-                        await asyncio.sleep(2)
-                        await show_order_status(
-                            order_manager, first_order, "After Modification"
+                    if await wait_for_user_confirmation("Modify order?"):
+                        modify_success = await order_manager.modify_order(
+                            order_id=first_order, stop_price=float(new_stop_price)
                         )
-                    else:
-                        print(f"❌ Failed to modify order {first_order}")
+                else:
+                    # For limit orders, modify the limit price
+                    new_limit_price = current_price - Decimal("5.0")  # Closer to market
+                    print(
+                        f"\nModifying limit order to new limit price: ${new_limit_price:.2f}"
+                    )
+
+                    if await wait_for_user_confirmation("Modify order?"):
+                        modify_success = await order_manager.modify_order(
+                            order_id=first_order, limit_price=float(new_limit_price)
+                        )
+
+                if "modify_success" in locals() and modify_success:
+                    print(f"✅ Order {first_order} modified successfully")
+                    await asyncio.sleep(2)
+                    await show_order_status(
+                        order_manager, first_order, "After Modification"
+                    )
+                elif "modify_success" in locals():
+                    print(f"❌ Failed to modify order {first_order}")
 
             # Monitor orders for a short time
             if demo_orders:
@@ -427,12 +460,14 @@ async def main() -> bool:
 
             stats = await order_manager.get_order_statistics()
             print("Order Manager Statistics:")
-            print(f"   Orders Placed: {stats['statistics']['orders_placed']}")
-            print(f"   Orders Cancelled: {stats['statistics']['orders_cancelled']}")
-            print(f"   Orders Modified: {stats['statistics']['orders_modified']}")
-            print(f"   Bracket Orders: {stats['statistics']['bracket_orders_placed']}")
-            print(f"   Tracked Orders: {stats['tracked_orders']}")
-            print(f"   Real-time Enabled: {stats['realtime_enabled']}")
+            print(f"   Orders Placed: {stats.get('orders_placed', 0)}")
+            print(f"   Orders Cancelled: {stats.get('orders_cancelled', 0)}")
+            print(f"   Orders Modified: {stats.get('orders_modified', 0)}")
+            print(f"   Bracket Orders: {stats.get('bracket_orders', 0)}")
+            print(f"   Fill Rate: {stats.get('fill_rate', 0):.1%}")
+            print(f"   Market Orders: {stats.get('market_orders', 0)}")
+            print(f"   Limit Orders: {stats.get('limit_orders', 0)}")
+            print(f"   Stop Orders: {stats.get('stop_orders', 0)}")
 
         finally:
             # Enhanced cleanup: Cancel ALL orders and close ALL positions

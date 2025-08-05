@@ -224,12 +224,13 @@ class RealtimeHandler:
             quote_data = data.get("data", {})
 
             # Trigger quote update callbacks
+            # Gateway uses 'bestBid'/'bestAsk' not 'bid'/'ask'
             await self.orderbook._trigger_callbacks(
                 "quote_update",
                 {
                     "contract_id": contract_id,
-                    "bid": quote_data.get("bid"),
-                    "ask": quote_data.get("ask"),
+                    "bid": quote_data.get("bestBid"),
+                    "ask": quote_data.get("bestAsk"),
                     "bid_size": quote_data.get("bidSize"),
                     "ask_size": quote_data.get("askSize"),
                     "timestamp": datetime.now(self.orderbook.timezone),

@@ -77,7 +77,9 @@ async def get_current_market_price(
     return None
 
 
-async def display_positions(position_manager: "PositionManager") -> None:
+async def display_positions(
+    position_manager: "PositionManager", suite: TradingSuite | None = None
+) -> None:
     """Display current positions with detailed information."""
     print("\n📊 Current Positions:")
     print("-" * 80)
@@ -88,17 +90,45 @@ async def display_positions(position_manager: "PositionManager") -> None:
         print("No open positions")
         return
 
-    # Get portfolio P&L concurrently with position display
-    pnl_task = asyncio.create_task(position_manager.get_portfolio_pnl())
-
-    portfolio_pnl = await pnl_task
-    # Display each position
+    # Display each position with real P&L calculation
     for position in positions:
         print(f"\n{position.contractId}:")
         print(f"  Quantity: {position.size}")
         print(f"  Average Price: ${position.averagePrice:.2f}")
-        print(f"  Position Value: ${position.averagePrice:.2f}")
-        print(f"  Unrealized P&L: ${portfolio_pnl.get('unrealized_pnl', 0):.2f}")
+
+        # Calculate position value
+        position_value = position.averagePrice * position.size
+        print(f"  Position Value: ${position_value:,.2f}")
+
+        # Calculate real P&L if we have market data
+        unrealized_pnl = 0.0
+        if suite:
+            try:
+                # Get current market price
+                current_price = await suite.data.get_current_price()
+                if current_price:
+                    # Get instrument info for tick value
+                    instrument_info = await suite.client.get_instrument(
+                        suite.instrument
+                    )
+                    tick_value = instrument_info.tickValue
+
+                    # Calculate P&L using position manager's method
+                    pnl_data = await position_manager.calculate_position_pnl(
+                        position, float(current_price), point_value=tick_value
+                    )
+                    unrealized_pnl = pnl_data["unrealized_pnl"]
+            except Exception:
+                # If we can't get real-time price, try portfolio P&L
+                try:
+                    portfolio_pnl = await position_manager.get_portfolio_pnl()
+                    unrealized_pnl = portfolio_pnl.get("unrealized_pnl", 0) / len(
+                        positions
+                    )
+                except Exception:
+                    pass
+
+        print(f"  Unrealized P&L: ${unrealized_pnl:,.2f}")
 
 
 async def display_risk_metrics(position_manager: "PositionManager") -> None:
@@ -137,7 +167,9 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
 
 
 async def monitor_positions(
-    position_manager: "PositionManager", duration: int = 30
+    position_manager: "PositionManager",
+    suite: TradingSuite | None = None,
+    duration: int = 30,
 ) -> None:
     """Monitor positions for a specified duration with async updates."""
     print(f"\n👁️  Monitoring positions for {duration} seconds...")
@@ -157,12 +189,35 @@ async def monitor_positions(
             if positions:
                 print(f"  Active positions: {len(positions)}")
 
-                # Get P&L if available
+                # Get P&L with current market prices
+                total_pnl = 0.0
                 try:
-                    pnl = await position_manager.get_portfolio_pnl()
-                    print(f"  Total P&L: ${pnl.get('total_pnl', 0):,.2f}")
+                    # Try to calculate real P&L with current prices
+                    if suite and positions:
+                        current_price = await suite.data.get_current_price()
+                        if current_price:
+                            instrument_info = await suite.client.get_instrument(
+                                suite.instrument
+                            )
+                            tick_value = instrument_info.tickValue
+
+                            for position in positions:
+                                pnl_data = (
+                                    await position_manager.calculate_position_pnl(
+                                        position,
+                                        float(current_price),
+                                        point_value=tick_value,
+                                    )
+                                )
+                                total_pnl += pnl_data["unrealized_pnl"]
+                    else:
+                        # Fallback to portfolio P&L
+                        pnl = await position_manager.get_portfolio_pnl()
+                        total_pnl = pnl.get("total_pnl", 0)
                 except Exception:
                     pass
+
+                print(f"  Total P&L: ${total_pnl:,.2f}")
 
                 # Get summary if available
                 if hasattr(position_manager, "get_portfolio_summary"):
@@ -194,7 +249,6 @@ async def main() -> bool:
         print("\n🔑 Initializing TradingSuite v3...")
         suite = await TradingSuite.create(
             "MNQ",
-            features=["realtime_tracking"],
             timeframes=["1min", "5min"],
         )
 
@@ -208,7 +262,7 @@ async def main() -> bool:
 
         if existing_positions:
             print(f"Found {len(existing_positions)} existing positions")
-            await display_positions(suite.positions)
+            await display_positions(suite.positions, suite)
         else:
             print("No existing positions found")
 
@@ -218,11 +272,14 @@ async def main() -> bool:
             )
             print("   (This will place a REAL order on the market)")
 
-            # Get current price for order placement
+            # Get instrument info and current price for order placement
+            instrument_info = await suite.client.get_instrument("MNQ")
+            contract_id = instrument_info.id
             current_price = await get_current_market_price(suite)
 
             if current_price:
                 print(f"\n   Current MNQ price: ${current_price:.2f}")
+                print(f"   Contract ID: {contract_id}")
                 print("   Test order: BUY 1 MNQ at market")
 
                 # Wait for user confirmation
@@ -236,7 +293,7 @@ async def main() -> bool:
                     if response == "y":
                         print("\n   Placing market order...")
                         order_response = await suite.orders.place_market_order(
-                            contract_id="MNQ",
+                            contract_id=contract_id,
                             side=0,
                             size=1,  # Buy
                         )
@@ -266,7 +323,7 @@ async def main() -> bool:
             print("=" * 80)
 
             # 1. Display current positions
-            await display_positions(suite.positions)
+            await display_positions(suite.positions, suite)
 
             # 2. Show risk metrics
             await display_risk_metrics(suite.positions)
@@ -313,7 +370,7 @@ async def main() -> bool:
             print("=" * 80)
 
             # Monitor for 30 seconds
-            await monitor_positions(suite.positions, duration=30)
+            await monitor_positions(suite.positions, suite, duration=30)
 
             # 6. Offer to close positions
             if await suite.positions.get_all_positions():

@@ -139,7 +139,7 @@ async def run_simplified_mtf_strategy():
 
     # Create suite with multiple timeframes
     async with await TradingSuite.create(
-        "MNQ", timeframes=["15min", "1hr", "4hr"], initial_days=5
+        "MNQ", timeframes=["15min", "1hr", "4hr"], initial_days=13
     ) as suite:
         strategy = SimplifiedMTFStrategy(suite)
 

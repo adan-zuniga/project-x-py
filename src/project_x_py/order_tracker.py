@@ -93,7 +93,7 @@ class OrderTracker:
         """
         self.suite = trading_suite
         self.order_manager = trading_suite.orders
-        self.event_bus = trading_suite.event_bus
+        self.event_bus = trading_suite.events
         self.order = order
         self.order_id: Optional[int] = order.id if order else None
 
@@ -293,7 +293,7 @@ class OrderTracker:
             if new_price is not None or new_size is not None:
                 # Attempt modification
                 success = await self.order_manager.modify_order(
-                    self.order_id, new_price=new_price, new_size=new_size
+                    self.order_id, limit_price=new_price, size=new_size
                 )
 
                 if success:
@@ -322,7 +322,7 @@ class OrderTracker:
         if not self.order_id:
             return None
 
-        return await self.order_manager.get_order(self.order_id)
+        return await self.order_manager.get_order_by_id(self.order_id)
 
     @property
     def is_filled(self) -> bool:
@@ -453,10 +453,10 @@ class OrderChainBuilder:
             raise ValueError("Order size is required")
         if self.side is None:
             raise ValueError("Order side is required")
-        if not self.contract_id and not self.suite.instrument:
+        if not self.contract_id and not self.suite.instrument_id:
             raise ValueError("Contract ID is required")
 
-        contract_id = self.contract_id or self.suite.instrument
+        contract_id = self.contract_id or self.suite.instrument_id
 
         # Calculate risk order prices if needed
         current_price = await self.suite.data.get_latest_price()
@@ -495,17 +495,18 @@ class OrderChainBuilder:
         # Execute the appropriate order type
         if stop_loss_price or take_profit_price:
             # Use bracket order
+            # For market orders, pass the current price as entry_price for validation
+            bracket_entry_price = (
+                entry_price if self.entry_type != "market" else current_price
+            )
             result = await self.order_manager.place_bracket_order(
                 contract_id=contract_id,
                 side=self.side,
                 size=self.size,
-                entry_price=entry_price if self.entry_type != "market" else None,
+                entry_price=bracket_entry_price,
                 stop_loss_price=stop_loss_price,
                 take_profit_price=take_profit_price,
                 entry_type=self.entry_type,
-                take_profit_type="limit"
-                if self.take_profit and self.take_profit.get("limit")
-                else "market",
             )
 
             # Add trailing stop if configured

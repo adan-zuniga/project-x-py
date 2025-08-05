@@ -117,24 +117,25 @@ class RiskManagementMixin:
         if not positions:
             from datetime import datetime
 
-            return {
-                "total_risk": 0.0,
-                "position_risk": 0.0,
-                "market_risk": 0.0,
-                "liquidity_risk": 0.0,
-                "concentration_risk": 0.0,
-                "var_95": 0.0,
-                "var_99": 0.0,
-                "expected_shortfall": 0.0,
-                "sharpe_ratio": 0.0,
-                "sortino_ratio": 0.0,
-                "max_drawdown": 0.0,
-                "beta": 1.0,
-                "correlation_to_market": 0.0,
-                "risk_adjusted_return": 0.0,
-                "recommendations": ["No positions held - portfolio has no risk"],
-                "timestamp": datetime.now().isoformat(),
-            }
+            return RiskAnalysisResponse(
+                current_risk=0.0,
+                max_risk=self.risk_settings.get("max_portfolio_risk", 0.02),
+                daily_loss=0.0,
+                daily_loss_limit=self.risk_settings.get("max_daily_loss", 0.03),
+                position_count=0,
+                position_limit=self.risk_settings.get("max_positions", 5),
+                daily_trades=0,
+                daily_trade_limit=self.risk_settings.get("max_daily_trades", 10),
+                win_rate=0.0,
+                profit_factor=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
+                position_risks=[],
+                risk_per_trade=self.risk_settings.get("max_position_risk", 0.01),
+                account_balance=10000.0,  # Default
+                margin_used=0.0,
+                margin_available=10000.0,
+            )
 
         total_exposure = sum(abs(pos.size * pos.averagePrice) for pos in positions)
         largest_exposure = (
@@ -163,24 +164,48 @@ class RiskManagementMixin:
 
         from datetime import datetime
 
-        return {
-            "total_risk": portfolio_risk,
-            "position_risk": largest_position_risk,
-            "market_risk": 0.0,  # Would need market correlation data
-            "liquidity_risk": 0.0,  # Would need market depth data
-            "concentration_risk": largest_position_risk,
-            "var_95": 0.0,  # Would need historical returns data
-            "var_99": 0.0,  # Would need historical returns data
-            "expected_shortfall": 0.0,  # Would need historical loss data
-            "sharpe_ratio": 0.0,  # Would need return/volatility data
-            "sortino_ratio": 0.0,  # Would need downside deviation data
-            "max_drawdown": 0.0,  # Would need historical high-water marks
-            "beta": 1.0,  # Would need market correlation data
-            "correlation_to_market": 0.0,  # Would need market correlation data
-            "risk_adjusted_return": 0.0,  # Would need return/risk calculations
-            "recommendations": risk_warnings,
-            "timestamp": datetime.now().isoformat(),
-        }
+        # Map position risks
+        position_risks = []
+        for pos in positions:
+            exposure = abs(pos.size * pos.averagePrice)
+            risk_pct = exposure / total_exposure if total_exposure > 0 else 0.0
+            position_risks.append(
+                {
+                    "position_id": str(pos.id),
+                    "symbol": pos.contractId.split(".")[-2]
+                    if "." in pos.contractId
+                    else pos.contractId,
+                    "risk_amount": exposure,
+                    "risk_percent": risk_pct,
+                }
+            )
+
+        # Get account balance (would need account info in reality)
+        account_balance = (
+            self.project_x.account_info.balance
+            if self.project_x.account_info
+            else 10000.0
+        )
+
+        return RiskAnalysisResponse(
+            current_risk=portfolio_risk,
+            max_risk=self.risk_settings.get("max_portfolio_risk", 0.02),
+            daily_loss=0.0,  # Would need tracking
+            daily_loss_limit=self.risk_settings.get("max_daily_loss", 0.03),
+            position_count=len(positions),
+            position_limit=self.risk_settings.get("max_positions", 5),
+            daily_trades=0,  # Would need tracking
+            daily_trade_limit=self.risk_settings.get("max_daily_trades", 10),
+            win_rate=0.0,  # Would need trade history
+            profit_factor=0.0,  # Would need trade history
+            sharpe_ratio=0.0,  # Would need return/volatility data
+            max_drawdown=0.0,  # Would need historical data
+            position_risks=position_risks,
+            risk_per_trade=self.risk_settings.get("max_position_risk", 0.01),
+            account_balance=account_balance,
+            margin_used=total_exposure * 0.1,  # Simplified margin estimate
+            margin_available=account_balance - (total_exposure * 0.1),
+        )
 
     def _generate_risk_warnings(
         self: "PositionManagerProtocol",
@@ -302,21 +327,18 @@ class RiskManagementMixin:
             if price_diff == 0:
                 from datetime import datetime
 
-                return {
-                    "recommended_size": 0,
-                    "max_position_size": 0,
-                    "risk_per_trade": 0.0,
-                    "account_risk_percent": 0.0,
-                    "stop_loss_distance": 0.0,
-                    "risk_reward_ratio": 0.0,
-                    "kelly_criterion": 0.0,
-                    "confidence_level": 0.0,
-                    "market_volatility": 0.0,
-                    "position_correlation": 0.0,
-                    "leverage_factor": 0.0,
-                    "margin_requirement": 0.0,
-                    "analysis_timestamp": datetime.now().isoformat(),
-                }
+                return PositionSizingResponse(
+                    position_size=0,
+                    risk_amount=0.0,
+                    risk_percent=0.0,
+                    entry_price=entry_price,
+                    stop_loss=stop_price,
+                    tick_size=0.25,  # Default
+                    account_balance=account_balance,
+                    kelly_fraction=None,
+                    max_position_size=0,
+                    sizing_method="fixed_risk",
+                )
 
             # Get instrument details for contract multiplier
             instrument = await self.project_x.get_instrument(contract_id)
@@ -342,43 +364,40 @@ class RiskManagementMixin:
 
             from datetime import datetime
 
-            return {
-                "recommended_size": suggested_size,
-                "max_position_size": suggested_size * 2,  # Conservative estimate
-                "risk_per_trade": total_risk,
-                "account_risk_percent": risk_percentage,
-                "stop_loss_distance": price_diff,
-                "risk_reward_ratio": 2.0,  # Simplified assumption
-                "kelly_criterion": 0.0,  # Would need win rate and avg win/loss data
-                "confidence_level": 0.75,  # Simplified assumption
-                "market_volatility": 0.0,  # Would need historical volatility data
-                "position_correlation": 0.0,  # Would need portfolio correlation data
-                "leverage_factor": 1.0,  # Futures have inherent leverage
-                "margin_requirement": total_risk,  # Simplified - actual margin varies
-                "analysis_timestamp": datetime.now().isoformat(),
-            }
+            # Get tick size from instrument
+            tick_size = getattr(instrument, "tickSize", 0.25) if instrument else 0.25
+
+            return PositionSizingResponse(
+                position_size=suggested_size,
+                risk_amount=total_risk,
+                risk_percent=risk_percentage / 100.0,  # Convert to decimal
+                entry_price=entry_price,
+                stop_loss=stop_price,
+                tick_size=tick_size,
+                account_balance=account_balance,
+                kelly_fraction=None,  # Would need trade history
+                max_position_size=suggested_size * 2,  # Conservative estimate
+                sizing_method="fixed_risk",
+            )
 
         except Exception as e:
             self.logger.error(f"❌ Position sizing calculation failed: {e}")
             from datetime import datetime
 
-            return {
-                "recommended_size": 0,
-                "max_position_size": 0,
-                "risk_per_trade": 0.0,
-                "account_risk_percent": 0.0,
-                "stop_loss_distance": abs(entry_price - stop_price)
-                if "entry_price" in locals() and "stop_price" in locals()
-                else 0.0,
-                "risk_reward_ratio": 0.0,
-                "kelly_criterion": 0.0,
-                "confidence_level": 0.0,
-                "market_volatility": 0.0,
-                "position_correlation": 0.0,
-                "leverage_factor": 0.0,
-                "margin_requirement": 0.0,
-                "analysis_timestamp": datetime.now().isoformat(),
-            }
+            return PositionSizingResponse(
+                position_size=0,
+                risk_amount=0.0,
+                risk_percent=0.0,
+                entry_price=entry_price if "entry_price" in locals() else 0.0,
+                stop_loss=stop_price if "stop_price" in locals() else 0.0,
+                tick_size=0.25,  # Default
+                account_balance=account_balance
+                if isinstance(account_balance, float)
+                else 10000.0,
+                kelly_fraction=None,
+                max_position_size=0,
+                sizing_method="fixed_risk",
+            )
 
     def _generate_sizing_warnings(
         self: "PositionManagerProtocol", risk_percentage: float, size: int

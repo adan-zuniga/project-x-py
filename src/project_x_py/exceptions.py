@@ -100,6 +100,8 @@ __all__ = [
     "ProjectXPositionError",
     "ProjectXRateLimitError",
     "ProjectXServerError",
+    "RiskLimitExceeded",
+    "InvalidOrderParameters",
 ]
 
 
@@ -159,3 +161,11 @@ class ProjectXPositionError(ProjectXError):
 
 class ProjectXInstrumentError(ProjectXError):
     """Instrument-related errors."""
+
+
+class RiskLimitExceeded(ProjectXError):
+    """Risk limit exceeded errors."""
+
+
+class InvalidOrderParameters(ProjectXError):
+    """Invalid order parameters errors."""

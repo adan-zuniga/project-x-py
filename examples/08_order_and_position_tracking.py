@@ -381,7 +381,6 @@ class OrderPositionDemo:
             self.suite = await TradingSuite.create(
                 instrument="MNQ",
                 timeframes=["5min"],  # Minimal timeframes for demo
-                features=["realtime_tracking"],
                 initial_days=1,
             )
 

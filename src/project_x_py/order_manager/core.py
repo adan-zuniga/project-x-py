@@ -779,7 +779,7 @@ class OrderManager(
         """
         async with self.order_lock:
             # Use internal order tracking
-            tracked_orders_count = len(self.tracked_orders)
+            _tracked_orders_count = len(self.tracked_orders)
 
             # Count position-order relationships
             total_position_orders = 0
@@ -800,7 +800,7 @@ class OrderManager(
                     }
 
             # Callbacks now handled through EventBus
-            callback_counts: dict[str, int] = {}
+            _callback_counts: dict[str, int] = {}
 
             # Calculate performance metrics
             fill_rate = (

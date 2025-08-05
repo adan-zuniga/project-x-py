@@ -153,6 +153,19 @@ class DataProcessingMixin:
             best_ask = quote_data.get("bestAsk")
             volume = quote_data.get("volume", 0)
 
+            # Emit quote update event with bid/ask data
+            await self._trigger_callbacks(
+                "quote_update",
+                {
+                    "bid": best_bid,
+                    "ask": best_ask,
+                    "last": last_price,
+                    "volume": volume,
+                    "symbol": symbol,
+                    "timestamp": datetime.now(self.timezone),
+                },
+            )
+
             # Calculate price for OHLCV tick processing
             price = None
 

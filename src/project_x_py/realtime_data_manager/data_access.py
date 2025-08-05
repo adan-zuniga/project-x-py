@@ -77,6 +77,7 @@ See Also:
 """
 
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -343,9 +344,25 @@ class DataAccessMixin:
         if data is None or len(data) < bars:
             return None
 
-        high = float(data["high"].max())
-        low = float(data["low"].min())
-        avg_range = float((data["high"] - data["low"]).mean())
+        high_val = data["high"].max()
+        low_val = data["low"].min()
+        avg_range_val = (data["high"] - data["low"]).mean()
+
+        # Ensure we have valid numeric values
+        if high_val is None or low_val is None or avg_range_val is None:
+            return None
+
+        # Type narrowing - after None check, these are numeric
+        if (
+            not isinstance(high_val, (int, float))
+            or not isinstance(low_val, (int, float))
+            or not isinstance(avg_range_val, (int, float))
+        ):
+            return None
+
+        high = float(high_val)
+        low = float(low_val)
+        avg_range = float(avg_range_val)
 
         return {
             "high": high,
@@ -382,9 +399,25 @@ class DataAccessMixin:
             return None
 
         volumes = data["volume"]
-        total_volume = float(volumes.sum())
-        avg_volume = float(volumes.mean())
-        current_volume = float(volumes[-1])
+        total_vol = volumes.sum()
+        avg_vol = volumes.mean()
+        current_vol = volumes[-1]
+
+        # Ensure we have valid numeric values
+        if total_vol is None or avg_vol is None or current_vol is None:
+            return None
+
+        # Type narrowing - after None check, these are numeric
+        if (
+            not isinstance(total_vol, (int, float))
+            or not isinstance(avg_vol, (int, float))
+            or not isinstance(current_vol, (int, float))
+        ):
+            return None
+
+        total_volume = float(total_vol)
+        avg_volume = float(avg_vol)
+        current_volume = float(current_vol)
 
         return {
             "total": total_volume,
@@ -429,7 +462,7 @@ class DataAccessMixin:
 
     async def get_bars_since(
         self: "RealtimeDataManagerProtocol",
-        timestamp: "pd.Timestamp | datetime",
+        timestamp: datetime,
         timeframe: str = "5min",
     ) -> pl.DataFrame | None:
         """
@@ -456,14 +489,13 @@ class DataAccessMixin:
 
         # Convert timestamp to timezone-aware if needed
         from datetime import datetime
-
-        import pandas as pd
+        from zoneinfo import ZoneInfo
 
         if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
             # Assume it's in the data's timezone
-            timestamp = pd.Timestamp(timestamp).tz_localize(self.timezone)
-        elif isinstance(timestamp, pd.Timestamp) and timestamp.tzinfo is None:
-            timestamp = timestamp.tz_localize(self.timezone)
+            # self.timezone is a pytz timezone object, we need its zone string
+            tz_str = getattr(self.timezone, "zone", "America/Chicago")
+            timestamp = timestamp.replace(tzinfo=ZoneInfo(tz_str))
 
         # Filter bars
         mask = data["timestamp"] >= timestamp

@@ -56,7 +56,6 @@ See Also:
     - `position_manager.reporting.PositionReportingMixin`
 """
 
-import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Callable, Coroutine
@@ -313,7 +312,9 @@ class PositionTrackingMixin:
                 if contract_id in self.tracked_positions:
                     del self.tracked_positions[contract_id]
                     self.logger.info(f"📊 Position closed: {contract_id}")
-                    self.stats["positions_closed"] += 1
+                    self.stats["closed_positions"] = (
+                        self.stats.get("closed_positions", 0) + 1
+                    )
 
                 # Synchronize orders - cancel related orders when position is closed
                 if self._order_sync_enabled and self.order_manager:
@@ -336,8 +337,8 @@ class PositionTrackingMixin:
                     await self._trigger_callbacks(
                         "position_opened", actual_position_data
                     )
-                    self.stats["positions_opened"] = (
-                        self.stats.get("positions_opened", 0) + 1
+                    self.stats["open_positions"] = (
+                        self.stats.get("open_positions", 0) + 1
                     )
                 else:
                     # Existing position updated

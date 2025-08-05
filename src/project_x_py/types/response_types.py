@@ -106,40 +106,51 @@ class PerformanceStatsResponse(TypedDict):
 class RiskAnalysisResponse(TypedDict):
     """Response type for comprehensive risk analysis."""
 
-    total_risk: float
-    position_risk: float
-    market_risk: float
-    liquidity_risk: float
-    concentration_risk: float
-    var_95: float  # Value at Risk 95%
-    var_99: float  # Value at Risk 99%
-    expected_shortfall: float
+    current_risk: float
+    max_risk: float
+    daily_loss: float
+    daily_loss_limit: float
+    position_count: int
+    position_limit: int
+    daily_trades: int
+    daily_trade_limit: int
+    win_rate: float
+    profit_factor: float
     sharpe_ratio: float
-    sortino_ratio: float
     max_drawdown: float
-    beta: float
-    correlation_to_market: float
-    risk_adjusted_return: float
-    recommendations: list[str]
-    timestamp: str
+    position_risks: list[dict[str, Any]]
+    risk_per_trade: float
+    account_balance: float
+    margin_used: float
+    margin_available: float
 
 
 class PositionSizingResponse(TypedDict):
     """Response type for position sizing analysis."""
 
-    recommended_size: int
+    position_size: int
+    risk_amount: float
+    risk_percent: float
+    entry_price: float
+    stop_loss: float
+    tick_size: float
+    account_balance: float
+    kelly_fraction: float | None
     max_position_size: int
-    risk_per_trade: float
-    account_risk_percent: float
-    stop_loss_distance: float
-    risk_reward_ratio: float
-    kelly_criterion: float
-    confidence_level: float
-    market_volatility: float
-    position_correlation: float
-    leverage_factor: float
-    margin_requirement: float
-    analysis_timestamp: str
+    sizing_method: str  # "fixed_risk", "kelly", "atr_based"
+
+
+class RiskValidationResponse(TypedDict):
+    """Response type for trade risk validation."""
+
+    is_valid: bool
+    reasons: list[str]  # Reasons for rejection
+    warnings: list[str]  # Warnings but still valid
+    current_risk: float
+    daily_loss: float
+    daily_trades: int
+    position_count: int
+    portfolio_risk: float
 
 
 class PortfolioMetricsResponse(TypedDict):
@@ -437,6 +448,7 @@ __all__ = [
     # Risk & Analytics
     "RiskAnalysisResponse",
     "PositionSizingResponse",
+    "RiskValidationResponse",
     "PortfolioMetricsResponse",
     # Market Data
     "OrderbookAnalysisResponse",

@@ -115,7 +115,6 @@ from project_x_py.realtime_data_manager.data_processing import DataProcessingMix
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
 from project_x_py.types.config_types import DataManagerConfig
-from project_x_py.types.stats_types import RealtimeDataManagerStats
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,

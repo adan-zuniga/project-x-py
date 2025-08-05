@@ -46,12 +46,14 @@ import yaml
 from project_x_py.client import ProjectX
 from project_x_py.client.base import ProjectXBase
 from project_x_py.event_bus import EventBus, EventType
+from project_x_py.models import Instrument
 from project_x_py.order_manager import OrderManager
 from project_x_py.order_tracker import OrderChainBuilder, OrderTracker
 from project_x_py.orderbook import OrderBook
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
+from project_x_py.risk_manager import ManagedTrade, RiskConfig, RiskManager
 from project_x_py.types.config_types import (
     DataManagerConfig,
     OrderbookConfig,
@@ -130,6 +132,18 @@ class TradingSuiteConfig:
             "enable_pattern_detection": True,
         }
 
+    def get_risk_config(self) -> RiskConfig:
+        """Get configuration for RiskManager."""
+        return RiskConfig(
+            max_risk_per_trade=0.01,  # 1% per trade
+            max_daily_loss=0.03,  # 3% daily loss
+            max_positions=3,
+            use_stop_loss=True,
+            use_take_profit=True,
+            use_trailing_stops=True,
+            default_risk_reward_ratio=2.0,
+        )
+
 
 class TradingSuite:
     """
@@ -145,6 +159,7 @@ class TradingSuite:
         orders: Order management system
         positions: Position tracking system
         orderbook: Level 2 market depth (if enabled)
+        risk_manager: Risk management system (if enabled)
         client: Underlying ProjectX API client
         realtime: WebSocket connection manager
         config: Suite configuration
@@ -166,7 +181,8 @@ class TradingSuite:
         self.client = client
         self.realtime = realtime_client
         self.config = config
-        self.instrument = config.instrument
+        self._symbol = config.instrument  # Store original symbol
+        self.instrument: Instrument | None = None  # Will be set during initialization
 
         # Initialize unified event bus
         self.events = EventBus()
@@ -191,9 +207,19 @@ class TradingSuite:
 
         # Optional components
         self.orderbook: OrderBook | None = None
-        self.risk_manager = None  # TODO: Implement in Week 5
+        self.risk_manager: RiskManager | None = None
         self.journal = None  # TODO: Future enhancement
         self.analytics = None  # TODO: Future enhancement
+
+        # Initialize risk manager if enabled
+        if Features.RISK_MANAGER in config.features:
+            self.risk_manager = RiskManager(
+                project_x=client,
+                order_manager=self.orders,
+                position_manager=self.positions,
+                event_bus=self.events,
+                config=config.get_risk_config(),
+            )
 
         # State tracking
         self._connected = False
@@ -392,8 +418,11 @@ class TradingSuite:
             await self.data.initialize(initial_days=self.config.initial_days)
 
             # Get instrument info and subscribe to market data
-            instrument_info = await self.client.get_instrument(self.instrument)
-            await self.realtime.subscribe_market_data([instrument_info.id])
+            self.instrument = await self.client.get_instrument(self._symbol)
+            if not self.instrument:
+                raise ValueError(f"Failed to get instrument info for {self._symbol}")
+
+            await self.realtime.subscribe_market_data([self.instrument.id])
 
             # Start realtime data feed
             await self.data.start_realtime_feed()
@@ -492,6 +521,16 @@ class TradingSuite:
     def is_connected(self) -> bool:
         """Check if all components are connected and ready."""
         return self._connected and self.realtime.is_connected()
+
+    @property
+    def symbol(self) -> str:
+        """Get the original symbol (e.g., 'MNQ') without contract details."""
+        return self._symbol
+
+    @property
+    def instrument_id(self) -> str | None:
+        """Get the full instrument/contract ID (e.g., 'CON.F.US.MNQ.U25')."""
+        return self.instrument.id if self.instrument else None
 
     async def on(self, event: EventType | str, handler: Any) -> None:
         """
@@ -617,6 +656,65 @@ class TradingSuite:
         """
         return OrderChainBuilder(self)
 
+    def managed_trade(
+        self,
+        max_risk_percent: float | None = None,
+        max_risk_amount: float | None = None,
+    ) -> ManagedTrade:
+        """
+        Create a managed trade context manager with automatic risk management.
+
+        This provides a high-level interface for executing trades with built-in:
+        - Position sizing based on risk parameters
+        - Trade validation against risk rules
+        - Automatic stop-loss and take-profit attachment
+        - Position monitoring and adjustment
+        - Cleanup on exit
+
+        Args:
+            max_risk_percent: Override max risk percentage for this trade
+            max_risk_amount: Override max risk dollar amount for this trade
+
+        Returns:
+            ManagedTrade context manager
+
+        Raises:
+            ValueError: If risk manager is not enabled
+
+        Example:
+            ```python
+            # Enter a risk-managed long position
+            async with suite.managed_trade(max_risk_percent=0.01) as trade:
+                result = await trade.enter_long(
+                    stop_loss=current_price - 50,
+                    take_profit=current_price + 100,
+                )
+
+                # Optional: Scale in
+                if market_conditions_favorable:
+                    await trade.scale_in(additional_size=1)
+
+                # Optional: Adjust stop
+                if price_moved_favorably:
+                    await trade.adjust_stop(new_stop_loss=entry_price)
+
+            # Automatic cleanup on exit
+            ```
+        """
+        if not self.risk_manager:
+            raise ValueError(
+                "Risk manager not enabled. Add 'risk_manager' to features list."
+            )
+
+        return ManagedTrade(
+            risk_manager=self.risk_manager,
+            order_manager=self.orders,
+            position_manager=self.positions,
+            instrument_id=self.instrument_id,
+            max_risk_percent=max_risk_percent,
+            max_risk_amount=max_risk_amount,
+        )
+
     async def wait_for(
         self, event: EventType | str, timeout: float | None = None
     ) -> Any:
@@ -693,9 +791,19 @@ class TradingSuite:
                 memory_usage_mb=0.0,
             )
 
+        if self.risk_manager:
+            components["risk_manager"] = ComponentStats(
+                name="RiskManager",
+                status="active" if self.risk_manager else "inactive",
+                uptime_seconds=uptime_seconds,
+                last_activity=None,
+                error_count=0,
+                memory_usage_mb=0.0,
+            )
+
         return {
             "suite_id": getattr(self, "suite_id", "unknown"),
-            "instrument": self.instrument,
+            "instrument": self.instrument_id,
             "created_at": getattr(self, "_created_at", datetime.now()).isoformat(),
             "uptime_seconds": uptime_seconds,
             "status": "active" if self.is_connected else "disconnected",
