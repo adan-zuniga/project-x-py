@@ -1,7 +1,7 @@
 """Managed trade context manager for risk-controlled trading."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from project_x_py.types import OrderSide, OrderType
 from project_x_py.types.protocols import OrderManagerProtocol, PositionManagerProtocol
@@ -31,8 +31,8 @@ class ManagedTrade:
         order_manager: OrderManagerProtocol,
         position_manager: PositionManagerProtocol,
         instrument_id: str,
-        max_risk_percent: Optional[float] = None,
-        max_risk_amount: Optional[float] = None,
+        max_risk_percent: float | None = None,
+        max_risk_amount: float | None = None,
     ):
         """Initialize managed trade.
 
@@ -52,11 +52,11 @@ class ManagedTrade:
         self.max_risk_amount = max_risk_amount
 
         # Track orders and positions created
-        self._orders: list["Order"] = []
-        self._positions: list["Position"] = []
-        self._entry_order: Optional["Order"] = None
-        self._stop_order: Optional["Order"] = None
-        self._target_order: Optional["Order"] = None
+        self._orders: list[Order] = []
+        self._positions: list[Position] = []
+        self._entry_order: Order | None = None
+        self._stop_order: Order | None = None
+        self._target_order: Order | None = None
 
     async def __aenter__(self) -> "ManagedTrade":
         """Enter managed trade context."""
@@ -90,10 +90,10 @@ class ManagedTrade:
 
     async def enter_long(
         self,
-        entry_price: Optional[float] = None,
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None,
-        size: Optional[int] = None,
+        entry_price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
+        size: int | None = None,
         order_type: OrderType = OrderType.MARKET,
     ) -> dict[str, Any]:
         """Enter a long position with risk management.
@@ -194,10 +194,12 @@ class ManagedTrade:
                 bracket = risk_orders["bracket_order"]
                 if "stop_order" in bracket:
                     self._stop_order = bracket["stop_order"]
-                    self._orders.append(self._stop_order)
+                    if self._stop_order:
+                        self._orders.append(self._stop_order)
                 if "limit_order" in bracket:
                     self._target_order = bracket["limit_order"]
-                    self._orders.append(self._target_order)
+                    if self._target_order:
+                        self._orders.append(self._target_order)
 
         return {
             "entry_order": self._entry_order,
@@ -211,10 +213,10 @@ class ManagedTrade:
 
     async def enter_short(
         self,
-        entry_price: Optional[float] = None,
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None,
-        size: Optional[int] = None,
+        entry_price: float | None = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
+        size: int | None = None,
         order_type: OrderType = OrderType.MARKET,
     ) -> dict[str, Any]:
         """Enter a short position with risk management.
@@ -308,10 +310,12 @@ class ManagedTrade:
                 bracket = risk_orders["bracket_order"]
                 if "stop_order" in bracket:
                     self._stop_order = bracket["stop_order"]
-                    self._orders.append(self._stop_order)
+                    if self._stop_order:
+                        self._orders.append(self._stop_order)
                 if "limit_order" in bracket:
                     self._target_order = bracket["limit_order"]
-                    self._orders.append(self._target_order)
+                    if self._target_order:
+                        self._orders.append(self._target_order)
 
         return {
             "entry_order": self._entry_order,
@@ -326,7 +330,7 @@ class ManagedTrade:
     async def scale_in(
         self,
         additional_size: int,
-        new_stop_loss: Optional[float] = None,
+        new_stop_loss: float | None = None,
     ) -> dict[str, Any]:
         """Scale into existing position with risk checks.
 
@@ -380,7 +384,7 @@ class ManagedTrade:
     async def scale_out(
         self,
         exit_size: int,
-        limit_price: Optional[float] = None,
+        limit_price: float | None = None,
     ) -> dict[str, Any]:
         """Scale out of position with partial exit.
 
@@ -502,7 +506,7 @@ class ManagedTrade:
         self,
         side: OrderSide,
         size: int,
-        price: Optional[float],
+        price: float | None,
         order_type: OrderType,
     ) -> "Order":
         """Create mock order for validation."""

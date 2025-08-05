@@ -90,6 +90,7 @@ See Also:
 from typing import Any
 
 __all__ = [
+    "InvalidOrderParameters",
     "ProjectXAuthenticationError",
     "ProjectXClientError",
     "ProjectXConnectionError",
@@ -101,7 +102,6 @@ __all__ = [
     "ProjectXRateLimitError",
     "ProjectXServerError",
     "RiskLimitExceeded",
-    "InvalidOrderParameters",
 ]
 
 

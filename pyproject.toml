@@ -166,6 +166,7 @@ ignore = [
     "N818",  # Exception name should be named with an Error suffix
     "UP007", # Use X | Y for type annotations (optional)
     "N811", # Variable in class scope should not be mixedCase (API compatibility)
+    "RUF022", # Use a list comprehension to create a new list (optional)
 ]
 
 fixable = ["ALL"]
