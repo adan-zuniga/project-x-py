@@ -318,7 +318,7 @@ class PositionTrackingMixin:
 
                 # Synchronize orders - cancel related orders when position is closed
                 if self._order_sync_enabled and self.order_manager:
-                    await self.order_manager.on_position_closed(contract_id)  # type: ignore[misc]
+                    await self.order_manager.on_position_closed(contract_id)
 
                 # Trigger position_closed callbacks with the closure data
                 await self._trigger_callbacks("position_closed", actual_position_data)
@@ -352,7 +352,7 @@ class PositionTrackingMixin:
                     and self.order_manager
                     and old_size != position_size
                 ):
-                    await self.order_manager.on_position_changed(  # type: ignore[misc]
+                    await self.order_manager.on_position_changed(
                         contract_id, old_size, position_size
                     )
 

@@ -5,7 +5,7 @@ from .core import RiskManager
 from .managed_trade import ManagedTrade
 
 __all__ = [
+    "ManagedTrade",
     "RiskConfig",
     "RiskManager",
-    "ManagedTrade",
 ]

@@ -76,7 +76,6 @@ from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.risk import RiskManagementMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
 from project_x_py.types.config_types import PositionManagerConfig
-from project_x_py.types.stats_types import PositionManagerStats
 from project_x_py.utils import (
     LogMessages,
     ProjectXLogger,

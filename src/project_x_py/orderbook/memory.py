@@ -402,7 +402,9 @@ class MemoryManager:
             spreads = [
                 float(ask["price"]) - float(bid["price"])
                 for bid, ask in zip(
-                    self.orderbook.best_bid_history, self.orderbook.best_ask_history
+                    self.orderbook.best_bid_history,
+                    self.orderbook.best_ask_history,
+                    strict=False,
                 )
                 if float(bid["price"]) > 0 and float(ask["price"]) > 0
             ]

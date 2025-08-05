@@ -16,15 +16,17 @@ from project_x_py.types import (
     RiskAnalysisResponse,
     RiskValidationResponse,
 )
+from project_x_py.types.protocols import (
+    OrderManagerProtocol,
+    PositionManagerProtocol,
+    ProjectXClientProtocol,
+)
 
 from .config import RiskConfig
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectX
     from project_x_py.event_bus import EventBus
     from project_x_py.models import Account, Instrument, Order, Position
-    from project_x_py.order_manager import OrderManager
-    from project_x_py.position_manager import PositionManager
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +40,11 @@ class RiskManager:
 
     def __init__(
         self,
-        project_x: "ProjectX",
-        order_manager: "OrderManager",
-        position_manager: "PositionManager",
+        project_x: ProjectXClientProtocol,
+        order_manager: OrderManagerProtocol,
+        position_manager: PositionManagerProtocol,
         event_bus: "EventBus",
-        config: Optional[RiskConfig] = None,
+        config: RiskConfig | None = None,
     ):
         """Initialize risk manager.
 
@@ -78,8 +80,8 @@ class RiskManager:
         self,
         entry_price: float,
         stop_loss: float,
-        risk_amount: Optional[float] = None,
-        risk_percent: Optional[float] = None,
+        risk_amount: float | None = None,
+        risk_percent: float | None = None,
         instrument: Optional["Instrument"] = None,
         use_kelly: bool | None = None,
     ) -> PositionSizingResponse:
@@ -166,7 +168,7 @@ class RiskManager:
     async def validate_trade(
         self,
         order: "Order",
-        current_positions: Optional[list["Position"]] = None,
+        current_positions: list["Position"] | None = None,
     ) -> RiskValidationResponse:
         """Validate a trade against risk rules.
 
@@ -263,7 +265,7 @@ class RiskManager:
             logger.error(f"Error validating trade: {e}")
             return RiskValidationResponse(
                 is_valid=False,
-                reasons=[f"Validation error: {str(e)}"],
+                reasons=[f"Validation error: {e!s}"],
                 warnings=[],
                 current_risk=0.0,
                 daily_loss=0.0,
@@ -275,9 +277,9 @@ class RiskManager:
     async def attach_risk_orders(
         self,
         position: "Position",
-        stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None,
-        use_trailing: Optional[bool] = None,
+        stop_loss: float | None = None,
+        take_profit: float | None = None,
+        use_trailing: bool | None = None,
     ) -> dict[str, Any]:
         """Automatically attach stop-loss and take-profit orders to a position.
 
@@ -416,7 +418,7 @@ class RiskManager:
         self,
         position: "Position",
         new_stop: float,
-        order_id: Optional[str] = None,
+        order_id: str | None = None,
     ) -> bool:
         """Adjust stop-loss order for a position.
 
@@ -449,7 +451,7 @@ class RiskManager:
 
             # Modify the order
             success = await self.orders.modify_order(
-                order_id=order_id,
+                order_id=int(order_id),
                 stop_price=new_stop,
             )
 
@@ -480,7 +482,7 @@ class RiskManager:
             positions = await self.positions.get_all_positions()
 
             # Calculate metrics
-            total_risk = await self._calculate_portfolio_risk(positions)
+            _total_risk = await self._calculate_portfolio_risk(positions)
             position_risks = []
 
             for pos in positions:
@@ -601,17 +603,22 @@ class RiskManager:
     ) -> dict[str, Decimal]:
         """Calculate risk for a single position."""
         # Find stop loss order
-        orders = await self.orders.search_open_orders()
+        orders: list[Order] = await self.orders.search_open_orders()
         stop_orders = [
             o
             for o in orders
             if o.contractId == position.contractId
-            and o.orderType in [OrderType.STOP, OrderType.STOP_LIMIT]
+            and o.type in [OrderType.STOP, OrderType.STOP_LIMIT]
         ]
 
         if stop_orders:
-            stop_price = float(stop_orders[0].stopPrice or stop_orders[0].limitPrice)
-            risk = abs(float(position.averagePrice) - stop_price) * position.size
+            stop_price_value = stop_orders[0].stopPrice or stop_orders[0].limitPrice
+            if stop_price_value is not None:
+                stop_price = float(stop_price_value)
+                risk = abs(float(position.averagePrice) - stop_price) * position.size
+            else:
+                # Use default stop distance if no valid stop price
+                risk = self.config.default_stop_distance * position.size
         else:
             # Use default stop distance if no stop order
             risk = self.config.default_stop_distance * position.size
@@ -731,7 +738,8 @@ class RiskManager:
             return 0.0
 
         # Annualized Sharpe (assuming daily returns and 252 trading days)
-        return (avg_return / std_return) * (252**0.5)
+        sharpe_ratio: float = (avg_return / std_return) * (252**0.5)
+        return sharpe_ratio
 
     async def record_trade_result(
         self,

@@ -76,9 +76,10 @@ See Also:
     - `realtime_data_manager.validation.ValidationMixin`
 """
 
+import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -91,8 +92,14 @@ logger = logging.getLogger(__name__)
 class DataAccessMixin:
     """Mixin for data access and retrieval methods."""
 
+    # Type stubs - these attributes are expected to be provided by the class using this mixin
+    if TYPE_CHECKING:
+        data_lock: "asyncio.Lock"
+        data: dict[str, pl.DataFrame]
+        current_tick_data: list[dict[str, Any]]
+
     async def get_data(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timeframe: str = "5min",
         bars: int | None = None,
     ) -> pl.DataFrame | None:
@@ -167,7 +174,7 @@ class DataAccessMixin:
                 return df.tail(bars)
             return df
 
-    async def get_current_price(self: "RealtimeDataManagerProtocol") -> float | None:
+    async def get_current_price(self) -> float | None:
         """
         Get the current market price from the most recent data.
 
@@ -318,7 +325,7 @@ class DataAccessMixin:
         }
 
     async def get_price_range(
-        self: "RealtimeDataManagerProtocol",
+        self,
         bars: int = 20,
         timeframe: str = "5min",
     ) -> dict[str, float] | None:
@@ -354,9 +361,9 @@ class DataAccessMixin:
 
         # Type narrowing - after None check, these are numeric
         if (
-            not isinstance(high_val, (int, float))
-            or not isinstance(low_val, (int, float))
-            or not isinstance(avg_range_val, (int, float))
+            not isinstance(high_val, int | float)
+            or not isinstance(low_val, int | float)
+            or not isinstance(avg_range_val, int | float)
         ):
             return None
 
@@ -409,9 +416,9 @@ class DataAccessMixin:
 
         # Type narrowing - after None check, these are numeric
         if (
-            not isinstance(total_vol, (int, float))
-            or not isinstance(avg_vol, (int, float))
-            or not isinstance(current_vol, (int, float))
+            not isinstance(total_vol, int | float)
+            or not isinstance(avg_vol, int | float)
+            or not isinstance(current_vol, int | float)
         ):
             return None
 

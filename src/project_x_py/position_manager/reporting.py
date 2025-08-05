@@ -274,10 +274,10 @@ class PositionReportingMixin:
             "portfolio_summary": {
                 "total_positions": len(positions),
                 "total_pnl": pnl_data["total_pnl"],
-                "total_exposure": risk_data["total_exposure"],
-                "portfolio_risk": risk_data["portfolio_risk"],
+                "total_exposure": risk_data["current_risk"],
+                "portfolio_risk": risk_data["max_risk"],
             },
-            "positions": pnl_data["positions"],
+            "positions": positions,
             "risk_analysis": risk_data,
             "statistics": stats,
             "alerts": {

@@ -95,9 +95,16 @@ from typing import TYPE_CHECKING, Any, Protocol
 import httpx
 import polars as pl
 
-from project_x_py.types.response_types import PerformanceStatsResponse
+from project_x_py.types.response_types import (
+    PerformanceStatsResponse,
+    PortfolioMetricsResponse,
+    PositionAnalysisResponse,
+    RiskAnalysisResponse,
+)
+from project_x_py.types.stats_types import PositionManagerStats
 
 if TYPE_CHECKING:
+    from project_x_py.client.base import ProjectXBase
     from project_x_py.models import (
         Account,
         Instrument,
@@ -107,6 +114,7 @@ if TYPE_CHECKING:
         ProjectXConfig,
         Trade,
     )
+    from project_x_py.order_manager import OrderManager
     from project_x_py.realtime import ProjectXRealtimeClient
     from project_x_py.utils.async_rate_limiter import RateLimiter
 
@@ -206,7 +214,7 @@ class ProjectXClientProtocol(Protocol):
 class OrderManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from OrderManager."""
 
-    project_x: ProjectXClientProtocol
+    project_x: "ProjectXBase"
     realtime_client: "ProjectXRealtimeClient | None"
     event_bus: Any  # EventBus instance
     order_lock: asyncio.Lock
@@ -270,6 +278,12 @@ class OrderManagerProtocol(Protocol):
         size: int | None = None,
     ) -> bool: ...
 
+    async def search_open_orders(
+        self,
+        account_id: int | None = None,
+        contract_id: str | None = None,
+    ) -> list["Order"]: ...
+
     async def get_tracked_order_status(
         self, order_id: str, wait_for_cache: bool = False
     ) -> dict[str, Any] | None: ...
@@ -323,13 +337,13 @@ class OrderManagerProtocol(Protocol):
 class PositionManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from PositionManager."""
 
-    project_x: ProjectXClientProtocol
+    project_x: "ProjectXBase"
     logger: Any
     event_bus: Any  # EventBus instance
     position_lock: asyncio.Lock
     realtime_client: "ProjectXRealtimeClient | None"
     _realtime_enabled: bool
-    order_manager: "OrderManagerProtocol | None"
+    order_manager: "OrderManager | None"
     _order_sync_enabled: bool
     tracked_positions: dict[str, "Position"]
     position_history: dict[str, list[dict[str, Any]]]
@@ -362,9 +376,6 @@ class PositionManagerProtocol(Protocol):
     async def get_position(
         self, contract_id: str, account_id: int | None = None
     ) -> "Position | None": ...
-    async def get_positions(
-        self, account_id: int | None = None
-    ) -> list["Position"]: ...
     def _generate_risk_warnings(
         self,
         positions: list["Position"],
@@ -382,20 +393,22 @@ class PositionManagerProtocol(Protocol):
         self, contract_id: str, reduce_by: int, account_id: int | None = None
     ) -> dict[str, Any]: ...
     async def calculate_position_pnl(
-        self, position: "Position", current_price: float, point_value: float = 1.0
-    ) -> dict[str, float]: ...
+        self,
+        position: "Position",
+        current_price: float,
+        point_value: float | None = None,
+    ) -> "PositionAnalysisResponse": ...
     async def get_portfolio_pnl(
         self,
-        current_prices: dict[str, float] | None = None,
         account_id: int | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> "PortfolioMetricsResponse": ...
     async def get_risk_metrics(
         self, account_id: int | None = None
-    ) -> dict[str, Any]: ...
-    async def get_position_statistics(
-        self, account_id: int | None = None
-    ) -> dict[str, Any]: ...
-    async def _monitoring_loop(self, check_interval: float = 60.0) -> None: ...
+    ) -> "RiskAnalysisResponse": ...
+    def get_position_statistics(
+        self,
+    ) -> "PositionManagerStats": ...
+    async def _monitoring_loop(self, refresh_interval: int) -> None: ...
     async def stop_monitoring(self) -> None: ...
 
 
@@ -404,7 +417,7 @@ class RealtimeDataManagerProtocol(Protocol):
 
     # Core attributes
     instrument: str
-    project_x: ProjectXClientProtocol
+    project_x: "ProjectXBase"
     realtime_client: "ProjectXRealtimeClient"
     event_bus: Any  # EventBus instance
     logger: Any

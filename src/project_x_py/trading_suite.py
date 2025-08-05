@@ -431,7 +431,7 @@ class TradingSuite:
             if Features.ORDERBOOK in self.config.features:
                 logger.info("Initializing orderbook...")
                 self.orderbook = OrderBook(
-                    instrument=self.instrument,
+                    instrument=self._symbol,
                     timezone_str=self.config.timezone,
                     project_x=self.client,
                     config=self.config.get_orderbook_config(),
@@ -710,7 +710,7 @@ class TradingSuite:
             risk_manager=self.risk_manager,
             order_manager=self.orders,
             position_manager=self.positions,
-            instrument_id=self.instrument_id,
+            instrument_id=self.instrument_id or self._symbol,
             max_risk_percent=max_risk_percent,
             max_risk_amount=max_risk_amount,
         )
@@ -803,7 +803,7 @@ class TradingSuite:
 
         return {
             "suite_id": getattr(self, "suite_id", "unknown"),
-            "instrument": self.instrument_id,
+            "instrument": self.instrument_id or self._symbol,
             "created_at": getattr(self, "_created_at", datetime.now()).isoformat(),
             "uptime_seconds": uptime_seconds,
             "status": "active" if self.is_connected else "disconnected",

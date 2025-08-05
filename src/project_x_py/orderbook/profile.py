@@ -500,8 +500,8 @@ class VolumeProfile:
                 spread_values = [s["spread"] for s in recent_spreads]
                 current_spread = spread_values[-1]
                 avg_spread = sum(spread_values) / len(spread_values)
-                min_spread = min(spread_values)
-                max_spread = max(spread_values)
+                _min_spread = min(spread_values)
+                _max_spread = max(spread_values)
 
                 # Calculate volatility
                 variance = sum((s - avg_spread) ** 2 for s in spread_values) / len(
@@ -519,16 +519,16 @@ class VolumeProfile:
                     )
 
                     if second_half_avg > first_half_avg * 1.1:
-                        spread_trend = "widening"
+                        _spread_trend = "widening"
                     elif second_half_avg < first_half_avg * 0.9:
-                        spread_trend = "tightening"
+                        _spread_trend = "tightening"
                     else:
-                        spread_trend = "stable"
+                        _spread_trend = "stable"
                 else:
-                    spread_trend = "insufficient_data"
+                    _spread_trend = "insufficient_data"
 
                 # Calculate spread distribution
-                spread_distribution = {
+                _spread_distribution = {
                     "tight": len([s for s in spread_values if s <= avg_spread * 0.8]),
                     "normal": len(
                         [
@@ -544,7 +544,7 @@ class VolumeProfile:
                 current_time = datetime.now(self.orderbook.timezone)
 
                 # Get current orderbook state for liquidity metrics
-                best_prices = self.orderbook._get_best_bid_ask_unlocked()
+                _best_prices = self.orderbook._get_best_bid_ask_unlocked()
                 bid_liquidity = 0.0
                 ask_liquidity = 0.0
                 total_liquidity = 0.0

@@ -46,7 +46,7 @@ See Also:
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from project_x_py.models import Position
 from project_x_py.types.response_types import (
@@ -153,7 +153,7 @@ class PositionAnalyticsMixin:
             pnl_per_contract = price_change
 
         unrealized_pnl = pnl_per_contract * position.size
-        market_value = current_price * position.size
+        _market_value = current_price * position.size
 
         # Calculate additional fields for PositionAnalysisResponse
         position_value = abs(

@@ -4,11 +4,10 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.types import OrderSide, OrderType
+from project_x_py.types.protocols import OrderManagerProtocol, PositionManagerProtocol
 
 if TYPE_CHECKING:
     from project_x_py.models import Order, Position
-    from project_x_py.order_manager import OrderManager
-    from project_x_py.position_manager import PositionManager
 
     from .core import RiskManager
 
@@ -29,8 +28,8 @@ class ManagedTrade:
     def __init__(
         self,
         risk_manager: "RiskManager",
-        order_manager: "OrderManager",
-        position_manager: "PositionManager",
+        order_manager: OrderManagerProtocol,
+        position_manager: PositionManagerProtocol,
         instrument_id: str,
         max_risk_percent: Optional[float] = None,
         max_risk_amount: Optional[float] = None,
@@ -73,7 +72,7 @@ class ManagedTrade:
                         await self.orders.cancel_order(order.id)
                         logger.info(f"Cancelled unfilled order {order.id}")
                     except Exception as e:
-                        logger.error(f"Error cancelling order {order.orderId}: {e}")
+                        logger.error(f"Error cancelling order {order.id}: {e}")
 
             # Log trade summary
             if self._entry_order:
@@ -271,6 +270,8 @@ class ManagedTrade:
                 size=size,
             )
         else:
+            if entry_price is None:
+                raise ValueError("Entry price is required for limit orders")
             order_result = await self.orders.place_limit_order(
                 contract_id=self.instrument_id,
                 side=OrderSide.SELL,
@@ -427,7 +428,7 @@ class ManagedTrade:
                 self._orders.append(scale_order)
 
         return {
-            "exit_order": order_result["order"],
+            "exit_order": order_result,
             "remaining_size": position.size - exit_size,
             "exit_type": "limit" if limit_price else "market",
         }

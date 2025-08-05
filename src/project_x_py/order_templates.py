@@ -35,7 +35,7 @@ Example Usage:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.indicators import ATR
 from project_x_py.models import BracketOrderResponse
@@ -52,7 +52,11 @@ class OrderTemplate(ABC):
 
     @abstractmethod
     async def create_order(
-        self, suite: "TradingSuite", side: int, size: Optional[int] = None, **kwargs
+        self,
+        suite: "TradingSuite",
+        side: int,
+        size: Optional[int] = None,
+        **kwargs: Any,
     ) -> BracketOrderResponse:
         """Create an order using this template."""
         pass
@@ -92,7 +96,7 @@ class RiskRewardTemplate(OrderTemplate):
         risk_amount: Optional[float] = None,
         risk_percent: Optional[float] = None,
         entry_offset: float = 0,
-        **kwargs,
+        **kwargs: Any,
     ) -> BracketOrderResponse:
         """
         Create an order with fixed risk/reward ratio.
@@ -109,7 +113,7 @@ class RiskRewardTemplate(OrderTemplate):
             BracketOrderResponse with order details
         """
         # Get current price
-        current_price = await suite.data.get_latest_price()
+        current_price = await suite.data.get_current_price()
         if not current_price:
             raise ValueError("Cannot get current price")
 
@@ -138,8 +142,10 @@ class RiskRewardTemplate(OrderTemplate):
                 size = int(risk_amount / (stop_dist * tick_value))
             elif risk_percent:
                 # Get account balance
-                account = await suite.client.get_account_info()
-                risk_amount = account.balance * risk_percent
+                account = suite.client.account_info
+                if not account:
+                    raise ValueError("No account information available")
+                risk_amount = float(account.balance) * risk_percent
                 instrument = await suite.client.get_instrument(suite.instrument)
                 tick_value = instrument.tickValue if instrument else 1.0
                 size = int(risk_amount / (stop_dist * tick_value))
@@ -148,6 +154,9 @@ class RiskRewardTemplate(OrderTemplate):
 
         # Build order chain
         builder = OrderChainBuilder(suite)
+
+        if size is None:
+            raise ValueError("Size is required")
 
         if self.use_limit_entry:
             builder.limit_order(size=size, price=entry_price, side=side)
@@ -206,10 +215,10 @@ class ATRStopTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: int,
+        size: Optional[int] = None,
         use_limit_entry: bool = False,
         entry_offset: float = 0,
-        **kwargs,
+        **kwargs: Any,
     ) -> BracketOrderResponse:
         """
         Create an order with ATR-based stops.
@@ -234,7 +243,7 @@ class ATRStopTemplate(OrderTemplate):
         current_atr = float(data_with_atr[f"atr_{self.atr_period}"][-1])
 
         # Get current price
-        current_price = await suite.data.get_latest_price()
+        current_price = await suite.data.get_current_price()
         if not current_price:
             raise ValueError("Cannot get current price")
 
@@ -250,6 +259,9 @@ class ATRStopTemplate(OrderTemplate):
 
         # Build order
         builder = OrderChainBuilder(suite)
+
+        if size is None:
+            raise ValueError("Size is required")
 
         if use_limit_entry:
             if side == 0:  # BUY
@@ -296,11 +308,11 @@ class BreakoutTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: int,
+        size: Optional[int] = None,
         breakout_level: Optional[float] = None,
         range_size: Optional[float] = None,
         lookback_bars: int = 20,
-        **kwargs,
+        **kwargs: Any,
     ) -> BracketOrderResponse:
         """
         Create a breakout order.
@@ -335,12 +347,16 @@ class BreakoutTemplate(OrderTemplate):
         # Calculate entry price
         if side == 0:  # BUY
             entry_price = breakout_level + self.breakout_offset
+            if range_size is None:
+                raise ValueError("Range size is required")
             stop_price = (
                 breakout_level if self.stop_at_level else breakout_level - range_size
             )
             target_price = entry_price + (range_size * self.target_range_multiplier)
         else:  # SELL
             entry_price = breakout_level - self.breakout_offset
+            if range_size is None:
+                raise ValueError("Range size is required")
             stop_price = (
                 breakout_level if self.stop_at_level else breakout_level + range_size
             )
@@ -353,6 +369,9 @@ class BreakoutTemplate(OrderTemplate):
         )
 
         # Build order
+        if size is None:
+            raise ValueError("Size is required")
+
         builder = (
             OrderChainBuilder(suite)
             .stop_order(size=size, price=entry_price, side=side)
@@ -396,9 +415,9 @@ class ScalpingTemplate(OrderTemplate):
         self,
         suite: "TradingSuite",
         side: int,
-        size: int,
+        size: Optional[int] = None,
         check_spread: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> BracketOrderResponse:
         """
         Create a scalping order.
@@ -422,10 +441,10 @@ class ScalpingTemplate(OrderTemplate):
         # Check spread if requested
         if check_spread and hasattr(suite, "orderbook") and suite.orderbook:
             orderbook = suite.orderbook
-            spread_info = await orderbook.get_spread()
+            spread = await orderbook.get_bid_ask_spread()
 
-            if spread_info:
-                spread_ticks = spread_info["spread"] / tick_size
+            if spread is not None:
+                spread_ticks = spread / tick_size
                 if spread_ticks > self.max_spread_ticks:
                     raise ValueError(
                         f"Spread too wide: {spread_ticks:.1f} ticks "
@@ -439,11 +458,14 @@ class ScalpingTemplate(OrderTemplate):
         # Build order
         builder = OrderChainBuilder(suite)
 
+        if size is None:
+            raise ValueError("Size is required")
+
         if self.use_market_entry:
             builder.market_order(size=size, side=side)
         else:
             # Use limit at best bid/ask
-            current_price = await suite.data.get_latest_price()
+            current_price = await suite.data.get_current_price()
             if not current_price:
                 raise ValueError("Cannot get current price")
             builder.limit_order(size=size, price=current_price, side=side)

@@ -50,7 +50,7 @@ See Also:
     - `position_manager.monitoring.PositionMonitoringMixin`
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from project_x_py.models import Position
 from project_x_py.types.response_types import (
@@ -115,8 +115,6 @@ class RiskManagementMixin:
         positions = await self.get_all_positions(account_id=account_id)
 
         if not positions:
-            from datetime import datetime
-
             return RiskAnalysisResponse(
                 current_risk=0.0,
                 max_risk=self.risk_settings.get("max_portfolio_risk", 0.02),
@@ -153,16 +151,14 @@ class RiskManagementMixin:
         )
 
         # Simple diversification score (inverse of concentration)
-        diversification_score = (
+        _diversification_score = (
             1.0 - largest_position_risk if largest_position_risk < 1.0 else 0.0
         )
 
         # Generate risk warnings/recommendations
-        risk_warnings = self._generate_risk_warnings(
+        _risk_warnings = self._generate_risk_warnings(
             positions, portfolio_risk, largest_position_risk
         )
-
-        from datetime import datetime
 
         # Map position risks
         position_risks = []
@@ -325,8 +321,6 @@ class RiskManagementMixin:
             # Calculate risk per contract
             price_diff = abs(entry_price - stop_price)
             if price_diff == 0:
-                from datetime import datetime
-
                 return PositionSizingResponse(
                     position_size=0,
                     risk_amount=0.0,
@@ -362,8 +356,6 @@ class RiskManagementMixin:
                 risk_percentage, suggested_size
             )
 
-            from datetime import datetime
-
             # Get tick size from instrument
             tick_size = getattr(instrument, "tickSize", 0.25) if instrument else 0.25
 
@@ -382,7 +374,6 @@ class RiskManagementMixin:
 
         except Exception as e:
             self.logger.error(f"❌ Position sizing calculation failed: {e}")
-            from datetime import datetime
 
             return PositionSizingResponse(
                 position_size=0,

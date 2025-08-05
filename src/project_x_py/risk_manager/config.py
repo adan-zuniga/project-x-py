@@ -1,8 +1,7 @@
 """Risk management configuration."""
 
 from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -15,11 +14,11 @@ class RiskConfig:
 
     # Per-trade risk limits
     max_risk_per_trade: float = 0.01  # 1% per trade
-    max_risk_per_trade_amount: Optional[float] = None  # Dollar amount limit
+    max_risk_per_trade_amount: float | None = None  # Dollar amount limit
 
     # Daily risk limits
     max_daily_loss: float = 0.03  # 3% daily loss
-    max_daily_loss_amount: Optional[float] = None  # Dollar amount limit
+    max_daily_loss_amount: float | None = None  # Dollar amount limit
     max_daily_trades: int = 10  # Maximum trades per day
 
     # Position limits

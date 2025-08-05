@@ -54,7 +54,8 @@ See Also:
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Optional, Union
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Optional, Type, Union
 
 from project_x_py.event_bus import EventType
 from project_x_py.models import BracketOrderResponse, Order, OrderPlaceResponse
@@ -113,7 +114,12 @@ class OrderTracker:
         await self._setup_event_handlers()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """Exit the context manager and clean up."""
         await self.cleanup()
 
@@ -212,7 +218,7 @@ class OrderTracker:
                 return self._filled_order
             else:
                 # Fetch latest order data
-                order = await self.order_manager.get_order(self.order_id)
+                order = await self.order_manager.get_order_by_id(self.order_id)
                 if order and order.status == 2:  # FILLED
                     return order
                 else:
@@ -249,7 +255,7 @@ class OrderTracker:
 
         # Check if already at target status
         if self._current_status == status:
-            order = await self.order_manager.get_order(self.order_id)
+            order = await self.order_manager.get_order_by_id(self.order_id)
             if order:
                 return order
 
@@ -260,7 +266,7 @@ class OrderTracker:
                 raise self._error
 
             # Fetch latest order data
-            order = await self.order_manager.get_order(self.order_id)
+            order = await self.order_manager.get_order_by_id(self.order_id)
             if order and order.status == status:
                 return order
             else:
@@ -457,9 +463,11 @@ class OrderChainBuilder:
             raise ValueError("Contract ID is required")
 
         contract_id = self.contract_id or self.suite.instrument_id
+        if not contract_id:
+            raise ValueError("Contract ID is required")
 
         # Calculate risk order prices if needed
-        current_price = await self.suite.data.get_latest_price()
+        current_price = await self.suite.data.get_current_price()
         if not current_price:
             raise ValueError("Cannot get current price for risk calculations")
 
@@ -499,13 +507,15 @@ class OrderChainBuilder:
             bracket_entry_price = (
                 entry_price if self.entry_type != "market" else current_price
             )
+            assert self.side is not None  # Already checked above
+            assert self.size is not None  # Already checked above
             result = await self.order_manager.place_bracket_order(
                 contract_id=contract_id,
                 side=self.side,
                 size=self.size,
                 entry_price=bracket_entry_price,
-                stop_loss_price=stop_loss_price,
-                take_profit_price=take_profit_price,
+                stop_loss_price=stop_loss_price or 0.0,
+                take_profit_price=take_profit_price or 0.0,
                 entry_type=self.entry_type,
             )
 
@@ -523,13 +533,17 @@ class OrderChainBuilder:
                     contract_id=contract_id, side=self.side, size=self.size
                 )
             elif self.entry_type == "limit":
+                if self.entry_price is None:
+                    raise ValueError("Entry price is required for limit orders")
                 response = await self.order_manager.place_limit_order(
                     contract_id=contract_id,
                     side=self.side,
                     size=self.size,
-                    price=self.entry_price,
+                    limit_price=self.entry_price,
                 )
             else:  # stop
+                if self.entry_price is None:
+                    raise ValueError("Entry price is required for stop orders")
                 response = await self.order_manager.place_stop_order(
                     contract_id=contract_id,
                     side=self.side,
