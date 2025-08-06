@@ -35,27 +35,62 @@ Real-time Capabilities:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX
-    from project_x_py.order_manager import OrderManager
+    # V3: Async order management with event bus integration
+    import asyncio
+    from project_x_py import (
+        ProjectX,
+        create_realtime_client,
+        create_order_manager,
+        EventBus,
+    )
 
-    async with ProjectX.from_env() as client:
-        om = OrderManager(client)
 
-        # Place a market order
-        response = await om.place_market_order("MNQ", 0, 1)  # Buy 1 contract
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
 
-        # Place a bracket order with stop loss and take profit
-        bracket = await om.place_bracket_order(
-            contract_id="MGC",
-            side=0,
-            size=1,
-            entry_price=2050.0,
-            stop_loss_price=2040.0,
-            take_profit_price=2070.0,
-        )
+            # V3: Create event bus and realtime client
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
 
-        # Add stop loss to existing position
-        await om.add_stop_loss("MGC", stop_price=2040.0)
+            # V3: Create order manager with dependencies
+            om = create_order_manager(client, realtime_client, event_bus)
+            await om.initialize(realtime_client)
+
+            # V3: Place a market order
+            response = await om.place_market_order(
+                "MNQ",
+                side=0,
+                size=1,  # Buy 1 contract
+            )
+            print(f"Market order placed: {response.orderId}")
+
+            # V3: Place a bracket order with automatic risk management
+            bracket = await om.place_bracket_order(
+                contract_id="MGC",
+                side=0,  # Buy
+                size=1,
+                entry_price=2050.0,
+                stop_loss_price=2040.0,
+                take_profit_price=2070.0,
+            )
+            print(f"Bracket order IDs:")
+            print(f"  Entry: {bracket.entry_order_id}")
+            print(f"  Stop: {bracket.stop_order_id}")
+            print(f"  Target: {bracket.target_order_id}")
+
+            # V3: Add stop loss to existing position
+            await om.add_stop_loss_to_position("MGC", stop_price=2040.0)
+
+            # V3: Check order statistics
+            stats = await om.get_order_statistics()
+            print(f"Orders placed: {stats['orders_placed']}")
+            print(f"Fill rate: {stats['fill_rate']:.1%}")
+
+
+    asyncio.run(main())
     ```
 
 See Also:

@@ -36,29 +36,51 @@ Real-time Capabilities:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX, create_orderbook
+    # V3: Uses EventBus and factory functions
+    from project_x_py import ProjectX, create_orderbook, create_realtime_client
+    from project_x_py.events import EventBus, EventType
     import asyncio
 
 
     async def main():
-        client = ProjectX()
-        await client.connect()
-        orderbook = create_orderbook("MNQ", project_x=client)
-        await orderbook.initialize(realtime_client=client.realtime_client)
+        # V3: ProjectX client with context manager
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
 
-        # Get basic orderbook snapshot
-        snapshot = await orderbook.get_orderbook_snapshot(levels=10)
-        print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
+            # V3: Create realtime client with factory function
+            realtime_client = await create_realtime_client(
+                jwt_token=client.jwt_token, account_id=str(client.account_id)
+            )
 
-        # Advanced analytics
-        imbalance = await orderbook.get_market_imbalance(levels=5)
-        print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
+            # V3: EventBus for unified event handling
+            event_bus = EventBus()
 
-        # Detection algorithms
-        icebergs = await orderbook.detect_iceberg_orders()
-        print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
+            # V3: Create orderbook with EventBus
+            orderbook = create_orderbook(
+                "MNQ",  # V3: Using actual contract symbols
+                event_bus=event_bus,
+                project_x=client,
+            )
+            await orderbook.initialize(realtime_client=realtime_client)
 
-        await orderbook.cleanup()
+            # V3: Register event handlers
+            @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+            async def on_depth_update(data):
+                print(f"Depth update: {data['timestamp']}")
+
+            # Get basic orderbook snapshot
+            snapshot = await orderbook.get_orderbook_snapshot(levels=10)
+            print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
+
+            # Advanced analytics
+            imbalance = await orderbook.get_market_imbalance(levels=5)
+            print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
+
+            # Detection algorithms
+            icebergs = await orderbook.detect_iceberg_orders()
+            print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
+
+            await orderbook.cleanup()
 
 
     asyncio.run(main())
@@ -178,8 +200,15 @@ class OrderBook(OrderBookBase):
         - Hidden liquidity and volume pattern recognition
 
     Example:
-        >>> orderbook = OrderBook("ES", project_x_client)
+        >>> # V3: Create orderbook with EventBus
+        >>> event_bus = EventBus()
+        >>> orderbook = OrderBook("MNQ", event_bus, project_x_client)
         >>> await orderbook.initialize(realtime_client)
+        >>>
+        >>> # V3: Register event handlers
+        >>> @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+        >>> async def handle_depth(data):
+        ...     print(f"Depth: {data['bids'][0]['price']} @ {data['bids'][0]['size']}")
         >>>
         >>> # Get basic orderbook data
         >>> snapshot = await orderbook.get_orderbook_snapshot()
@@ -264,9 +293,15 @@ class OrderBook(OrderBookBase):
                 initialization failed.
 
         Example:
-            >>> orderbook = OrderBook("MNQ", client)
+            >>> # V3: Initialize with EventBus and realtime client
+            >>> event_bus = EventBus()
+            >>> orderbook = OrderBook("MNQ", event_bus, client)
+            >>> # V3: Create realtime client with factory
+            >>> realtime_client = await create_realtime_client(
+            ...     jwt_token=client.jwt_token, account_id=str(client.account_id)
+            ... )
             >>> success = await orderbook.initialize(
-            ...     realtime_client=client.realtime_client,
+            ...     realtime_client=realtime_client,
             ...     subscribe_to_depth=True,
             ...     subscribe_to_quotes=True,
             ... )
@@ -491,15 +526,20 @@ def create_orderbook(
         to initialize() before use.
 
     Example:
-        >>> # Create an orderbook for E-mini S&P 500 futures
+        >>> # V3: Create an orderbook with EventBus
+        >>> event_bus = EventBus()
         >>> orderbook = create_orderbook(
-        ...     instrument="ES",  # E-mini S&P 500
+        ...     instrument="MNQ",  # V3: Using actual contract symbols
+        ...     event_bus=event_bus,
         ...     project_x=client,
-        ...     timezone_str="America/New_York",
+        ...     timezone_str="America/Chicago",  # V3: Using CME timezone
         ... )
         >>>
-        >>> # Initialize with real-time data
-        >>> await orderbook.initialize(realtime_client=client.realtime_client)
+        >>> # V3: Initialize with factory-created realtime client
+        >>> realtime_client = await create_realtime_client(
+        ...     jwt_token=client.jwt_token, account_id=str(client.account_id)
+        ... )
+        >>> await orderbook.initialize(realtime_client=realtime_client)
         >>>
         >>> # Start using the orderbook
         >>> snapshot = await orderbook.get_orderbook_snapshot()

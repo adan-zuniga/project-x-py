@@ -27,30 +27,44 @@ Data Access Capabilities:
 
 Example Usage:
     ```python
+    # V3: Data access with Polars DataFrames
     # Get the most recent 100 bars of 5-minute data
     data_5m = await manager.get_data("5min", bars=100)
 
     if data_5m is not None:
         print(f"Got {len(data_5m)} bars of 5-minute data")
 
-        # Get the most recent close price
-        latest_close = data_5m["close"].last()
-        print(f"Latest close price: {latest_close}")
+        # V3: Access actual OHLCV columns
+        latest = data_5m.tail(1)
+        print(f"Latest bar:")
+        print(f"  Open: {latest['open'][0]}")
+        print(f"  High: {latest['high'][0]}")
+        print(f"  Low: {latest['low'][0]}")
+        print(f"  Close: {latest['close'][0]}")
+        print(f"  Volume: {latest['volume'][0]}")
 
-        # Calculate a simple moving average
+        # V3: Calculate indicators with Polars
         if len(data_5m) >= 20:
             sma_20 = data_5m["close"].tail(20).mean()
-            print(f"20-bar SMA: {sma_20}")
+            print(f"20-bar SMA: {sma_20:.2f}")
 
-    # Get current market price
+            # V3: Use pipe for indicator chaining
+            from project_x_py.indicators import RSI, MACD
+
+            with_indicators = data_5m.pipe(RSI, period=14).pipe(MACD)
+
+    # V3: Get current market price
     current_price = await manager.get_current_price()
     if current_price is not None:
-        print(f"Current price: ${current_price:.2f}")
+        print(f"Current MNQ price: ${current_price:.2f}")
 
-    # Get multi-timeframe data
+    # V3: Get multi-timeframe data for analysis
     mtf_data = await manager.get_mtf_data()
     for tf, data in mtf_data.items():
-        print(f"{tf}: {len(data)} bars")
+        print(f"{tf}: {len(data)} bars available")
+        if len(data) > 0:
+            latest_close = data["close"].tail(1)[0]
+            print(f"  Latest close: {latest_close:.2f}")
     ```
 
 Data Structures:

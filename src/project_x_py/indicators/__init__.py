@@ -202,7 +202,7 @@ from .candlestick import (
 )
 
 # Version info
-__version__ = "2.0.9"
+__version__ = "3.0.0-dev"
 __author__ = "TexasCoding"
 
 

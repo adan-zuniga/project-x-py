@@ -33,18 +33,37 @@ Real-time Hubs:
 
 Example Usage:
     ```python
-    # Create async client with ProjectX Gateway URLs
-    client = ProjectXRealtimeClient(jwt_token, account_id)
+    # V3: Create async client with ProjectX Gateway URLs
+    import asyncio
+    from project_x_py import create_realtime_client
 
-    # Register async managers for event handling
-    await client.add_callback("position_update", position_manager.handle_update)
-    await client.add_callback("order_update", order_manager.handle_update)
-    await client.add_callback("quote_update", data_manager.handle_quote)
 
-    # Connect and subscribe
-    if await client.connect():
-        await client.subscribe_user_updates()
-        await client.subscribe_market_data(["CON.F.US.MGC.M25"])
+    async def main():
+        # V3: Use factory function for proper initialization
+        client = await create_realtime_client(jwt_token, account_id)
+
+        # V3: Register async managers for event handling
+        await client.add_callback("position_update", position_manager.handle_update)
+        await client.add_callback("order_update", order_manager.handle_update)
+        await client.add_callback("quote_update", data_manager.handle_quote)
+
+        # V3: Connect and check both hub connections
+        if await client.connect():
+            print(f"User Hub: {client.user_connected}")
+            print(f"Market Hub: {client.market_connected}")
+
+            # V3: Subscribe to user and market data
+            await client.subscribe_user_updates()
+            await client.subscribe_market_data(["MGC", "MNQ"])
+
+            # V3: Process events
+            await asyncio.sleep(60)
+
+            # V3: Clean disconnect
+            await client.disconnect()
+
+
+    asyncio.run(main())
     ```
 
 Event Types (per ProjectX Gateway docs):
@@ -117,17 +136,25 @@ class ProjectXRealtimeClient(
         - Event statistics and flow monitoring
 
     Example:
-        >>> # Create async client with ProjectX Gateway URLs
-        >>> client = ProjectXRealtimeClient(jwt_token, account_id)
-        >>> # Register async managers for event handling
-        >>> await client.add_callback("position_update", position_manager.handle_update)
-        >>> await client.add_callback("order_update", order_manager.handle_update)
-        >>> await client.add_callback("quote_update", data_manager.handle_quote)
+        >>> # V3: Create async client with factory function
+        >>> client = await create_realtime_client(jwt_token, account_id)
+        >>> # V3: Register async callbacks for event handling
+        >>> async def handle_position(data):
+        ...     print(f"Position: {data.get('contractId')} - {data.get('netPos')}")
+        >>> async def handle_order(data):
+        ...     print(f"Order {data.get('id')}: {data.get('status')}")
+        >>> async def handle_quote(data):
+        ...     print(f"Quote: {data.get('bid')} x {data.get('ask')}")
+        >>> await client.add_callback("position_update", handle_position)
+        >>> await client.add_callback("order_update", handle_order)
+        >>> await client.add_callback("quote_update", handle_quote)
         >>>
-        >>> # Connect and subscribe
+        >>> # V3: Connect and subscribe with error handling
         >>> if await client.connect():
         ...     await client.subscribe_user_updates()
-        ...     await client.subscribe_market_data(["CON.F.US.MGC.M25"])
+        ...     await client.subscribe_market_data(["MGC", "MNQ"])
+        ... else:
+        ...     print("Connection failed")
 
     Event Types (per ProjectX Gateway docs):
         User Hub: GatewayUserAccount, GatewayUserPosition, GatewayUserOrder, GatewayUserTrade
@@ -175,21 +202,29 @@ class ProjectXRealtimeClient(
             3. Default TopStepX endpoints
 
         Example:
-            >>> # Using default TopStepX endpoints
-            >>> client = ProjectXRealtimeClient(jwt_token, "12345")
-            >>>
-            >>> # Using custom config
-            >>> config = ProjectXConfig(
-            ...     user_hub_url="https://custom.api.com/hubs/user",
-            ...     market_hub_url="https://custom.api.com/hubs/market",
+            >>> # V3: Using factory function (recommended)
+            >>> client = await create_realtime_client(
+            ...     jwt_token=client.get_session_token(),
+            ...     account_id=str(client.get_account_info().id),
             ... )
-            >>> client = ProjectXRealtimeClient(jwt_token, "12345", config=config)
+            >>> # V3: Using direct instantiation with default endpoints
+            >>> client = ProjectXRealtimeClient(jwt_token=jwt_token, account_id="12345")
             >>>
-            >>> # Override specific URL
+            >>> # V3: Using custom config for different environments
+            >>> from project_x_py.models import ProjectXConfig
+            >>> config = ProjectXConfig(
+            ...     user_hub_url="https://gateway.topstepx.com/hubs/user",
+            ...     market_hub_url="https://gateway.topstepx.com/hubs/market",
+            ... )
             >>> client = ProjectXRealtimeClient(
-            ...     jwt_token,
-            ...     "12345",
-            ...     market_hub_url="https://test.api.com/hubs/market",
+            ...     jwt_token=jwt_token, account_id="12345", config=config
+            ... )
+            >>>
+            >>> # V3: Override specific URL for testing
+            >>> client = ProjectXRealtimeClient(
+            ...     jwt_token=jwt_token,
+            ...     account_id="12345",
+            ...     market_hub_url="https://test.topstepx.com/hubs/market",
             ... )
 
         Note:

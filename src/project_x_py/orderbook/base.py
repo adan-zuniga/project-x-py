@@ -29,22 +29,30 @@ Core Data Structures:
 
 Example Usage:
     ```python
-    # Directly using OrderBookBase for custom analytics
-    base = OrderBookBase("MNQ")
-    await base.get_best_bid_ask()
-    await base.add_callback("trade", lambda d: print(d))
+    # V3: Using OrderBookBase with EventBus
+    from project_x_py.events import EventBus, EventType
+
+    event_bus = EventBus()
+    base = OrderBookBase("MNQ", event_bus)  # V3: EventBus required
+
+
+    # V3: Register event handlers via EventBus
+    @event_bus.on(EventType.TRADE_TICK)
+    async def on_trade(data):
+        print(
+            f"Trade: {data['size']} @ {data['price']} ({data['side']})"
+        )  # V3: actual field names
+
+
+    @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+    async def on_depth(data):
+        print(f"Depth update: {len(data['bids'])} bids, {len(data['asks'])} asks")
+
 
     # Get orderbook snapshot
     snapshot = await base.get_orderbook_snapshot(levels=5)
     print(f"Best bid: {snapshot['best_bid']}, Best ask: {snapshot['best_ask']}")
-
-
-    # Register callbacks for real-time events
-    async def on_trade(data):
-        print(f"Trade: {data['volume']} @ {data['price']}")
-
-
-    await base.add_callback("trade", on_trade)
+    print(f"Spread: {snapshot['spread']}, Imbalance: {snapshot['imbalance']:.2%}")
     ```
 
 See Also:
@@ -391,12 +399,16 @@ class OrderBookBase:
                 timestamp: The time of calculation (datetime)
 
         Example:
+            >>> # V3: Get best bid/ask with spread
             >>> prices = await orderbook.get_best_bid_ask()
             >>> if prices["bid"] is not None and prices["ask"] is not None:
             ...     print(
-            ...         f"Bid: {prices['bid']}, Ask: {prices['ask']}, "
-            ...         f"Spread: {prices['spread']}"
+            ...         f"Bid: {prices['bid']:.2f}, Ask: {prices['ask']:.2f}, "
+            ...         f"Spread: {prices['spread']:.2f} ticks"
             ...     )
+            ...     # V3: Calculate mid price
+            ...     mid = (prices["bid"] + prices["ask"]) / 2
+            ...     print(f"Mid price: {mid:.2f}")
             ... else:
             ...     print("Incomplete market data")
         """
@@ -505,26 +517,39 @@ class OrderBookBase:
             ProjectXError: If an error occurs during snapshot generation
 
         Example:
-            >>> # Get full orderbook with 5 levels on each side
+            >>> # V3: Get full orderbook with 5 levels on each side
             >>> snapshot = await orderbook.get_orderbook_snapshot(levels=5)
             >>>
-            >>> # Print top of book
+            >>> # V3: Print top of book with imbalance
             >>> print(
-            ...     f"Best Bid: {snapshot['best_bid']} ({snapshot['total_bid_volume']})"
+            ...     f"Best Bid: {snapshot['best_bid']:.2f} ({snapshot['total_bid_volume']} contracts)"
             ... )
             >>> print(
-            ...     f"Best Ask: {snapshot['best_ask']} ({snapshot['total_ask_volume']})"
+            ...     f"Best Ask: {snapshot['best_ask']:.2f} ({snapshot['total_ask_volume']} contracts)"
             ... )
-            >>> print(f"Spread: {snapshot['spread']}, Mid: {snapshot['mid_price']}")
+            >>> print(
+            ...     f"Spread: {snapshot['spread']:.2f}, Mid: {snapshot['mid_price']:.2f}"
+            ... )
+            >>> print(
+            ...     f"Imbalance: {snapshot['imbalance']:.2%} ({'Bid Heavy' if snapshot['imbalance'] > 0 else 'Ask Heavy'})"
+            ... )
             >>>
-            >>> # Display full depth
-            >>> print("Bids:")
+            >>> # V3: Display depth with cumulative volume
+            >>> cumulative_bid = 0
+            >>> print("\nBids:")
             >>> for bid in snapshot["bids"]:
-            ...     print(f"  {bid['price']}: {bid['volume']}")
+            ...     cumulative_bid += bid["volume"]
+            ...     print(
+            ...         f"  {bid['price']:.2f}: {bid['volume']:5d} (cum: {cumulative_bid:6d})"
+            ...     )
             >>>
-            >>> print("Asks:")
+            >>> cumulative_ask = 0
+            >>> print("\nAsks:")
             >>> for ask in snapshot["asks"]:
-            ...     print(f"  {ask['price']}: {ask['volume']}")
+            ...     cumulative_ask += ask["volume"]
+            ...     print(
+            ...         f"  {ask['price']:.2f}: {ask['volume']:5d} (cum: {cumulative_ask:6d})"
+            ...     )
         """
         async with self.orderbook_lock:
             try:
@@ -650,15 +675,23 @@ class OrderBookBase:
                 the event data specific to that event type.
 
         Example:
-            >>> # Register an async callback for trade events
+            >>> # V3: DEPRECATED - Use EventBus instead
+            >>> # Old callback style (deprecated):
+            >>> # await orderbook.add_callback("trade", on_trade)
+            >>> # V3: Modern EventBus approach
+            >>> from project_x_py.events import EventBus, EventType
+            >>> event_bus = EventBus()
+            >>> @event_bus.on(EventType.TRADE_TICK)
             >>> async def on_trade(data):
-            ...     print(f"Trade: {data['volume']} @ {data['price']} ({data['side']})")
-            >>> await orderbook.add_callback("trade", on_trade)
-            >>>
-            >>> # Register a synchronous callback for best bid changes
-            >>> def on_best_bid_change(data):
-            ...     print(f"New best bid: {data['price']}")
-            >>> await orderbook.add_callback("best_bid_change", on_best_bid_change)
+            ...     print(
+            ...         f"Trade: {data['size']} @ {data['price']} ({data['side']})"
+            ...     )  # V3: actual field names
+            >>> @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+            >>> async def on_depth_change(data):
+            ...     print(
+            ...         f"New best bid: {data['bids'][0]['price'] if data['bids'] else 'None'}"
+            ...     )
+            >>> # V3: Events automatically flow through EventBus
         """
         async with self._callback_lock:
             logger.warning(

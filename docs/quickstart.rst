@@ -61,13 +61,13 @@ Step 3: Get Market Data
        async with ProjectX.from_env() as client:
            await client.authenticate()
            
-           # Get historical data for Micro Gold futures
-           data = await client.get_bars('MGC', days=5, interval=15)
+           # Get historical data for Micro E-mini NASDAQ futures (V3: actual symbol)
+           data = await client.get_bars('MNQ', days=5, interval=15)
            print(f"Retrieved {len(data)} bars of data")
            print(data.head())
 
            # Search for instruments
-           instruments = await client.search_instruments('MGC')
+           instruments = await client.search_instruments('MNQ')
            for instrument in instruments:
                print(f"{instrument.name}: {instrument.description}")
 
@@ -88,10 +88,13 @@ Step 4: Place Your First Order
            await client.authenticate()
            
            # Get instrument details first
-           instrument = await client.get_instrument('MGC')
+           instrument = await client.get_instrument('MNQ')  # V3: actual symbol
            
-           # Create realtime client and order manager
-           realtime_client = create_realtime_client(client.session_token)
+           # V3: Create realtime client with JWT token and account ID
+           realtime_client = await create_realtime_client(
+               jwt_token=client.jwt_token,
+               account_id=str(client.account_id)
+           )
            order_manager = create_order_manager(client, realtime_client)
 
            # Place a limit order
@@ -99,7 +102,7 @@ Step 4: Place Your First Order
                contract_id=instrument.id,  # Use instrument ID
                side=0,                     # 0=Buy, 1=Sell
                size=1,                     # 1 contract
-               limit_price=2050.0          # Limit price
+               limit_price=21050.0         # Limit price (V3: realistic MNQ price)
            )
 
            if response.success:
@@ -120,8 +123,11 @@ Step 5: Monitor Positions
        async with ProjectX.from_env() as client:
            await client.authenticate()
            
-           # Create realtime client and position manager
-           realtime_client = create_realtime_client(client.session_token)
+           # V3: Create realtime client with JWT and account ID
+           realtime_client = await create_realtime_client(
+               jwt_token=client.jwt_token,
+               account_id=str(client.account_id)
+           )
            position_manager = create_position_manager(client, realtime_client)
 
            # Get all open positions
@@ -142,27 +148,33 @@ Step 6: Real-time Data (Optional)
 .. code-block:: python
 
    from project_x_py import create_trading_suite
+   from project_x_py.events import EventBus, EventType
 
    async def setup_realtime():
        async with ProjectX.from_env() as client:
            await client.authenticate()
            
-           # Create complete trading suite with real-time capabilities
+           # V3: Create complete trading suite with EventBus
            suite = await create_trading_suite(
-               instrument='MGC',
+               instrument='MNQ',  # V3: actual symbol
                project_x=client,
+               jwt_token=client.jwt_token,
+               account_id=client.account_id,
                timeframes=['1min', '5min', '15min']
            )
 
-           # Connect to real-time feeds
-           await suite['realtime_client'].connect()
+           # V3: Register event handlers via EventBus
+           @suite.event_bus.on(EventType.NEW_BAR)
+           async def on_new_bar(data):
+               print(f"New bar: {data['timeframe']} - {data['close']}")
 
-           # Start real-time data collection
-           await suite['data_manager'].initialize(initial_days=1)
-           await suite['data_manager'].start_realtime_feed()
+           # V3: Connect and start real-time feeds
+           await suite.realtime_client.connect()
+           await suite.data_manager.initialize(initial_days=1)
+           await suite.data_manager.start_realtime_feed()
 
-           # Get real-time OHLCV data
-           live_data = await suite['data_manager'].get_data('5min')
+           # V3: Access components directly
+           live_data = await suite.data_manager.get_data('5min')
            print(f"Live data: {len(live_data)} bars")
            
            # Keep running for 60 seconds to collect data
@@ -186,10 +198,13 @@ Basic Trading Workflow
            await client.authenticate()
            
            # Get instrument details
-           instrument = await client.get_instrument('MGC')
+           instrument = await client.get_instrument('MNQ')  # V3: actual symbol
            
-           # 2. Set up trading managers
-           realtime_client = create_realtime_client(client.session_token)
+           # 2. V3: Set up trading managers with JWT and account ID
+           realtime_client = await create_realtime_client(
+               jwt_token=client.jwt_token,
+               account_id=str(client.account_id)
+           )
            order_manager = create_order_manager(client, realtime_client)
            position_manager = create_position_manager(client, realtime_client)
 
@@ -197,7 +212,7 @@ Basic Trading Workflow
            print(f"Account balance: ${client.account_info.balance:,.2f}")
 
            # 4. Get market data
-           data = await client.get_bars('MGC', days=1, interval=5)
+           data = await client.get_bars('MNQ', days=1, interval=5)  # V3: actual symbol
            current_price = float(data.select('close').tail(1).item())
 
            # 5. Place bracket order (entry + stop + target)
@@ -227,7 +242,7 @@ Market Analysis with Technical Indicators
            await client.authenticate()
            
            # Get data
-           data = await client.get_bars('MGC', days=30, interval=60)
+           data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
 
            # Calculate technical indicators using TA-Lib style functions
            data = RSI(data, period=14)
@@ -269,8 +284,12 @@ Error Handling
            async with ProjectX.from_env() as client:
                await client.authenticate()
                
-               instrument = await client.get_instrument('MGC')
-               realtime_client = create_realtime_client(client.session_token)
+               instrument = await client.get_instrument('MNQ')  # V3: actual symbol
+               # V3: Create realtime client with JWT
+               realtime_client = await create_realtime_client(
+                   jwt_token=client.jwt_token,
+                   account_id=str(client.account_id)
+               )
                order_manager = create_order_manager(client, realtime_client)
                
                # Attempt to place order
@@ -278,7 +297,7 @@ Error Handling
                    contract_id=instrument.id, 
                    side=0, 
                    size=1, 
-                   limit_price=2050.0
+                   limit_price=21050.0  # V3: realistic MNQ price
                )
                
        except ProjectXOrderError as e:

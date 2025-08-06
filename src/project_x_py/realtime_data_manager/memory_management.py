@@ -27,20 +27,38 @@ Memory Management Capabilities:
 
 Example Usage:
     ```python
-    # Memory management is handled automatically
-    # Access memory statistics for monitoring
+    # V3: Memory management with async patterns
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
 
-    stats = manager.get_memory_stats()
-    print(f"Total bars in memory: {stats['total_bars']}")
-    print(f"Ticks processed: {stats['ticks_processed']}")
-    print(f"Bars cleaned: {stats['bars_cleaned']}")
+        # V3: Create manager with memory configuration
+        manager = RealtimeDataManager(
+            instrument="MNQ",
+            project_x=client,
+            realtime_client=realtime_client,
+            timeframes=["1min", "5min"],
+            max_bars_per_timeframe=500,  # V3: Configurable limits
+            tick_buffer_size=100,
+        )
 
-    # Check timeframe-specific statistics
-    for tf, count in stats["timeframe_bar_counts"].items():
-        print(f"{tf}: {count} bars")
+        # V3: Access memory statistics asynchronously
+        stats = await manager.get_memory_stats()
+        print(f"Total bars in memory: {stats['total_bars']}")
+        print(f"Total data points: {stats['total_data_points']}")
+        print(f"Ticks processed: {stats['ticks_processed']}")
+        print(f"Bars cleaned: {stats['bars_cleaned']}")
 
-    # Memory management happens automatically in background
-    # No manual intervention required
+        # V3: Check timeframe-specific statistics
+        for tf, count in stats["timeframe_bar_counts"].items():
+            print(f"{tf}: {count} bars")
+
+        # V3: Monitor memory health
+        if stats["total_data_points"] > 10000:
+            print("Warning: High memory usage detected")
+            await manager.cleanup()  # Force cleanup
+
+        # V3: Memory management happens automatically
+        # Background cleanup task runs periodically
     ```
 
 Memory Management Strategy:

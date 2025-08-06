@@ -27,15 +27,30 @@ Memory Management Strategies:
 
 Example Usage:
     ```python
-    # Assuming orderbook is initialized
-    await orderbook.memory_manager.start()
-    await orderbook.memory_manager.cleanup_old_data()
-    stats = await orderbook.memory_manager.get_memory_stats()
-    print(stats["recent_trades_count"])
+    # V3: Memory management with EventBus-enabled orderbook
+    from project_x_py import create_orderbook
+    from project_x_py.events import EventBus
 
-    # Monitor memory usage
-    memory_stats = await orderbook.get_memory_stats()
-    print(f"Orderbook size: {memory_stats['orderbook_bids_count']} bids")
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+    await orderbook.initialize(realtime_client)
+
+    # V3: Memory manager auto-starts with orderbook
+    # Manual cleanup if needed
+    await orderbook.memory_manager.cleanup_old_data()
+
+    # V3: Get comprehensive memory statistics
+    stats = await orderbook.memory_manager.get_memory_stats()
+    print(f"Trades in memory: {stats['recent_trades_count']}")
+    print(f"Bid levels: {stats['orderbook_bids_count']}")
+    print(f"Ask levels: {stats['orderbook_asks_count']}")
+    print(f"Memory usage: {stats['memory_usage_mb']:.1f} MB")
+
+    # V3: Configure memory limits
+    orderbook.memory_config.max_trades = 5000
+    orderbook.memory_config.max_depth_entries = 200
     print(f"Recent trades: {memory_stats['recent_trades_count']}")
     print(
         f"Items cleaned: {memory_stats['trades_cleaned'] + memory_stats['depth_cleaned']}"

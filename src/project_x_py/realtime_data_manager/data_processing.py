@@ -27,22 +27,38 @@ Data Processing Capabilities:
 
 Example Usage:
     ```python
-    # The data processing is handled automatically when real-time feed is active
-    # Register callbacks to respond to processed data
+    # V3: Data processing with EventBus integration
+    from project_x_py import EventBus, EventType
+
+    event_bus = EventBus()
+    manager = RealtimeDataManager(..., event_bus=event_bus)
 
 
+    # V3: Register for processed bar events
+    @event_bus.on(EventType.NEW_BAR)
     async def on_new_bar(data):
         timeframe = data["timeframe"]
         bar_data = data["data"]
-        print(f"New {timeframe} bar: {bar_data['close']}")
+
+        # V3: Access actual field names from ProjectX
+        print(f"New {timeframe} bar:")
+        print(f"  Open: {bar_data['open']}")
+        print(f"  High: {bar_data['high']}")
+        print(f"  Low: {bar_data['low']}")
+        print(f"  Close: {bar_data['close']}")
+        print(f"  Volume: {bar_data['volume']}")
 
 
-    await manager.add_callback("new_bar", on_new_bar)
-
-    # Data processing happens automatically in background
+    # V3: Data processing happens automatically in background
     # Access processed data through data access methods
     current_price = await manager.get_current_price()
     data_5m = await manager.get_data("5min", bars=100)
+
+    # V3: Use Polars for analysis
+    if data_5m is not None:
+        recent = data_5m.tail(20)
+        sma = recent["close"].mean()
+        print(f"20-bar SMA: {sma}")
     ```
 
 Processing Flow:

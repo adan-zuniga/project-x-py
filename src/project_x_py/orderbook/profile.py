@@ -17,9 +17,26 @@ Key Features:
 
 Example Usage:
     ```python
-    # Assuming orderbook is initialized and populated
+    # V3: Volume profiling with EventBus-enabled orderbook
+    from project_x_py import create_orderbook
+    from project_x_py.events import EventBus
+
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+    await orderbook.initialize(realtime_client)
+
+    # V3: Get volume profile with POC and value areas
     vp = await orderbook.get_volume_profile(time_window_minutes=60)
-    print(vp["poc"], vp["value_area_high"], vp["value_area_low"])
+    print(f"POC: {vp['poc']:.2f}")
+    print(f"Value Area: {vp['value_area_low']:.2f} - {vp['value_area_high']:.2f}")
+    print(f"Volume at POC: {vp['poc_volume']} contracts")
+
+    # V3: Support/resistance levels
+    levels = await orderbook.get_support_resistance_levels()
+    for support in levels["support_levels"]:
+        print(f"Support at {support['price']:.2f}: {support['strength']} touches")
     ```
 
 See Also:

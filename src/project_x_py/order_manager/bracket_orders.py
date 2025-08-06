@@ -27,15 +27,52 @@ order fills, providing consistent trade management without manual intervention.
 
 Example Usage:
     ```python
-    # Assuming om is an instance of OrderManager
-    await om.place_bracket_order(
-        contract_id="MGC",
-        side=0,
-        size=1,
-        entry_price=2050.0,
-        stop_loss_price=2040.0,
-        take_profit_price=2070.0,
-    )
+    # V3: Place bracket orders with automatic risk management
+    import asyncio
+    from project_x_py import ProjectX, create_realtime_client, EventBus
+    from project_x_py.order_manager import OrderManager
+
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # V3: Initialize order manager with dependencies
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
+            om = OrderManager(client, event_bus)
+            await om.initialize(realtime_client)
+
+            # V3: Place a bullish bracket order (buy with stop below, target above)
+            bracket = await om.place_bracket_order(
+                contract_id="MGC",
+                side=0,  # Buy
+                size=1,
+                entry_price=2050.0,
+                stop_loss_price=2040.0,  # Risk: $10 per contract
+                take_profit_price=2070.0,  # Reward: $20 per contract
+                entry_type="limit",  # Can also use "market"
+            )
+
+            print(f"Bracket order placed successfully:")
+            print(f"  Entry Order ID: {bracket.entry_order_id}")
+            print(f"  Stop Loss ID: {bracket.stop_order_id}")
+            print(f"  Take Profit ID: {bracket.target_order_id}")
+
+            # V3: Place a bearish bracket order (sell with stop above, target below)
+            short_bracket = await om.place_bracket_order(
+                contract_id="MNQ",
+                side=1,  # Sell
+                size=2,
+                entry_price=18500.0,
+                stop_loss_price=18550.0,  # Stop above for short
+                take_profit_price=18400.0,  # Target below for short
+            )
+
+
+    asyncio.run(main())
     ```
 
 See Also:
@@ -126,16 +163,29 @@ class BracketOrderMixin:
             ProjectXOrderError: If bracket order validation or placement fails
 
         Example:
-            >>> # Place a bullish bracket order
+            >>> # V3: Place a bullish bracket order with 1:2 risk/reward
             >>> bracket = await om.place_bracket_order(
             ...     contract_id="MGC",
-            ...     side=0,
+            ...     side=0,  # Buy
             ...     size=1,
             ...     entry_price=2050.0,
-            ...     stop_loss_price=2040.0,
-            ...     take_profit_price=2070.0,
+            ...     stop_loss_price=2040.0,  # $10 risk
+            ...     take_profit_price=2070.0,  # $20 reward (2:1 R/R)
+            ...     entry_type="limit",  # Use "market" for immediate entry
             ... )
-            >>> print(f"Entry: {bracket.entry_order_id}, Stop: {bracket.stop_order_id}")
+            >>> print(f"Entry: {bracket.entry_order_id}")
+            >>> print(f"Stop: {bracket.stop_order_id}")
+            >>> print(f"Target: {bracket.target_order_id}")
+            >>> print(f"Success: {bracket.success}")
+            >>> # V3: Place a bearish bracket order (short position)
+            >>> short_bracket = await om.place_bracket_order(
+            ...     contract_id="ES",
+            ...     side=1,  # Sell/Short
+            ...     size=1,
+            ...     entry_price=5000.0,
+            ...     stop_loss_price=5020.0,  # Stop above for short
+            ...     take_profit_price=4960.0,  # Target below for short
+            ... )
         """
         try:
             # Validate prices

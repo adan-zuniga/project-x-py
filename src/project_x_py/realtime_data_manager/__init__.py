@@ -29,40 +29,53 @@ Real-time Capabilities:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX
-    from project_x_py.realtime import ProjectXRealtimeClient
+    # V3: Uses factory functions and EventBus integration
+    from project_x_py import ProjectX, EventBus
+    from project_x_py.realtime import create_realtime_client
     from project_x_py.realtime_data_manager import RealtimeDataManager
 
     async with ProjectX.from_env() as client:
         await client.authenticate()
 
-        # Create real-time client
-        realtime_client = ProjectXRealtimeClient(
-            jwt_token=client.session_token, account_id=client.account_info.id
+        # V3: Create real-time client with factory
+        realtime_client = await create_realtime_client(
+            jwt_token=client.jwt_token, account_id=str(client.account_id)
         )
+
+        # V3: Initialize with EventBus for unified events
+        event_bus = EventBus()
 
         # Create data manager for multiple timeframes
         data_manager = RealtimeDataManager(
-            instrument="MGC",
+            instrument="MNQ",  # V3: Using actual contract symbols
             project_x=client,
             realtime_client=realtime_client,
             timeframes=["1min", "5min", "15min", "1hr"],
             timezone="America/Chicago",
+            event_bus=event_bus,  # V3: EventBus integration
         )
 
         # Initialize with historical data
-        if await data_manager.initialize(initial_days=30):
+        if await data_manager.initialize(initial_days=5):
             # Start real-time feed
             if await data_manager.start_realtime_feed():
-                # Register callbacks for new bars
+                # V3: Register callbacks for new bars with actual field names
                 async def on_new_bar(data):
-                    print(f"New {data['timeframe']} bar: {data['data']}")
+                    bar = data["data"]
+                    print(f"New {data['timeframe']} bar:")
+                    print(f"  Open: {bar['open']}, High: {bar['high']}")
+                    print(f"  Low: {bar['low']}, Close: {bar['close']}")
+                    print(f"  Volume: {bar['volume']}")
 
                 await data_manager.add_callback("new_bar", on_new_bar)
 
-                # Access real-time data
+                # V3: Access real-time data with proper methods
                 current_price = await data_manager.get_current_price()
                 data_5m = await data_manager.get_data("5min", bars=100)
+
+                # V3: Get memory stats for monitoring
+                stats = await data_manager.get_memory_stats()
+                print(f"Memory usage: {stats}")
 
                 # Process data...
                 await asyncio.sleep(60)

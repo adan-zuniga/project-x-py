@@ -17,9 +17,32 @@ Key Features:
 
 Example Usage:
     ```python
-    # Assuming orderbook and realtime_client are initialized
-    await orderbook.realtime_handler.initialize(realtime_client)
-    # Real-time updates are now handled automatically
+    # V3: Real-time handler with EventBus integration
+    from project_x_py import create_orderbook, create_realtime_client
+    from project_x_py.events import EventBus, EventType
+
+    # V3: Create components with EventBus
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+
+    # V3: Create realtime client with factory
+    realtime_client = await create_realtime_client(
+        jwt_token=client.jwt_token, account_id=str(client.account_id)
+    )
+
+    # V3: Initialize orderbook with realtime (handler is internal)
+    await orderbook.initialize(realtime_client)
+
+
+    # V3: Real-time updates flow through EventBus
+    @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+    async def on_depth(data):
+        print(f"Depth: Best bid {data['bids'][0]['price']} @ {data['bids'][0]['size']}")
+
+
+    # Real-time updates are now handled automatically through EventBus
     ```
 
 See Also:

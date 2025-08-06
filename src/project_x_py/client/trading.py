@@ -20,16 +20,39 @@ Key Features:
 Example Usage:
     ```python
     import asyncio
+    from datetime import datetime, timedelta
     from project_x_py import ProjectX
 
 
     async def main():
+        # V3: Query trading data asynchronously
         async with ProjectX.from_env() as client:
             await client.authenticate()
-            positions = await client.get_positions()
-            trades = await client.search_trades(limit=10)
-            print([p.symbol for p in positions])
-            print([t.contractId for t in trades])
+
+            # Get current open positions
+            positions = await client.search_open_positions()
+            for pos in positions:
+                print(f"Position: {pos.contractId}")
+                print(f"  Size: {pos.netPos}")
+                print(f"  Avg Price: ${pos.buyAvgPrice:.2f}")
+                print(f"  Unrealized P&L: ${pos.unrealizedPnl:.2f}")
+
+            # Get recent trades (last 7 days)
+            start_date = datetime.now() - timedelta(days=7)
+            trades = await client.search_trades(start_date=start_date, limit=50)
+
+            # Analyze trades by contract
+            contracts = {}
+            for trade in trades:
+                if trade.contractId not in contracts:
+                    contracts[trade.contractId] = []
+                contracts[trade.contractId].append(trade)
+
+            for contract_id, contract_trades in contracts.items():
+                total_volume = sum(abs(t.filledQty) for t in contract_trades)
+                print(
+                    f"{contract_id}: {len(contract_trades)} trades, volume: {total_volume}"
+                )
 
 
     asyncio.run(main())
@@ -88,10 +111,15 @@ class TradingMixin:
             ProjectXAuthenticationError: If authentication is required
 
         Example:
+            >>> # V3: Get detailed position information
             >>> positions = await client.get_positions()
             >>> for pos in positions:
-            >>>     print(f"{pos.symbol}: {pos.quantity} @ {pos.price}")
-            >>>     print(f"Unrealized P&L: ${pos.unrealized_pnl:,.2f}")
+            >>>     print(f"Contract: {pos.contractId}")
+            >>>     print(f"  Net Position: {pos.netPos}")
+            >>>     print(f"  Buy Avg Price: ${pos.buyAvgPrice:.2f}")
+            >>>     print(f"  Sell Avg Price: ${pos.sellAvgPrice:.2f}")
+            >>>     print(f"  Unrealized P&L: ${pos.unrealizedPnl:,.2f}")
+            >>>     print(f"  Realized P&L: ${pos.realizedPnl:,.2f}")
         """
         await self._ensure_authenticated()
 
@@ -120,9 +148,21 @@ class TradingMixin:
             List of Position objects
 
         Example:
+            >>> # V3: Search open positions with P&L calculation
             >>> positions = await client.search_open_positions()
-            >>> total_pnl = sum(pos.unrealized_pnl for pos in positions)
-            >>> print(f"Total P&L: ${total_pnl:,.2f}")
+            >>> # Calculate total P&L
+            >>> total_unrealized = sum(pos.unrealizedPnl for pos in positions)
+            >>> total_realized = sum(pos.realizedPnl for pos in positions)
+            >>> print(f"Open positions: {len(positions)}")
+            >>> print(f"Total Unrealized P&L: ${total_unrealized:,.2f}")
+            >>> print(f"Total Realized P&L: ${total_realized:,.2f}")
+            >>> print(f"Total P&L: ${total_unrealized + total_realized:,.2f}")
+            >>> # Group by contract
+            >>> by_contract = {}
+            >>> for pos in positions:
+            >>>     if pos.contractId not in by_contract:
+            >>>         by_contract[pos.contractId] = []
+            >>>     by_contract[pos.contractId].append(pos)
         """
         await self._ensure_authenticated()
 
@@ -177,14 +217,32 @@ class TradingMixin:
             ProjectXError: If trade search fails or no account information available
 
         Example:
+            >>> # V3: Search and analyze trade history
             >>> from datetime import datetime, timedelta
+            >>> import pytz
             >>> # Get last 7 days of trades
-            >>> start = datetime.now() - timedelta(days=7)
-            >>> trades = await client.search_trades(start_date=start)
+            >>> end_date = datetime.now(pytz.UTC)
+            >>> start_date = end_date - timedelta(days=7)
+            >>> trades = await client.search_trades(
+            ...     start_date=start_date, end_date=end_date, limit=100
+            ... )
+            >>> # Analyze trades
+            >>> total_volume = 0
+            >>> total_commission = 0
             >>> for trade in trades:
-            >>>     print(
-            >>>         f"Trade: {trade.contractId} - {trade.size} @ ${trade.price:.2f}"
-            >>>     )
+            >>>     print(f"Trade ID: {trade.id}")
+            >>>     print(f"  Contract: {trade.contractId}")
+            >>>     print(f"  Side: {'BUY' if trade.filledQty > 0 else 'SELL'}")
+            >>>     print(f"  Quantity: {abs(trade.filledQty)}")
+            >>>     print(f"  Price: ${trade.fillPrice:.2f}")
+            >>>     print(f"  Commission: ${trade.commission:.2f}")
+            >>>     print(f"  Time: {trade.fillTime}")
+            >>>     total_volume += abs(trade.filledQty)
+            >>>     total_commission += trade.commission
+            >>> print(f"\nSummary:")
+            >>> print(f"Total trades: {len(trades)}")
+            >>> print(f"Total volume: {total_volume}")
+            >>> print(f"Total commission: ${total_commission:.2f}")
         """
         await self._ensure_authenticated()
 

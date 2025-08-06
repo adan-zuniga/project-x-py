@@ -26,10 +26,20 @@ Example Usage:
 
 
     async def main():
+        # V3: Monitor client performance and health metrics
         async with ProjectX.from_env() as client:
-            status = await client.get_health_status()
-            print(f"API Calls: {status['client_stats']['api_calls']}")
-            print(f"Cache Hit Rate: {status['client_stats']['cache_hit_rate']:.1%}")
+            await client.authenticate()
+
+            # Perform some operations
+            await client.get_instrument("MNQ")
+            await client.get_bars("MNQ", days=1)
+
+            # Check performance statistics
+            stats = await client.get_health_status()
+            print(f"API Calls: {stats['api_calls']}")
+            print(f"Cache Hits: {stats['cache_hits']}")
+            print(f"Cache Hit Ratio: {stats['cache_hit_ratio']:.1%}")
+            print(f"Active Connections: {stats['active_connections']}")
 
 
     asyncio.run(main())
@@ -295,9 +305,13 @@ class HttpMixin:
                 - account: Current account name if authenticated
 
         Example:
+            >>> # V3: Get comprehensive performance metrics
             >>> status = await client.get_health_status()
-            >>> print(f"Cache hit rate: {status['client_stats']['cache_hit_rate']:.1%}")
-            >>> print(f"API calls made: {status['client_stats']['api_calls']}")
+            >>> print(f"API Calls: {status['api_calls']}")
+            >>> print(f"Cache Hits: {status['cache_hits']}")
+            >>> print(f"Cache Hit Ratio: {status['cache_hit_ratio']:.2%}")
+            >>> print(f"Success Rate: {status['success_rate']:.2%}")
+            >>> print(f"Active Connections: {status['active_connections']}")
         """
         # Calculate client statistics
         total_cache_requests = self.cache_hit_count + self.api_call_count

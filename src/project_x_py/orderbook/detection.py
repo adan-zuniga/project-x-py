@@ -28,14 +28,27 @@ Detection Algorithms:
 
 Example Usage:
     ```python
-    # Assuming orderbook is initialized and populated
-    icebergs = await orderbook.detect_iceberg_orders(min_refreshes=5)
-    print([i["price"] for i in icebergs["iceberg_levels"]])
+    # V3: Advanced detection with EventBus-enabled orderbook
+    from project_x_py import create_orderbook
+    from project_x_py.events import EventBus, EventType
 
-    # Order clustering analysis
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+    await orderbook.initialize(realtime_client)
+
+    # V3: Detect iceberg orders with confidence scoring
+    icebergs = await orderbook.detect_iceberg_orders(min_refreshes=5)
+    for level in icebergs["iceberg_levels"]:
+        print(f"Iceberg at {level['price']:.2f}: confidence {level['confidence']:.1%}")
+
+    # V3: Order clustering analysis
     clusters = await orderbook.detect_order_clusters(min_cluster_size=3)
     for cluster in clusters:
-        print(f"Cluster at {cluster['center_price']}: {cluster['total_volume']}")
+        print(
+            f"Cluster at {cluster['center_price']:.2f}: {cluster['total_volume']} contracts"
+        )
 
     # Advanced market metrics
     metrics = await orderbook.get_advanced_market_metrics()

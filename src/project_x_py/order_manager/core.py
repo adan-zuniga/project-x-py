@@ -19,12 +19,35 @@ Key Features:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX
+    # V3: Initialize order manager with event bus and real-time support
+    import asyncio
+    from project_x_py import ProjectX, create_realtime_client, EventBus
     from project_x_py.order_manager import OrderManager
 
-    async with ProjectX.from_env() as client:
-        om = OrderManager(client)
-        await om.place_limit_order("ES", 0, 1, 5000.0)
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # V3: Create dependencies
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
+
+            # V3: Initialize order manager
+            om = OrderManager(client, event_bus)
+            await om.initialize(realtime_client)
+
+            # V3: Place orders with automatic price alignment
+            await om.place_limit_order("ES", side=0, size=1, limit_price=5000.0)
+
+            # V3: Monitor order statistics
+            stats = await om.get_order_statistics()
+            print(f"Fill rate: {stats['fill_rate']:.1%}")
+
+
+    asyncio.run(main())
     ```
 
 See Also:
@@ -309,11 +332,25 @@ class OrderManager(
             ProjectXOrderError: If order placement fails due to invalid parameters or API errors
 
         Example:
-            >>> # Place a limit buy order
+            >>> # V3: Place a limit buy order with automatic price alignment
             >>> response = await om.place_order(
-            ...     contract_id="MGC", order_type=1, side=0, size=1, limit_price=2050.0
+            ...     contract_id="MGC",
+            ...     order_type=1,  # Limit order
+            ...     side=0,  # Buy
+            ...     size=1,
+            ...     limit_price=2050.0,  # Automatically aligned to tick size
+            ...     custom_tag="my_strategy_001",  # Optional tag for tracking
             ... )
             >>> print(f"Order placed: {response.orderId}")
+            >>> print(f"Success: {response.success}")
+            >>> # V3: Place a stop loss order
+            >>> stop_response = await om.place_order(
+            ...     contract_id="MGC",
+            ...     order_type=4,  # Stop order
+            ...     side=1,  # Sell
+            ...     size=1,
+            ...     stop_price=2040.0,  # Automatically aligned to tick size
+            ... )
         """
         # Add logging context
         with LogContext(

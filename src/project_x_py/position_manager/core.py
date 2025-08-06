@@ -30,28 +30,45 @@ Position Manager Components:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX
+    # V3: Initialize position manager with EventBus and real-time support
+    import asyncio
+    from project_x_py import ProjectX, create_realtime_client, EventBus
     from project_x_py.position_manager import PositionManager
 
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        pm = PositionManager(client)
 
-        # Initialize with real-time tracking
-        await pm.initialize(realtime_client=client.realtime_client)
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
 
-        # Get current positions
-        positions = await pm.get_all_positions()
+            # V3: Create dependencies
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
 
-        # Calculate P&L with market prices
-        prices = {"MGC": 2050.0, "NQ": 15500.0}
-        pnl = await pm.calculate_portfolio_pnl(prices)
+            # V3: Initialize position manager
+            pm = PositionManager(client, event_bus)
+            await pm.initialize(realtime_client)
 
-        # Risk analysis
-        risk = await pm.get_risk_metrics()
+            # V3: Get current positions with detailed fields
+            positions = await pm.get_all_positions()
+            for pos in positions:
+                print(f"{pos.contractId}: {pos.netPos} @ ${pos.buyAvgPrice}")
 
-        # Position operations
-        await pm.close_position_direct("MGC")
+            # V3: Calculate P&L with market prices
+            prices = {"MGC": 2050.0, "MNQ": 18500.0}
+            pnl = await pm.calculate_portfolio_pnl(prices)
+            print(f"Total P&L: ${pnl['total_pnl']:.2f}")
+
+            # V3: Risk analysis
+            risk = await pm.get_risk_metrics()
+            print(f"Portfolio risk: {risk['portfolio_risk']:.2%}")
+
+            # V3: Position operations
+            await pm.close_position_direct("MGC")
+
+
+    asyncio.run(main())
     ```
 
 See Also:
@@ -127,20 +144,30 @@ class PositionManager(
         - Diversification scoring and portfolio health metrics
 
     Example Usage:
-        >>> # Create async position manager with dependency injection
-        >>> position_manager = PositionManager(async_project_x_client)
-        >>> # Initialize with optional real-time client
-        >>> await position_manager.initialize(realtime_client=async_realtime_client)
-        >>> # Get current positions
+        >>> # V3: Create position manager with EventBus integration
+        >>> event_bus = EventBus()
+        >>> position_manager = PositionManager(project_x_client, event_bus)
+        >>> # V3: Initialize with real-time client for WebSocket updates
+        >>> realtime_client = await create_realtime_client(
+        ...     client.get_session_token(), str(client.get_account_info().id)
+        ... )
+        >>> await position_manager.initialize(realtime_client=realtime_client)
+        >>> # V3: Get current positions with actual field names
         >>> positions = await position_manager.get_all_positions()
         >>> mgc_position = await position_manager.get_position("MGC")
-        >>> # Portfolio analytics
-        >>> portfolio_pnl = await position_manager.get_portfolio_pnl()
+        >>> if mgc_position:
+        >>>     print(f"Size: {mgc_position.netPos}")
+        >>>     print(f"Avg Price: ${mgc_position.buyAvgPrice}")
+        >>> # V3: Portfolio analytics with market prices
+        >>> market_prices = {"MGC": 2050.0, "MNQ": 18500.0}
+        >>> portfolio_pnl = await position_manager.calculate_portfolio_pnl(
+        ...     market_prices
+        ... )
         >>> risk_metrics = await position_manager.get_risk_metrics()
-        >>> # Position monitoring
+        >>> # V3: Position monitoring with alerts
         >>> await position_manager.add_position_alert("MGC", max_loss=-500.0)
-        >>> await position_manager.start_monitoring()
-        >>> # Position sizing
+        >>> await position_manager.start_monitoring(interval_seconds=5)
+        >>> # V3: Position sizing with risk management
         >>> suggested_size = await position_manager.calculate_position_size(
         ...     "MGC", risk_amount=100.0, entry_price=2045.0, stop_price=2040.0
         ... )
@@ -180,9 +207,17 @@ class PositionManager(
             risk_settings (dict): Risk management configuration
 
         Example:
+            >>> # V3: Initialize with EventBus for unified event handling
             >>> async with ProjectX.from_env() as client:
             ...     await client.authenticate()
-            ...     position_manager = PositionManager(client)
+            ...     event_bus = EventBus()
+            ...     position_manager = PositionManager(client, event_bus)
+            ...
+            ...     # V3: Optional - add order manager for synchronization
+            ...     order_manager = OrderManager(client, event_bus)
+            ...     await position_manager.initialize(
+            ...         realtime_client=realtime_client, order_manager=order_manager
+            ...     )
         """
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
@@ -304,12 +339,15 @@ class PositionManager(
             Exception: Logged but not raised - returns False on failure
 
         Example:
-            >>> # Initialize with real-time tracking
-            >>> rt_client = create_realtime_client(jwt_token)
+            >>> # V3: Initialize with real-time tracking
+            >>> rt_client = await create_realtime_client(
+            ...     client.get_session_token(), str(client.get_account_info().id)
+            ... )
             >>> success = await position_manager.initialize(realtime_client=rt_client)
             >>>
-            >>> # Initialize with both real-time and order sync
-            >>> order_mgr = OrderManager(client, rt_client)
+            >>> # V3: Initialize with both real-time and order sync
+            >>> event_bus = EventBus()
+            >>> order_mgr = OrderManager(client, event_bus)
             >>> success = await position_manager.initialize(
             ...     realtime_client=rt_client, order_manager=order_mgr
             ... )
@@ -376,11 +414,14 @@ class PositionManager(
             - Updates statistics (positions_tracked, last_update_time)
 
         Example:
-            >>> # Get all positions for default account
+            >>> # V3: Get all positions with actual field names
             >>> positions = await position_manager.get_all_positions()
             >>> for pos in positions:
-            ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice}")
-            >>> # Get positions for specific account
+            ...     print(f"Contract: {pos.contractId}")
+            ...     print(f"  Net Position: {pos.netPos}")
+            ...     print(f"  Buy Avg Price: ${pos.buyAvgPrice:.2f}")
+            ...     print(f"  Unrealized P&L: ${pos.unrealizedPnl:.2f}")
+            >>> # V3: Get positions for specific account
             >>> positions = await position_manager.get_all_positions(account_id=12345)
 
         Note:
@@ -429,14 +470,14 @@ class PositionManager(
                 exists for the contract.
 
         Example:
-            >>> # Check if we have a Gold position
+            >>> # V3: Check if we have a Gold position
             >>> mgc_position = await position_manager.get_position("MGC")
             >>> if mgc_position:
-            ...     print(f"MGC position: {mgc_position.size} contracts")
-            ...     print(f"Entry price: ${mgc_position.averagePrice}")
-            ...     print(
-            ...         f"Direction: {'Long' if mgc_position.type == PositionType.LONG else 'Short'}"
-            ...     )
+            ...     print(f"MGC position: {mgc_position.netPos} contracts")
+            ...     print(f"Buy Avg Price: ${mgc_position.buyAvgPrice:.2f}")
+            ...     print(f"Sell Avg Price: ${mgc_position.sellAvgPrice:.2f}")
+            ...     print(f"Unrealized P&L: ${mgc_position.unrealizedPnl:.2f}")
+            ...     print(f"Realized P&L: ${mgc_position.realizedPnl:.2f}")
             ... else:
             ...     print("No MGC position found")
 

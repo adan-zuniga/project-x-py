@@ -26,9 +26,11 @@ Example Usage:
 
 
     async def main():
+        # V3: Using context manager for automatic resource management
         async with ProjectX.from_env() as client:
             await client.authenticate()
-            print(client.get_account_info())
+            account = client.get_account_info()
+            print(f"Account: {account.name}, Balance: ${account.balance:,.2f}")
 
 
     asyncio.run(main())
@@ -183,22 +185,25 @@ class ProjectXBase(
             ValueError: If required environment variables are not set
 
         Example:
-            >>> # Set environment variables first
+            >>> # V3: Set environment variables first
             >>> import os
             >>> os.environ["PROJECT_X_API_KEY"] = "your_api_key_here"
             >>> os.environ["PROJECT_X_USERNAME"] = "your_username_here"
             >>> os.environ["PROJECT_X_ACCOUNT_NAME"] = (
-            ...     "Main Trading Account"  # Optional
+            ...     "PRACTICEJUL2415232717"  # Optional
             ... )
             >>>
-            >>> # Create async client (recommended approach)
+            >>> # V3: Create async client using context manager (recommended approach)
             >>> import asyncio
             >>> from project_x_py import ProjectX
             >>>
             >>> async def main():
             >>>     async with ProjectX.from_env() as client:
             >>>         await client.authenticate()
-            >>> # Use the client...
+            >>> # Client is now ready for use
+            >>>         instrument = await client.get_instrument("MNQ")
+            >>>         bars = await client.get_bars("MNQ", days=1, interval=5)
+            >>>         print(f"Retrieved {len(bars)} bars for {instrument.name}")
             >>>
             >>> asyncio.run(main())
         """
@@ -251,18 +256,30 @@ class ProjectXBase(
             ProjectXAuthenticationError: If authentication fails
 
         Example:
-            >>> # Create config file
+            >>> # V3: Create config file
+            >>> import json
             >>> config = {
             ...     "username": "your_username",
             ...     "api_key": "your_api_key",
-            ...     "api_url": "https://api.topstepx.com/api",
+            ...     "api_url": "https://gateway.topstepx.com/api",
+            ...     "websocket_url": "wss://gateway.topstepx.com/signalr",
             ...     "timezone": "US/Central",
             ... }
+            >>> with open("config.json", "w") as f:
+            ...     json.dump(config, f)
             >>>
-            >>> # Use client with config file
-            >>> async with ProjectX.from_config_file("config.json") as client:
-            ...     await client.authenticate()
-            ...     # Client is ready for trading
+            >>> # V3: Use client with config file
+            >>> import asyncio
+            >>> from project_x_py import ProjectX
+            >>>
+            >>> async def main():
+            >>>     async with ProjectX.from_config_file("config.json") as client:
+            >>>         await client.authenticate()
+            >>> # Client is ready for trading operations
+            >>>         positions = await client.search_open_positions()
+            >>>         print(f"Open positions: {len(positions)}")
+            >>>
+            >>> asyncio.run(main())
 
         Note:
             - Config file should not be committed to version control

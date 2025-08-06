@@ -35,21 +35,30 @@ Performance Benefits:
 
 Example Usage:
     ```python
-    # Create shared async realtime client
-    async_realtime_client = ProjectXRealtimeClient(config)
+    # V3: Create shared async realtime client with factory
+    from project_x_py import EventBus
+    from project_x_py.realtime import create_realtime_client
+
+    async_realtime_client = await create_realtime_client(
+        jwt_token=client.jwt_token, account_id=str(client.account_id)
+    )
     await async_realtime_client.connect()
+
+    # V3: Initialize with EventBus for unified event handling
+    event_bus = EventBus()
 
     # Initialize async data manager with dependency injection
     manager = RealtimeDataManager(
-        instrument="MGC",  # Mini Gold futures
-        project_x=async_project_x_client,  # For historical data loading
+        instrument="MNQ",  # V3: Using actual contract symbols
+        project_x=client,  # V3: ProjectX client from context manager
         realtime_client=async_realtime_client,
         timeframes=["1min", "5min", "15min", "1hr"],
         timezone="America/Chicago",  # CME timezone
+        event_bus=event_bus,  # V3: EventBus integration
     )
 
     # Load historical data for all timeframes
-    if await manager.initialize(initial_days=30):
+    if await manager.initialize(initial_days=5):
         print("Historical data loaded successfully")
 
     # Start real-time feed (registers callbacks with existing client)
@@ -57,22 +66,29 @@ Example Usage:
         print("Real-time OHLCV feed active")
 
 
-    # Register callback for new bars
+    # V3: Register callback with actual field names
     async def on_new_bar(data):
         timeframe = data["timeframe"]
         bar_data = data["data"]
-        print(f"New {timeframe} bar: Close={bar_data['close']}")
+        print(f"New {timeframe} bar:")
+        print(f"  Open: {bar_data['open']}, High: {bar_data['high']}")
+        print(f"  Low: {bar_data['low']}, Close: {bar_data['close']}")
+        print(f"  Volume: {bar_data['volume']}")
 
 
     await manager.add_callback("new_bar", on_new_bar)
 
-    # Access multi-timeframe OHLCV data in your trading loop
+    # V3: Access multi-timeframe OHLCV data
     data_5m = await manager.get_data("5min", bars=100)
     data_15m = await manager.get_data("15min", bars=50)
     mtf_data = await manager.get_mtf_data()  # All timeframes at once
 
     # Get current market price (latest tick or bar close)
     current_price = await manager.get_current_price()
+
+    # V3: Monitor memory and performance
+    stats = await manager.get_memory_stats()
+    print(f"Data points stored: {stats['total_data_points']}")
 
     # When done, clean up resources
     await manager.cleanup()

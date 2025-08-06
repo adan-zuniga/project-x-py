@@ -30,7 +30,14 @@ Callback Capabilities:
 
 Example Usage:
     ```python
-    # Register an async callback for new bar events
+    # V3: Using EventBus for unified event handling
+    from project_x_py import EventBus, EventType
+
+    event_bus = EventBus()
+
+
+    # V3: Register callbacks through EventBus
+    @event_bus.on(EventType.NEW_BAR)
     async def on_new_bar(data):
         tf = data["timeframe"]
         bar = data["data"]
@@ -38,26 +45,32 @@ Example Usage:
             f"New {tf} bar: O={bar['open']}, H={bar['high']}, L={bar['low']}, C={bar['close']}"
         )
 
-        # Implement trading logic based on the new bar
+        # V3: Implement trading logic with actual field names
         if tf == "5min" and bar["close"] > bar["open"]:
             # Bullish bar detected
             print(f"Bullish 5min bar detected at {data['bar_time']}")
 
-            # Trigger trading logic (implement your strategy here)
-            # await strategy.on_bullish_bar(data)
+            # V3: Emit custom events for strategy
+            await event_bus.emit(
+                EventType.CUSTOM,
+                {"event": "bullish_signal", "timeframe": tf, "price": bar["close"]},
+            )
 
 
-    # Register the callback
-    await data_manager.add_callback("new_bar", on_new_bar)
-
-
-    # You can also use regular (non-async) functions
-    def on_data_update(data):
+    # V3: Register for tick updates
+    @event_bus.on(EventType.TICK_UPDATE)
+    async def on_tick(data):
         # This is called on every tick - keep it lightweight!
-        print(f"Price update: {data['price']}")
+        print(f"Price: {data['price']}, Volume: {data['volume']}")
 
 
-    await data_manager.add_callback("data_update", on_data_update)
+    # V3: Legacy callback registration (backward compatibility)
+    # Will be removed in V4
+    async def legacy_callback(data):
+        print(f"Legacy: {data}")
+
+
+    await data_manager.add_callback("new_bar", legacy_callback)
     ```
 
 Event Data Structures:
