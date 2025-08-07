@@ -1,6 +1,6 @@
 [project]
 name = "project-x-py"
-version = "3.0.0"
+version = "3.0.1"
 description = "High-performance Python SDK for futures trading with real-time WebSocket data, technical indicators, order management, and market depth analysis"
 readme = "README.md"
 license = { text = "MIT" }
@@ -40,6 +40,7 @@ dependencies = [
     "signalrcore>=0.9.5",
     "websocket-client>=1.0.0",
     "pydantic>=2.11.7",
+    "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]

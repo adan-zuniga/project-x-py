@@ -827,7 +827,7 @@ wheels = [
 
 [[package]]
 name = "project-x-py"
-version = "3.0.0.dev0"
+version = "3.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx", extra = ["http2"] },
@@ -835,6 +835,7 @@ dependencies = [
     { name = "polars" },
     { name = "pydantic" },
     { name = "pytz" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
     { name = "signalrcore" },
@@ -935,6 +936,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
     { name = "pytz", specifier = ">=2025.2" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "requests", specifier = ">=2.32.4" },
     { name = "requests-mock", marker = "extra == 'test'", specifier = ">=1.9.0" },
     { name = "rich", specifier = ">=14.1.0" },
