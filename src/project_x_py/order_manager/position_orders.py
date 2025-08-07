@@ -27,11 +27,45 @@ Position Management Capabilities:
 
 Example Usage:
     ```python
-    # Assuming om is an instance of OrderManager
-    await om.close_position("MNQ")
-    await om.add_stop_loss("MNQ", stop_price=2030.0)
-    await om.add_take_profit("MNQ", limit_price=2070.0)
-    await om.cancel_position_orders("MNQ", ["stop", "target"])
+    # V3: Position-based order management
+    import asyncio
+    from project_x_py import ProjectX, create_realtime_client, EventBus
+    from project_x_py.order_manager import OrderManager
+
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # V3: Initialize order manager
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
+            om = OrderManager(client, event_bus)
+            await om.initialize(realtime_client)
+
+            # V3: Close an existing position at market
+            await om.close_position("MNQ", method="market")
+
+            # V3: Close position with limit order
+            await om.close_position("MGC", method="limit", limit_price=2055.0)
+
+            # V3: Add protective orders to existing position
+            await om.add_stop_loss("MNQ", stop_price=18400.0)
+            await om.add_take_profit("MNQ", limit_price=18600.0)
+
+            # V3: Cancel specific order types for a position
+            await om.cancel_position_orders("MNQ", ["stop"])  # Cancel stops only
+            await om.cancel_position_orders("MNQ")  # Cancel all orders
+
+            # V3: Sync orders with position size after partial fill
+            await om.sync_orders_with_position(
+                "MGC", target_size=2, cancel_orphaned=True
+            )
+
+
+    asyncio.run(main())
     ```
 
 See Also:
@@ -83,12 +117,18 @@ class PositionOrderMixin:
             OrderPlaceResponse: Response from closing order
 
         Example:
-            >>> # Close position at market
-            >>> response = await order_manager.close_position("MGC", method="market")
-            >>> # Close position with limit
-            >>> response = await order_manager.close_position(
+            >>> # V3: Close position at market price
+            >>> response = await om.close_position("MGC", method="market")
+            >>> print(
+            ...     f"Closing order ID: {response.orderId if response else 'No position'}"
+            ... )
+            >>> # V3: Close position with limit order for better price
+            >>> response = await om.close_position(
             ...     "MGC", method="limit", limit_price=2050.0
             ... )
+            >>> # V3: The method automatically determines the correct side
+            >>> # For long position: sells to close
+            >>> # For short position: buys to cover
         """
         # Get current position
         positions = await self.project_x.search_open_positions(account_id=account_id)
@@ -139,7 +179,16 @@ class PositionOrderMixin:
             OrderPlaceResponse if successful, None if no position
 
         Example:
-            >>> response = await order_manager.add_stop_loss("MGC", 2040.0)
+            >>> # V3: Add stop loss to protect existing position
+            >>> response = await om.add_stop_loss("MGC", stop_price=2040.0)
+            >>> print(
+            ...     f"Stop order ID: {response.orderId if response else 'No position'}"
+            ... )
+            >>> # V3: Add partial stop (protect only part of position)
+            >>> response = await om.add_stop_loss("MGC", stop_price=2040.0, size=1)
+            >>> # V3: Stop is automatically placed on opposite side of position
+            >>> # Long position: stop sell order below current price
+            >>> # Short position: stop buy order above current price
         """
         # Get current position
         positions = await self.project_x.search_open_positions(account_id=account_id)
@@ -190,7 +239,16 @@ class PositionOrderMixin:
             OrderPlaceResponse if successful, None if no position
 
         Example:
-            >>> response = await order_manager.add_take_profit("MGC", 2060.0)
+            >>> # V3: Add take profit target to existing position
+            >>> response = await om.add_take_profit("MGC", limit_price=2060.0)
+            >>> print(
+            ...     f"Target order ID: {response.orderId if response else 'No position'}"
+            ... )
+            >>> # V3: Add partial take profit (scale out strategy)
+            >>> response = await om.add_take_profit("MGC", limit_price=2060.0, size=1)
+            >>> # V3: Target is automatically placed on opposite side of position
+            >>> # Long position: limit sell order above current price
+            >>> # Short position: limit buy order below current price
         """
         # Get current position
         positions = await self.project_x.search_open_positions(account_id=account_id)
@@ -311,10 +369,18 @@ class PositionOrderMixin:
             Dict with counts of cancelled orders by type
 
         Example:
-            >>> # Cancel only stop orders
-            >>> results = await order_manager.cancel_position_orders("MGC", ["stop"])
-            >>> # Cancel all orders for position
-            >>> results = await order_manager.cancel_position_orders("MGC")
+            >>> # V3: Cancel only stop orders for a position
+            >>> results = await om.cancel_position_orders("MGC", ["stop"])
+            >>> print(f"Cancelled {results['stop']} stop orders")
+            >>> # V3: Cancel all orders for position (stops, targets, entries)
+            >>> results = await om.cancel_position_orders("MGC")
+            >>> print(
+            ...     f"Cancelled: {results['stop']} stops, {results['target']} targets"
+            ... )
+            >>> # V3: Cancel specific order types
+            >>> results = await om.cancel_position_orders(
+            ...     "MGC", order_types=["stop", "target"]
+            ... )
         """
         if order_types is None:
             order_types = ["entry", "stop", "target"]

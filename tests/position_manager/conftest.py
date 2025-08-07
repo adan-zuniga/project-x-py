@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from project_x_py.event_bus import EventBus
 from project_x_py.models import Position
 from project_x_py.position_manager.core import PositionManager
 
@@ -16,7 +17,10 @@ async def position_manager(initialized_client, mock_positions_data):
     initialized_client.search_open_positions = AsyncMock(return_value=positions)
     # Optionally patch other APIs as needed for isolation
 
-    pm = PositionManager(initialized_client)
+    # Create EventBus for the test
+    event_bus = EventBus()
+
+    pm = PositionManager(initialized_client, event_bus)
     return pm
 
 

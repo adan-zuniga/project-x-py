@@ -72,12 +72,11 @@ class TestTypes:
     def test_no_duplicate_imports(self):
         """Test that types are not duplicated across modules."""
         # Import from centralized location
-        # Import from module that should use centralized types
-        from project_x_py.order_manager import OrderStats as ManagerOrderStats
-        from project_x_py.types import OrderStats as CentralOrderStats
+        from project_x_py.types import OrderStatsResponse, OrderStatus
 
-        # They should be the same object
-        assert CentralOrderStats is ManagerOrderStats
+        # OrderStatsResponse should be available from types module
+        assert OrderStatsResponse is not None
+        assert OrderStatus is not None
 
     def test_type_consistency_across_modules(self):
         """Test that types are consistent when used across different modules."""

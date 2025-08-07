@@ -36,29 +36,51 @@ Real-time Capabilities:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX, create_orderbook
+    # V3: Uses EventBus and factory functions
+    from project_x_py import ProjectX, create_orderbook, create_realtime_client
+    from project_x_py.events import EventBus, EventType
     import asyncio
 
 
     async def main():
-        client = ProjectX()
-        await client.connect()
-        orderbook = create_orderbook("MNQ", project_x=client)
-        await orderbook.initialize(realtime_client=client.realtime_client)
+        # V3: ProjectX client with context manager
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
 
-        # Get basic orderbook snapshot
-        snapshot = await orderbook.get_orderbook_snapshot(levels=10)
-        print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
+            # V3: Create realtime client with factory function
+            realtime_client = await create_realtime_client(
+                jwt_token=client.jwt_token, account_id=str(client.account_id)
+            )
 
-        # Advanced analytics
-        imbalance = await orderbook.get_market_imbalance(levels=5)
-        print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
+            # V3: EventBus for unified event handling
+            event_bus = EventBus()
 
-        # Detection algorithms
-        icebergs = await orderbook.detect_iceberg_orders()
-        print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
+            # V3: Create orderbook with EventBus
+            orderbook = create_orderbook(
+                "MNQ",  # V3: Using actual contract symbols
+                event_bus=event_bus,
+                project_x=client,
+            )
+            await orderbook.initialize(realtime_client=realtime_client)
 
-        await orderbook.cleanup()
+            # V3: Register event handlers
+            @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+            async def on_depth_update(data):
+                print(f"Depth update: {data['timestamp']}")
+
+            # Get basic orderbook snapshot
+            snapshot = await orderbook.get_orderbook_snapshot(levels=10)
+            print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
+
+            # Advanced analytics
+            imbalance = await orderbook.get_market_imbalance(levels=5)
+            print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
+
+            # Detection algorithms
+            icebergs = await orderbook.detect_iceberg_orders()
+            print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
+
+            await orderbook.cleanup()
 
 
     asyncio.run(main())
@@ -101,6 +123,13 @@ from project_x_py.types import (
     SyncCallback,
     TradeDict,
 )
+from project_x_py.types.config_types import OrderbookConfig
+from project_x_py.types.response_types import (
+    LiquidityAnalysisResponse,
+    MarketImpactResponse,
+    OrderbookAnalysisResponse,
+)
+from project_x_py.types.stats_types import OrderbookStats
 
 __all__ = [
     # Types
@@ -171,8 +200,15 @@ class OrderBook(OrderBookBase):
         - Hidden liquidity and volume pattern recognition
 
     Example:
-        >>> orderbook = OrderBook("ES", project_x_client)
+        >>> # V3: Create orderbook with EventBus
+        >>> event_bus = EventBus()
+        >>> orderbook = OrderBook("MNQ", event_bus, project_x_client)
         >>> await orderbook.initialize(realtime_client)
+        >>>
+        >>> # V3: Register event handlers
+        >>> @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+        >>> async def handle_depth(data):
+        ...     print(f"Depth: {data['bids'][0]['price']} @ {data['bids'][0]['size']}")
         >>>
         >>> # Get basic orderbook data
         >>> snapshot = await orderbook.get_orderbook_snapshot()
@@ -197,18 +233,23 @@ class OrderBook(OrderBookBase):
     def __init__(
         self,
         instrument: str,
+        event_bus: Any,
         project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
+        config: "OrderbookConfig | None" = None,
     ):
         """
         Initialize the orderbook.
 
         Args:
             instrument: Trading instrument symbol
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including market depth updates and trade ticks.
             project_x: Optional ProjectX client for tick size lookup
             timezone_str: Timezone for timestamps (default: America/Chicago)
+            config: Optional configuration for orderbook behavior
         """
-        super().__init__(instrument, project_x, timezone_str)
+        super().__init__(instrument, event_bus, project_x, timezone_str, config)
 
         # Initialize components
         self.realtime_handler = RealtimeHandler(self)
@@ -252,9 +293,15 @@ class OrderBook(OrderBookBase):
                 initialization failed.
 
         Example:
-            >>> orderbook = OrderBook("MNQ", client)
+            >>> # V3: Initialize with EventBus and realtime client
+            >>> event_bus = EventBus()
+            >>> orderbook = OrderBook("MNQ", event_bus, client)
+            >>> # V3: Create realtime client with factory
+            >>> realtime_client = await create_realtime_client(
+            ...     jwt_token=client.jwt_token, account_id=str(client.account_id)
+            ... )
             >>> success = await orderbook.initialize(
-            ...     realtime_client=client.realtime_client,
+            ...     realtime_client=realtime_client,
             ...     subscribe_to_depth=True,
             ...     subscribe_to_quotes=True,
             ... )
@@ -284,7 +331,7 @@ class OrderBook(OrderBookBase):
             return False
 
     # Delegate analytics methods
-    async def get_market_imbalance(self, levels: int = 10) -> dict[str, Any]:
+    async def get_market_imbalance(self, levels: int = 10) -> LiquidityAnalysisResponse:
         """
         Calculate order flow imbalance between bid and ask sides.
 
@@ -293,7 +340,7 @@ class OrderBook(OrderBookBase):
         """
         return await self.analytics.get_market_imbalance(levels)
 
-    async def get_orderbook_depth(self, price_range: float) -> dict[str, Any]:
+    async def get_orderbook_depth(self, price_range: float) -> MarketImpactResponse:
         """
         Analyze orderbook depth within a price range.
 
@@ -372,7 +419,7 @@ class OrderBook(OrderBookBase):
             min_cluster_size, price_tolerance
         )
 
-    async def get_advanced_market_metrics(self) -> dict[str, Any]:
+    async def get_advanced_market_metrics(self) -> OrderbookAnalysisResponse:
         """
         Calculate advanced market microstructure metrics.
 
@@ -409,7 +456,9 @@ class OrderBook(OrderBookBase):
             lookback_minutes, min_touches, price_tolerance
         )
 
-    async def get_spread_analysis(self, window_minutes: int = 30) -> dict[str, Any]:
+    async def get_spread_analysis(
+        self, window_minutes: int = 30
+    ) -> LiquidityAnalysisResponse:
         """
         Analyze bid-ask spread patterns over time.
 
@@ -419,7 +468,7 @@ class OrderBook(OrderBookBase):
         return await self.profile.get_spread_analysis(window_minutes)
 
     # Delegate memory methods
-    async def get_memory_stats(self) -> dict[str, Any]:
+    async def get_memory_stats(self) -> OrderbookStats:
         """
         Get comprehensive memory usage statistics.
 
@@ -443,6 +492,7 @@ class OrderBook(OrderBookBase):
 
 def create_orderbook(
     instrument: str,
+    event_bus: Any,
     project_x: "ProjectXBase | None" = None,
     realtime_client: "ProjectXRealtimeClient | None" = None,
     timezone_str: str = DEFAULT_TIMEZONE,
@@ -476,15 +526,20 @@ def create_orderbook(
         to initialize() before use.
 
     Example:
-        >>> # Create an orderbook for E-mini S&P 500 futures
+        >>> # V3: Create an orderbook with EventBus
+        >>> event_bus = EventBus()
         >>> orderbook = create_orderbook(
-        ...     instrument="ES",  # E-mini S&P 500
+        ...     instrument="MNQ",  # V3: Using actual contract symbols
+        ...     event_bus=event_bus,
         ...     project_x=client,
-        ...     timezone_str="America/New_York",
+        ...     timezone_str="America/Chicago",  # V3: Using CME timezone
         ... )
         >>>
-        >>> # Initialize with real-time data
-        >>> await orderbook.initialize(realtime_client=client.realtime_client)
+        >>> # V3: Initialize with factory-created realtime client
+        >>> realtime_client = await create_realtime_client(
+        ...     jwt_token=client.jwt_token, account_id=str(client.account_id)
+        ... )
+        >>> await orderbook.initialize(realtime_client=realtime_client)
         >>>
         >>> # Start using the orderbook
         >>> snapshot = await orderbook.get_orderbook_snapshot()
@@ -492,4 +547,4 @@ def create_orderbook(
     # Note: realtime_client is passed to initialize() separately to allow
     # for async initialization
     _ = realtime_client  # Mark as intentionally unused
-    return OrderBook(instrument, project_x, timezone_str)
+    return OrderBook(instrument, event_bus, project_x, timezone_str)

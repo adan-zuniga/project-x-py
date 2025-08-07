@@ -16,6 +16,8 @@ Features demonstrated:
 - Proper cleanup on exit (cancels open orders and closes positions)
 - Concurrent operations for improved performance
 
+Updated for v3.0.0: Uses new TradingSuite for simplified initialization.
+
 Usage:
     python examples/08_order_and_position_tracking.py
 
@@ -34,7 +36,7 @@ import signal
 from contextlib import suppress
 from datetime import datetime
 
-from project_x_py import ProjectX, ProjectXBase, create_trading_suite
+from project_x_py import TradingSuite, setup_logging
 from project_x_py.models import BracketOrderResponse, Order, Position
 
 
@@ -42,7 +44,6 @@ class OrderPositionDemo:
     """Demo class for order and position tracking with automatic cleanup."""
 
     def __init__(self):
-        self.client = None
         self.suite = None
         self.running = False
         self.demo_orders = []  # Track orders created by this demo
@@ -62,20 +63,16 @@ class OrderPositionDemo:
     async def create_demo_bracket_order(self) -> bool:
         """Create a bracket order for demonstration asynchronously."""
         try:
-            if self.client is None:
-                print("❌ No client found")
-                return False
-
-            instrument = await self.client.get_instrument("MNQ")
-            if not instrument:
-                print("❌ MNQ instrument not found")
-                return False
-
             if self.suite is None:
                 print("❌ No suite found")
                 return False
 
-            current_price = await self.suite["data_manager"].get_current_price()
+            instrument = await self.suite.client.get_instrument("MNQ")
+            if not instrument:
+                print("❌ MNQ instrument not found")
+                return False
+
+            current_price = await self.suite.data.get_current_price()
             if not current_price:
                 print("❌ Could not get current price")
                 return False
@@ -98,12 +95,12 @@ class OrderPositionDemo:
             print(f"   Risk/Reward: 1:{target_distance / stop_distance:.1f}")
 
             # Place bracket order using async order manager
-            account_info = self.client.account_info
+            account_info = self.suite.client.account_info
             if not account_info:
                 print("❌ Could not get account information")
                 return False
 
-            bracket_response = await self.suite["order_manager"].place_bracket_order(
+            bracket_response = await self.suite.orders.place_bracket_order(
                 contract_id=instrument.id,
                 side=0,  # Buy
                 size=1,
@@ -154,9 +151,9 @@ class OrderPositionDemo:
                 return
 
             # Fetch data concurrently using async methods
-            positions_task = self.suite["position_manager"].get_all_positions()
-            orders_task = self.suite["order_manager"].search_open_orders()
-            price_task = self.suite["data_manager"].get_current_price()
+            positions_task = self.suite.positions.get_all_positions()
+            orders_task = self.suite.orders.search_open_orders()
+            price_task = self.suite.data.get_current_price()
 
             positions, orders, current_price = await asyncio.gather(
                 positions_task, orders_task, price_task
@@ -253,8 +250,8 @@ class OrderPositionDemo:
                     break
 
                 # Check if everything is closed (position was closed and orders cleaned up)
-                positions = await self.suite["position_manager"].get_all_positions()
-                orders = await self.suite["order_manager"].search_open_orders()
+                positions = await self.suite.positions.get_all_positions()
+                orders = await self.suite.orders.search_open_orders()
                 current_count = (len(positions), len(orders))
 
                 # Detect when positions/orders change
@@ -308,16 +305,14 @@ class OrderPositionDemo:
                 return
 
             # Cancel all open orders
-            orders = await self.suite["order_manager"].search_open_orders()
+            orders = await self.suite.orders.search_open_orders()
             if orders:
                 print(f"📋 Cancelling {len(orders)} open orders...")
                 cancel_tasks = []
                 for order in orders:
                     if not isinstance(order, Order):
                         continue
-                    cancel_tasks.append(
-                        self.suite["order_manager"].cancel_order(order.id)
-                    )
+                    cancel_tasks.append(self.suite.orders.cancel_order(order.id))
 
                 # Wait for all cancellations to complete
                 cancel_results: list[Order | BaseException] = await asyncio.gather(
@@ -335,17 +330,13 @@ class OrderPositionDemo:
                         print(f"   ⚠️ Failed to cancel order {order.id}")
 
             # Close all open positions
-            positions: list[Position] = await self.suite[
-                "position_manager"
-            ].get_all_positions()
+            positions: list[Position] = await self.suite.positions.get_all_positions()
             if positions:
                 print(f"🏦 Closing {len(positions)} open positions...")
                 close_tasks = []
                 for position in positions:
                     close_tasks.append(
-                        self.suite["position_manager"].close_position_direct(
-                            position.contractId
-                        )
+                        self.suite.positions.close_position_direct(position.contractId)
                     )
 
                 # Wait for all positions to close
@@ -375,70 +366,38 @@ class OrderPositionDemo:
         except Exception as e:
             print(f"❌ Error during cleanup: {e}")
 
-    async def run(self, client: ProjectXBase):
+    async def run(self):
         """Main demo execution."""
         self.setup_signal_handlers()
-        self.client = client
 
-        print("🚀 Async Order and Position Tracking Demo")
+        print("🚀 Async Order and Position Tracking Demo (v3.0.0)")
         print("=" * 50)
         print("This demo shows automatic order cleanup when positions close.")
         print("You can manually close positions from your broker to test it.\n")
 
-        # Authenticate and get account info
+        # Create TradingSuite v3
         try:
-            await self.client.authenticate()
-            account = self.client.account_info
-            if not account:
-                print("❌ Could not get account information")
-                return False
-            print(f"✅ Connected to account: {account.name}")
-        except Exception as e:
-            print(f"❌ Failed to authenticate: {e}")
-            return False
-
-        # Create trading suite
-        try:
-            print("\n🔧 Setting up trading suite...")
-            jwt_token = self.client.session_token
-            self.suite = await create_trading_suite(
+            print("\n🔧 Setting up TradingSuite v3...")
+            self.suite = await TradingSuite.create(
                 instrument="MNQ",
-                project_x=self.client,
-                jwt_token=jwt_token,
-                account_id=str(account.id),
                 timeframes=["5min"],  # Minimal timeframes for demo
+                initial_days=1,
             )
 
-            print("✅ Trading suite created with automatic order cleanup enabled")
+            print("✅ TradingSuite created with automatic order cleanup enabled")
 
-        except Exception as e:
-            print(f"❌ Failed to create trading suite: {e}")
-            return False
-
-        # Connect real-time client and initialize data feed
-        try:
-            print("\n📊 Initializing market data...")
-            # Connect WebSocket
-            await self.suite["realtime_client"].connect()
-            print("✅ WebSocket connected")
-
-            # Initialize data manager
-            if not await self.suite["data_manager"].initialize(initial_days=1):
-                print("❌ Failed to load historical data")
+            account = self.suite.client.account_info
+            if not account:
+                print("❌ Could not get account information")
+                await self.suite.disconnect()
                 return False
-            print("✅ Historical data loaded")
-
-            # Start real-time feed
-            if not await self.suite["data_manager"].start_realtime_feed():
-                print("❌ Failed to start realtime feed")
-                return False
-            print("✅ Real-time feed started")
+            print(f"   Connected to account: {account.name}")
 
             print("⏳ Waiting for feed to stabilize...")
             await asyncio.sleep(3)
 
         except Exception as e:
-            print(f"❌ Failed to initialize data feed: {e}")
+            print(f"❌ Failed to create TradingSuite: {e}")
             return False
 
         # Create demo bracket order
@@ -454,9 +413,9 @@ class OrderPositionDemo:
         # Final cleanup
         await self.cleanup_all_positions_and_orders()
 
-        # Disconnect WebSocket
-        if self.suite and self.suite["realtime_client"]:
-            await self.suite["realtime_client"].disconnect()
+        # Disconnect
+        if self.suite:
+            await self.suite.disconnect()
 
         print("\n👋 Demo completed. Thank you!")
         return True
@@ -464,11 +423,11 @@ class OrderPositionDemo:
 
 async def main():
     """Main entry point."""
+    setup_logging(level="INFO")
     demo = OrderPositionDemo()
     try:
-        async with ProjectX.from_env() as client:
-            success = await demo.run(client)
-            return 0 if success else 1
+        success = await demo.run()
+        return 0 if success else 1
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user")
         return 1

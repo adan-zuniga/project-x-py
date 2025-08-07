@@ -27,15 +27,30 @@ Memory Management Strategies:
 
 Example Usage:
     ```python
-    # Assuming orderbook is initialized
-    await orderbook.memory_manager.start()
-    await orderbook.memory_manager.cleanup_old_data()
-    stats = await orderbook.memory_manager.get_memory_stats()
-    print(stats["recent_trades_count"])
+    # V3: Memory management with EventBus-enabled orderbook
+    from project_x_py import create_orderbook
+    from project_x_py.events import EventBus
 
-    # Monitor memory usage
-    memory_stats = await orderbook.get_memory_stats()
-    print(f"Orderbook size: {memory_stats['orderbook_bids_count']} bids")
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+    await orderbook.initialize(realtime_client)
+
+    # V3: Memory manager auto-starts with orderbook
+    # Manual cleanup if needed
+    await orderbook.memory_manager.cleanup_old_data()
+
+    # V3: Get comprehensive memory statistics
+    stats = await orderbook.memory_manager.get_memory_stats()
+    print(f"Trades in memory: {stats['recent_trades_count']}")
+    print(f"Bid levels: {stats['orderbook_bids_count']}")
+    print(f"Ask levels: {stats['orderbook_asks_count']}")
+    print(f"Memory usage: {stats['memory_usage_mb']:.1f} MB")
+
+    # V3: Configure memory limits
+    orderbook.memory_config.max_trades = 5000
+    orderbook.memory_config.max_depth_entries = 200
     print(f"Recent trades: {memory_stats['recent_trades_count']}")
     print(
         f"Items cleaned: {memory_stats['trades_cleaned'] + memory_stats['depth_cleaned']}"
@@ -59,6 +74,7 @@ import contextlib
 import logging
 
 from project_x_py.types import MemoryConfig
+from project_x_py.types.stats_types import OrderbookStats
 
 
 class MemoryManager:
@@ -323,7 +339,7 @@ class MemoryManager:
             ]
             self.memory_stats["history_cleaned"] += removed
 
-    async def get_memory_stats(self) -> dict[str, Any]:
+    async def get_memory_stats(self) -> OrderbookStats:
         """
         Get comprehensive memory usage statistics.
 
@@ -366,27 +382,84 @@ class MemoryManager:
             ...       f"stats['history_cleaned']}")
         """
         async with self.orderbook.orderbook_lock:
+            # Calculate current depth statistics
+            bid_depth = self.orderbook.orderbook_bids.height
+            ask_depth = self.orderbook.orderbook_asks.height
+
+            # Calculate trade statistics
+            trades_count = self.memory_stats.get("total_trades", 0)
+            total_volume = self.memory_stats.get("total_volume", 0)
+            avg_trade_size = total_volume / trades_count if trades_count > 0 else 0.0
+
+            # Calculate memory usage (rough estimate)
+            memory_usage_mb = (
+                (bid_depth + ask_depth) * 0.0001  # Depth data
+                + self.orderbook.recent_trades.height * 0.0001  # Trade data
+                + len(self.orderbook.price_level_history) * 0.0001  # History data
+            )
+
+            # Calculate spread from current best prices
+            best_bid = (
+                float(self.orderbook.best_bid_history[-1]["price"])
+                if self.orderbook.best_bid_history
+                else 0.0
+            )
+            best_ask = (
+                float(self.orderbook.best_ask_history[-1]["price"])
+                if self.orderbook.best_ask_history
+                else 0.0
+            )
+            current_spread = (
+                best_ask - best_bid if best_bid > 0 and best_ask > 0 else 0.0
+            )
+
+            # Calculate spread volatility from history
+            spreads = [
+                float(ask["price"]) - float(bid["price"])
+                for bid, ask in zip(
+                    self.orderbook.best_bid_history,
+                    self.orderbook.best_ask_history,
+                    strict=False,
+                )
+                if float(bid["price"]) > 0 and float(ask["price"]) > 0
+            ]
+            spread_volatility = 0.0
+            if len(spreads) > 1:
+                avg_spread = sum(spreads) / len(spreads)
+                spread_volatility = (
+                    sum((s - avg_spread) ** 2 for s in spreads) / len(spreads)
+                ) ** 0.5
+
             return {
-                "orderbook_bids_count": self.orderbook.orderbook_bids.height,
-                "orderbook_asks_count": self.orderbook.orderbook_asks.height,
-                "recent_trades_count": self.orderbook.recent_trades.height,
-                "price_level_history_count": len(self.orderbook.price_level_history),
-                "best_bid_history_count": len(self.orderbook.best_bid_history),
-                "best_ask_history_count": len(self.orderbook.best_ask_history),
-                "spread_history_count": len(self.orderbook.spread_history),
-                "delta_history_count": len(self.orderbook.delta_history),
-                "support_levels_count": len(self.orderbook.support_levels),
-                "resistance_levels_count": len(self.orderbook.resistance_levels),
-                "last_cleanup": self.memory_stats["last_cleanup"].timestamp()
-                if self.memory_stats["last_cleanup"]
-                else 0,
-                "total_trades_processed": self.memory_stats["total_trades"],
-                "trades_cleaned": self.memory_stats["trades_cleaned"],
-                "depth_cleaned": self.memory_stats["depth_cleaned"],
-                "history_cleaned": self.memory_stats["history_cleaned"],
-                "memory_config": {
-                    "max_trades": self.config.max_trades,
-                    "max_depth_entries": self.config.max_depth_entries,
-                    "cleanup_interval": self.config.cleanup_interval,
-                },
+                # Depth statistics
+                "avg_bid_depth": bid_depth,
+                "avg_ask_depth": ask_depth,
+                "max_bid_depth": self.memory_stats.get("max_bid_depth", bid_depth),
+                "max_ask_depth": self.memory_stats.get("max_ask_depth", ask_depth),
+                # Trade statistics
+                "trades_processed": trades_count,
+                "avg_trade_size": avg_trade_size,
+                "largest_trade": self.memory_stats.get("largest_trade", 0),
+                "total_volume": total_volume,
+                # Market microstructure
+                "avg_spread": current_spread,
+                "spread_volatility": spread_volatility,
+                "price_levels": bid_depth + ask_depth,
+                "order_clustering": 0.0,  # Would need more complex calculation
+                # Pattern detection
+                "icebergs_detected": self.memory_stats.get("icebergs_detected", 0),
+                "spoofing_alerts": self.memory_stats.get("spoofing_alerts", 0),
+                "unusual_patterns": self.memory_stats.get("unusual_patterns", 0),
+                # Performance metrics
+                "update_frequency_per_second": self.memory_stats.get(
+                    "update_frequency", 0.0
+                ),
+                "processing_latency_ms": self.memory_stats.get(
+                    "processing_latency_ms", 0.0
+                ),
+                "memory_usage_mb": memory_usage_mb,
+                # Data quality
+                "data_gaps": self.memory_stats.get("data_gaps", 0),
+                "invalid_updates": self.memory_stats.get("invalid_updates", 0),
+                "duplicate_updates": self.memory_stats.get("duplicate_updates", 0),
             }

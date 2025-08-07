@@ -27,30 +27,44 @@ Data Access Capabilities:
 
 Example Usage:
     ```python
+    # V3: Data access with Polars DataFrames
     # Get the most recent 100 bars of 5-minute data
     data_5m = await manager.get_data("5min", bars=100)
 
     if data_5m is not None:
         print(f"Got {len(data_5m)} bars of 5-minute data")
 
-        # Get the most recent close price
-        latest_close = data_5m["close"].last()
-        print(f"Latest close price: {latest_close}")
+        # V3: Access actual OHLCV columns
+        latest = data_5m.tail(1)
+        print(f"Latest bar:")
+        print(f"  Open: {latest['open'][0]}")
+        print(f"  High: {latest['high'][0]}")
+        print(f"  Low: {latest['low'][0]}")
+        print(f"  Close: {latest['close'][0]}")
+        print(f"  Volume: {latest['volume'][0]}")
 
-        # Calculate a simple moving average
+        # V3: Calculate indicators with Polars
         if len(data_5m) >= 20:
             sma_20 = data_5m["close"].tail(20).mean()
-            print(f"20-bar SMA: {sma_20}")
+            print(f"20-bar SMA: {sma_20:.2f}")
 
-    # Get current market price
+            # V3: Use pipe for indicator chaining
+            from project_x_py.indicators import RSI, MACD
+
+            with_indicators = data_5m.pipe(RSI, period=14).pipe(MACD)
+
+    # V3: Get current market price
     current_price = await manager.get_current_price()
     if current_price is not None:
-        print(f"Current price: ${current_price:.2f}")
+        print(f"Current MNQ price: ${current_price:.2f}")
 
-    # Get multi-timeframe data
+    # V3: Get multi-timeframe data for analysis
     mtf_data = await manager.get_mtf_data()
     for tf, data in mtf_data.items():
-        print(f"{tf}: {len(data)} bars")
+        print(f"{tf}: {len(data)} bars available")
+        if len(data) > 0:
+            latest_close = data["close"].tail(1)[0]
+            print(f"  Latest close: {latest_close:.2f}")
     ```
 
 Data Structures:
@@ -76,8 +90,10 @@ See Also:
     - `realtime_data_manager.validation.ValidationMixin`
 """
 
+import asyncio
 import logging
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -90,8 +106,14 @@ logger = logging.getLogger(__name__)
 class DataAccessMixin:
     """Mixin for data access and retrieval methods."""
 
+    # Type stubs - these attributes are expected to be provided by the class using this mixin
+    if TYPE_CHECKING:
+        data_lock: "asyncio.Lock"
+        data: dict[str, pl.DataFrame]
+        current_tick_data: list[dict[str, Any]]
+
     async def get_data(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timeframe: str = "5min",
         bars: int | None = None,
     ) -> pl.DataFrame | None:
@@ -166,7 +188,7 @@ class DataAccessMixin:
                 return df.tail(bars)
             return df
 
-    async def get_current_price(self: "RealtimeDataManagerProtocol") -> float | None:
+    async def get_current_price(self) -> float | None:
         """
         Get the current market price from the most recent data.
 
@@ -238,3 +260,333 @@ class DataAccessMixin:
         """
         async with self.data_lock:
             return {tf: df.clone() for tf, df in self.data.items()}
+
+    async def get_latest_bars(
+        self: "RealtimeDataManagerProtocol",
+        count: int = 1,
+        timeframe: str = "5min",
+    ) -> pl.DataFrame | None:
+        """
+        Get the most recent N bars for a timeframe.
+
+        Convenience method for getting the latest bars without specifying the full data.
+
+        Args:
+            count: Number of most recent bars to return (default: 1)
+            timeframe: Timeframe to retrieve (default: "5min")
+
+        Returns:
+            pl.DataFrame: Most recent bars or None if no data
+
+        Example:
+            >>> # Get the last 5 bars
+            >>> bars = await manager.get_latest_bars(5)
+            >>> if bars is not None:
+            ...     latest_close = bars["close"][-1]
+        """
+        return await self.get_data(timeframe, bars=count)
+
+    async def get_latest_price(self: "RealtimeDataManagerProtocol") -> float | None:
+        """
+        Get the most recent price from tick or bar data.
+
+        Simplified alias for get_current_price() with clearer naming.
+
+        Returns:
+            float: Latest price or None if no data
+
+        Example:
+            >>> price = await manager.get_latest_price()
+            >>> if price is not None:
+            ...     print(f"Current price: ${price:.2f}")
+        """
+        return await self.get_current_price()
+
+    async def get_ohlc(
+        self: "RealtimeDataManagerProtocol",
+        timeframe: str = "5min",
+    ) -> dict[str, float] | None:
+        """
+        Get the most recent OHLC values as a dictionary.
+
+        Returns the latest bar's OHLC values in an easy-to-use format.
+
+        Args:
+            timeframe: Timeframe to retrieve (default: "5min")
+
+        Returns:
+            dict: OHLC values {"open": ..., "high": ..., "low": ..., "close": ...}
+                  or None if no data
+
+        Example:
+            >>> ohlc = await manager.get_ohlc()
+            >>> if ohlc:
+            ...     print(
+            ...         f"O:{ohlc['open']} H:{ohlc['high']} L:{ohlc['low']} C:{ohlc['close']}"
+            ...     )
+        """
+        data = await self.get_data(timeframe, bars=1)
+        if data is None or data.is_empty():
+            return None
+
+        row = data.row(0, named=True)
+        return {
+            "open": float(row["open"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "close": float(row["close"]),
+            "volume": float(row["volume"]),
+        }
+
+    async def get_price_range(
+        self,
+        bars: int = 20,
+        timeframe: str = "5min",
+    ) -> dict[str, float] | None:
+        """
+        Get price range statistics for recent bars.
+
+        Returns high, low, and range for the specified number of bars.
+
+        Args:
+            bars: Number of bars to analyze (default: 20)
+            timeframe: Timeframe to retrieve (default: "5min")
+
+        Returns:
+            dict: {"high": ..., "low": ..., "range": ..., "avg_range": ...}
+                  or None if insufficient data
+
+        Example:
+            >>> range_stats = await manager.get_price_range(bars=50)
+            >>> if range_stats:
+            ...     print(f"50-bar range: ${range_stats['range']:.2f}")
+        """
+        data = await self.get_data(timeframe, bars=bars)
+        if data is None or len(data) < bars:
+            return None
+
+        high_val = data["high"].max()
+        low_val = data["low"].min()
+        avg_range_val = (data["high"] - data["low"]).mean()
+
+        # Ensure we have valid numeric values
+        if high_val is None or low_val is None or avg_range_val is None:
+            return None
+
+        # Type narrowing - after None check, these are numeric
+        if (
+            not isinstance(high_val, int | float)
+            or not isinstance(low_val, int | float)
+            or not isinstance(avg_range_val, int | float)
+        ):
+            return None
+
+        high = float(high_val)
+        low = float(low_val)
+        avg_range = float(avg_range_val)
+
+        return {
+            "high": high,
+            "low": low,
+            "range": high - low,
+            "avg_range": avg_range,
+        }
+
+    async def get_volume_stats(
+        self: "RealtimeDataManagerProtocol",
+        bars: int = 20,
+        timeframe: str = "5min",
+    ) -> dict[str, float] | None:
+        """
+        Get volume statistics for recent bars.
+
+        Returns volume statistics including total, average, and current.
+
+        Args:
+            bars: Number of bars to analyze (default: 20)
+            timeframe: Timeframe to retrieve (default: "5min")
+
+        Returns:
+            dict: {"total": ..., "average": ..., "current": ..., "relative": ...}
+                  or None if insufficient data
+
+        Example:
+            >>> vol_stats = await manager.get_volume_stats()
+            >>> if vol_stats:
+            ...     print(f"Volume relative to average: {vol_stats['relative']:.1%}")
+        """
+        data = await self.get_data(timeframe, bars=bars)
+        if data is None or data.is_empty():
+            return None
+
+        volumes = data["volume"]
+        total_vol = volumes.sum()
+        avg_vol = volumes.mean()
+        current_vol = volumes[-1]
+
+        # Ensure we have valid numeric values
+        if total_vol is None or avg_vol is None or current_vol is None:
+            return None
+
+        # Type narrowing - after None check, these are numeric
+        if (
+            not isinstance(total_vol, int | float)
+            or not isinstance(avg_vol, int | float)
+            or not isinstance(current_vol, int | float)
+        ):
+            return None
+
+        total_volume = float(total_vol)
+        avg_volume = float(avg_vol)
+        current_volume = float(current_vol)
+
+        return {
+            "total": total_volume,
+            "average": avg_volume,
+            "current": current_volume,
+            "relative": current_volume / avg_volume if avg_volume > 0 else 0.0,
+        }
+
+    async def is_data_ready(
+        self: "RealtimeDataManagerProtocol",
+        min_bars: int = 20,
+        timeframe: str | None = None,
+    ) -> bool:
+        """
+        Check if sufficient data is available for trading.
+
+        Verifies that enough bars are loaded for the specified timeframe(s).
+
+        Args:
+            min_bars: Minimum number of bars required (default: 20)
+            timeframe: Specific timeframe to check, or None to check all
+
+        Returns:
+            bool: True if sufficient data is available
+
+        Example:
+            >>> if await manager.is_data_ready(min_bars=50):
+            ...     # Safe to start trading logic
+            ...     strategy.start()
+        """
+        async with self.data_lock:
+            if timeframe:
+                # Check specific timeframe
+                if timeframe not in self.data:
+                    return False
+                return len(self.data[timeframe]) >= min_bars
+            else:
+                # Check all timeframes
+                if not self.data:
+                    return False
+                return all(len(df) >= min_bars for df in self.data.values())
+
+    async def get_bars_since(
+        self: "RealtimeDataManagerProtocol",
+        timestamp: datetime,
+        timeframe: str = "5min",
+    ) -> pl.DataFrame | None:
+        """
+        Get all bars since a specific timestamp.
+
+        Useful for getting data since a trade entry or specific event.
+
+        Args:
+            timestamp: Starting timestamp (inclusive)
+            timeframe: Timeframe to retrieve (default: "5min")
+
+        Returns:
+            pl.DataFrame: Bars since timestamp or None if no data
+
+        Example:
+            >>> entry_time = datetime.now() - timedelta(hours=1)
+            >>> bars = await manager.get_bars_since(entry_time)
+            >>> if bars is not None:
+            ...     print(f"Bars since entry: {len(bars)}")
+        """
+        data = await self.get_data(timeframe)
+        if data is None or data.is_empty():
+            return None
+
+        # Convert timestamp to timezone-aware if needed
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
+            # Assume it's in the data's timezone
+            # self.timezone is a pytz timezone object, we need its zone string
+            tz_str = getattr(self.timezone, "zone", "America/Chicago")
+            timestamp = timestamp.replace(tzinfo=ZoneInfo(tz_str))
+
+        # Filter bars
+        mask = data["timestamp"] >= timestamp
+        return data.filter(mask)
+
+    async def get_data_or_none(
+        self: "RealtimeDataManagerProtocol",
+        timeframe: str = "5min",
+        min_bars: int = 20,
+    ) -> pl.DataFrame | None:
+        """
+        Get data only if minimum bars are available.
+
+        Simplifies the common pattern of checking for None and minimum length.
+
+        Args:
+            timeframe: Timeframe to retrieve (default: "5min")
+            min_bars: Minimum bars required (default: 20)
+
+        Returns:
+            pl.DataFrame: Data if min_bars available, None otherwise
+
+        Example:
+            >>> # Instead of:
+            >>> # data = await manager.get_data("5min")
+            >>> # if data is None or len(data) < 50:
+            >>> #     return
+            >>> # Simply use:
+            >>> data = await manager.get_data_or_none("5min", min_bars=50)
+            >>> if data is None:
+            ...     return
+        """
+        data = await self.get_data(timeframe)
+        if data is None or len(data) < min_bars:
+            return None
+        return data
+
+    def get_latest_bar_sync(
+        self: "RealtimeDataManagerProtocol",
+        timeframe: str = "5min",
+    ) -> dict[str, float] | None:
+        """
+        Synchronous method to get latest bar for use in properties.
+
+        This is a special sync method for use in property getters where
+        async methods cannot be used.
+
+        Args:
+            timeframe: Timeframe to retrieve (default: "5min")
+
+        Returns:
+            dict: Latest bar as dictionary or None
+
+        Note:
+            This method assumes data_lock is not held by the calling thread.
+            Use with caution in async contexts.
+        """
+        if timeframe not in self.data:
+            return None
+
+        df = self.data[timeframe]
+        if df.is_empty():
+            return None
+
+        row = df.row(-1, named=True)  # Get last row
+        return {
+            "timestamp": row["timestamp"],
+            "open": float(row["open"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "close": float(row["close"]),
+            "volume": float(row["volume"]),
+        }

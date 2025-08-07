@@ -69,7 +69,7 @@ class Doji(BaseIndicator):
 
         result = data.with_columns(
             [
-                pl.abs(pl.col(close_col) - pl.col(open_col)).alias("body"),
+                (pl.col(close_col) - pl.col(open_col)).abs().alias("body"),
                 (pl.col(high_col) - pl.col(low_col)).alias("range"),
             ]
         )
@@ -119,7 +119,7 @@ class Hammer(BaseIndicator):
 
         result = data.with_columns(
             [
-                pl.abs(pl.col(close_col) - pl.col(open_col)).alias("body"),
+                (pl.col(close_col) - pl.col(open_col)).abs().alias("body"),
                 (pl.col(high_col) - pl.max_horizontal([close_col, open_col])).alias(
                     "upper_shadow"
                 ),
@@ -193,7 +193,7 @@ class ShootingStar(BaseIndicator):
 
         result = data.with_columns(
             [
-                pl.abs(pl.col(close_col) - pl.col(open_col)).alias("body"),
+                (pl.col(close_col) - pl.col(open_col)).abs().alias("body"),
                 (pl.col(high_col) - pl.max_horizontal([close_col, open_col])).alias(
                     "upper_shadow"
                 ),
@@ -232,7 +232,7 @@ class ShootingStar(BaseIndicator):
         )
 
         result = result.with_columns(
-            (pl.abs(pl.col("shootingstar_strength")) >= min_strength).alias(
+            (pl.col("shootingstar_strength").abs() >= min_strength).alias(
                 "is_shootingstar"
             )
         )
@@ -320,19 +320,19 @@ class BullishEngulfing(BaseIndicator):
 # Convenience functions
 
 
-def calculate_doji(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_doji(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return Doji().calculate(data, **kwargs)
 
 
-def calculate_hammer(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_hammer(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return Hammer().calculate(data, **kwargs)
 
 
-def calculate_shootingstar(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_shootingstar(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return ShootingStar().calculate(data, **kwargs)
 
 
-def calculate_bullishengulfing(data: pl.DataFrame, **kwargs) -> pl.DataFrame:
+def calculate_bullishengulfing(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return BullishEngulfing().calculate(data, **kwargs)
 
 

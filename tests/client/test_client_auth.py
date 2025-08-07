@@ -115,29 +115,38 @@ class TestClientAuth:
 
         client = initialized_client
         auth_response, accounts_response = mock_auth_response
+
+        # Set up initial side effects for authentication
         client._client.request.side_effect = [
             auth_response,  # Initial auth
             accounts_response,  # Initial accounts fetch
-            mock_response(status_code=401),  # Expired token response
-            auth_response,  # Refresh auth
-            accounts_response,  # Refresh accounts
-            mock_response(),  # Successful API call after refresh
         ]
 
         await client.authenticate()
 
+        # Save initial call count
+        initial_calls = client._client.request.call_count
+
         # Force token expiry
         client.token_expiry = datetime.now(pytz.UTC) - timedelta(minutes=10)
 
-        # Make a request that should trigger token refresh
-        await client.get_health_status()
+        # Now set up the side effects for the token refresh scenario
+        # When _ensure_authenticated detects expired token, it will call authenticate again
+        client._client.request.side_effect = [
+            auth_response,  # Refresh auth
+            accounts_response,  # Refresh accounts
+        ]
 
-        # Should have authenticated twice
-        assert client._client.request.call_count == 6
+        # This should trigger token refresh due to expired token
+        await client._ensure_authenticated()
+
+        # Should have authenticated twice (initial + refresh)
+        assert client._client.request.call_count == initial_calls + 2
 
         # Check that token refresh happened
         calls = client._client.request.call_args_list
-        assert calls[3][1]["url"].endswith("/Auth/loginKey")
+        assert calls[-2][1]["url"].endswith("/Auth/loginKey")
+        assert calls[-1][1]["url"].endswith("/Account/search")
 
     @pytest.mark.asyncio
     async def test_from_env_initialization(

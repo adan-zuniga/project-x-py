@@ -29,15 +29,27 @@ Analytics Categories:
 
 Example Usage:
     ```python
-    # Assuming orderbook is initialized and receiving data
+    # V3: Using analytics with EventBus-enabled orderbook
+    from project_x_py import create_orderbook
+    from project_x_py.events import EventBus
+
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+    await orderbook.initialize(realtime_client)
+
+    # V3: Market imbalance analysis
     imbalance = await orderbook.get_market_imbalance(levels=10)
-    print(imbalance["imbalance_ratio"], imbalance["analysis"])
+    print(f"Imbalance: {imbalance['imbalance_ratio']:.2%}")
+    print(f"Analysis: {imbalance['analysis']}")
 
-    # Depth analysis
+    # V3: Depth analysis with actual contract
     depth = await orderbook.get_orderbook_depth(price_range=5.0)
-    print(f"Bid depth: {depth['bid_depth']['total_volume']}")
+    print(f"Bid depth: {depth['bid_depth']['total_volume']} contracts")
+    print(f"Ask depth: {depth['ask_depth']['total_volume']} contracts")
 
-    # Trade flow analysis
+    # V3: Trade flow analysis
     delta = await orderbook.get_cumulative_delta(time_window_minutes=60)
     print(f"Cumulative delta: {delta['cumulative_delta']}")
     ```
@@ -53,6 +65,10 @@ from typing import Any
 
 import polars as pl
 
+from project_x_py.types.response_types import (
+    LiquidityAnalysisResponse,
+    MarketImpactResponse,
+)
 from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
@@ -110,7 +126,7 @@ class MarketAnalytics:
             "analysis": "Error occurred",
         },
     )
-    async def get_market_imbalance(self, levels: int = 10) -> dict[str, Any]:
+    async def get_market_imbalance(self, levels: int = 10) -> LiquidityAnalysisResponse:
         """
         Calculate order flow imbalance between bid and ask sides.
 
@@ -161,11 +177,23 @@ class MarketAnalytics:
             asks = self.orderbook._get_orderbook_asks_unlocked(levels)
 
             if bids.is_empty() or asks.is_empty():
+                current_time = datetime.now(self.orderbook.timezone)
                 return {
-                    "imbalance_ratio": 0.0,
-                    "bid_volume": 0,
-                    "ask_volume": 0,
-                    "analysis": "Insufficient data",
+                    "bid_liquidity": 0.0,
+                    "ask_liquidity": 0.0,
+                    "total_liquidity": 0.0,
+                    "avg_spread": 0.0,
+                    "spread_volatility": 0.0,
+                    "liquidity_score": 0.0,
+                    "market_depth_score": 0.0,
+                    "resilience_score": 0.0,
+                    "tightness_score": 0.0,
+                    "immediacy_score": 0.0,
+                    "depth_imbalance": 0.0,
+                    "effective_spread": 0.0,
+                    "realized_spread": 0.0,
+                    "price_impact": 0.0,
+                    "timestamp": current_time.isoformat(),
                 }
 
             # Calculate volumes
@@ -174,36 +202,78 @@ class MarketAnalytics:
             total_volume = bid_volume + ask_volume
 
             if total_volume == 0:
+                current_time = datetime.now(self.orderbook.timezone)
                 return {
-                    "imbalance_ratio": 0.0,
-                    "bid_volume": 0,
-                    "ask_volume": 0,
-                    "analysis": "No volume",
+                    "bid_liquidity": 0.0,
+                    "ask_liquidity": 0.0,
+                    "total_liquidity": 0.0,
+                    "avg_spread": 0.0,
+                    "spread_volatility": 0.0,
+                    "liquidity_score": 0.0,
+                    "market_depth_score": 0.0,
+                    "resilience_score": 0.0,
+                    "tightness_score": 0.0,
+                    "immediacy_score": 0.0,
+                    "depth_imbalance": 0.0,
+                    "effective_spread": 0.0,
+                    "realized_spread": 0.0,
+                    "price_impact": 0.0,
+                    "timestamp": current_time.isoformat(),
                 }
 
-            # Calculate imbalance ratio
-            imbalance_ratio = (bid_volume - ask_volume) / total_volume
+            # Calculate best prices for spread analysis
+            best_bid = float(bids.sort("price", descending=True)["price"][0])
+            best_ask = float(asks.sort("price")["price"][0])
+            spread = best_ask - best_bid
 
-            # Analyze imbalance
-            if imbalance_ratio > 0.3:
-                analysis = "Strong buying pressure"
-            elif imbalance_ratio > 0.1:
-                analysis = "Moderate buying pressure"
-            elif imbalance_ratio < -0.3:
-                analysis = "Strong selling pressure"
-            elif imbalance_ratio < -0.1:
-                analysis = "Moderate selling pressure"
-            else:
-                analysis = "Balanced orderbook"
+            # Calculate depth imbalance
+            depth_imbalance = (bid_volume - ask_volume) / total_volume
+
+            # Calculate liquidity metrics
+            bid_liquidity = float(bid_volume)
+            ask_liquidity = float(ask_volume)
+            total_liquidity = float(total_volume)
+
+            # Calculate scores (0-10 scale)
+            market_depth_score = min(10.0, total_volume / 1000)  # Arbitrary scaling
+            tightness_score = max(
+                0.0, 10.0 - (spread * 100)
+            )  # Smaller spreads = higher score
+
+            # Simple liquidity score based on volume and depth
+            liquidity_score = (market_depth_score + tightness_score) / 2
+
+            # Resilience and immediacy scores (simplified)
+            resilience_score = min(
+                10.0, (bids.height + asks.height) / 10
+            )  # Based on depth levels
+            immediacy_score = tightness_score  # Approximation
+
+            # Spread analysis (simplified - would need historical data for true volatility)
+            avg_spread = spread
+            spread_volatility = 0.0  # Would need historical spreads
+            effective_spread = spread  # Approximation
+            realized_spread = spread * 0.5  # Approximation
+            price_impact = abs(depth_imbalance) * spread  # Simplified calculation
+
+            current_time = datetime.now(self.orderbook.timezone)
 
             return {
-                "imbalance_ratio": imbalance_ratio,
-                "bid_volume": bid_volume,
-                "ask_volume": ask_volume,
-                "bid_levels": bids.height,
-                "ask_levels": asks.height,
-                "analysis": analysis,
-                "timestamp": datetime.now(self.orderbook.timezone),
+                "bid_liquidity": bid_liquidity,
+                "ask_liquidity": ask_liquidity,
+                "total_liquidity": total_liquidity,
+                "avg_spread": avg_spread,
+                "spread_volatility": spread_volatility,
+                "liquidity_score": liquidity_score,
+                "market_depth_score": market_depth_score,
+                "resilience_score": resilience_score,
+                "tightness_score": tightness_score,
+                "immediacy_score": immediacy_score,
+                "depth_imbalance": depth_imbalance,
+                "effective_spread": effective_spread,
+                "realized_spread": realized_spread,
+                "price_impact": price_impact,
+                "timestamp": current_time.isoformat(),
             }
 
     @handle_errors(
@@ -211,7 +281,7 @@ class MarketAnalytics:
         reraise=False,
         default_return={"error": "Analysis failed"},
     )
-    async def get_orderbook_depth(self, price_range: float) -> dict[str, Any]:
+    async def get_orderbook_depth(self, price_range: float) -> MarketImpactResponse:
         """
         Analyze orderbook depth within a price range.
 
@@ -227,7 +297,22 @@ class MarketAnalytics:
             best_ask = best_prices.get("ask")
 
             if best_bid is None or best_ask is None:
-                return {"error": "No best bid/ask available"}
+                current_time = datetime.now(self.orderbook.timezone)
+                return {
+                    "estimated_fill_price": 0.0,
+                    "price_impact_pct": 0.0,
+                    "spread_cost": 0.0,
+                    "market_impact_cost": 0.0,
+                    "total_transaction_cost": 0.0,
+                    "levels_consumed": 0,
+                    "remaining_liquidity": 0.0,
+                    "confidence_level": 0.0,
+                    "slippage_estimate": 0.0,
+                    "timing_risk": 0.0,
+                    "liquidity_premium": 0.0,
+                    "implementation_shortfall": 0.0,
+                    "timestamp": current_time.isoformat(),
+                }
 
             # Filter bids within range
             bid_depth = self.orderbook.orderbook_bids.filter(
@@ -239,32 +324,58 @@ class MarketAnalytics:
                 (pl.col("price") <= best_ask + price_range) & (pl.col("volume") > 0)
             )
 
+            # Calculate market impact metrics
+            spread = best_ask - best_bid
+            mid_price = (best_bid + best_ask) / 2
+
+            # Estimate fill price (simplified - assumes we're buying at best ask)
+            estimated_fill_price = best_ask
+
+            # Calculate various costs and impacts
+            spread_cost = spread / 2  # Half spread as crossing cost
+            price_impact_pct = (spread_cost / mid_price) * 100 if mid_price > 0 else 0.0
+
+            # Market impact cost (simplified)
+            bid_volume = (
+                int(bid_depth["volume"].sum()) if not bid_depth.is_empty() else 0
+            )
+            ask_volume = (
+                int(ask_depth["volume"].sum()) if not ask_depth.is_empty() else 0
+            )
+            total_volume = bid_volume + ask_volume
+
+            market_impact_cost = spread_cost * 0.5  # Simplified calculation
+            total_transaction_cost = spread_cost + market_impact_cost
+
+            # Levels and liquidity analysis
+            levels_consumed = min(bid_depth.height, ask_depth.height)
+            remaining_liquidity = float(total_volume)
+
+            # Risk metrics (simplified)
+            confidence_level = min(
+                100.0, total_volume / 100
+            )  # Based on available volume
+            slippage_estimate = price_impact_pct * 1.5  # Conservative estimate
+            timing_risk = price_impact_pct * 0.3  # Risk from timing
+            liquidity_premium = spread_cost * 0.2  # Premium for immediacy
+            implementation_shortfall = slippage_estimate + timing_risk
+
+            current_time = datetime.now(self.orderbook.timezone)
+
             return {
-                "price_range": price_range,
-                "bid_depth": {
-                    "levels": bid_depth.height,
-                    "total_volume": int(bid_depth["volume"].sum())
-                    if not bid_depth.is_empty()
-                    else 0,
-                    "avg_volume": (
-                        float(str(bid_depth["volume"].mean()))
-                        if not bid_depth.is_empty()
-                        else 0.0
-                    ),
-                },
-                "ask_depth": {
-                    "levels": ask_depth.height,
-                    "total_volume": int(ask_depth["volume"].sum())
-                    if not ask_depth.is_empty()
-                    else 0,
-                    "avg_volume": (
-                        float(str(ask_depth["volume"].mean()))
-                        if not ask_depth.is_empty()
-                        else 0.0
-                    ),
-                },
-                "best_bid": best_bid,
-                "best_ask": best_ask,
+                "estimated_fill_price": estimated_fill_price,
+                "price_impact_pct": price_impact_pct,
+                "spread_cost": spread_cost,
+                "market_impact_cost": market_impact_cost,
+                "total_transaction_cost": total_transaction_cost,
+                "levels_consumed": levels_consumed,
+                "remaining_liquidity": remaining_liquidity,
+                "confidence_level": confidence_level,
+                "slippage_estimate": slippage_estimate,
+                "timing_risk": timing_risk,
+                "liquidity_premium": liquidity_premium,
+                "implementation_shortfall": implementation_shortfall,
+                "timestamp": current_time.isoformat(),
             }
 
     @handle_errors(

@@ -27,20 +27,38 @@ Memory Management Capabilities:
 
 Example Usage:
     ```python
-    # Memory management is handled automatically
-    # Access memory statistics for monitoring
+    # V3: Memory management with async patterns
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
 
-    stats = manager.get_memory_stats()
-    print(f"Total bars in memory: {stats['total_bars']}")
-    print(f"Ticks processed: {stats['ticks_processed']}")
-    print(f"Bars cleaned: {stats['bars_cleaned']}")
+        # V3: Create manager with memory configuration
+        manager = RealtimeDataManager(
+            instrument="MNQ",
+            project_x=client,
+            realtime_client=realtime_client,
+            timeframes=["1min", "5min"],
+            max_bars_per_timeframe=500,  # V3: Configurable limits
+            tick_buffer_size=100,
+        )
 
-    # Check timeframe-specific statistics
-    for tf, count in stats["timeframe_bar_counts"].items():
-        print(f"{tf}: {count} bars")
+        # V3: Access memory statistics asynchronously
+        stats = await manager.get_memory_stats()
+        print(f"Total bars in memory: {stats['total_bars']}")
+        print(f"Total data points: {stats['total_data_points']}")
+        print(f"Ticks processed: {stats['ticks_processed']}")
+        print(f"Bars cleaned: {stats['bars_cleaned']}")
 
-    # Memory management happens automatically in background
-    # No manual intervention required
+        # V3: Check timeframe-specific statistics
+        for tf, count in stats["timeframe_bar_counts"].items():
+            print(f"{tf}: {count} bars")
+
+        # V3: Monitor memory health
+        if stats["total_data_points"] > 10000:
+            print("Warning: High memory usage detected")
+            await manager.cleanup()  # Force cleanup
+
+        # V3: Memory management happens automatically
+        # Background cleanup task runs periodically
     ```
 
 Memory Management Strategy:
@@ -76,6 +94,9 @@ import logging
 import time
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from project_x_py.types.stats_types import RealtimeDataManagerStats
 
 if TYPE_CHECKING:
     from asyncio import Lock
@@ -177,7 +198,7 @@ class MemoryManagementMixin:
                 self.logger.error(f"Runtime error in periodic cleanup: {e}")
                 # Don't re-raise runtime errors to keep the cleanup task running
 
-    def get_memory_stats(self) -> dict[str, Any]:
+    def get_memory_stats(self) -> "RealtimeDataManagerStats":
         """
         Get comprehensive memory usage statistics for the real-time data manager.
 
@@ -201,13 +222,42 @@ class MemoryManagementMixin:
             else:
                 timeframe_stats[tf_key] = 0
 
+        # Update current statistics
+        self.memory_stats["total_bars_stored"] = total_bars
+        self.memory_stats["buffer_utilization"] = (
+            len(self.current_tick_data) / self.tick_buffer_size
+            if self.tick_buffer_size > 0
+            else 0.0
+        )
+
+        # Calculate memory usage estimate (rough approximation)
+        estimated_memory_mb = (total_bars * 0.001) + (
+            len(self.current_tick_data) * 0.0001
+        )  # Very rough estimate
+        self.memory_stats["memory_usage_mb"] = estimated_memory_mb
+
         return {
-            "timeframe_bar_counts": timeframe_stats,
-            "total_bars": total_bars,
-            "tick_buffer_size": len(self.current_tick_data),
-            "max_bars_per_timeframe": self.max_bars_per_timeframe,
-            "max_tick_buffer": self.tick_buffer_size,
-            **self.memory_stats,
+            "bars_processed": self.memory_stats["bars_processed"],
+            "ticks_processed": self.memory_stats["ticks_processed"],
+            "quotes_processed": self.memory_stats["quotes_processed"],
+            "trades_processed": self.memory_stats["trades_processed"],
+            "timeframe_stats": self.memory_stats["timeframe_stats"],
+            "avg_processing_time_ms": self.memory_stats["avg_processing_time_ms"],
+            "data_latency_ms": self.memory_stats["data_latency_ms"],
+            "buffer_utilization": self.memory_stats["buffer_utilization"],
+            "total_bars_stored": self.memory_stats["total_bars_stored"],
+            "memory_usage_mb": self.memory_stats["memory_usage_mb"],
+            "compression_ratio": self.memory_stats["compression_ratio"],
+            "updates_per_minute": self.memory_stats["updates_per_minute"],
+            "last_update": (
+                self.memory_stats["last_update"].isoformat()
+                if self.memory_stats["last_update"]
+                else None
+            ),
+            "data_freshness_seconds": self.memory_stats["data_freshness_seconds"],
+            "data_validation_errors": self.memory_stats["data_validation_errors"],
+            "connection_interruptions": self.memory_stats["connection_interruptions"],
+            "recovery_attempts": self.memory_stats["recovery_attempts"],
         }
 
     async def stop_cleanup_task(self) -> None:

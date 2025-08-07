@@ -26,10 +26,23 @@ Example Usage:
 
 
     async def main():
+        # V3: Async market data retrieval with Polars DataFrames
         async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # Get instrument details with smart contract selection
             instrument = await client.get_instrument("ES")
+            print(f"Trading: {instrument.name} ({instrument.id})")
+            print(f"Tick size: {instrument.tick_size}")
+
+            # Fetch historical bars (returns Polars DataFrame)
             bars = await client.get_bars("ES", days=3, interval=15)
+            print(f"Retrieved {len(bars)} 15-minute bars")
             print(bars.head())
+
+            # V3: Can also search by contract ID directly
+            mnq_sept = await client.get_instrument("CON.F.US.MNQ.U25")
+            print(f"Contract: {mnq_sept.symbol}")
 
 
     asyncio.run(main())
@@ -87,9 +100,15 @@ class MarketDataMixin:
             Instrument object with complete contract details
 
         Example:
+            >>> # V3: Get instrument with automatic contract selection
             >>> instrument = await client.get_instrument("NQ")
             >>> print(f"Trading {instrument.symbol} - {instrument.name}")
+            >>> print(f"Contract ID: {instrument.id}")
             >>> print(f"Tick size: {instrument.tick_size}")
+            >>> print(f"Tick value: ${instrument.tick_value}")
+            >>> # V3: Get specific contract by full ID
+            >>> mnq_contract = await client.get_instrument("CON.F.US.MNQ.U25")
+            >>> print(f"Specific contract: {mnq_contract.symbol}")
         """
         with LogContext(
             logger,
@@ -264,9 +283,13 @@ class MarketDataMixin:
             List of Instrument objects matching the query
 
         Example:
+            >>> # V3: Search for instruments by symbol or name
             >>> instruments = await client.search_instruments("gold")
             >>> for inst in instruments:
-            >>>     print(f"{inst.name}: {inst.description}")
+            >>>     print(f"{inst.symbol}: {inst.name}")
+            >>>     print(f"  Contract ID: {inst.id}")
+            >>>     print(f"  Description: {inst.description}")
+            >>>     print(f"  Exchange: {inst.exchange}")
         """
         with LogContext(
             logger,
@@ -332,12 +355,22 @@ class MarketDataMixin:
             ProjectXDataError: If data retrieval fails or invalid response
 
         Example:
+            >>> # V3: Get historical OHLCV data as Polars DataFrame
             >>> # Get 5 days of 15-minute gold data
             >>> data = await client.get_bars("MGC", days=5, interval=15)
             >>> print(f"Retrieved {len(data)} bars")
+            >>> print(f"Columns: {data.columns}")
             >>> print(
             ...     f"Date range: {data['timestamp'].min()} to {data['timestamp'].max()}"
             ... )
+            >>> # V3: Process with Polars operations
+            >>> daily_highs = data.group_by_dynamic("timestamp", every="1d").agg(
+            ...     pl.col("high").max()
+            ... )
+            >>> print(f"Daily highs: {daily_highs}")
+            >>> # V3: Different time units available
+            >>> # unit=1 (seconds), 2 (minutes), 3 (hours), 4 (days)
+            >>> hourly_data = await client.get_bars("ES", days=1, interval=1, unit=3)
         """
         with LogContext(
             logger,

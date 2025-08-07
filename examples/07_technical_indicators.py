@@ -10,6 +10,8 @@ Demonstrates concurrent technical analysis using async patterns:
 
 Uses the built-in TA-Lib compatible indicators with Polars DataFrames.
 
+Updated for v3.0.0: Uses new TradingSuite for simplified initialization.
+
 Usage:
     Run with: ./test.sh (sets environment variables)
     Or: uv run examples/07_technical_indicators.py
@@ -25,9 +27,7 @@ from datetime import datetime
 import polars as pl
 
 from project_x_py import (
-    ProjectX,
-    create_data_manager,
-    create_realtime_client,
+    TradingSuite,
     setup_logging,
 )
 from project_x_py.indicators import (
@@ -51,7 +51,6 @@ from project_x_py.indicators import (
     WAE,
     WILLR,
 )
-from project_x_py.types.protocols import ProjectXClientProtocol
 
 
 async def calculate_indicators_concurrently(data: pl.DataFrame):
@@ -103,7 +102,7 @@ async def calculate_indicators_concurrently(data: pl.DataFrame):
     return result_data
 
 
-async def analyze_multiple_timeframes(client: ProjectXClientProtocol, symbol="MNQ"):
+async def analyze_multiple_timeframes(suite: TradingSuite, symbol="MNQ"):
     """Analyze indicators across multiple timeframes concurrently."""
     timeframe_configs = [
         ("5min", 7, 5),  # 1 day of 5-minute bars
@@ -116,7 +115,7 @@ async def analyze_multiple_timeframes(client: ProjectXClientProtocol, symbol="MN
 
     # Fetch data for all timeframes concurrently
     async def get_timeframe_data(name, days, interval):
-        data = await client.get_bars(symbol, days=days, interval=interval)
+        data = await suite.client.get_bars(symbol, days=days, interval=interval)
         return name, data
 
     data_tasks = [
@@ -350,12 +349,12 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
     print(f"\n✅ Monitoring complete. Received {update_count} updates.")
 
 
-async def analyze_pattern_indicators(client: ProjectXClientProtocol, symbol="MNQ"):
+async def analyze_pattern_indicators(suite: TradingSuite, symbol="MNQ"):
     """Demonstrate pattern recognition indicators in detail."""
     print("\n🎯 Pattern Recognition Analysis...")
 
     # Get hourly data for pattern analysis
-    data = await client.get_bars(symbol, days=10, interval=60)
+    data = await suite.client.get_bars(symbol, days=10, interval=60)
     if data is None or data.is_empty():
         print("No data available for pattern analysis")
         return
@@ -436,12 +435,12 @@ async def analyze_pattern_indicators(client: ProjectXClientProtocol, symbol="MNQ
         print(f"    Nearest Bearish OB: ${last_row['ob_nearest_bearish'].item():.2f}")
 
 
-async def performance_comparison(client, symbol="MNQ"):
+async def performance_comparison(suite: TradingSuite, symbol="MNQ"):
     """Compare performance of concurrent vs sequential indicator calculation."""
     print("\n⚡ Performance Comparison: Concurrent vs Sequential")
 
     # Get test data - need more for WAE indicator
-    data = await client.get_bars(symbol, days=20, interval=60)
+    data = await suite.client.get_bars(symbol, days=20, interval=60)
     if data is None or data.is_empty():
         print("No data available for comparison")
         return
@@ -486,63 +485,53 @@ async def performance_comparison(client, symbol="MNQ"):
 async def main():
     """Main async function for technical indicators example."""
     logger = setup_logging(level="INFO")
-    logger.info("🚀 Starting Async Technical Indicators Example")
+    logger.info("🚀 Starting Async Technical Indicators Example (v3.0.0)")
 
     try:
-        # Create async client
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
-            if client.account_info is None:
-                raise ValueError("Account info is None")
-            print(f"✅ Connected as: {client.account_info.name}")
+        # Create TradingSuite v3 with real-time data
+        print("\n🏗️ Creating TradingSuite v3...")
+        suite = await TradingSuite.create(
+            instrument="MNQ",
+            timeframes=["5sec", "1min", "5min"],
+            initial_days=7,
+        )
 
-            # Analyze multiple timeframes concurrently
-            await analyze_multiple_timeframes(client, "MNQ")
+        print("✅ TradingSuite initialized successfully!")
 
-            # Analyze pattern indicators
-            await analyze_pattern_indicators(client, "MNQ")
+        account = suite.client.account_info
+        if not account:
+            print("❌ No account info found")
+            await suite.disconnect()
+            return
 
-            # Performance comparison
-            await performance_comparison(client, "MNQ")
+        print(f"   Connected as: {account.name}")
 
-            # Set up real-time monitoring
-            print("\n📊 Setting up real-time indicator monitoring...")
+        # Analyze multiple timeframes concurrently
+        await analyze_multiple_timeframes(suite, "MNQ")
 
-            # Create real-time components
-            realtime_client = create_realtime_client(
-                client.session_token, str(client.account_info.id)
-            )
+        # Analyze pattern indicators
+        await analyze_pattern_indicators(suite, "MNQ")
 
-            data_manager = create_data_manager(
-                "MNQ", client, realtime_client, timeframes=["5sec", "1min", "5min"]
-            )
+        # Performance comparison
+        await performance_comparison(suite, "MNQ")
 
-            # Connect and initialize
-            if await realtime_client.connect():
-                await realtime_client.subscribe_user_updates()
+        # Monitor indicators in real-time
+        print("\n📊 Monitoring indicators in real-time...")
 
-                # Initialize data manager
-                await data_manager.initialize(initial_days=7)
+        # Check if we have data_manager
+        if hasattr(suite, "data") and suite.data:
+            await real_time_indicator_updates(suite.data, duration_seconds=30)
+        else:
+            print("   Real-time monitoring not available in this configuration")
 
-                # Subscribe to market data
-                instruments = await client.search_instruments("MNQ")
-                if instruments:
-                    await realtime_client.subscribe_market_data([instruments[0].id])
-                    await data_manager.start_realtime_feed()
+        print("\n📈 Technical Analysis Summary:")
+        print("  - Concurrent indicator calculation is significantly faster")
+        print("  - Multiple timeframes can be analyzed simultaneously")
+        print("  - Real-time updates allow for responsive strategies")
+        print("  - Async patterns enable efficient resource usage")
 
-                    # Monitor indicators in real-time
-                    await real_time_indicator_updates(data_manager, duration_seconds=30)
-
-                    # Cleanup
-                    await data_manager.stop_realtime_feed()
-
-                await realtime_client.cleanup()
-
-            print("\n📈 Technical Analysis Summary:")
-            print("  - Concurrent indicator calculation is significantly faster")
-            print("  - Multiple timeframes can be analyzed simultaneously")
-            print("  - Real-time updates allow for responsive strategies")
-            print("  - Async patterns enable efficient resource usage")
+        # Cleanup
+        await suite.disconnect()
 
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)

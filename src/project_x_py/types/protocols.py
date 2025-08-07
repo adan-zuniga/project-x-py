@@ -95,7 +95,16 @@ from typing import TYPE_CHECKING, Any, Protocol
 import httpx
 import polars as pl
 
+from project_x_py.types.response_types import (
+    PerformanceStatsResponse,
+    PortfolioMetricsResponse,
+    PositionAnalysisResponse,
+    RiskAnalysisResponse,
+)
+from project_x_py.types.stats_types import PositionManagerStats
+
 if TYPE_CHECKING:
+    from project_x_py.client.base import ProjectXBase
     from project_x_py.models import (
         Account,
         Instrument,
@@ -105,8 +114,8 @@ if TYPE_CHECKING:
         ProjectXConfig,
         Trade,
     )
+    from project_x_py.order_manager import OrderManager
     from project_x_py.realtime import ProjectXRealtimeClient
-    from project_x_py.types import OrderStats
     from project_x_py.utils.async_rate_limiter import RateLimiter
 
 
@@ -159,7 +168,7 @@ class ProjectXClientProtocol(Protocol):
     ) -> Any: ...
     async def _create_client(self) -> httpx.AsyncClient: ...
     async def _ensure_client(self) -> httpx.AsyncClient: ...
-    async def get_health_status(self) -> dict[str, Any]: ...
+    async def get_health_status(self) -> PerformanceStatsResponse: ...
 
     # Cache methods
     async def _cleanup_cache(self) -> None: ...
@@ -205,16 +214,16 @@ class ProjectXClientProtocol(Protocol):
 class OrderManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from OrderManager."""
 
-    project_x: ProjectXClientProtocol
+    project_x: "ProjectXBase"
     realtime_client: "ProjectXRealtimeClient | None"
+    event_bus: Any  # EventBus instance
     order_lock: asyncio.Lock
     _realtime_enabled: bool
-    stats: "OrderStats"
+    stats: dict[str, Any]  # Comprehensive statistics tracking
 
     # From tracking mixin
     tracked_orders: dict[str, dict[str, Any]]
     order_status_cache: dict[str, int]
-    order_callbacks: dict[str, list[Any]]
     position_orders: dict[str, dict[str, list[int]]]
     order_to_position: dict[int, str]
 
@@ -269,6 +278,12 @@ class OrderManagerProtocol(Protocol):
         size: int | None = None,
     ) -> bool: ...
 
+    async def search_open_orders(
+        self,
+        account_id: int | None = None,
+        contract_id: str | None = None,
+    ) -> list["Order"]: ...
+
     async def get_tracked_order_status(
         self, order_id: str, wait_for_cache: bool = False
     ) -> dict[str, Any] | None: ...
@@ -322,16 +337,16 @@ class OrderManagerProtocol(Protocol):
 class PositionManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from PositionManager."""
 
-    project_x: ProjectXClientProtocol
+    project_x: "ProjectXBase"
     logger: Any
+    event_bus: Any  # EventBus instance
     position_lock: asyncio.Lock
     realtime_client: "ProjectXRealtimeClient | None"
     _realtime_enabled: bool
-    order_manager: "OrderManagerProtocol | None"
+    order_manager: "OrderManager | None"
     _order_sync_enabled: bool
     tracked_positions: dict[str, "Position"]
     position_history: dict[str, list[dict[str, Any]]]
-    position_callbacks: dict[str, list[Any]]
     _monitoring_active: bool
     _monitoring_task: "asyncio.Task[None] | None"
     position_alerts: dict[str, dict[str, Any]]
@@ -340,8 +355,10 @@ class PositionManagerProtocol(Protocol):
 
     # Methods required by mixins
     async def _setup_realtime_callbacks(self) -> None: ...
-    async def _on_position_update(self, position_data: dict[str, Any]) -> None: ...
-    async def _on_account_update(self, account_data: dict[str, Any]) -> None: ...
+    async def _on_position_update(
+        self, data: dict[str, Any] | list[dict[str, Any]]
+    ) -> None: ...
+    async def _on_account_update(self, data: dict[str, Any]) -> None: ...
     async def _process_position_data(
         self, position_data: dict[str, Any]
     ) -> "Position | None": ...
@@ -361,9 +378,6 @@ class PositionManagerProtocol(Protocol):
     async def get_position(
         self, contract_id: str, account_id: int | None = None
     ) -> "Position | None": ...
-    async def get_positions(
-        self, account_id: int | None = None
-    ) -> list["Position"]: ...
     def _generate_risk_warnings(
         self,
         positions: list["Position"],
@@ -381,20 +395,22 @@ class PositionManagerProtocol(Protocol):
         self, contract_id: str, reduce_by: int, account_id: int | None = None
     ) -> dict[str, Any]: ...
     async def calculate_position_pnl(
-        self, position: "Position", current_price: float, point_value: float = 1.0
-    ) -> dict[str, float]: ...
+        self,
+        position: "Position",
+        current_price: float,
+        point_value: float | None = None,
+    ) -> "PositionAnalysisResponse": ...
     async def get_portfolio_pnl(
         self,
-        current_prices: dict[str, float] | None = None,
         account_id: int | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> "PortfolioMetricsResponse": ...
     async def get_risk_metrics(
         self, account_id: int | None = None
-    ) -> dict[str, Any]: ...
-    async def get_position_statistics(
-        self, account_id: int | None = None
-    ) -> dict[str, Any]: ...
-    async def _monitoring_loop(self, check_interval: float = 60.0) -> None: ...
+    ) -> "RiskAnalysisResponse": ...
+    def get_position_statistics(
+        self,
+    ) -> "PositionManagerStats": ...
+    async def _monitoring_loop(self, refresh_interval: int) -> None: ...
     async def stop_monitoring(self) -> None: ...
 
 
@@ -403,8 +419,9 @@ class RealtimeDataManagerProtocol(Protocol):
 
     # Core attributes
     instrument: str
-    project_x: ProjectXClientProtocol
+    project_x: "ProjectXBase"
     realtime_client: "ProjectXRealtimeClient"
+    event_bus: Any  # EventBus instance
     logger: Any
     timezone: Any  # pytz.tzinfo.BaseTzInfo
 
@@ -419,7 +436,6 @@ class RealtimeDataManagerProtocol(Protocol):
     # Synchronization
     data_lock: asyncio.Lock
     is_running: bool
-    callbacks: dict[str, list[Any]]
     indicator_cache: defaultdict[str, dict[str, Any]]
 
     # Contract and subscription

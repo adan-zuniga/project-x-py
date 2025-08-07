@@ -19,12 +19,35 @@ Key Features:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX
+    # V3: Initialize order manager with event bus and real-time support
+    import asyncio
+    from project_x_py import ProjectX, create_realtime_client, EventBus
     from project_x_py.order_manager import OrderManager
 
-    async with ProjectX.from_env() as client:
-        om = OrderManager(client)
-        await om.place_limit_order("ES", 0, 1, 5000.0)
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # V3: Create dependencies
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
+
+            # V3: Initialize order manager
+            om = OrderManager(client, event_bus)
+            await om.initialize(realtime_client)
+
+            # V3: Place orders with automatic price alignment
+            await om.place_limit_order("ES", side=0, size=1, limit_price=5000.0)
+
+            # V3: Monitor order statistics
+            stats = await om.get_order_statistics()
+            print(f"Fill rate: {stats['fill_rate']:.1%}")
+
+
+    asyncio.run(main())
     ```
 
 See Also:
@@ -40,7 +63,8 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import Order, OrderPlaceResponse
-from project_x_py.types import OrderStats
+from project_x_py.types.config_types import OrderManagerConfig
+from project_x_py.types.stats_types import OrderManagerStats
 from project_x_py.types.trading import OrderStatus
 from project_x_py.utils import (
     ErrorMessages,
@@ -115,9 +139,14 @@ class OrderManager(
     across different order types and strategies.
     """
 
-    def __init__(self, project_x_client: "ProjectXBase"):
+    def __init__(
+        self,
+        project_x_client: "ProjectXBase",
+        event_bus: Any,
+        config: OrderManagerConfig | None = None,
+    ):
         """
-        Initialize the OrderManager with an ProjectX client.
+        Initialize the OrderManager with an ProjectX client and optional configuration.
 
         Creates a new instance of the OrderManager that uses the provided ProjectX client
         for API access. This establishes the foundation for order operations but does not
@@ -128,12 +157,21 @@ class OrderManager(
             project_x_client: ProjectX client instance for API access. This client
                 should already be authenticated or authentication should be handled
                 separately before attempting order operations.
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including order placements, fills, and cancellations.
+            config: Optional configuration for order management behavior. If not provided,
+                default values will be used for all configuration options.
         """
         # Initialize mixins
         OrderTrackingMixin.__init__(self)
 
         self.project_x = project_x_client
+        self.event_bus = event_bus  # Store the event bus for emitting events
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Async lock for thread safety
         self.order_lock = asyncio.Lock()
@@ -142,16 +180,42 @@ class OrderManager(
         self.realtime_client: ProjectXRealtimeClient | None = None
         self._realtime_enabled = False
 
-        # Statistics
-        self.stats: OrderStats = {
+        # Comprehensive statistics tracking
+        self.stats: dict[str, Any] = {
             "orders_placed": 0,
+            "orders_filled": 0,
             "orders_cancelled": 0,
+            "orders_rejected": 0,
             "orders_modified": 0,
-            "bracket_orders_placed": 0,
+            "market_orders": 0,
+            "limit_orders": 0,
+            "stop_orders": 0,
+            "bracket_orders": 0,
+            "total_volume": 0,
+            "total_value": 0.0,
+            "largest_order": 0,
+            "risk_violations": 0,
+            "order_validation_failures": 0,
             "last_order_time": None,
+            "fill_times_ms": [],
+            "order_response_times_ms": [],
         }
 
         self.logger.info("AsyncOrderManager initialized")
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Set default configuration values
+        self.enable_bracket_orders = self.config.get("enable_bracket_orders", True)
+        self.enable_trailing_stops = self.config.get("enable_trailing_stops", True)
+        self.auto_risk_management = self.config.get("auto_risk_management", False)
+        self.max_order_size = self.config.get("max_order_size", 1000)
+        self.max_orders_per_minute = self.config.get("max_orders_per_minute", 120)
+        self.default_order_type = self.config.get("default_order_type", "limit")
+        self.enable_order_validation = self.config.get("enable_order_validation", True)
+        self.require_confirmation = self.config.get("require_confirmation", False)
+        self.auto_cancel_on_close = self.config.get("auto_cancel_on_close", False)
+        self.order_timeout_minutes = self.config.get("order_timeout_minutes", 60)
 
     async def initialize(
         self, realtime_client: Optional["ProjectXRealtimeClient"] = None
@@ -268,11 +332,25 @@ class OrderManager(
             ProjectXOrderError: If order placement fails due to invalid parameters or API errors
 
         Example:
-            >>> # Place a limit buy order
+            >>> # V3: Place a limit buy order with automatic price alignment
             >>> response = await om.place_order(
-            ...     contract_id="MGC", order_type=1, side=0, size=1, limit_price=2050.0
+            ...     contract_id="MGC",
+            ...     order_type=1,  # Limit order
+            ...     side=0,  # Buy
+            ...     size=1,
+            ...     limit_price=2050.0,  # Automatically aligned to tick size
+            ...     custom_tag="my_strategy_001",  # Optional tag for tracking
             ... )
             >>> print(f"Order placed: {response.orderId}")
+            >>> print(f"Success: {response.success}")
+            >>> # V3: Place a stop loss order
+            >>> stop_response = await om.place_order(
+            ...     contract_id="MGC",
+            ...     order_type=4,  # Stop order
+            ...     side=1,  # Sell
+            ...     size=1,
+            ...     stop_price=2040.0,  # Automatically aligned to tick size
+            ... )
         """
         # Add logging context
         with LogContext(
@@ -351,6 +429,9 @@ class OrderManager(
                 # Update statistics
                 self.stats["orders_placed"] += 1
                 self.stats["last_order_time"] = datetime.now()
+                self.stats["total_volume"] += size
+                if size > self.stats["largest_order"]:
+                    self.stats["largest_order"] = size
 
                 self.logger.info(
                     LogMessages.ORDER_PLACED,
@@ -359,6 +440,23 @@ class OrderManager(
                         "contract_id": contract_id,
                         "side": side,
                         "size": size,
+                    },
+                )
+
+                # Emit order placed event
+                await self._trigger_callbacks(
+                    "order_placed",
+                    {
+                        "order_id": result.orderId,
+                        "contract_id": contract_id,
+                        "order_type": order_type,
+                        "side": side,
+                        "size": size,
+                        "limit_price": aligned_limit_price,
+                        "stop_price": aligned_stop_price,
+                        "trail_price": aligned_trail_price,
+                        "custom_tag": custom_tag,
+                        "response": result,
                     },
                 )
 
@@ -525,9 +623,7 @@ class OrderManager(
                     self.tracked_orders[str(order_id)]["status"] = OrderStatus.CANCELLED
                     self.order_status_cache[str(order_id)] = OrderStatus.CANCELLED
 
-                self.stats["orders_cancelled"] = (
-                    self.stats.get("orders_cancelled", 0) + 1
-                )
+                self.stats["orders_cancelled"] += 1
                 self.logger.info(
                     LogMessages.ORDER_CANCELLED, extra={"order_id": order_id}
                 )
@@ -620,13 +716,25 @@ class OrderManager(
             if response and response.get("success", False):
                 # Update statistics
                 async with self.order_lock:
-                    self.stats["orders_modified"] = (
-                        self.stats.get("orders_modified", 0) + 1
-                    )
+                    self.stats["orders_modified"] += 1
 
                 self.logger.info(
                     LogMessages.ORDER_MODIFIED, extra={"order_id": order_id}
                 )
+
+                # Emit order modified event
+                await self._trigger_callbacks(
+                    "order_modified",
+                    {
+                        "order_id": order_id,
+                        "modifications": {
+                            "limit_price": aligned_limit,
+                            "stop_price": aligned_stop,
+                            "size": size,
+                        },
+                    },
+                )
+
                 return True
             else:
                 error_msg = (
@@ -696,7 +804,7 @@ class OrderManager(
 
             return results
 
-    async def get_order_statistics(self) -> dict[str, Any]:
+    async def get_order_statistics(self) -> OrderManagerStats:
         """
         Get comprehensive order management statistics and system health information.
 
@@ -708,7 +816,7 @@ class OrderManager(
         """
         async with self.order_lock:
             # Use internal order tracking
-            tracked_orders_count = len(self.tracked_orders)
+            _tracked_orders_count = len(self.tracked_orders)
 
             # Count position-order relationships
             total_position_orders = 0
@@ -728,26 +836,78 @@ class OrderManager(
                         "total": total_count,
                     }
 
-            # Count callbacks
-            callback_counts = {
-                event_type: len(callbacks)
-                for event_type, callbacks in self.order_callbacks.items()
-            }
+            # Callbacks now handled through EventBus
+            _callback_counts: dict[str, int] = {}
+
+            # Calculate performance metrics
+            fill_rate = (
+                self.stats["orders_filled"] / self.stats["orders_placed"]
+                if self.stats["orders_placed"] > 0
+                else 0.0
+            )
+
+            rejection_rate = (
+                self.stats["orders_rejected"] / self.stats["orders_placed"]
+                if self.stats["orders_placed"] > 0
+                else 0.0
+            )
+
+            avg_fill_time_ms = (
+                sum(self.stats["fill_times_ms"]) / len(self.stats["fill_times_ms"])
+                if self.stats["fill_times_ms"]
+                else 0.0
+            )
+
+            avg_order_response_time_ms = (
+                sum(self.stats["order_response_times_ms"])
+                / len(self.stats["order_response_times_ms"])
+                if self.stats["order_response_times_ms"]
+                else 0.0
+            )
+
+            avg_order_size = (
+                self.stats["total_volume"] / self.stats["orders_placed"]
+                if self.stats["orders_placed"] > 0
+                else 0.0
+            )
+
+            fastest_fill_ms = (
+                min(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
+            )
+            slowest_fill_ms = (
+                max(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
+            )
 
             return {
-                "statistics": self.stats,
-                "realtime_enabled": self._realtime_enabled,
-                "tracked_orders": tracked_orders_count,
-                "position_order_relationships": {
-                    "total_order_position_links": len(self.order_to_position),
-                    "positions_with_orders": len(position_summary),
-                    "total_position_orders": total_position_orders,
-                    "position_summary": position_summary,
-                },
-                "callbacks_registered": callback_counts,
-                "health_status": "healthy"
-                if self._realtime_enabled or tracked_orders_count > 0
-                else "degraded",
+                "orders_placed": self.stats["orders_placed"],
+                "orders_filled": self.stats["orders_filled"],
+                "orders_cancelled": self.stats["orders_cancelled"],
+                "orders_rejected": self.stats["orders_rejected"],
+                "orders_modified": self.stats["orders_modified"],
+                # Performance metrics
+                "fill_rate": fill_rate,
+                "avg_fill_time_ms": avg_fill_time_ms,
+                "rejection_rate": rejection_rate,
+                # Order types
+                "market_orders": self.stats["market_orders"],
+                "limit_orders": self.stats["limit_orders"],
+                "stop_orders": self.stats["stop_orders"],
+                "bracket_orders": self.stats["bracket_orders"],
+                # Timing statistics
+                "last_order_time": self.stats["last_order_time"].isoformat()
+                if self.stats["last_order_time"]
+                else None,
+                "avg_order_response_time_ms": avg_order_response_time_ms,
+                "fastest_fill_ms": fastest_fill_ms,
+                "slowest_fill_ms": slowest_fill_ms,
+                # Volume and value
+                "total_volume": self.stats["total_volume"],
+                "total_value": self.stats["total_value"],
+                "avg_order_size": avg_order_size,
+                "largest_order": self.stats["largest_order"],
+                # Risk metrics
+                "risk_violations": self.stats["risk_violations"],
+                "order_validation_failures": self.stats["order_validation_failures"],
             }
 
     async def cleanup(self) -> None:
@@ -760,7 +920,7 @@ class OrderManager(
             self.order_status_cache.clear()
             self.order_to_position.clear()
             self.position_orders.clear()
-            self.order_callbacks.clear()
+            # EventBus handles all callbacks now
 
         # Clean up realtime client if it exists
         if self.realtime_client:

@@ -26,12 +26,20 @@ Example Usage:
 
 
     async def main():
+        # V3: Using async context manager with automatic authentication
         async with ProjectX.from_env() as client:
             await client.authenticate()
-            print(f"Authenticated as {client.account_info.username}")
+
+            # V3: Access account info directly
+            account = client.get_account_info()
+            print(f"Authenticated account: {account.name}")
+            print(f"Account ID: {account.id}")
+            print(f"Balance: ${account.balance:,.2f}")
+
+            # V3: List all available accounts
             accounts = await client.list_accounts()
             for acc in accounts:
-                print(acc.name, acc.balance)
+                print(f"{acc.name}: ${acc.balance:,.2f} ({acc.state})")
 
 
     asyncio.run(main())
@@ -134,10 +142,16 @@ class AuthenticationMixin:
             ValueError: If specified account is not found
 
         Example:
-            >>> async with AsyncProjectX.from_env() as client:
-            >>>     await client.authenticate()
-            >>>     print(f"Authenticated as {client.account_info.username}")
-            >>>     print(f"Using account: {client.account_info.name}")
+            >>> # V3: Async authentication with error handling
+            >>> async with ProjectX.from_env() as client:
+            >>>     try:
+            >>>         await client.authenticate()
+            >>>         account = client.get_account_info()
+            >>>         print(f"Authenticated account: {account.name}")
+            >>>         print(f"Account ID: {account.id}")
+            >>>         print(f"Balance: ${account.balance:,.2f}")
+            >>>     except ProjectXAuthenticationError as e:
+            >>>         print(f"Authentication failed: {e}")
         """
         logger.debug(LogMessages.AUTH_START, extra={"username": self.username})
 
@@ -254,9 +268,14 @@ class AuthenticationMixin:
             ProjectXError: If account listing fails
 
         Example:
+            >>> # V3: List all active accounts with detailed information
             >>> accounts = await client.list_accounts()
             >>> for account in accounts:
-            >>>     print(f"{account.name}: ${account.balance:,.2f}")
+            >>>     print(f"Account: {account.name}")
+            >>>     print(f"  ID: {account.id}")
+            >>>     print(f"  Balance: ${account.balance:,.2f}")
+            >>>     print(f"  State: {account.state}")
+            >>>     print(f"  Type: {account.type}")
         """
         await self._ensure_authenticated()
 

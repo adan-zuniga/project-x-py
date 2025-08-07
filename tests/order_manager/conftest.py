@@ -1,9 +1,10 @@
 """OrderManager test-specific fixtures."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from project_x_py.event_bus import EventBus
 from project_x_py.models import Account
 from project_x_py.order_manager.core import OrderManager
 
@@ -36,7 +37,10 @@ def order_manager(initialized_client):
         simulated=True,
     )
 
-    om = OrderManager(initialized_client)
+    # Create EventBus for the test
+    event_bus = EventBus()
+
+    om = OrderManager(initialized_client, event_bus)
     yield om
 
     patch_utils.stop()

@@ -90,6 +90,7 @@ See Also:
 from typing import Any
 
 __all__ = [
+    "InvalidOrderParameters",
     "ProjectXAuthenticationError",
     "ProjectXClientError",
     "ProjectXConnectionError",
@@ -100,6 +101,7 @@ __all__ = [
     "ProjectXPositionError",
     "ProjectXRateLimitError",
     "ProjectXServerError",
+    "RiskLimitExceeded",
 ]
 
 
@@ -159,3 +161,11 @@ class ProjectXPositionError(ProjectXError):
 
 class ProjectXInstrumentError(ProjectXError):
     """Instrument-related errors."""
+
+
+class RiskLimitExceeded(ProjectXError):
+    """Risk limit exceeded errors."""
+
+
+class InvalidOrderParameters(ProjectXError):
+    """Invalid order parameters errors."""

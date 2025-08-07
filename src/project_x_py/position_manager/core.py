@@ -30,28 +30,45 @@ Position Manager Components:
 
 Example Usage:
     ```python
-    from project_x_py import ProjectX
+    # V3: Initialize position manager with EventBus and real-time support
+    import asyncio
+    from project_x_py import ProjectX, create_realtime_client, EventBus
     from project_x_py.position_manager import PositionManager
 
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        pm = PositionManager(client)
 
-        # Initialize with real-time tracking
-        await pm.initialize(realtime_client=client.realtime_client)
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
 
-        # Get current positions
-        positions = await pm.get_all_positions()
+            # V3: Create dependencies
+            event_bus = EventBus()
+            realtime_client = await create_realtime_client(
+                client.get_session_token(), str(client.get_account_info().id)
+            )
 
-        # Calculate P&L with market prices
-        prices = {"MGC": 2050.0, "NQ": 15500.0}
-        pnl = await pm.calculate_portfolio_pnl(prices)
+            # V3: Initialize position manager
+            pm = PositionManager(client, event_bus)
+            await pm.initialize(realtime_client)
 
-        # Risk analysis
-        risk = await pm.get_risk_metrics()
+            # V3: Get current positions with detailed fields
+            positions = await pm.get_all_positions()
+            for pos in positions:
+                print(f"{pos.contractId}: {pos.netPos} @ ${pos.buyAvgPrice}")
 
-        # Position operations
-        await pm.close_position_direct("MGC")
+            # V3: Calculate P&L with market prices
+            prices = {"MGC": 2050.0, "MNQ": 18500.0}
+            pnl = await pm.calculate_portfolio_pnl(prices)
+            print(f"Total P&L: ${pnl['total_pnl']:.2f}")
+
+            # V3: Risk analysis
+            risk = await pm.get_risk_metrics()
+            print(f"Portfolio risk: {risk['portfolio_risk']:.2%}")
+
+            # V3: Position operations
+            await pm.close_position_direct("MGC")
+
+
+    asyncio.run(main())
     ```
 
 See Also:
@@ -75,6 +92,7 @@ from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.risk import RiskManagementMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
+from project_x_py.types.config_types import PositionManagerConfig
 from project_x_py.utils import (
     LogMessages,
     ProjectXLogger,
@@ -126,28 +144,43 @@ class PositionManager(
         - Diversification scoring and portfolio health metrics
 
     Example Usage:
-        >>> # Create async position manager with dependency injection
-        >>> position_manager = PositionManager(async_project_x_client)
-        >>> # Initialize with optional real-time client
-        >>> await position_manager.initialize(realtime_client=async_realtime_client)
-        >>> # Get current positions
+        >>> # V3: Create position manager with EventBus integration
+        >>> event_bus = EventBus()
+        >>> position_manager = PositionManager(project_x_client, event_bus)
+        >>> # V3: Initialize with real-time client for WebSocket updates
+        >>> realtime_client = await create_realtime_client(
+        ...     client.get_session_token(), str(client.get_account_info().id)
+        ... )
+        >>> await position_manager.initialize(realtime_client=realtime_client)
+        >>> # V3: Get current positions with actual field names
         >>> positions = await position_manager.get_all_positions()
         >>> mgc_position = await position_manager.get_position("MGC")
-        >>> # Portfolio analytics
-        >>> portfolio_pnl = await position_manager.get_portfolio_pnl()
+        >>> if mgc_position:
+        >>>     print(f"Size: {mgc_position.netPos}")
+        >>>     print(f"Avg Price: ${mgc_position.buyAvgPrice}")
+        >>> # V3: Portfolio analytics with market prices
+        >>> market_prices = {"MGC": 2050.0, "MNQ": 18500.0}
+        >>> portfolio_pnl = await position_manager.calculate_portfolio_pnl(
+        ...     market_prices
+        ... )
         >>> risk_metrics = await position_manager.get_risk_metrics()
-        >>> # Position monitoring
+        >>> # V3: Position monitoring with alerts
         >>> await position_manager.add_position_alert("MGC", max_loss=-500.0)
-        >>> await position_manager.start_monitoring()
-        >>> # Position sizing
+        >>> await position_manager.start_monitoring(interval_seconds=5)
+        >>> # V3: Position sizing with risk management
         >>> suggested_size = await position_manager.calculate_position_size(
         ...     "MGC", risk_amount=100.0, entry_price=2045.0, stop_price=2040.0
         ... )
     """
 
-    def __init__(self, project_x_client: "ProjectXBase"):
+    def __init__(
+        self,
+        project_x_client: "ProjectXBase",
+        event_bus: Any,
+        config: PositionManagerConfig | None = None,
+    ):
         """
-        Initialize the PositionManager with an ProjectX client.
+        Initialize the PositionManager with an ProjectX client and optional configuration.
 
         Creates a comprehensive position management system with tracking, monitoring,
         alerts, risk management, and optional real-time/order synchronization.
@@ -155,6 +188,10 @@ class PositionManager(
         Args:
             project_x_client (ProjectX): The authenticated ProjectX client instance
                 used for all API operations. Must be properly authenticated before use.
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including position updates, P&L changes, and risk alerts.
+            config: Optional configuration for position management behavior. If not provided,
+                default values will be used for all configuration options.
 
         Attributes:
             project_x (ProjectX): Reference to the ProjectX client
@@ -164,22 +201,35 @@ class PositionManager(
             order_manager (OrderManager | None): Optional order manager for sync
             tracked_positions (dict[str, Position]): Current positions by contract ID
             position_history (dict[str, list[dict]]): Historical position changes
-            position_callbacks (dict[str, list[Any]]): Event callbacks by type
+            event_bus (Any): EventBus instance for unified event handling
             position_alerts (dict[str, dict]): Active position alerts by contract
             stats (dict): Comprehensive tracking statistics
             risk_settings (dict): Risk management configuration
 
         Example:
+            >>> # V3: Initialize with EventBus for unified event handling
             >>> async with ProjectX.from_env() as client:
             ...     await client.authenticate()
-            ...     position_manager = PositionManager(client)
+            ...     event_bus = EventBus()
+            ...     position_manager = PositionManager(client, event_bus)
+            ...
+            ...     # V3: Optional - add order manager for synchronization
+            ...     order_manager = OrderManager(client, event_bus)
+            ...     await position_manager.initialize(
+            ...         realtime_client=realtime_client, order_manager=order_manager
+            ...     )
         """
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
         PositionMonitoringMixin.__init__(self)
 
         self.project_x = project_x_client
+        self.event_bus = event_bus  # Store the event bus for emitting events
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Async lock for thread safety
         self.position_lock = asyncio.Lock()
@@ -192,29 +242,75 @@ class PositionManager(
         self.order_manager: OrderManager | None = None
         self._order_sync_enabled = False
 
-        # Statistics and metrics
-        self.stats: dict[str, Any] = {
-            "positions_tracked": 0,
+        # Comprehensive statistics tracking
+        self.stats = {
+            "open_positions": 0,
+            "closed_positions": 0,
+            "total_positions": 0,
             "total_pnl": 0.0,
             "realized_pnl": 0.0,
             "unrealized_pnl": 0.0,
-            "positions_closed": 0,
+            "best_position_pnl": 0.0,
+            "worst_position_pnl": 0.0,
+            "avg_position_size": 0.0,
+            "largest_position": 0,
+            "avg_hold_time_minutes": 0.0,
+            "longest_hold_time_minutes": 0.0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "sharpe_ratio": 0.0,
+            "max_drawdown": 0.0,
+            "total_risk": 0.0,
+            "max_position_risk": 0.0,
+            "portfolio_correlation": 0.0,
+            "var_95": 0.0,
+            "position_updates": 0,
+            "risk_calculations": 0,
+            "last_position_update": None,
+            # Legacy fields for backward compatibility in other methods
+            "positions_tracked": 0,
             "positions_partially_closed": 0,
             "last_update_time": None,
             "monitoring_started": None,
         }
 
-        # Risk management settings
-        self.risk_settings = {
-            "max_portfolio_risk": 0.02,  # 2% of portfolio
-            "max_position_risk": 0.01,  # 1% per position
-            "max_correlation": 0.7,  # Maximum correlation between positions
-            "alert_threshold": 0.005,  # 0.5% threshold for alerts
-        }
-
         self.logger.info(
             LogMessages.MANAGER_INITIALIZED, extra={"manager": "PositionManager"}
         )
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Position management settings
+        self.enable_risk_monitoring = self.config.get("enable_risk_monitoring", True)
+        self.auto_stop_loss = self.config.get("auto_stop_loss", False)
+        self.auto_take_profit = self.config.get("auto_take_profit", False)
+        self.max_position_size = self.config.get("max_position_size", 100)
+        self.max_portfolio_risk = self.config.get("max_portfolio_risk", 0.02)
+        self.position_sizing_method = self.config.get("position_sizing_method", "fixed")
+        self.enable_correlation_analysis = self.config.get(
+            "enable_correlation_analysis", True
+        )
+        self.enable_portfolio_rebalancing = self.config.get(
+            "enable_portfolio_rebalancing", False
+        )
+        self.rebalance_frequency_minutes = self.config.get(
+            "rebalance_frequency_minutes", 60
+        )
+        self.risk_calculation_interval = self.config.get("risk_calculation_interval", 5)
+
+        # Update risk settings from configuration
+        self.risk_settings = {
+            "max_portfolio_risk": self.max_portfolio_risk,
+            "max_position_risk": self.config.get(
+                "max_position_risk", 0.01
+            ),  # 1% per position
+            "max_correlation": self.config.get(
+                "max_correlation", 0.7
+            ),  # Maximum correlation between positions
+            "alert_threshold": self.config.get(
+                "alert_threshold", 0.005
+            ),  # 0.5% threshold for alerts
+        }
 
     @handle_errors("initialize position manager", reraise=False, default_return=False)
     async def initialize(
@@ -243,12 +339,15 @@ class PositionManager(
             Exception: Logged but not raised - returns False on failure
 
         Example:
-            >>> # Initialize with real-time tracking
-            >>> rt_client = create_realtime_client(jwt_token)
+            >>> # V3: Initialize with real-time tracking
+            >>> rt_client = await create_realtime_client(
+            ...     client.get_session_token(), str(client.get_account_info().id)
+            ... )
             >>> success = await position_manager.initialize(realtime_client=rt_client)
             >>>
-            >>> # Initialize with both real-time and order sync
-            >>> order_mgr = OrderManager(client, rt_client)
+            >>> # V3: Initialize with both real-time and order sync
+            >>> event_bus = EventBus()
+            >>> order_mgr = OrderManager(client, event_bus)
             >>> success = await position_manager.initialize(
             ...     realtime_client=rt_client, order_manager=order_mgr
             ... )
@@ -315,11 +414,14 @@ class PositionManager(
             - Updates statistics (positions_tracked, last_update_time)
 
         Example:
-            >>> # Get all positions for default account
+            >>> # V3: Get all positions with actual field names
             >>> positions = await position_manager.get_all_positions()
             >>> for pos in positions:
-            ...     print(f"{pos.contractId}: {pos.size} @ ${pos.averagePrice}")
-            >>> # Get positions for specific account
+            ...     print(f"Contract: {pos.contractId}")
+            ...     print(f"  Net Position: {pos.netPos}")
+            ...     print(f"  Buy Avg Price: ${pos.buyAvgPrice:.2f}")
+            ...     print(f"  Unrealized P&L: ${pos.unrealizedPnl:.2f}")
+            >>> # V3: Get positions for specific account
             >>> positions = await position_manager.get_all_positions(account_id=12345)
 
         Note:
@@ -368,14 +470,14 @@ class PositionManager(
                 exists for the contract.
 
         Example:
-            >>> # Check if we have a Gold position
+            >>> # V3: Check if we have a Gold position
             >>> mgc_position = await position_manager.get_position("MGC")
             >>> if mgc_position:
-            ...     print(f"MGC position: {mgc_position.size} contracts")
-            ...     print(f"Entry price: ${mgc_position.averagePrice}")
-            ...     print(
-            ...         f"Direction: {'Long' if mgc_position.type == PositionType.LONG else 'Short'}"
-            ...     )
+            ...     print(f"MGC position: {mgc_position.netPos} contracts")
+            ...     print(f"Buy Avg Price: ${mgc_position.buyAvgPrice:.2f}")
+            ...     print(f"Sell Avg Price: ${mgc_position.sellAvgPrice:.2f}")
+            ...     print(f"Unrealized P&L: ${mgc_position.unrealizedPnl:.2f}")
+            ...     print(f"Realized P&L: ${mgc_position.realizedPnl:.2f}")
             ... else:
             ...     print("No MGC position found")
 
@@ -516,7 +618,7 @@ class PositionManager(
         async with self.position_lock:
             self.tracked_positions.clear()
             self.position_history.clear()
-            self.position_callbacks.clear()
+            # EventBus handles all callbacks now
             self.position_alerts.clear()
 
         # Clear order manager integration

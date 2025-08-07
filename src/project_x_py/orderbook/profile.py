@@ -17,9 +17,26 @@ Key Features:
 
 Example Usage:
     ```python
-    # Assuming orderbook is initialized and populated
+    # V3: Volume profiling with EventBus-enabled orderbook
+    from project_x_py import create_orderbook
+    from project_x_py.events import EventBus
+
+    event_bus = EventBus()
+    orderbook = create_orderbook(
+        "MNQ", event_bus, project_x=client
+    )  # V3: actual symbol
+    await orderbook.initialize(realtime_client)
+
+    # V3: Get volume profile with POC and value areas
     vp = await orderbook.get_volume_profile(time_window_minutes=60)
-    print(vp["poc"], vp["value_area_high"], vp["value_area_low"])
+    print(f"POC: {vp['poc']:.2f}")
+    print(f"Value Area: {vp['value_area_low']:.2f} - {vp['value_area_high']:.2f}")
+    print(f"Volume at POC: {vp['poc_volume']} contracts")
+
+    # V3: Support/resistance levels
+    levels = await orderbook.get_support_resistance_levels()
+    for support in levels["support_levels"]:
+        print(f"Support at {support['price']:.2f}: {support['strength']} touches")
     ```
 
 See Also:
@@ -35,6 +52,9 @@ from typing import Any
 import polars as pl
 
 from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.types.response_types import (
+    LiquidityAnalysisResponse,
+)
 
 
 class VolumeProfile:
@@ -425,7 +445,9 @@ class VolumeProfile:
                 self.logger.error(f"Error identifying support/resistance: {e}")
                 return {"error": str(e)}
 
-    async def get_spread_analysis(self, window_minutes: int = 30) -> dict[str, Any]:
+    async def get_spread_analysis(
+        self, window_minutes: int = 30
+    ) -> LiquidityAnalysisResponse:
         """
         Analyze bid-ask spread patterns over time.
 
@@ -438,13 +460,23 @@ class VolumeProfile:
         async with self.orderbook.orderbook_lock:
             try:
                 if not self.orderbook.spread_history:
+                    current_time = datetime.now(self.orderbook.timezone)
                     return {
-                        "current_spread": None,
-                        "avg_spread": None,
-                        "min_spread": None,
-                        "max_spread": None,
-                        "spread_volatility": None,
-                        "spread_trend": "insufficient_data",
+                        "bid_liquidity": 0.0,
+                        "ask_liquidity": 0.0,
+                        "total_liquidity": 0.0,
+                        "avg_spread": 0.0,
+                        "spread_volatility": 0.0,
+                        "liquidity_score": 0.0,
+                        "market_depth_score": 0.0,
+                        "resilience_score": 0.0,
+                        "tightness_score": 0.0,
+                        "immediacy_score": 0.0,
+                        "depth_imbalance": 0.0,
+                        "effective_spread": 0.0,
+                        "realized_spread": 0.0,
+                        "price_impact": 0.0,
+                        "timestamp": current_time.isoformat(),
                     }
 
                 # Filter spreads within window
@@ -462,21 +494,31 @@ class VolumeProfile:
                     recent_spreads = self.orderbook.spread_history[-100:]
 
                 if not recent_spreads:
+                    current_time = datetime.now(self.orderbook.timezone)
                     return {
-                        "current_spread": None,
-                        "avg_spread": None,
-                        "min_spread": None,
-                        "max_spread": None,
-                        "spread_volatility": None,
-                        "spread_trend": "insufficient_data",
+                        "bid_liquidity": 0.0,
+                        "ask_liquidity": 0.0,
+                        "total_liquidity": 0.0,
+                        "avg_spread": 0.0,
+                        "spread_volatility": 0.0,
+                        "liquidity_score": 0.0,
+                        "market_depth_score": 0.0,
+                        "resilience_score": 0.0,
+                        "tightness_score": 0.0,
+                        "immediacy_score": 0.0,
+                        "depth_imbalance": 0.0,
+                        "effective_spread": 0.0,
+                        "realized_spread": 0.0,
+                        "price_impact": 0.0,
+                        "timestamp": current_time.isoformat(),
                     }
 
                 # Calculate statistics
                 spread_values = [s["spread"] for s in recent_spreads]
                 current_spread = spread_values[-1]
                 avg_spread = sum(spread_values) / len(spread_values)
-                min_spread = min(spread_values)
-                max_spread = max(spread_values)
+                _min_spread = min(spread_values)
+                _max_spread = max(spread_values)
 
                 # Calculate volatility
                 variance = sum((s - avg_spread) ** 2 for s in spread_values) / len(
@@ -494,16 +536,16 @@ class VolumeProfile:
                     )
 
                     if second_half_avg > first_half_avg * 1.1:
-                        spread_trend = "widening"
+                        _spread_trend = "widening"
                     elif second_half_avg < first_half_avg * 0.9:
-                        spread_trend = "tightening"
+                        _spread_trend = "tightening"
                     else:
-                        spread_trend = "stable"
+                        _spread_trend = "stable"
                 else:
-                    spread_trend = "insufficient_data"
+                    _spread_trend = "insufficient_data"
 
                 # Calculate spread distribution
-                spread_distribution = {
+                _spread_distribution = {
                     "tight": len([s for s in spread_values if s <= avg_spread * 0.8]),
                     "normal": len(
                         [
@@ -515,21 +557,89 @@ class VolumeProfile:
                     "wide": len([s for s in spread_values if s > avg_spread * 1.2]),
                 }
 
+                # Map to LiquidityAnalysisResponse structure
+                current_time = datetime.now(self.orderbook.timezone)
+
+                # Get current orderbook state for liquidity metrics
+                _best_prices = self.orderbook._get_best_bid_ask_unlocked()
+                bid_liquidity = 0.0
+                ask_liquidity = 0.0
+                total_liquidity = 0.0
+                depth_imbalance = 0.0
+
+                if (
+                    not self.orderbook.orderbook_bids.is_empty()
+                    and not self.orderbook.orderbook_asks.is_empty()
+                ):
+                    bid_volume = int(self.orderbook.orderbook_bids["volume"].sum())
+                    ask_volume = int(self.orderbook.orderbook_asks["volume"].sum())
+                    bid_liquidity = float(bid_volume)
+                    ask_liquidity = float(ask_volume)
+                    total_liquidity = float(bid_volume + ask_volume)
+                    depth_imbalance = (
+                        (bid_volume - ask_volume) / (bid_volume + ask_volume)
+                        if (bid_volume + ask_volume) > 0
+                        else 0.0
+                    )
+
+                # Calculate scores based on spread analysis
+                liquidity_score = max(
+                    0.0, 10.0 - (avg_spread * 100)
+                )  # Lower spreads = higher liquidity
+                tightness_score = max(
+                    0.0, 10.0 - (current_spread * 100)
+                )  # Current spread tightness
+                market_depth_score = min(
+                    10.0, total_liquidity / 1000
+                )  # Volume-based depth
+                resilience_score = max(
+                    0.0, 10.0 - spread_volatility * 1000
+                )  # Lower volatility = higher resilience
+                immediacy_score = tightness_score  # Approximation
+
+                # Price impact estimates
+                effective_spread = current_spread
+                realized_spread = current_spread * 0.5  # Approximation
+                price_impact = abs(depth_imbalance) * current_spread
+
                 return {
-                    "current_spread": current_spread,
+                    "bid_liquidity": bid_liquidity,
+                    "ask_liquidity": ask_liquidity,
+                    "total_liquidity": total_liquidity,
                     "avg_spread": avg_spread,
-                    "min_spread": min_spread,
-                    "max_spread": max_spread,
                     "spread_volatility": spread_volatility,
-                    "spread_trend": spread_trend,
-                    "spread_distribution": spread_distribution,
-                    "sample_count": len(spread_values),
-                    "window_minutes": window_minutes,
+                    "liquidity_score": liquidity_score,
+                    "market_depth_score": market_depth_score,
+                    "resilience_score": resilience_score,
+                    "tightness_score": tightness_score,
+                    "immediacy_score": immediacy_score,
+                    "depth_imbalance": depth_imbalance,
+                    "effective_spread": effective_spread,
+                    "realized_spread": realized_spread,
+                    "price_impact": price_impact,
+                    "timestamp": current_time.isoformat(),
                 }
 
             except Exception as e:
                 self.logger.error(f"Error analyzing spread: {e}")
-                return {"error": str(e)}
+                current_time = datetime.now(self.orderbook.timezone)
+                return {
+                    "bid_liquidity": 0.0,
+                    "ask_liquidity": 0.0,
+                    "total_liquidity": 0.0,
+                    "avg_spread": 0.0,
+                    "spread_volatility": 0.0,
+                    "liquidity_score": 0.0,
+                    "market_depth_score": 0.0,
+                    "resilience_score": 0.0,
+                    "tightness_score": 0.0,
+                    "immediacy_score": 0.0,
+                    "depth_imbalance": 0.0,
+                    "effective_spread": 0.0,
+                    "realized_spread": 0.0,
+                    "price_impact": 0.0,
+                    "timestamp": current_time.isoformat(),
+                }
 
     @staticmethod
     def calculate_dataframe_volume_profile(

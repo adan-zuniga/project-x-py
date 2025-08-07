@@ -21,20 +21,20 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v2.0.5 - Enterprise-Grade Error Handling & Logging
+## 🚀 v3.0.0 - EventBus Architecture & Modern Async Patterns
 
-**Latest Update (v2.0.5)**: Enhanced error handling system with centralized logging, structured error messages, and comprehensive retry mechanisms.
+**Latest Update (v3.0.0)**: Complete architectural upgrade with EventBus for unified event handling, factory functions with dependency injection, and JWT-based authentication.
 
-### What's New in v2.0.5
+### What's New in v3.0.0
 
-- **Centralized Error Handling**: Decorators for consistent error handling across all modules
-- **Structured Logging**: JSON-formatted logs with contextual information for production environments
-- **Smart Retry Logic**: Automatic retry for network operations with exponential backoff
-- **Rate Limit Management**: Built-in rate limit handling with automatic throttling
+- **EventBus Architecture**: Unified event handling system for all real-time updates
+- **Factory Functions**: Simplified component creation with dependency injection
+- **JWT Authentication**: Modern JWT-based auth for WebSocket connections
+- **Improved Real-time**: Better WebSocket handling with automatic reconnection
 - **Enhanced Type Safety**: Full mypy compliance with strict type checking
-- **Code Quality**: All ruff checks pass with comprehensive linting
+- **Memory Optimizations**: Automatic cleanup and sliding windows for long-running sessions
 
-**BREAKING CHANGE**: Version 2.0.0 introduced async-only architecture. All synchronous APIs have been removed in favor of high-performance async implementations.
+**BREAKING CHANGE**: Version 3.0.0 introduces EventBus and changes how components are created. See migration guide below.
 
 ### Why Async?
 
@@ -44,19 +44,26 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - **WebSocket Native**: Perfect for real-time trading applications
 - **Modern Python**: Leverages Python 3.12+ async features
 
-### Migration from v1.x
+### Migration to v3.0.0
 
-If you're upgrading from v1.x, all APIs now require `async/await`:
+If you're upgrading from v2.x, key changes include EventBus and factory functions:
 
 ```python
-# Old (v1.x)
+# Old (v2.x)
 client = ProjectX.from_env()
-data = client.get_bars("MGC", days=5)
+await client.authenticate()
+realtime_client = create_realtime_client(client.session_token)
+order_manager = create_order_manager(client, realtime_client)
 
-# New (v2.0.0)
+# New (v3.0.0)
 async with ProjectX.from_env() as client:
     await client.authenticate()
-    data = await client.get_bars("MGC", days=5)
+    # JWT token and account ID now required
+    realtime_client = await create_realtime_client(
+        jwt_token=client.jwt_token,
+        account_id=str(client.account_id)
+    )
+    order_manager = create_order_manager(client, realtime_client)
 ```
 
 ## ✨ Key Features
@@ -112,11 +119,11 @@ async def main():
         print(f"Connected to account: {client.account_info.name}")
         
         # Get instrument
-        instrument = await client.get_instrument("MGC")
+        instrument = await client.get_instrument("MNQ")  # V3: actual symbol
         print(f"Trading {instrument.name} - Tick size: ${instrument.tickSize}")
         
         # Get historical data
-        data = await client.get_bars("MGC", days=5, interval=15)
+        data = await client.get_bars("MNQ", days=5, interval=15)
         print(f"Retrieved {len(data)} bars")
         
         # Get positions
@@ -128,37 +135,49 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### Trading Suite (NEW in v2.0.8)
+### Trading Suite with EventBus (NEW in v3.0.0)
 
-The easiest way to get started with a complete trading setup:
+The easiest way to get started with a complete trading setup using EventBus:
 
 ```python
 import asyncio
 from project_x_py import ProjectX, create_initialized_trading_suite
+from project_x_py.events import EventType
 
 async def main():
     async with ProjectX.from_env() as client:
         await client.authenticate()
         
-        # One line creates and initializes everything!
+        # V3: Creates suite with EventBus integration!
         suite = await create_initialized_trading_suite(
             instrument="MNQ",
             project_x=client,
+            jwt_token=client.jwt_token,  # V3: JWT required
+            account_id=client.account_id,  # V3: account ID required
             timeframes=["5min", "15min", "1hr"],
             initial_days=5
         )
         
-        # Everything is ready to use:
-        # ✅ Realtime client connected
+        # Everything is ready with EventBus:
+        # ✅ Realtime client connected with JWT
+        # ✅ EventBus configured for all events
         # ✅ Historical data loaded
         # ✅ Market data streaming
-        # ✅ All components initialized
         
-        # Access components
-        data = await suite["data_manager"].get_data("5min")
-        orderbook = suite["orderbook"]
-        order_manager = suite["order_manager"]
-        position_manager = suite["position_manager"]
+        # V3: Register event handlers
+        @suite.event_bus.on(EventType.NEW_BAR)
+        async def on_new_bar(data):
+            print(f"New {data['timeframe']} bar: {data['close']}")
+        
+        @suite.event_bus.on(EventType.TRADE_TICK)
+        async def on_trade(data):
+            print(f"Trade: {data['size']} @ {data['price']}")
+        
+        # Access components directly (V3: as attributes)
+        data = await suite.data_manager.get_data("5min")
+        orderbook = suite.orderbook
+        order_manager = suite.order_manager
+        position_manager = suite.position_manager
         
         # Your trading logic here...
 
@@ -166,52 +185,69 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### Factory Functions (v2.0.8+)
+### Factory Functions with EventBus (v3.0.0+)
 
-The SDK provides powerful factory functions to simplify setup:
+The SDK provides powerful factory functions with EventBus integration:
 
 #### create_initialized_trading_suite
-The simplest way to get a fully initialized trading environment:
+The simplest way to get a fully initialized trading environment with EventBus:
 
 ```python
 suite = await create_initialized_trading_suite(
     instrument="MNQ",
     project_x=client,
-    timeframes=["5min", "15min", "1hr"],  # Optional, defaults to ["5min"]
-    enable_orderbook=True,                 # Optional, defaults to True
-    initial_days=5                         # Optional, defaults to 5
+    jwt_token=client.jwt_token,       # V3: JWT required
+    account_id=client.account_id,     # V3: account ID required  
+    timeframes=["5min", "15min", "1hr"],  # Optional
+    enable_orderbook=True,                 # Optional
+    initial_days=5                         # Optional
 )
-# Everything is connected and ready!
+# Everything is connected with EventBus ready!
 ```
 
 #### create_trading_suite
-For more control over initialization:
+For more control over initialization with EventBus:
 
 ```python
 suite = await create_trading_suite(
     instrument="MNQ",
     project_x=client,
+    jwt_token=client.jwt_token,    # V3: JWT required
+    account_id=client.account_id,  # V3: account ID required
     timeframes=["5min", "15min"],
-    auto_connect=True,      # Auto-connect realtime client (default: True)
-    auto_subscribe=True,    # Auto-subscribe to market data (default: True)
+    auto_connect=True,      # Auto-connect realtime client
+    auto_subscribe=True,    # Auto-subscribe to market data
     initial_days=5          # Historical data to load
 )
+
+# V3: EventBus is automatically configured
+@suite.event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+async def on_depth(data):
+    print(f"Depth update: {len(data['bids'])} bids")
 ```
 
 #### Manual Setup (Full Control)
-If you need complete control:
+If you need complete control with EventBus:
 
 ```python
+from project_x_py.events import EventBus
+
+# V3: Create your own EventBus
+event_bus = EventBus()
+
 suite = await create_trading_suite(
     instrument="MNQ",
     project_x=client,
+    jwt_token=client.jwt_token,
+    account_id=client.account_id,
+    event_bus=event_bus,  # V3: Pass your EventBus
     auto_connect=False,
     auto_subscribe=False
 )
-# Now manually connect and subscribe as needed
-await suite["realtime_client"].connect()
-await suite["data_manager"].initialize()
-# ... etc
+
+# Now manually connect and subscribe
+await suite.realtime_client.connect()
+await suite.data_manager.initialize()
 ```
 
 ### Real-time Trading Example

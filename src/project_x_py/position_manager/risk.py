@@ -50,9 +50,13 @@ See Also:
     - `position_manager.monitoring.PositionMonitoringMixin`
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from project_x_py.models import Position
+from project_x_py.types.response_types import (
+    PositionSizingResponse,
+    RiskAnalysisResponse,
+)
 
 if TYPE_CHECKING:
     from project_x_py.types import PositionManagerProtocol
@@ -63,7 +67,7 @@ class RiskManagementMixin:
 
     async def get_risk_metrics(
         self: "PositionManagerProtocol", account_id: int | None = None
-    ) -> dict[str, Any]:
+    ) -> RiskAnalysisResponse:
         """
         Calculate portfolio risk metrics and concentration analysis.
 
@@ -111,13 +115,25 @@ class RiskManagementMixin:
         positions = await self.get_all_positions(account_id=account_id)
 
         if not positions:
-            return {
-                "portfolio_risk": 0.0,
-                "largest_position_risk": 0.0,
-                "total_exposure": 0.0,
-                "position_count": 0,
-                "diversification_score": 1.0,
-            }
+            return RiskAnalysisResponse(
+                current_risk=0.0,
+                max_risk=self.risk_settings.get("max_portfolio_risk", 0.02),
+                daily_loss=0.0,
+                daily_loss_limit=self.risk_settings.get("max_daily_loss", 0.03),
+                position_count=0,
+                position_limit=self.risk_settings.get("max_positions", 5),
+                daily_trades=0,
+                daily_trade_limit=self.risk_settings.get("max_daily_trades", 10),
+                win_rate=0.0,
+                profit_factor=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
+                position_risks=[],
+                risk_per_trade=self.risk_settings.get("max_position_risk", 0.01),
+                account_balance=10000.0,  # Default
+                margin_used=0.0,
+                margin_available=10000.0,
+            )
 
         total_exposure = sum(abs(pos.size * pos.averagePrice) for pos in positions)
         largest_exposure = (
@@ -135,20 +151,57 @@ class RiskManagementMixin:
         )
 
         # Simple diversification score (inverse of concentration)
-        diversification_score = (
+        _diversification_score = (
             1.0 - largest_position_risk if largest_position_risk < 1.0 else 0.0
         )
 
-        return {
-            "portfolio_risk": portfolio_risk,
-            "largest_position_risk": largest_position_risk,
-            "total_exposure": total_exposure,
-            "position_count": len(positions),
-            "diversification_score": diversification_score,
-            "risk_warnings": self._generate_risk_warnings(
-                positions, portfolio_risk, largest_position_risk
-            ),
-        }
+        # Generate risk warnings/recommendations
+        _risk_warnings = self._generate_risk_warnings(
+            positions, portfolio_risk, largest_position_risk
+        )
+
+        # Map position risks
+        position_risks = []
+        for pos in positions:
+            exposure = abs(pos.size * pos.averagePrice)
+            risk_pct = exposure / total_exposure if total_exposure > 0 else 0.0
+            position_risks.append(
+                {
+                    "position_id": str(pos.id),
+                    "symbol": pos.contractId.split(".")[-2]
+                    if "." in pos.contractId
+                    else pos.contractId,
+                    "risk_amount": exposure,
+                    "risk_percent": risk_pct,
+                }
+            )
+
+        # Get account balance (would need account info in reality)
+        account_balance = (
+            self.project_x.account_info.balance
+            if self.project_x.account_info
+            else 10000.0
+        )
+
+        return RiskAnalysisResponse(
+            current_risk=portfolio_risk,
+            max_risk=self.risk_settings.get("max_portfolio_risk", 0.02),
+            daily_loss=0.0,  # Would need tracking
+            daily_loss_limit=self.risk_settings.get("max_daily_loss", 0.03),
+            position_count=len(positions),
+            position_limit=self.risk_settings.get("max_positions", 5),
+            daily_trades=0,  # Would need tracking
+            daily_trade_limit=self.risk_settings.get("max_daily_trades", 10),
+            win_rate=0.0,  # Would need trade history
+            profit_factor=0.0,  # Would need trade history
+            sharpe_ratio=0.0,  # Would need return/volatility data
+            max_drawdown=0.0,  # Would need historical data
+            position_risks=position_risks,
+            risk_per_trade=self.risk_settings.get("max_position_risk", 0.01),
+            account_balance=account_balance,
+            margin_used=total_exposure * 0.1,  # Simplified margin estimate
+            margin_available=account_balance - (total_exposure * 0.1),
+        )
 
     def _generate_risk_warnings(
         self: "PositionManagerProtocol",
@@ -199,7 +252,7 @@ class RiskManagementMixin:
         entry_price: float,
         stop_price: float,
         account_balance: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> PositionSizingResponse:
         """
         Calculate optimal position size based on risk parameters.
 
@@ -268,7 +321,18 @@ class RiskManagementMixin:
             # Calculate risk per contract
             price_diff = abs(entry_price - stop_price)
             if price_diff == 0:
-                return {"error": "Entry price and stop price cannot be the same"}
+                return PositionSizingResponse(
+                    position_size=0,
+                    risk_amount=0.0,
+                    risk_percent=0.0,
+                    entry_price=entry_price,
+                    stop_loss=stop_price,
+                    tick_size=0.25,  # Default
+                    account_balance=account_balance,
+                    kelly_fraction=None,
+                    max_position_size=0,
+                    sizing_method="fixed_risk",
+                )
 
             # Get instrument details for contract multiplier
             instrument = await self.project_x.get_instrument(contract_id)
@@ -287,24 +351,44 @@ class RiskManagementMixin:
                 (total_risk / account_balance) * 100 if account_balance > 0 else 0.0
             )
 
-            return {
-                "suggested_size": suggested_size,
-                "risk_per_contract": risk_per_contract,
-                "total_risk": total_risk,
-                "risk_percentage": risk_percentage,
-                "entry_price": entry_price,
-                "stop_price": stop_price,
-                "price_diff": price_diff,
-                "contract_multiplier": contract_multiplier,
-                "account_balance": account_balance,
-                "risk_warnings": self._generate_sizing_warnings(
-                    risk_percentage, suggested_size
-                ),
-            }
+            # Generate sizing warnings
+            sizing_warnings = self._generate_sizing_warnings(
+                risk_percentage, suggested_size
+            )
+
+            # Get tick size from instrument
+            tick_size = getattr(instrument, "tickSize", 0.25) if instrument else 0.25
+
+            return PositionSizingResponse(
+                position_size=suggested_size,
+                risk_amount=total_risk,
+                risk_percent=risk_percentage / 100.0,  # Convert to decimal
+                entry_price=entry_price,
+                stop_loss=stop_price,
+                tick_size=tick_size,
+                account_balance=account_balance,
+                kelly_fraction=None,  # Would need trade history
+                max_position_size=suggested_size * 2,  # Conservative estimate
+                sizing_method="fixed_risk",
+            )
 
         except Exception as e:
             self.logger.error(f"❌ Position sizing calculation failed: {e}")
-            return {"error": str(e)}
+
+            return PositionSizingResponse(
+                position_size=0,
+                risk_amount=0.0,
+                risk_percent=0.0,
+                entry_price=entry_price if "entry_price" in locals() else 0.0,
+                stop_loss=stop_price if "stop_price" in locals() else 0.0,
+                tick_size=0.25,  # Default
+                account_balance=account_balance
+                if isinstance(account_balance, float)
+                else 10000.0,
+                kelly_fraction=None,
+                max_position_size=0,
+                sizing_method="fixed_risk",
+            )
 
     def _generate_sizing_warnings(
         self: "PositionManagerProtocol", risk_percentage: float, size: int

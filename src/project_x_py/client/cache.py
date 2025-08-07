@@ -20,11 +20,32 @@ Key Features:
 
 Example Usage:
     ```python
-    # Used internally by ProjectX; typical use is transparent:
-    instrument = await client.get_instrument("MNQ")
-    # On repeated calls, instrument is served from cache if not expired.
-    cached = client.get_cached_instrument("MNQ")
-    client.clear_all_caches()
+    # V3: Cache is used transparently to improve performance
+    import asyncio
+    from project_x_py import ProjectX
+
+
+    async def main():
+        async with ProjectX.from_env() as client:
+            await client.authenticate()
+
+            # First call hits API
+            instrument = await client.get_instrument("MNQ")
+            print(f"Fetched: {instrument.name}")
+
+            # Subsequent calls use cache (within TTL)
+            cached_instrument = await client.get_instrument("MNQ")
+            print(f"From cache: {cached_instrument.name}")
+
+            # Check cache statistics
+            stats = await client.get_health_status()
+            print(f"Cache hits: {stats['cache_hits']}")
+
+            # Clear cache if needed
+            client.clear_all_caches()
+
+
+    asyncio.run(main())
     ```
 
 See Also:

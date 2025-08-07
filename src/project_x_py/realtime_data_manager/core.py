@@ -35,21 +35,30 @@ Performance Benefits:
 
 Example Usage:
     ```python
-    # Create shared async realtime client
-    async_realtime_client = ProjectXRealtimeClient(config)
+    # V3: Create shared async realtime client with factory
+    from project_x_py import EventBus
+    from project_x_py.realtime import create_realtime_client
+
+    async_realtime_client = await create_realtime_client(
+        jwt_token=client.jwt_token, account_id=str(client.account_id)
+    )
     await async_realtime_client.connect()
+
+    # V3: Initialize with EventBus for unified event handling
+    event_bus = EventBus()
 
     # Initialize async data manager with dependency injection
     manager = RealtimeDataManager(
-        instrument="MGC",  # Mini Gold futures
-        project_x=async_project_x_client,  # For historical data loading
+        instrument="MNQ",  # V3: Using actual contract symbols
+        project_x=client,  # V3: ProjectX client from context manager
         realtime_client=async_realtime_client,
         timeframes=["1min", "5min", "15min", "1hr"],
         timezone="America/Chicago",  # CME timezone
+        event_bus=event_bus,  # V3: EventBus integration
     )
 
     # Load historical data for all timeframes
-    if await manager.initialize(initial_days=30):
+    if await manager.initialize(initial_days=5):
         print("Historical data loaded successfully")
 
     # Start real-time feed (registers callbacks with existing client)
@@ -57,22 +66,29 @@ Example Usage:
         print("Real-time OHLCV feed active")
 
 
-    # Register callback for new bars
+    # V3: Register callback with actual field names
     async def on_new_bar(data):
         timeframe = data["timeframe"]
         bar_data = data["data"]
-        print(f"New {timeframe} bar: Close={bar_data['close']}")
+        print(f"New {timeframe} bar:")
+        print(f"  Open: {bar_data['open']}, High: {bar_data['high']}")
+        print(f"  Low: {bar_data['low']}, Close: {bar_data['close']}")
+        print(f"  Volume: {bar_data['volume']}")
 
 
     await manager.add_callback("new_bar", on_new_bar)
 
-    # Access multi-timeframe OHLCV data in your trading loop
+    # V3: Access multi-timeframe OHLCV data
     data_5m = await manager.get_data("5min", bars=100)
     data_15m = await manager.get_data("15min", bars=50)
     mtf_data = await manager.get_mtf_data()  # All timeframes at once
 
     # Get current market price (latest tick or bar close)
     current_price = await manager.get_current_price()
+
+    # V3: Monitor memory and performance
+    stats = await manager.get_memory_stats()
+    print(f"Data points stored: {stats['total_data_points']}")
 
     # When done, clean up resources
     await manager.cleanup()
@@ -114,6 +130,7 @@ from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
+from project_x_py.types.config_types import DataManagerConfig
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,
@@ -230,8 +247,10 @@ class RealtimeDataManager(
         instrument: str,
         project_x: "ProjectXBase",
         realtime_client: "ProjectXRealtimeClient",
+        event_bus: Any,
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
+        config: DataManagerConfig | None = None,
     ):
         """
         Initialize the optimized real-time OHLCV data manager with dependency injection.
@@ -252,6 +271,9 @@ class RealtimeDataManager(
                 The client does not need to be connected yet, as the manager will handle
                 connection when start_realtime_feed() is called.
 
+            event_bus: EventBus instance for unified event handling. Required for all
+                event emissions including new bars, data updates, and errors.
+
             timeframes: List of timeframes to track (default: ["5min"] if None provided).
                 Available timeframes include:
                 - Seconds: "1sec", "5sec", "10sec", "15sec", "30sec"
@@ -262,6 +284,9 @@ class RealtimeDataManager(
             timezone: Timezone for timestamp handling (default: "America/Chicago").
                 This timezone is used for all bar calculations and should typically be set to
                 the exchange timezone for the instrument (e.g., "America/Chicago" for CME).
+
+            config: Optional configuration for data manager behavior. If not provided,
+                default values will be used for all configuration options.
 
         Raises:
             ValueError: If an invalid timeframe is provided.
@@ -300,8 +325,13 @@ class RealtimeDataManager(
         self.instrument: str = instrument
         self.project_x: ProjectXBase = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
+        self.event_bus = event_bus  # Store the event bus for emitting events
 
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone
@@ -342,23 +372,37 @@ class RealtimeDataManager(
         # Async synchronization
         self.data_lock: asyncio.Lock = asyncio.Lock()
         self.is_running: bool = False
-        self.callbacks: dict[str, list[Any]] = defaultdict(list)
+        # EventBus is now used for all event handling
         self.indicator_cache: defaultdict[str, dict[str, Any]] = defaultdict(dict)
 
         # Contract ID for real-time subscriptions
         self.contract_id: str | None = None
 
-        # Memory management settings
-        self.max_bars_per_timeframe: int = 1000  # Keep last 1000 bars per timeframe
-        self.tick_buffer_size: int = 1000  # Max tick data to buffer
-        self.cleanup_interval: float = 300.0  # 5 minutes between cleanups
+        # Memory management settings are set in _apply_config_defaults()
         self.last_cleanup: float = time.time()
 
-        # Performance monitoring
-        self.memory_stats: dict[str, Any] = {
+        # Comprehensive statistics tracking
+        self.memory_stats = {
+            "bars_processed": 0,
+            "ticks_processed": 0,
+            "quotes_processed": 0,
+            "trades_processed": 0,
+            "timeframe_stats": {tf: {"bars": 0, "updates": 0} for tf in timeframes},
+            "avg_processing_time_ms": 0.0,
+            "data_latency_ms": 0.0,
+            "buffer_utilization": 0.0,
+            "total_bars_stored": 0,
+            "memory_usage_mb": 0.0,
+            "compression_ratio": 1.0,
+            "updates_per_minute": 0.0,
+            "last_update": None,
+            "data_freshness_seconds": 0.0,
+            "data_validation_errors": 0,
+            "connection_interruptions": 0,
+            "recovery_attempts": 0,
+            # Legacy fields for backward compatibility
             "total_bars": 0,
             "bars_cleaned": 0,
-            "ticks_processed": 0,
             "last_cleanup": time.time(),
         }
 
@@ -368,6 +412,26 @@ class RealtimeDataManager(
         self.logger.info(
             "RealtimeDataManager initialized", extra={"instrument": instrument}
         )
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Data management settings
+        self.max_bars_per_timeframe = self.config.get("max_bars_per_timeframe", 1000)
+        self.enable_tick_data = self.config.get("enable_tick_data", True)
+        self.enable_level2_data = self.config.get("enable_level2_data", False)
+        self.buffer_size = self.config.get("buffer_size", 1000)
+        self.compression_enabled = self.config.get("compression_enabled", True)
+        self.data_validation = self.config.get("data_validation", True)
+        self.auto_cleanup = self.config.get("auto_cleanup", True)
+        self.cleanup_interval_minutes = self.config.get("cleanup_interval_minutes", 5)
+        self.historical_data_cache = self.config.get("historical_data_cache", True)
+        self.cache_expiry_hours = self.config.get("cache_expiry_hours", 24)
+
+        # Set memory management attributes based on config
+        self.tick_buffer_size = self.buffer_size
+        self.cleanup_interval = float(
+            self.cleanup_interval_minutes * 60
+        )  # Convert to seconds
 
     @handle_errors("initialize", reraise=False, default_return=False)
     async def initialize(self, initial_days: int = 1) -> bool:
@@ -626,7 +690,7 @@ class RealtimeDataManager(
         async with self.data_lock:
             self.data.clear()
             self.current_tick_data.clear()
-            self.callbacks.clear()
+            # EventBus handles all event cleanup
             self.indicator_cache.clear()
 
         self.logger.info("✅ RealtimeDataManager cleanup completed")

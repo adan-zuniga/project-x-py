@@ -230,6 +230,102 @@ class Order:
     filledPrice: float | None = None
     customTag: str | None = None
 
+    @property
+    def is_open(self) -> bool:
+        """Check if order is still open."""
+        return self.status == 1  # OrderStatus.OPEN
+
+    @property
+    def is_filled(self) -> bool:
+        """Check if order is completely filled."""
+        return self.status == 2  # OrderStatus.FILLED
+
+    @property
+    def is_cancelled(self) -> bool:
+        """Check if order was cancelled."""
+        return self.status == 3  # OrderStatus.CANCELLED
+
+    @property
+    def is_rejected(self) -> bool:
+        """Check if order was rejected."""
+        return self.status == 5  # OrderStatus.REJECTED
+
+    @property
+    def is_working(self) -> bool:
+        """Check if order is working (open or pending)."""
+        return self.status in (1, 6)  # OPEN or PENDING
+
+    @property
+    def is_terminal(self) -> bool:
+        """Check if order is in a terminal state."""
+        return self.status in (2, 3, 4, 5)  # FILLED, CANCELLED, EXPIRED, REJECTED
+
+    @property
+    def is_buy(self) -> bool:
+        """Check if this is a buy order."""
+        return self.side == 0  # OrderSide.BUY
+
+    @property
+    def is_sell(self) -> bool:
+        """Check if this is a sell order."""
+        return self.side == 1  # OrderSide.SELL
+
+    @property
+    def side_str(self) -> str:
+        """Get order side as string."""
+        return "BUY" if self.is_buy else "SELL"
+
+    @property
+    def type_str(self) -> str:
+        """Get order type as string."""
+        type_map = {
+            1: "LIMIT",
+            2: "MARKET",
+            3: "STOP_LIMIT",
+            4: "STOP",
+            5: "TRAILING_STOP",
+            6: "JOIN_BID",
+            7: "JOIN_ASK",
+        }
+        return type_map.get(self.type, "UNKNOWN")
+
+    @property
+    def status_str(self) -> str:
+        """Get order status as string."""
+        status_map = {
+            0: "NONE",
+            1: "OPEN",
+            2: "FILLED",
+            3: "CANCELLED",
+            4: "EXPIRED",
+            5: "REJECTED",
+            6: "PENDING",
+        }
+        return status_map.get(self.status, "UNKNOWN")
+
+    @property
+    def filled_percent(self) -> float:
+        """Get percentage of order that has been filled."""
+        if self.fillVolume is None or self.size == 0:
+            return 0.0
+        return (self.fillVolume / self.size) * 100
+
+    @property
+    def remaining_size(self) -> int:
+        """Get remaining unfilled size."""
+        if self.fillVolume is None:
+            return self.size
+        return self.size - self.fillVolume
+
+    @property
+    def symbol(self) -> str:
+        """Extract symbol from contract ID."""
+        if "." in self.contractId:
+            parts = self.contractId.split(".")
+            if len(parts) >= 4:
+                return parts[3]
+        return self.contractId
+
 
 @dataclass
 class OrderPlaceResponse:
@@ -288,6 +384,64 @@ class Position:
     type: int
     size: int
     averagePrice: float
+
+    @property
+    def is_long(self) -> bool:
+        """Check if this is a long position."""
+        return self.type == 1  # PositionType.LONG
+
+    @property
+    def is_short(self) -> bool:
+        """Check if this is a short position."""
+        return self.type == 2  # PositionType.SHORT
+
+    @property
+    def direction(self) -> str:
+        """Get position direction as string."""
+        if self.is_long:
+            return "LONG"
+        elif self.is_short:
+            return "SHORT"
+        else:
+            return "UNDEFINED"
+
+    @property
+    def symbol(self) -> str:
+        """Extract symbol from contract ID (e.g., 'MNQ' from 'CON.F.US.MNQ.H25')."""
+        # Handle different contract ID formats
+        if "." in self.contractId:
+            parts = self.contractId.split(".")
+            if len(parts) >= 4:
+                return parts[3]  # Standard format: CON.F.US.MNQ.H25
+        return self.contractId  # Fallback to full contract ID
+
+    @property
+    def signed_size(self) -> int:
+        """Get size with sign (negative for short positions)."""
+        return -self.size if self.is_short else self.size
+
+    @property
+    def total_cost(self) -> float:
+        """Calculate total position cost."""
+        return self.size * self.averagePrice
+
+    def unrealized_pnl(self, current_price: float, tick_value: float = 1.0) -> float:
+        """
+        Calculate unrealized P&L given current price.
+
+        Args:
+            current_price: Current market price
+            tick_value: Value per point move (default: 1.0)
+
+        Returns:
+            Unrealized P&L in dollars
+        """
+        if self.is_long:
+            return (current_price - self.averagePrice) * self.size * tick_value
+        elif self.is_short:
+            return (self.averagePrice - current_price) * self.size * tick_value
+        else:
+            return 0.0
 
 
 @dataclass

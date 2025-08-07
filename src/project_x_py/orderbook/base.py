@@ -29,22 +29,30 @@ Core Data Structures:
 
 Example Usage:
     ```python
-    # Directly using OrderBookBase for custom analytics
-    base = OrderBookBase("MNQ")
-    await base.get_best_bid_ask()
-    await base.add_callback("trade", lambda d: print(d))
+    # V3: Using OrderBookBase with EventBus
+    from project_x_py.events import EventBus, EventType
+
+    event_bus = EventBus()
+    base = OrderBookBase("MNQ", event_bus)  # V3: EventBus required
+
+
+    # V3: Register event handlers via EventBus
+    @event_bus.on(EventType.TRADE_TICK)
+    async def on_trade(data):
+        print(
+            f"Trade: {data['size']} @ {data['price']} ({data['side']})"
+        )  # V3: actual field names
+
+
+    @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+    async def on_depth(data):
+        print(f"Depth update: {len(data['bids'])} bids, {len(data['asks'])} asks")
+
 
     # Get orderbook snapshot
     snapshot = await base.get_orderbook_snapshot(levels=5)
     print(f"Best bid: {snapshot['best_bid']}, Best ask: {snapshot['best_ask']}")
-
-
-    # Register callbacks for real-time events
-    async def on_trade(data):
-        print(f"Trade: {data['volume']} @ {data['price']}")
-
-
-    await base.add_callback("trade", on_trade)
+    print(f"Spread: {snapshot['spread']}, Imbalance: {snapshot['imbalance']:.2%}")
     ```
 
 See Also:
@@ -72,6 +80,11 @@ from project_x_py.types import (
     CallbackType,
     DomType,
     MemoryConfig,
+)
+from project_x_py.types.config_types import OrderbookConfig
+from project_x_py.types.market_data import (
+    OrderbookSnapshot,
+    PriceLevelDict,
 )
 from project_x_py.utils import (
     LogMessages,
@@ -127,8 +140,10 @@ class OrderBookBase:
     def __init__(
         self,
         instrument: str,
+        event_bus: Any,
         project_x: "ProjectXBase | None" = None,
         timezone_str: str = DEFAULT_TIMEZONE,
+        config: OrderbookConfig | None = None,
     ):
         """
         Initialize the async orderbook base.
@@ -137,11 +152,17 @@ class OrderBookBase:
             instrument: Trading instrument symbol
             project_x: Optional ProjectX client for tick size lookup
             timezone_str: Timezone for timestamps (default: America/Chicago)
+            config: Optional configuration for orderbook behavior
         """
         self.instrument = instrument
         self.project_x = project_x
+        self.event_bus = event_bus  # Store the event bus for emitting events
         self.timezone = pytz.timezone(timezone_str)
         self.logger = ProjectXLogger.get_logger(__name__)
+
+        # Store configuration with defaults
+        self.config = config or {}
+        self._apply_config_defaults()
 
         # Cache instrument tick size during initialization
         self._tick_size: Decimal | None = None
@@ -150,8 +171,11 @@ class OrderBookBase:
         self.orderbook_lock = asyncio.Lock()
         self._callback_lock = asyncio.Lock()
 
-        # Memory configuration
-        self.memory_config = MemoryConfig()
+        # Memory configuration (now uses config settings)
+        self.memory_config = MemoryConfig(
+            max_trades=self.max_trade_history,
+            max_depth_entries=self.max_depth_levels,
+        )
         self.memory_manager = MemoryManager(self, self.memory_config)
 
         # Level 2 orderbook storage with Polars DataFrames
@@ -216,7 +240,7 @@ class OrderBookBase:
         self.order_type_stats: dict[str, int] = defaultdict(int)
 
         # Callbacks for orderbook events
-        self.callbacks: dict[str, list[CallbackType]] = defaultdict(list)
+        # EventBus is now used for all event handling
 
         # Price level refresh history for advanced analytics
         self.price_level_history: dict[tuple[float, str], list[dict[str, Any]]] = (
@@ -245,6 +269,22 @@ class OrderBookBase:
 
         # Market microstructure analytics
         self.trade_flow_stats: dict[str, int] = defaultdict(int)
+
+    def _apply_config_defaults(self) -> None:
+        """Apply default values for configuration options."""
+        # Orderbook settings
+        self.max_depth_levels = self.config.get("max_depth_levels", 100)
+        self.max_trade_history = self.config.get("max_trade_history", 1000)
+        self.enable_market_by_order = self.config.get("enable_market_by_order", False)
+        self.enable_analytics = self.config.get("enable_analytics", True)
+        self.enable_pattern_detection = self.config.get(
+            "enable_pattern_detection", True
+        )
+        self.snapshot_interval_seconds = self.config.get("snapshot_interval_seconds", 1)
+        self.memory_limit_mb = self.config.get("memory_limit_mb", 256)
+        self.compression_level = self.config.get("compression_level", 1)
+        self.enable_delta_updates = self.config.get("enable_delta_updates", True)
+        self.price_precision = self.config.get("price_precision", 4)
 
     def _map_trade_type(self, type_code: int) -> str:
         """Map ProjectX DomType codes to human-readable trade types."""
@@ -359,12 +399,16 @@ class OrderBookBase:
                 timestamp: The time of calculation (datetime)
 
         Example:
+            >>> # V3: Get best bid/ask with spread
             >>> prices = await orderbook.get_best_bid_ask()
             >>> if prices["bid"] is not None and prices["ask"] is not None:
             ...     print(
-            ...         f"Bid: {prices['bid']}, Ask: {prices['ask']}, "
-            ...         f"Spread: {prices['spread']}"
+            ...         f"Bid: {prices['bid']:.2f}, Ask: {prices['ask']:.2f}, "
+            ...         f"Spread: {prices['spread']:.2f} ticks"
             ...     )
+            ...     # V3: Calculate mid price
+            ...     mid = (prices["bid"] + prices["ask"]) / 2
+            ...     print(f"Mid price: {mid:.2f}")
             ... else:
             ...     print("Incomplete market data")
         """
@@ -442,7 +486,7 @@ class OrderBookBase:
             return self._get_orderbook_asks_unlocked(levels)
 
     @handle_errors("get orderbook snapshot")
-    async def get_orderbook_snapshot(self, levels: int = 10) -> dict[str, Any]:
+    async def get_orderbook_snapshot(self, levels: int = 10) -> OrderbookSnapshot:
         """
         Get a complete snapshot of the current orderbook state.
 
@@ -473,26 +517,39 @@ class OrderBookBase:
             ProjectXError: If an error occurs during snapshot generation
 
         Example:
-            >>> # Get full orderbook with 5 levels on each side
+            >>> # V3: Get full orderbook with 5 levels on each side
             >>> snapshot = await orderbook.get_orderbook_snapshot(levels=5)
             >>>
-            >>> # Print top of book
+            >>> # V3: Print top of book with imbalance
             >>> print(
-            ...     f"Best Bid: {snapshot['best_bid']} ({snapshot['total_bid_volume']})"
+            ...     f"Best Bid: {snapshot['best_bid']:.2f} ({snapshot['total_bid_volume']} contracts)"
             ... )
             >>> print(
-            ...     f"Best Ask: {snapshot['best_ask']} ({snapshot['total_ask_volume']})"
+            ...     f"Best Ask: {snapshot['best_ask']:.2f} ({snapshot['total_ask_volume']} contracts)"
             ... )
-            >>> print(f"Spread: {snapshot['spread']}, Mid: {snapshot['mid_price']}")
+            >>> print(
+            ...     f"Spread: {snapshot['spread']:.2f}, Mid: {snapshot['mid_price']:.2f}"
+            ... )
+            >>> print(
+            ...     f"Imbalance: {snapshot['imbalance']:.2%} ({'Bid Heavy' if snapshot['imbalance'] > 0 else 'Ask Heavy'})"
+            ... )
             >>>
-            >>> # Display full depth
-            >>> print("Bids:")
+            >>> # V3: Display depth with cumulative volume
+            >>> cumulative_bid = 0
+            >>> print("\nBids:")
             >>> for bid in snapshot["bids"]:
-            ...     print(f"  {bid['price']}: {bid['volume']}")
+            ...     cumulative_bid += bid["volume"]
+            ...     print(
+            ...         f"  {bid['price']:.2f}: {bid['volume']:5d} (cum: {cumulative_bid:6d})"
+            ...     )
             >>>
-            >>> print("Asks:")
+            >>> cumulative_ask = 0
+            >>> print("\nAsks:")
             >>> for ask in snapshot["asks"]:
-            ...     print(f"  {ask['price']}: {ask['volume']}")
+            ...     cumulative_ask += ask["volume"]
+            ...     print(
+            ...         f"  {ask['price']:.2f}: {ask['volume']:5d} (cum: {cumulative_ask:6d})"
+            ...     )
         """
         async with self.orderbook_lock:
             try:
@@ -503,9 +560,32 @@ class OrderBookBase:
                 bids = self._get_orderbook_bids_unlocked(levels)
                 asks = self._get_orderbook_asks_unlocked(levels)
 
-                # Convert to lists of dicts
-                bid_levels = bids.to_dicts() if not bids.is_empty() else []
-                ask_levels = asks.to_dicts() if not asks.is_empty() else []
+                # Convert to lists of PriceLevelDict
+                bid_levels: list[PriceLevelDict] = (
+                    [
+                        {
+                            "price": float(row["price"]),
+                            "volume": int(row["volume"]),
+                            "timestamp": row["timestamp"],
+                        }
+                        for row in bids.to_dicts()
+                    ]
+                    if not bids.is_empty()
+                    else []
+                )
+
+                ask_levels: list[PriceLevelDict] = (
+                    [
+                        {
+                            "price": float(row["price"]),
+                            "volume": int(row["volume"]),
+                            "timestamp": row["timestamp"],
+                        }
+                        for row in asks.to_dicts()
+                    ]
+                    if not asks.is_empty()
+                    else []
+                )
 
                 # Calculate totals
                 total_bid_volume = bids["volume"].sum() if not bids.is_empty() else 0
@@ -536,8 +616,6 @@ class OrderBookBase:
                     "bid_count": len(bid_levels),
                     "ask_count": len(ask_levels),
                     "imbalance": imbalance,
-                    "update_count": self.level2_update_count,
-                    "last_update": self.last_orderbook_update,
                 }
 
             except Exception as e:
@@ -597,18 +675,28 @@ class OrderBookBase:
                 the event data specific to that event type.
 
         Example:
-            >>> # Register an async callback for trade events
+            >>> # V3: DEPRECATED - Use EventBus instead
+            >>> # Old callback style (deprecated):
+            >>> # await orderbook.add_callback("trade", on_trade)
+            >>> # V3: Modern EventBus approach
+            >>> from project_x_py.events import EventBus, EventType
+            >>> event_bus = EventBus()
+            >>> @event_bus.on(EventType.TRADE_TICK)
             >>> async def on_trade(data):
-            ...     print(f"Trade: {data['volume']} @ {data['price']} ({data['side']})")
-            >>> await orderbook.add_callback("trade", on_trade)
-            >>>
-            >>> # Register a synchronous callback for best bid changes
-            >>> def on_best_bid_change(data):
-            ...     print(f"New best bid: {data['price']}")
-            >>> await orderbook.add_callback("best_bid_change", on_best_bid_change)
+            ...     print(
+            ...         f"Trade: {data['size']} @ {data['price']} ({data['side']})"
+            ...     )  # V3: actual field names
+            >>> @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
+            >>> async def on_depth_change(data):
+            ...     print(
+            ...         f"New best bid: {data['bids'][0]['price'] if data['bids'] else 'None'}"
+            ...     )
+            >>> # V3: Events automatically flow through EventBus
         """
         async with self._callback_lock:
-            self.callbacks[event_type].append(callback)
+            logger.warning(
+                "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
+            )
             logger.debug(
                 LogMessages.CALLBACK_REGISTERED,
                 extra={"event_type": event_type, "component": "orderbook"},
@@ -618,12 +706,13 @@ class OrderBookBase:
     async def remove_callback(self, event_type: str, callback: CallbackType) -> None:
         """Remove a registered callback."""
         async with self._callback_lock:
-            if event_type in self.callbacks and callback in self.callbacks[event_type]:
-                self.callbacks[event_type].remove(callback)
-                logger.debug(
-                    LogMessages.CALLBACK_REMOVED,
-                    extra={"event_type": event_type, "component": "orderbook"},
-                )
+            logger.warning(
+                "remove_callback is deprecated. Use TradingSuite.off() with EventType enum instead."
+            )
+            logger.debug(
+                LogMessages.CALLBACK_REMOVED,
+                extra={"event_type": event_type, "component": "orderbook"},
+            )
 
     async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
         """
@@ -642,25 +731,30 @@ class OrderBookBase:
             Callback errors are logged but do not raise exceptions to prevent
             disrupting the orderbook's operation.
         """
-        callbacks = self.callbacks.get(event_type, [])
-        for callback in callbacks:
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(data)
-                else:
-                    callback(data)
-            except Exception as e:
-                self.logger.error(
-                    LogMessages.DATA_ERROR,
-                    extra={"operation": f"callback_{event_type}", "error": str(e)},
-                )
+        # Emit event through EventBus
+        from project_x_py.event_bus import EventType
+
+        # Map orderbook event types to EventType enum
+        event_mapping = {
+            "orderbook_update": EventType.ORDERBOOK_UPDATE,
+            "market_depth": EventType.MARKET_DEPTH_UPDATE,
+            "depth_update": EventType.MARKET_DEPTH_UPDATE,
+            "quote_update": EventType.QUOTE_UPDATE,
+            "trade": EventType.TRADE_TICK,
+        }
+
+        if event_type in event_mapping:
+            await self.event_bus.emit(
+                event_mapping[event_type], data, source="OrderBook"
+            )
+
+        # Legacy callbacks have been removed - use EventBus
 
     @handle_errors("cleanup", reraise=False)
     async def cleanup(self) -> None:
         """Clean up resources."""
         await self.memory_manager.stop()
-        async with self._callback_lock:
-            self.callbacks.clear()
+        # EventBus handles all event cleanup
         logger.info(
             LogMessages.CLEANUP_COMPLETE,
             extra={"component": "OrderBook"},

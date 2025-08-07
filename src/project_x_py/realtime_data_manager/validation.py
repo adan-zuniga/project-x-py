@@ -27,18 +27,34 @@ Validation Capabilities:
 
 Example Usage:
     ```python
-    # Validation happens automatically during data processing
-    # Check validation status for monitoring
+    # V3: Validation with async patterns and actual field names
+    async with ProjectX.from_env() as client:
+        await client.authenticate()
 
-    status = manager.get_realtime_validation_status()
-    print(f"Feed active: {status['is_running']}")
-    print(f"Contract ID: {status['contract_id']}")
-    print(f"Ticks processed: {status['ticks_processed']}")
+        manager = RealtimeDataManager(
+            instrument="MNQ",  # V3: Actual contract symbol
+            project_x=client,
+            realtime_client=realtime_client,
+        )
 
-    # Check ProjectX compliance
-    compliance = status["projectx_compliance"]
-    for check, result in compliance.items():
-        print(f"{check}: {result}")
+        # V3: Check validation status asynchronously
+        status = await manager.get_realtime_validation_status()
+        print(f"Feed active: {status['is_running']}")
+        print(f"Contract ID: {status['contract_id']}")
+        print(f"Symbol: {status['symbol']}")
+        print(f"Ticks processed: {status['ticks_processed']}")
+        print(f"Quotes validated: {status['quotes_validated']}")
+        print(f"Trades validated: {status['trades_validated']}")
+
+        # V3: Check ProjectX Gateway compliance
+        compliance = status["projectx_compliance"]
+        for check, result in compliance.items():
+            status_icon = "✅" if result else "❌"
+            print(f"{status_icon} {check}: {result}")
+
+        # V3: Monitor validation errors
+        if status.get("validation_errors", 0) > 0:
+            print(f"⚠️ Validation errors detected: {status['validation_errors']}")
     ```
 
 Validation Process:

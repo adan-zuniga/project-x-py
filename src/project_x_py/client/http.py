@@ -26,10 +26,20 @@ Example Usage:
 
 
     async def main():
+        # V3: Monitor client performance and health metrics
         async with ProjectX.from_env() as client:
-            status = await client.get_health_status()
-            print(f"API Calls: {status['client_stats']['api_calls']}")
-            print(f"Cache Hit Rate: {status['client_stats']['cache_hit_rate']:.1%}")
+            await client.authenticate()
+
+            # Perform some operations
+            await client.get_instrument("MNQ")
+            await client.get_bars("MNQ", days=1)
+
+            # Check performance statistics
+            stats = await client.get_health_status()
+            print(f"API Calls: {stats['api_calls']}")
+            print(f"Cache Hits: {stats['cache_hits']}")
+            print(f"Cache Hit Ratio: {stats['cache_hit_ratio']:.1%}")
+            print(f"Active Connections: {stats['active_connections']}")
 
 
     asyncio.run(main())
@@ -54,6 +64,7 @@ from project_x_py.exceptions import (
     ProjectXRateLimitError,
     ProjectXServerError,
 )
+from project_x_py.types.response_types import PerformanceStatsResponse
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,
@@ -281,7 +292,9 @@ class HttpMixin:
                 )
 
     @handle_errors("get health status")
-    async def get_health_status(self: "ProjectXClientProtocol") -> dict[str, Any]:
+    async def get_health_status(
+        self: "ProjectXClientProtocol",
+    ) -> PerformanceStatsResponse:
         """
         Get client statistics and performance metrics.
 
@@ -292,9 +305,13 @@ class HttpMixin:
                 - account: Current account name if authenticated
 
         Example:
+            >>> # V3: Get comprehensive performance metrics
             >>> status = await client.get_health_status()
-            >>> print(f"Cache hit rate: {status['client_stats']['cache_hit_rate']:.1%}")
-            >>> print(f"API calls made: {status['client_stats']['api_calls']}")
+            >>> print(f"API Calls: {status['api_calls']}")
+            >>> print(f"Cache Hits: {status['cache_hits']}")
+            >>> print(f"Cache Hit Ratio: {status['cache_hit_ratio']:.2%}")
+            >>> print(f"Success Rate: {status['success_rate']:.2%}")
+            >>> print(f"Active Connections: {status['active_connections']}")
         """
         # Calculate client statistics
         total_cache_requests = self.cache_hit_count + self.api_call_count
@@ -304,13 +321,21 @@ class HttpMixin:
             else 0
         )
 
+        # Calculate additional metrics for PerformanceStatsResponse
+        cache_misses = self.api_call_count  # API calls are essentially cache misses
+        success_rate = 1.0  # Simplified - would need actual failure tracking
+        uptime_seconds = 0  # Would need to track session start time
+
         return {
-            "client_stats": {
-                "api_calls": self.api_call_count,
-                "cache_hits": self.cache_hit_count,
-                "cache_hit_rate": cache_hit_rate,
-                "total_requests": total_cache_requests,
-            },
-            "authenticated": self._authenticated,
-            "account": self.account_info.name if self.account_info else None,
+            "api_calls": self.api_call_count,
+            "cache_hits": self.cache_hit_count,
+            "cache_misses": cache_misses,
+            "cache_hit_ratio": cache_hit_rate,
+            "avg_response_time_ms": 0.0,  # Would need response time tracking
+            "total_requests": total_cache_requests,
+            "failed_requests": 0,  # Would need failure tracking
+            "success_rate": success_rate,
+            "active_connections": 1 if self._authenticated else 0,
+            "memory_usage_mb": 0.0,  # Would need memory monitoring
+            "uptime_seconds": uptime_seconds,
         }

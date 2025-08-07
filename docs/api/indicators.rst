@@ -29,7 +29,7 @@ Quick Start
        # Get market data
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           data = await client.get_bars('MGC', days=30, interval=60)
+           data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
        
        # Class-based interface
        rsi = RSI()
@@ -290,7 +290,7 @@ Basic Usage
        # Load your data (Polars DataFrame with OHLCV columns)
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           data = await client.get_bars('MGC', days=30, interval=60)
+           data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
        
        # Add indicators using TA-Lib style functions
        data = RSI(data, period=14)
@@ -336,7 +336,7 @@ Multi-Indicator Strategy
        # Get data
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           data = await client.get_bars('MGC', days=60, interval=60)
+           data = await client.get_bars('MNQ', days=60, interval=60)  # V3: actual symbol
        
        # Comprehensive technical analysis
        analysis = (
@@ -474,7 +474,7 @@ Performance Tips
        # Fetch data once
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           data = await client.get_bars('MGC', days=30)
+           data = await client.get_bars('MNQ', days=30)  # V3: actual symbol
        
        # Efficient: Chain multiple indicators
        data = (

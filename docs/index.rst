@@ -20,7 +20,7 @@ project-x-py Documentation
 **project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
 
 .. note::
-   **Version 2.0.5**: Enterprise-grade error handling with centralized logging, structured error messages, and comprehensive retry mechanisms. Complete async-first architecture introduced in v2.0.0.
+   **Version 3.0.0**: Complete async architecture with EventBus integration for unified event handling. All components now use factory functions and dependency injection patterns. Enterprise-grade error handling with centralized logging and comprehensive retry mechanisms.
 
 .. warning::
    **Development Phase**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
@@ -51,26 +51,32 @@ Start trading::
    from project_x_py.indicators import RSI, SMA, MACD
    
    async def main():
-       # Create client with async context manager
+       # V3: Create client with async context manager
        async with ProjectX.from_env() as client:
            await client.authenticate()
            
            # Get market data with technical analysis
-           data = await client.get_bars('MGC', days=30, interval=60)
+           data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
            data = RSI(data, period=14)         # Add RSI
            data = SMA(data, period=20)         # Add moving average
            data = MACD(data)                   # Add MACD
            
-           # Place an order
+           # V3: Place an order with JWT authentication
            from project_x_py import create_order_manager, create_realtime_client
-           instrument = await client.get_instrument('MGC')
-           realtime_client = create_realtime_client(client.session_token)
+           instrument = await client.get_instrument('MNQ')
+           
+           # V3: Create realtime client with JWT and account ID
+           realtime_client = await create_realtime_client(
+               jwt_token=client.jwt_token,
+               account_id=str(client.account_id)
+           )
            order_manager = create_order_manager(client, realtime_client)
+           
            response = await order_manager.place_limit_order(
                contract_id=instrument.id, 
                side=0, 
                size=1, 
-               limit_price=2050.0
+               limit_price=21050.0  # V3: realistic MNQ price
            )
    
    # Run the async function
@@ -104,7 +110,10 @@ Key Features
    * Async event-driven architecture
    * WebSocket-based connections with async handlers
 
-🛡️ **Enterprise Features (v2.0.5+)**
+🛡️ **Enterprise Features (v3.0.0+)**
+   * EventBus architecture for unified event handling
+   * Factory functions with dependency injection
+   * JWT-based authentication system
    * Centralized error handling with decorators
    * Structured JSON logging for production
    * Automatic retry with exponential backoff
