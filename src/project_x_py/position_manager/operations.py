@@ -171,7 +171,7 @@ class PositionOperationsMixin:
                     # if self._order_sync_enabled and self.order_manager:
                     #     await self.order_manager.on_position_closed(contract_id)
 
-                    self.stats["positions_closed"] += 1
+                    self.stats["closed_positions"] += 1
                 else:
                     error_msg = response.get("errorMessage", "Unknown error")
                     logger.error(

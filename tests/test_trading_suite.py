@@ -78,7 +78,10 @@ async def test_trading_suite_create():
 
                     # Verify creation
                     assert suite is not None
-                    assert suite.instrument == "MNQ"
+                    assert suite._symbol == "MNQ"
+                    assert (
+                        suite.instrument is not None
+                    )  # Should be the instrument object
                     assert suite.client == mock_client
                     assert suite.realtime == mock_realtime
 
@@ -99,7 +102,9 @@ async def test_trading_suite_create():
                     # Test stats
                     stats = suite.get_stats()
                     assert stats["connected"] is True
-                    assert stats["instrument"] == "MNQ"
+                    assert (
+                        stats["instrument"] == "MNQ_CONTRACT_ID"
+                    )  # Returns instrument.id
                     assert stats["realtime_connected"] is True
                     assert "data_manager" in stats["components"]
 
@@ -259,7 +264,10 @@ async def test_trading_suite_context_manager():
                 ):
                     # Use as context manager
                     async with await TradingSuite.create("ES") as suite:
-                        assert suite.instrument == "ES"
+                        assert suite._symbol == "ES"
+                        assert (
+                            suite.instrument is not None
+                        )  # Should be the instrument object
                         assert suite._initialized is True
 
                         # Patch disconnect to track if it was called

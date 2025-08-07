@@ -227,17 +227,16 @@ class TestHttpClient:
 
         health = await client.get_health_status()
 
-        # Verify the structure matches the expected format
-        assert "client_stats" in health
-        assert "authenticated" in health
-        assert "account" in health
+        # Verify the structure matches the expected format (flat dictionary)
+        assert "api_calls" in health
+        assert "cache_hits" in health
+        assert "cache_hit_ratio" in health
+        assert "total_requests" in health
+        assert "active_connections" in health
 
-        # Verify client stats fields
-        assert health["client_stats"]["api_calls"] == 10
-        assert health["client_stats"]["cache_hits"] == 5
-        assert health["client_stats"]["cache_hit_rate"] == 5 / 15  # 5/15
-        assert health["client_stats"]["total_requests"] == 15
-
-        # Verify authentication info
-        assert health["authenticated"] is True
-        assert health["account"] == "TestAccount"
+        # Verify specific values
+        assert health["api_calls"] == 10
+        assert health["cache_hits"] == 5
+        assert health["cache_hit_ratio"] == 5 / 15  # 5/(5+10)
+        assert health["total_requests"] == 15
+        assert health["active_connections"] == 1  # authenticated

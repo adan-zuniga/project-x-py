@@ -69,7 +69,7 @@ class Doji(BaseIndicator):
 
         result = data.with_columns(
             [
-                pl.abs(pl.col(close_col) - pl.col(open_col)).alias("body"),
+                (pl.col(close_col) - pl.col(open_col)).abs().alias("body"),
                 (pl.col(high_col) - pl.col(low_col)).alias("range"),
             ]
         )
@@ -119,7 +119,7 @@ class Hammer(BaseIndicator):
 
         result = data.with_columns(
             [
-                pl.abs(pl.col(close_col) - pl.col(open_col)).alias("body"),
+                (pl.col(close_col) - pl.col(open_col)).abs().alias("body"),
                 (pl.col(high_col) - pl.max_horizontal([close_col, open_col])).alias(
                     "upper_shadow"
                 ),
@@ -193,7 +193,7 @@ class ShootingStar(BaseIndicator):
 
         result = data.with_columns(
             [
-                pl.abs(pl.col(close_col) - pl.col(open_col)).alias("body"),
+                (pl.col(close_col) - pl.col(open_col)).abs().alias("body"),
                 (pl.col(high_col) - pl.max_horizontal([close_col, open_col])).alias(
                     "upper_shadow"
                 ),
@@ -232,7 +232,7 @@ class ShootingStar(BaseIndicator):
         )
 
         result = result.with_columns(
-            (pl.abs(pl.col("shootingstar_strength")) >= min_strength).alias(
+            (pl.col("shootingstar_strength").abs() >= min_strength).alias(
                 "is_shootingstar"
             )
         )

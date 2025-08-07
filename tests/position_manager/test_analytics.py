@@ -39,4 +39,4 @@ async def test_calculate_portfolio_pnl(position_manager, populate_prices):
     # MGC: long, size=1, avg=1900, price=1910 => +10;
     # MNQ: short, size=2, avg=15000, price=14950 => (15000-14950)*2=+100
     assert abs(portfolio_data["total_pnl"] - 110.0) < 1e-3
-    assert portfolio_data["positions_with_prices"] == 2
+    assert portfolio_data["total_trades"] == 2

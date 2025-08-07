@@ -41,5 +41,5 @@ async def test_process_position_data_open_and_close(
     closure_data["size"] = 0
     await pm._process_position_data(closure_data)
     assert key not in pm.tracked_positions
-    assert pm.stats["positions_closed"] == 1
+    assert pm.stats["closed_positions"] == 1
     pm._trigger_callbacks.assert_any_call("position_closed", closure_data)

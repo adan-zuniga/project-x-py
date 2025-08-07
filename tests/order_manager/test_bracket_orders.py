@@ -32,7 +32,7 @@ class TestBracketOrderMixin:
         mixin.position_orders = {
             "FOO": {"entry_orders": [], "stop_orders": [], "target_orders": []}
         }
-        mixin.stats = {"bracket_orders_placed": 0}
+        mixin.stats = {"bracket_orders": 0}
         with pytest.raises(ProjectXOrderError) as exc:
             await mixin.place_bracket_order(
                 "FOO", side, 1, entry, stop, target, entry_type="limit"
@@ -67,7 +67,7 @@ class TestBracketOrderMixin:
         mixin.position_orders = {
             "BAR": {"entry_orders": [], "stop_orders": [], "target_orders": []}
         }
-        mixin.stats = {"bracket_orders_placed": 0}
+        mixin.stats = {"bracket_orders": 0}
 
         # Entry type = limit
         resp = await mixin.place_bracket_order(
@@ -81,4 +81,4 @@ class TestBracketOrderMixin:
         assert mixin.position_orders["BAR"]["entry_orders"][-1] == 2
         assert mixin.position_orders["BAR"]["stop_orders"][-1] == 4
         assert mixin.position_orders["BAR"]["target_orders"][-1] == 3
-        assert mixin.stats["bracket_orders_placed"] == 1
+        assert mixin.stats["bracket_orders"] == 1
