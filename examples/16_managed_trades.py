@@ -25,7 +25,7 @@ sys.path.insert(
 from project_x_py import TradingSuite
 
 
-async def simple_long_trade(suite: TradingSuite):
+async def simple_long_trade(suite: TradingSuite) -> None:
     """Execute a simple long trade with risk management."""
     print("\n=== Simple Long Trade with Risk Management ===")
 
@@ -70,7 +70,7 @@ async def simple_long_trade(suite: TradingSuite):
         print(f"Trade rejected: {e}")
 
 
-async def advanced_trade_management(suite: TradingSuite):
+async def advanced_trade_management(suite: TradingSuite) -> None:
     """Demonstrate advanced trade management features."""
     print("\n=== Advanced Trade Management ===")
 
@@ -132,7 +132,7 @@ async def advanced_trade_management(suite: TradingSuite):
     print(example_code)
 
 
-async def risk_validation_demo(suite: TradingSuite):
+async def risk_validation_demo(suite: TradingSuite) -> None:
     """Demonstrate risk validation and rejection."""
     print("\n=== Risk Validation Demo ===")
 
@@ -149,6 +149,7 @@ async def risk_validation_demo(suite: TradingSuite):
 
     # 1. Valid trade
     print("\n1. Valid trade (1% risk):")
+    assert suite.risk_manager is not None
     sizing = await suite.risk_manager.calculate_position_size(
         entry_price=current_price,
         stop_loss=current_price - 50,
@@ -177,7 +178,7 @@ async def risk_validation_demo(suite: TradingSuite):
     print("   ✗ Would be rejected")
 
 
-async def main():
+async def main() -> None:
     """Run risk management examples."""
     print("=== ProjectX SDK v3.0.0 - Managed Trades Example ===\n")
 

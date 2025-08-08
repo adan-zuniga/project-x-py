@@ -244,9 +244,7 @@ class DataAccessMixin:
 
         return None
 
-    async def get_mtf_data(
-        self: "RealtimeDataManagerProtocol",
-    ) -> dict[str, pl.DataFrame]:
+    async def get_mtf_data(self) -> dict[str, pl.DataFrame]:
         """
         Get multi-timeframe OHLCV data for all configured timeframes.
 
@@ -262,7 +260,7 @@ class DataAccessMixin:
             return {tf: df.clone() for tf, df in self.data.items()}
 
     async def get_latest_bars(
-        self: "RealtimeDataManagerProtocol",
+        self,
         count: int = 1,
         timeframe: str = "5min",
     ) -> pl.DataFrame | None:
@@ -286,7 +284,7 @@ class DataAccessMixin:
         """
         return await self.get_data(timeframe, bars=count)
 
-    async def get_latest_price(self: "RealtimeDataManagerProtocol") -> float | None:
+    async def get_latest_price(self) -> float | None:
         """
         Get the most recent price from tick or bar data.
 
@@ -303,7 +301,7 @@ class DataAccessMixin:
         return await self.get_current_price()
 
     async def get_ohlc(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timeframe: str = "5min",
     ) -> dict[str, float] | None:
         """
@@ -393,7 +391,7 @@ class DataAccessMixin:
         }
 
     async def get_volume_stats(
-        self: "RealtimeDataManagerProtocol",
+        self,
         bars: int = 20,
         timeframe: str = "5min",
     ) -> dict[str, float] | None:
@@ -448,7 +446,7 @@ class DataAccessMixin:
         }
 
     async def is_data_ready(
-        self: "RealtimeDataManagerProtocol",
+        self,
         min_bars: int = 20,
         timeframe: str | None = None,
     ) -> bool:
@@ -482,7 +480,7 @@ class DataAccessMixin:
                 return all(len(df) >= min_bars for df in self.data.values())
 
     async def get_bars_since(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timestamp: datetime,
         timeframe: str = "5min",
     ) -> pl.DataFrame | None:
@@ -515,7 +513,7 @@ class DataAccessMixin:
         if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
             # Assume it's in the data's timezone
             # self.timezone is a pytz timezone object, we need its zone string
-            tz_str = getattr(self.timezone, "zone", "America/Chicago")
+            tz_str = "America/Chicago"
             timestamp = timestamp.replace(tzinfo=ZoneInfo(tz_str))
 
         # Filter bars
@@ -523,7 +521,7 @@ class DataAccessMixin:
         return data.filter(mask)
 
     async def get_data_or_none(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timeframe: str = "5min",
         min_bars: int = 20,
     ) -> pl.DataFrame | None:
@@ -555,7 +553,7 @@ class DataAccessMixin:
         return data
 
     def get_latest_bar_sync(
-        self: "RealtimeDataManagerProtocol",
+        self,
         timeframe: str = "5min",
     ) -> dict[str, float] | None:
         """

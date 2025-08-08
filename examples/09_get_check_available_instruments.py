@@ -26,7 +26,7 @@ from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Instrument
 
 
-def display_instrument(instrument: Instrument, prefix: str = ""):
+def display_instrument(instrument: Instrument, prefix: str = "") -> None:
     """Display instrument details in a formatted way"""
     print(f"{prefix}┌─ Contract Details ─────────────────────────────")
     print(f"{prefix}│ ID:           {instrument.id}")
@@ -39,7 +39,7 @@ def display_instrument(instrument: Instrument, prefix: str = ""):
     print(f"{prefix}└" + "─" * 47)
 
 
-async def search_and_display(client: ProjectX, symbol: str):
+async def search_and_display(client: ProjectX, symbol: str) -> None:
     """Search for instruments and display results asynchronously"""
     print(f"\n{'=' * 60}")
     print(f"Searching for: '{symbol}'")
@@ -107,13 +107,13 @@ def show_common_symbols():
     print("└─────────┴──────────────────────────────────────────┘")
 
 
-async def get_user_input(prompt):
+async def get_user_input(prompt: str) -> str:
     """Get user input"""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, input, prompt)
 
 
-async def run_interactive_search(client):
+async def run_interactive_search(client: ProjectX) -> None:
     """Run the interactive search loop."""
     show_common_symbols()
 
@@ -144,7 +144,7 @@ async def run_interactive_search(client):
         await search_and_display(client, symbol.upper())
 
 
-async def main():
+async def main() -> None:
     """Main entry point."""
     print("╔═══════════════════════════════════════════════════════╗")
     print("║   Async ProjectX Instrument Search Interactive Demo   ║")
@@ -161,15 +161,16 @@ async def main():
             print(f"✓ Using account: {client.account_info.name}")
 
             # Show client performance stats periodically
-            async def show_stats():
+            async def show_stats() -> None:
                 while True:
                     await asyncio.sleep(60)  # Every minute
                     stats = await client.get_health_status()
-                    if stats["client_stats"]["api_calls"] > 0:
+                    # Using defined PerformanceStatsResponse keys
+                    if stats["api_calls"] > 0:
                         print(
-                            f"\n[Stats] API calls: {stats['client_stats']['api_calls']}, "
-                            f"Cache hits: {stats['client_stats']['cache_hits']} "
-                            f"({stats['client_stats']['cache_hit_rate']:.1%} hit rate)"
+                            f"\n[Stats] API calls: {stats['api_calls']}, "
+                            f"Cache hits: {stats['cache_hits']} "
+                            f"({(stats['cache_hits'] / max(stats['api_calls'], 1)):.1%} hit rate)"
                         )
 
             # Run stats display in background

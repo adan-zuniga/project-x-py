@@ -31,7 +31,9 @@ class CleanTradingStrategy:
         self.profit_target_ticks = 20
         self.stop_loss_ticks = 10
 
-    async def analyze_market(self) -> dict | None:
+    async def analyze_market(
+        self,
+    ) -> dict[str, float | int | str | dict[str, float]] | None:
         """Analyze market using simplified data access."""
         # Use new get_data_or_none for cleaner code
         data = await self.data.get_data_or_none("5min", min_bars=50)
@@ -47,7 +49,12 @@ class CleanTradingStrategy:
         price_range = await self.data.get_price_range(bars=20)
         volume_stats = await self.data.get_volume_stats(bars=20)
 
-        if not all([current_price, ohlc, price_range, volume_stats]):
+        if (
+            current_price is None
+            or ohlc is None
+            or price_range is None
+            or volume_stats is None
+        ):
             return None
 
         # Analyze trend
@@ -56,21 +63,30 @@ class CleanTradingStrategy:
         atr = float(data["atr_14"][-1])
 
         # Price position within range
-        price_position = (current_price - price_range["low"]) / price_range["range"]
+        price_position = (float(current_price) - float(price_range["low"])) / float(
+            price_range["range"]
+        )
 
         return {
-            "price": current_price,
-            "trend": "bullish" if current_price > sma20 else "bearish",
-            "trend_strength": abs(current_price - sma20) / sma20,
+            "price": float(current_price),
+            "trend": "bullish" if float(current_price) > sma20 else "bearish",
+            "trend_strength": abs(float(current_price) - sma20) / sma20,
             "rsi": rsi,
             "atr": atr,
             "price_position": price_position,
-            "volume_relative": volume_stats["relative"],
-            "range": price_range["range"],
-            "ohlc": ohlc,
+            "volume_relative": float(volume_stats["relative"]),
+            "range": float(price_range["range"]),
+            "ohlc": {
+                "open": float(ohlc["open"]),
+                "high": float(ohlc["high"]),
+                "low": float(ohlc["low"]),
+                "close": float(ohlc["close"]),
+            },
         }
 
-    async def check_positions(self) -> dict:
+    async def check_positions(
+        self,
+    ) -> dict[str, float | int | list[dict[str, float | int | str]]]:
         """Check positions using enhanced model properties."""
         positions = await self.positions.get_all_positions()
 
@@ -83,7 +99,7 @@ class CleanTradingStrategy:
         }
 
         current_price = await self.data.get_latest_price()
-        if not current_price:
+        if current_price is None:
             return position_summary
 
         for pos in positions:
@@ -96,7 +112,7 @@ class CleanTradingStrategy:
             position_summary["total_exposure"] += pos.total_cost
 
             # Calculate P&L using the unrealized_pnl method
-            pnl = pos.unrealized_pnl(current_price, tick_value=5.0)  # MNQ tick value
+            pnl = pos.unrealized_pnl(float(current_price), tick_value=5.0)
 
             position_summary["positions"].append(
                 {
@@ -113,7 +129,9 @@ class CleanTradingStrategy:
 
         return position_summary
 
-    async def check_orders(self) -> dict:
+    async def check_orders(
+        self,
+    ) -> dict[str, float | int | list[dict[str, float | int | str]]]:
         """Check orders using enhanced model properties."""
         orders = await self.orders.search_open_orders()
 
@@ -145,13 +163,17 @@ class CleanTradingStrategy:
                     "size": order.size,
                     "remaining": order.remaining_size,  # New property
                     "filled_pct": order.filled_percent,  # New property
-                    "price": order.limitPrice or order.stopPrice,
+                    "price": float(order.limitPrice)
+                    if order.limitPrice
+                    else float(order.stopPrice)
+                    if order.stopPrice
+                    else 0.0,
                 }
             )
 
         return order_summary
 
-    async def execute_strategy(self):
+    async def execute_strategy(self) -> None:
         """Execute trading strategy using all Phase 4 improvements."""
         print("\n=== Strategy Execution ===")
 
@@ -221,7 +243,9 @@ class CleanTradingStrategy:
             )
             print(f"  Reason: {signal['reason']}")
 
-    def _generate_signal(self, analysis: dict, positions: dict) -> dict | None:
+    def _generate_signal(
+        self, analysis: dict, positions: dict
+    ) -> dict[str, float | str] | None:
         """Generate trading signal based on analysis."""
         # No signal if we have max positions
         if positions["total_positions"] >= self.max_position_size:
@@ -264,7 +288,7 @@ class CleanTradingStrategy:
         return None
 
 
-async def demonstrate_phase4_improvements():
+async def demonstrate_phase4_improvements() -> None:
     """Demonstrate all Phase 4 improvements in action."""
 
     async with await TradingSuite.create(
@@ -365,7 +389,7 @@ async def demonstrate_phase4_improvements():
         print("\n✅ Overall: Cleaner, more readable, less error-prone code!")
 
 
-async def main():
+async def main() -> None:
     """Run Phase 4 comprehensive test."""
     try:
         await demonstrate_phase4_improvements()

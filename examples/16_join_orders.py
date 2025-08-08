@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from project_x_py import TradingSuite
 
 
-async def main():
+async def main() -> None:
     """Demonstrate JoinBid and JoinAsk order placement."""
     # Initialize trading suite with simplified API (v3.0.0)
     suite = await TradingSuite.create("MNQ")
@@ -53,6 +53,8 @@ async def main():
             # Note: JoinBid/JoinAsk orders may not be supported in all environments
             # or may require specific market conditions (active bid/ask quotes)
             try:
+                if suite.instrument_id is None:
+                    raise RuntimeError("Instrument ID not available")
                 join_bid_response = await suite.orders.place_join_bid_order(
                     contract_id=suite.instrument_id, size=1
                 )
@@ -78,6 +80,8 @@ async def main():
             # Example 2: Place a JoinAsk order
             print("2. Placing JoinAsk order (sell at best ask)...")
             try:
+                if suite.instrument_id is None:
+                    raise RuntimeError("Instrument ID not available")
                 join_ask_response = await suite.orders.place_join_ask_order(
                     contract_id=suite.instrument_id, size=1
                 )

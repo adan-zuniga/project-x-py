@@ -23,10 +23,10 @@ class SimplifiedMTFStrategy:
     def __init__(self, suite: TradingSuite):
         self.suite = suite
         self.data = suite.data  # Direct access to data manager
-        self.position_size = 0
-        self.last_signal_time = None
+        self.position_size: int = 0
+        self.last_signal_time: float | None = None
 
-    async def analyze_market(self):
+    async def analyze_market(self) -> dict | None:
         """Analyze market across multiple timeframes."""
         # Much cleaner than checking data is None and len(data) < X
 
@@ -88,7 +88,7 @@ class SimplifiedMTFStrategy:
             "volume_strength": volume_stats["relative"] if volume_stats else 1.0,
         }
 
-    async def check_entry_conditions(self):
+    async def check_entry_conditions(self) -> dict | None:
         """Check if all conditions align for entry."""
         analysis = await self.analyze_market()
         if not analysis:
@@ -133,7 +133,7 @@ class SimplifiedMTFStrategy:
         return None
 
 
-async def run_simplified_mtf_strategy():
+async def run_simplified_mtf_strategy() -> None:
     """Run the simplified multi-timeframe strategy."""
 
     # Create suite with multiple timeframes
@@ -163,12 +163,14 @@ async def run_simplified_mtf_strategy():
                 ohlc = await suite.data.get_ohlc("15min")
 
                 print(f"\n🎯 SIGNAL: {signal['action']}")
-                print(f"   Price: ${price:,.2f}")
+                if price is not None:
+                    print(f"   Price: ${price:,.2f}")
                 print(f"   Confidence: {signal['confidence']:.1%}")
-                print(
-                    f"   15min Bar: O:{ohlc['open']:,.2f} H:{ohlc['high']:,.2f} "
-                    f"L:{ohlc['low']:,.2f} C:{ohlc['close']:,.2f}"
-                )
+                if ohlc is not None:
+                    print(
+                        f"   15min Bar: O:{ohlc['open']:,.2f} H:{ohlc['high']:,.2f} "
+                        f"L:{ohlc['low']:,.2f} C:{ohlc['close']:,.2f}"
+                    )
 
                 # Show multi-timeframe alignment
                 print("\n   Timeframe Alignment:")
@@ -205,7 +207,7 @@ async def run_simplified_mtf_strategy():
         print("\n\n✅ Strategy demonstration complete!")
 
 
-async def compare_verbose_vs_simplified():
+async def compare_verbose_vs_simplified() -> None:
     """Show the difference between verbose and simplified patterns."""
 
     async with await TradingSuite.create("MNQ") as suite:
@@ -259,11 +261,11 @@ async def compare_verbose_vs_simplified():
         # New simplified way
         start = time.time()
         price = await suite.data.get_latest_price()
-        if price:
+        if price is not None:
             print(f"Simplified method: ${price:,.2f} (took {time.time() - start:.3f}s)")
 
 
-async def main():
+async def main() -> None:
     """Run all demonstrations."""
     try:
         # Run simplified multi-timeframe strategy

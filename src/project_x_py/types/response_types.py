@@ -319,6 +319,8 @@ class PositionAnalysisResponse(TypedDict):
     theta_decay: float
     risk_contribution: float
     analysis_timestamp: str
+    # Optional error information used by some analytics fallbacks/tests
+    error: NotRequired[str]
 
 
 class TradeAnalysisResponse(TypedDict):

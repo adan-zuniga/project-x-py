@@ -28,7 +28,7 @@ from project_x_py.models import Order
 from project_x_py.types import OrderSide, OrderType
 
 
-async def main():
+async def main() -> None:
     """Demonstrate risk management features."""
     print("=== ProjectX SDK v3.0.0 - Risk Management Example ===\n")
 
@@ -63,6 +63,7 @@ async def main():
     stop_loss = current_price - 50  # $50 stop loss
 
     # Calculate size for 1% risk
+    assert suite.risk_manager is not None
     sizing = await suite.risk_manager.calculate_position_size(
         entry_price=current_price,
         stop_loss=stop_loss,
@@ -82,7 +83,7 @@ async def main():
     mock_order = Order(
         id=0,
         accountId=0,
-        contractId=suite.instrument,
+        contractId=suite.symbol,
         creationTimestamp=datetime.now().isoformat(),
         updateTimestamp=None,
         status=1,  # Open
@@ -164,9 +165,9 @@ async def main():
 
     # Show stats
     stats = suite.get_stats()
-    print(
-        f"\n✓ Risk manager active: {stats['components'].get('risk_manager', {}).get('status', 'N/A')}"
-    )
+    rm_stats = stats["components"].get("risk_manager")
+    rm_status = rm_stats["status"] if rm_stats else "N/A"
+    print(f"\n✓ Risk manager active: {rm_status}")
 
     # Cleanup
     await suite.disconnect()

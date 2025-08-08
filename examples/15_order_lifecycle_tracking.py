@@ -17,11 +17,12 @@ Author: SDK v3.0.0 Examples
 """
 
 import asyncio
+from typing import Any
 
 from project_x_py import EventType, OrderLifecycleError, TradingSuite, get_template
 
 
-async def demonstrate_order_tracker():
+async def demonstrate_order_tracker() -> None:
     """Show basic OrderTracker functionality."""
 
     async with await TradingSuite.create("MNQ") as suite:
@@ -29,7 +30,7 @@ async def demonstrate_order_tracker():
 
         # Get current price
         price = await suite.data.get_latest_price()
-        if not price:
+        if price is None:
             print("No price data available")
             return
 
@@ -40,6 +41,7 @@ async def demonstrate_order_tracker():
         print("1. Basic Order Tracking:")
         async with suite.track_order() as tracker:
             # Place a limit order below market
+            assert suite.instrument_id is not None
             order = await suite.orders.place_limit_order(
                 contract_id=suite.instrument_id,
                 side=0,  # BUY
@@ -83,6 +85,7 @@ async def demonstrate_order_tracker():
         print("2. Waiting for Specific Status:")
         async with suite.track_order() as tracker:
             # Place a marketable limit order
+            assert suite.instrument_id is not None
             order = await suite.orders.place_limit_order(
                 contract_id=suite.instrument_id,
                 side=1,  # SELL
@@ -109,7 +112,7 @@ async def demonstrate_order_tracker():
                         print(f"Current status: {current.status_str}")
 
 
-async def demonstrate_order_chain():
+async def demonstrate_order_chain() -> None:
     """Show OrderChainBuilder functionality."""
 
     async with await TradingSuite.create("MNQ") as suite:
@@ -146,7 +149,7 @@ async def demonstrate_order_chain():
         print("2. Limit Order with Price-Based Stops:")
 
         current_price = await suite.data.get_latest_price()
-        if current_price:
+        if current_price is not None:
             order_chain = (
                 suite.order_chain()
                 .limit_order(size=1, price=current_price - 10, side=0)
@@ -163,7 +166,7 @@ async def demonstrate_order_chain():
             print(f"Result: {'✅ Success' if result.success else '❌ Failed'}")
 
 
-async def demonstrate_order_templates():
+async def demonstrate_order_templates() -> None:
     """Show pre-configured order templates."""
 
     async with await TradingSuite.create("MNQ") as suite:
@@ -256,7 +259,7 @@ async def demonstrate_order_templates():
             print(f"❌ Template error: {e}")
 
 
-async def demonstrate_advanced_tracking():
+async def demonstrate_advanced_tracking() -> None:
     """Show advanced order tracking scenarios."""
 
     async with await TradingSuite.create("MNQ") as suite:
@@ -265,17 +268,18 @@ async def demonstrate_advanced_tracking():
         # Track multiple orders
         print("1. Tracking Multiple Orders:")
 
-        trackers = []
-        order_ids = []
+        trackers: list[Any] = []
+        order_ids: list[int] = []
 
         current_price = await suite.data.get_latest_price()
-        if not current_price:
+        if current_price is None:
             return
 
         # Place multiple orders
         for i in range(3):
             tracker = suite.track_order()
 
+            assert suite.instrument_id is not None
             order = await suite.orders.place_limit_order(
                 contract_id=suite.instrument_id,
                 side=0,  # BUY
@@ -331,7 +335,7 @@ async def demonstrate_advanced_tracking():
         # Register for order events
         events_received = []
 
-        async def on_order_event(event):
+        async def on_order_event(event: Any) -> None:
             events_received.append(event)
             print(
                 f"📨 Event: {event.event_type.name} - Order {event.data.get('order_id')}"
@@ -343,6 +347,7 @@ async def demonstrate_advanced_tracking():
 
         # Place and track order
         async with suite.track_order() as tracker:
+            assert suite.instrument_id is not None
             order = await suite.orders.place_limit_order(
                 contract_id=suite.instrument_id,
                 side=1,  # SELL
@@ -372,7 +377,7 @@ async def demonstrate_advanced_tracking():
         await suite.off(EventType.ORDER_CANCELLED, on_order_event)
 
 
-async def main():
+async def main() -> None:
     """Run all demonstrations."""
     try:
         # Basic order tracking

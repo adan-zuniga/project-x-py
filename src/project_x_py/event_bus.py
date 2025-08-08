@@ -72,6 +72,9 @@ class Event:
             data: Event payload data
             source: Optional source component name
         """
+        # Allow both enum and arbitrary string event types
+        self.type: EventType | str
+
         if isinstance(type, EventType):
             self.type = type
         else:
@@ -300,7 +303,7 @@ class EventBus:
                 await self.emit(
                     EventType.ERROR,
                     {
-                        "original_event": event.type.value,
+                        "original_event": event_type_str,
                         "handler": handler.__name__,
                         "error": str(e),
                     },

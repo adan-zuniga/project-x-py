@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from project_x_py import TradingSuite
 
 
-async def demonstrate_simplified_access():
+async def demonstrate_simplified_access() -> None:
     """Show the new simplified data access methods."""
 
     # Create trading suite with 3 timeframes
@@ -42,7 +42,7 @@ async def demonstrate_simplified_access():
 
         # 2. Get latest price - much cleaner than get_current_price()
         price = await suite.data.get_latest_price()
-        if price:
+        if price is not None:
             print(f"\n📊 Current Price: ${price:,.2f}")
 
         # 3. Get OHLC as a simple dictionary
@@ -110,7 +110,7 @@ async def demonstrate_simplified_access():
                 print(f"   {tf}: ${close:,.2f} (vol: {volume:,.0f})")
 
 
-async def demonstrate_trading_usage():
+async def demonstrate_trading_usage() -> None:
     """Show how simplified access improves trading logic."""
 
     async with await TradingSuite.create("MNQ") as suite:
@@ -126,7 +126,7 @@ async def demonstrate_trading_usage():
         range_stats = await suite.data.get_price_range(bars=20)
         vol_stats = await suite.data.get_volume_stats(bars=20)
 
-        if price and range_stats and vol_stats:
+        if price is not None and range_stats and vol_stats:
             # Example strategy logic
             print(f"Current Price: ${price:,.2f}")
             print(f"20-bar Range: ${range_stats['range']:,.2f}")
@@ -152,7 +152,7 @@ async def demonstrate_trading_usage():
                 print(f"Price is {range_position:.1%} within the 20-bar range")
 
 
-async def main():
+async def main() -> None:
     """Run all demonstrations."""
     try:
         # Show simplified data access

@@ -113,6 +113,7 @@ See Also:
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 __all__ = [
     "Account",
@@ -386,7 +387,7 @@ class Position:
     averagePrice: float
 
     # Allow dict-like access for compatibility in tests/utilities
-    def __getitem__(self, key: str):
+    def __getitem__(self, key: str) -> Any:
         return getattr(self, key)
 
     @property
