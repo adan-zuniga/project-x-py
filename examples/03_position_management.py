@@ -104,16 +104,14 @@ async def display_positions(
             try:
                 # Get current market price
                 current_price = await suite.data.get_current_price()
-                if current_price:
-                    # Get instrument info for tick value
-                    instrument_info = await suite.client.get_instrument(
-                        suite.instrument
-                    )
-                    tick_value = instrument_info.tickValue
+                if current_price and suite.instrument:
+                    # Use the instrument already loaded in suite
+                    instrument_info = suite.instrument
+                    point_value = instrument_info.tickValue / instrument_info.tickSize
 
                     # Calculate P&L using position manager's method
                     pnl_data = await position_manager.calculate_position_pnl(
-                        position, float(current_price), point_value=tick_value
+                        position, float(current_price), point_value=point_value
                     )
                     unrealized_pnl = pnl_data["unrealized_pnl"]
             except Exception:
@@ -193,18 +191,19 @@ async def monitor_positions(
                     # Try to calculate real P&L with current prices
                     if suite and positions:
                         current_price = await suite.data.get_current_price()
-                        if current_price:
-                            instrument_info = await suite.client.get_instrument(
-                                suite.instrument
+                        if current_price and suite.instrument:
+                            # Use the instrument already loaded in suite
+                            instrument_info = suite.instrument
+                            point_value = (
+                                instrument_info.tickValue / instrument_info.tickSize
                             )
-                            tick_value = instrument_info.tickValue
 
                             for position in positions:
                                 pnl_data = (
                                     await position_manager.calculate_position_pnl(
                                         position,
                                         float(current_price),
-                                        point_value=tick_value,
+                                        point_value=point_value,
                                     )
                                 )
                                 total_pnl += pnl_data["unrealized_pnl"]

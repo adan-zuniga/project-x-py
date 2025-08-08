@@ -173,14 +173,17 @@ async def demonstrate_historical_analysis(data_manager: "RealtimeDataManager") -
         print(f"   ❌ Analysis error: {e}")
 
 
-async def new_bar_callback(data: dict[str, Any]) -> None:
+async def new_bar_callback(event: Any) -> None:
     """Handle new bar creation asynchronously."""
     timestamp = datetime.now().strftime("%H:%M:%S")
-    timeframe = data["timeframe"]
-    bar = data["data"]
-    print(
-        f"📊 [{timestamp}] New {timeframe} Bar: ${bar['close']:.2f} (Vol: {bar['volume']:,})"
-    )
+    # Extract data from the Event object
+    data = event.data if hasattr(event, "data") else event
+    timeframe = data.get("timeframe", "unknown")
+    bar = data.get("data", {})
+    if bar and "close" in bar and "volume" in bar:
+        print(
+            f"📊 [{timestamp}] New {timeframe} Bar: ${bar['close']:.2f} (Vol: {bar['volume']:,})"
+        )
 
 
 async def main() -> bool:
