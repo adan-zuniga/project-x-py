@@ -134,19 +134,73 @@ async def main() -> None:
             # Cancel orders to clean up
             if order_ids:
                 print("\n4. Cancelling orders...")
-                if join_bid_response and join_bid_response.success:
-                    cancel_result = await suite.orders.cancel_order(
+                for order_id, order_type in [
+                    (
                         join_bid_response.orderId
-                    )
-                    if cancel_result:
-                        print(f"✅ JoinBid order {join_bid_response.orderId} cancelled")
-
-                if join_ask_response and join_ask_response.success:
-                    cancel_result = await suite.orders.cancel_order(
+                        if join_bid_response and join_bid_response.success
+                        else None,
+                        "JoinBid",
+                    ),
+                    (
                         join_ask_response.orderId
-                    )
-                    if cancel_result:
-                        print(f"✅ JoinAsk order {join_ask_response.orderId} cancelled")
+                        if join_ask_response and join_ask_response.success
+                        else None,
+                        "JoinAsk",
+                    ),
+                ]:
+                    if order_id:
+                        try:
+                            cancel_result = await suite.orders.cancel_order(order_id)
+                            if cancel_result:
+                                print(f"✅ {order_type} order {order_id} cancelled")
+                        except Exception as e:
+                            # Order might have been filled or already cancelled
+                            print(
+                                f"ℹ️  {order_type} order {order_id} could not be cancelled: {str(e).split(':')[-1].strip()}"
+                            )
+                            print(
+                                f"   (Order may have been filled or already cancelled)"
+                            )
+
+            # Check for any open positions that need to be closed
+            print("\n5. Checking for open positions...")
+            await asyncio.sleep(1)  # Allow time for position updates
+
+            positions = await suite.positions.get_all_positions()
+            if positions:
+                print(f"Found {len(positions)} open position(s)")
+                for position in positions:
+                    if position.size != 0:
+                        # Determine if position is long or short based on type
+                        position_type = "LONG" if position.type == 1 else "SHORT"
+                        print(
+                            f"  - {position.contractId}: {position_type} {position.size} contracts @ ${position.averagePrice:,.2f}"
+                        )
+
+                        # Close the position with a market order
+                        # If LONG (type=1), we need to SELL (side=1) to close
+                        # If SHORT (type=2), we need to BUY (side=0) to close
+                        side = 1 if position.type == 1 else 0
+
+                        print(f"  Closing position with market order...")
+                        try:
+                            close_order = await suite.orders.place_market_order(
+                                contract_id=position.contractId,
+                                side=side,
+                                size=position.size,
+                            )
+                            if close_order and close_order.success:
+                                print(
+                                    f"  ✅ Position closed with order {close_order.orderId}"
+                                )
+                            else:
+                                print(
+                                    f"  ⚠️ Failed to close position: {close_order.errorMessage if close_order else 'Unknown error'}"
+                                )
+                        except Exception as e:
+                            print(f"  ⚠️ Error closing position: {e}")
+            else:
+                print("✅ No open positions found")
 
         except Exception as e:
             print(f"❌ Error: {e}")
