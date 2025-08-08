@@ -34,7 +34,6 @@ from project_x_py import (
     TradingSuite,
     setup_logging,
 )
-from project_x_py.types.protocols import RealtimeDataManagerProtocol
 
 if TYPE_CHECKING:
     from project_x_py.realtime_data_manager import RealtimeDataManager
@@ -46,16 +45,18 @@ async def display_current_prices(data_manager: "RealtimeDataManager") -> None:
 
     current_price = await data_manager.get_current_price()
     if current_price:
-        print(f"   Current Price: ${current_price:.2f}")
+        print(f"   Live Price: ${current_price:.2f}")
     else:
-        print("   Current Price: Not available")
+        print("   Live Price: Not available")
 
-    # Get multi-timeframe data asynchronously - get 1 bar from each timeframe
+    # Get multi-timeframe data asynchronously - get latest bars
     timeframes = ["15sec", "1min", "5min", "15min", "1hr"]
     mtf_tasks: list[Coroutine[Any, Any, pl.DataFrame | None]] = []
 
     for tf in timeframes:
-        mtf_tasks.append(data_manager.get_data(tf, bars=1))
+        mtf_tasks.append(
+            data_manager.get_data(tf)
+        )  # Get all data, we'll take the last bar
 
     # Get data from all timeframes concurrently
     mtf_results = await asyncio.gather(*mtf_tasks, return_exceptions=True)
@@ -70,19 +71,26 @@ async def display_current_prices(data_manager: "RealtimeDataManager") -> None:
                 continue
 
             if data.is_empty():
-                print(f"   {timeframe:>6}: No data")
+                print(f"   {timeframe:>6}: Building bars...")
                 continue
 
+            # Get the last complete bar
             latest_bar = data.tail(1)
             for row in latest_bar.iter_rows(named=True):
                 timestamp = row["timestamp"]
                 close = row["close"]
                 volume = row["volume"]
+                # Format timestamp more concisely
+                time_str = (
+                    timestamp.strftime("%H:%M:%S")
+                    if hasattr(timestamp, "strftime")
+                    else str(timestamp)
+                )
                 print(
-                    f"   {timeframe:>6}: ${close:8.2f} @ {timestamp} (Vol: {volume:,})"
+                    f"   {timeframe:>6}: ${close:8.2f} @ {time_str} (Vol: {volume:,})"
                 )
         else:
-            print(f"   {timeframe:>6}: No data")
+            print(f"   {timeframe:>6}: Initializing...")
 
 
 async def display_memory_stats(data_manager: "RealtimeDataManager") -> None:
@@ -91,17 +99,28 @@ async def display_memory_stats(data_manager: "RealtimeDataManager") -> None:
         # get_memory_stats is synchronous in async data manager
         stats = data_manager.get_memory_stats()
         print("\n💾 Memory Statistics:")
-        print(f"   Total Bars: {stats.get('total_bars', 0):,}")
+        print(f"   Total Bars Stored: {stats.get('total_bars_stored', 0):,}")
         print(f"   Ticks Processed: {stats.get('ticks_processed', 0):,}")
-        print(f"   Bars Cleaned: {stats.get('bars_cleaned', 0):,}")
-        print(f"   Tick Buffer Size: {stats.get('tick_buffer_size', 0):,}")
+        print(f"   Quotes Processed: {stats.get('quotes_processed', 0):,}")
+        print(f"   Trades Processed: {stats.get('trades_processed', 0):,}")
 
-        # Show per-timeframe breakdown
-        breakdown = stats.get("timeframe_breakdown", {})
-        if breakdown:
-            print("   Timeframe Breakdown:")
-            for tf, count in breakdown.items():
-                print(f"     {tf}: {count:,} bars")
+        # Show per-timeframe breakdown (Note: this key doesn't exist in current implementation)
+        # Will need to calculate it manually from the data
+        print("   Bars per Timeframe:")
+        for tf in data_manager.timeframes:
+            if tf in data_manager.data:
+                count = len(data_manager.data[tf])
+                if count > 0:
+                    print(f"     {tf}: {count:,} bars")
+
+        # Also show validation status for more insight
+        validation = data_manager.get_realtime_validation_status()
+        if validation.get("is_running"):
+            print(
+                f"   Feed Active: ✅ (Processing {validation.get('instrument', 'N/A')})"
+            )
+        else:
+            print("   Feed Active: ❌")
 
     except Exception as e:
         print(f"   ❌ Memory stats error: {e}")
@@ -113,11 +132,11 @@ async def display_system_statistics(data_manager: "RealtimeDataManager") -> None
         # Use validation status instead of get_statistics (which doesn't exist)
         stats = data_manager.get_realtime_validation_status()
         print("\n📈 System Status:")
-        print(f"   Instrument: {getattr(data_manager, 'instrument', 'Unknown')}")
-        print(f"   Contract ID: {getattr(data_manager, 'contract_id', 'Unknown')}")
-        print(f"   Real-time Enabled: {stats.get('realtime_enabled', False)}")
-        print(f"   Connection Valid: {stats.get('connection_valid', False)}")
-        print(f"   Data Valid: {stats.get('data_valid', False)}")
+        print(f"   Instrument: {stats.get('instrument', 'Unknown')}")
+        print(f"   Contract ID: {stats.get('contract_id', 'Unknown')}")
+        print(f"   Real-time Feed Active: {stats.get('is_running', False)}")
+        print(f"   Ticks Processed: {stats.get('ticks_processed', 0):,}")
+        print(f"   Bars Cleaned: {stats.get('bars_cleaned', 0):,}")
 
         # Show data status per timeframe
         print("   Timeframe Status:")
@@ -173,14 +192,17 @@ async def demonstrate_historical_analysis(data_manager: "RealtimeDataManager") -
         print(f"   ❌ Analysis error: {e}")
 
 
-async def new_bar_callback(data: dict[str, Any]) -> None:
+async def new_bar_callback(event: Any) -> None:
     """Handle new bar creation asynchronously."""
     timestamp = datetime.now().strftime("%H:%M:%S")
-    timeframe = data["timeframe"]
-    bar = data["data"]
-    print(
-        f"📊 [{timestamp}] New {timeframe} Bar: ${bar['close']:.2f} (Vol: {bar['volume']:,})"
-    )
+    # Extract data from the Event object
+    data = event.data if hasattr(event, "data") else event
+    timeframe = data.get("timeframe", "unknown")
+    bar = data.get("data", {})
+    if bar and "close" in bar and "volume" in bar:
+        print(
+            f"📊 [{timestamp}] New {timeframe} Bar: ${bar['close']:.2f} (Vol: {bar['volume']:,})"
+        )
 
 
 async def main() -> bool:
@@ -221,7 +243,6 @@ async def main() -> bool:
 
             # Components are now accessed as attributes
             data_manager = suite.data
-            realtime_client = suite.realtime
 
             print("\n✅ All components connected and subscribed:")
             print("   - Real-time client connected")

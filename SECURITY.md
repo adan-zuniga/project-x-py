@@ -10,10 +10,11 @@ We currently provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.0.x   | :white_check_mark: |
+| 3.0.x   | :white_check_mark: |
+| 2.0.x   | :x:                |
 | 1.x.x   | :x:                |
 
-Note: Version 2.0.0 was a complete rewrite with an async-only architecture, and all previous synchronous APIs were removed.
+Note: Version 3.0.0 introduced the TradingSuite architecture, replacing all factory functions. Version 2.0.0 was a complete rewrite with an async-only architecture.
 
 ## Reporting a Vulnerability
 

@@ -180,7 +180,7 @@ async def risk_validation_demo(suite: TradingSuite) -> None:
 
 async def main() -> None:
     """Run risk management examples."""
-    print("=== ProjectX SDK v3.0.0 - Managed Trades Example ===\n")
+    print("=== ProjectX SDK v3.0.2 - Managed Trades Example ===\n")
 
     # Create trading suite with risk management
     print("Creating TradingSuite with risk management...")

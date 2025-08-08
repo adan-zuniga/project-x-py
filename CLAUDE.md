@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.0.1 - Production-Ready Async Architecture
+## Project Status: v3.0.2 - Production-Ready Async Architecture
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -74,7 +74,7 @@ uv run python -m build       # Alternative build command
 
 ## Project Architecture
 
-### Core Components (v3.0.1 - Multi-file Packages)
+### Core Components (v3.0.2 - Multi-file Packages)
 
 **ProjectX Client (`src/project_x_py/client/`)**
 - Main async API client for TopStepX ProjectX Gateway
@@ -277,6 +277,12 @@ async with ProjectX.from_env() as client:
 - `cache_max_size = 100` (Indicator cache entries)
 
 ## Recent Changes
+
+### v3.0.2 - Bug Fixes and Improvements
+- **Order Lifecycle Tracking**: Fixed asyncio concurrency and field reference issues
+- **Order Templates**: Fixed instrument lookup to use cached object
+- **Cleanup Functionality**: Added comprehensive order/position cleanup
+- **Documentation**: Updated all docs to reflect current version
 
 ### v3.0.1 - Production Ready
 - **Performance Optimizations**: Enhanced connection pooling and caching

@@ -7,7 +7,7 @@ This example demonstrates all the improvements from Phase 4:
 - Enhanced model properties
 - Cleaner strategy implementation
 
-Author: SDK v3.0.0 Testing
+Author: SDK v3.0.2 Testing
 """
 
 import asyncio
@@ -326,7 +326,7 @@ async def demonstrate_phase4_improvements() -> None:
     async with await TradingSuite.create(
         "MNQ", timeframes=["1min", "5min", "15min"], initial_days=2
     ) as suite:
-        print("ProjectX SDK v3.0.0 - Phase 4 Comprehensive Test")
+        print("ProjectX SDK v3.0.2 - Phase 4 Comprehensive Test")
         print("=" * 60)
 
         strategy = CleanTradingStrategy(suite)

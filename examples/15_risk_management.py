@@ -2,7 +2,7 @@
 """
 Example 15: Risk Management with TradingSuite
 
-Demonstrates the comprehensive risk management features of the SDK v3.0.0:
+Demonstrates the comprehensive risk management features of the SDK v3.0.2:
 - Position sizing based on risk parameters
 - Trade validation against risk rules
 - Automatic stop-loss and take-profit attachment
@@ -30,7 +30,7 @@ from project_x_py.types import OrderSide, OrderType
 
 async def main() -> None:
     """Demonstrate risk management features."""
-    print("=== ProjectX SDK v3.0.0 - Risk Management Example ===\n")
+    print("=== ProjectX SDK v3.0.2 - Risk Management Example ===\n")
 
     # Create trading suite with risk management enabled
     print("Creating TradingSuite with risk management...")

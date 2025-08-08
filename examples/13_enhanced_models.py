@@ -9,7 +9,7 @@ Key improvements:
 - Position: is_long, is_short, direction, symbol, signed_size, unrealized_pnl()
 - Order: is_open, is_filled, is_buy, is_sell, side_str, type_str, status_str, filled_percent
 
-Author: SDK v3.0.0 Examples
+Author: SDK v3.0.2 Examples
 """
 
 import asyncio
@@ -261,6 +261,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("ProjectX SDK v3.0.0 - Enhanced Models Demo")
+    print("ProjectX SDK v3.0.2 - Enhanced Models Demo")
     print("=" * 50)
     asyncio.run(main())

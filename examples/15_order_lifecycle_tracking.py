@@ -13,7 +13,7 @@ Key features shown:
 - Order chain builder for complex orders
 - Common order templates
 
-Author: SDK v3.0.0 Examples
+Author: SDK v3.0.2 Examples
 """
 
 import asyncio
@@ -299,7 +299,11 @@ async def demonstrate_advanced_tracking() -> None:
         # Wait for any to fill
         print("Waiting for first fill...")
 
-        fill_tasks = [tracker.wait_for_fill(timeout=5) for tracker in trackers]
+        # Create tasks instead of coroutines
+        fill_tasks = [
+            asyncio.create_task(tracker.wait_for_fill(timeout=5))
+            for tracker in trackers
+        ]
 
         try:
             # Wait for first fill
@@ -377,8 +381,100 @@ async def demonstrate_advanced_tracking() -> None:
         await suite.off(EventType.ORDER_CANCELLED, on_order_event)
 
 
+async def cleanup_demo_orders_and_positions() -> None:
+    """Clean up any open orders and positions created during the demo."""
+    print("\n" + "=" * 50)
+    print("=== Demo Cleanup ===")
+    print("=" * 50 + "\n")
+
+    async with await TradingSuite.create("MNQ") as suite:
+        print("Cleaning up demo orders and positions...\n")
+
+        # 1. Cancel all open orders
+        print("1. Checking for open orders...")
+        open_orders = await suite.orders.search_open_orders()
+
+        if open_orders:
+            print(f"   Found {len(open_orders)} open orders to cancel:")
+            for order in open_orders:
+                try:
+                    success = await suite.orders.cancel_order(order.id)
+                    if success:
+                        # Get order type and side names safely
+                        order_type = (
+                            "LIMIT"
+                            if order.type == 1
+                            else "MARKET"
+                            if order.type == 2
+                            else "STOP"
+                            if order.type == 4
+                            else str(order.type)
+                        )
+                        side = (
+                            "BUY"
+                            if order.side == 0
+                            else "SELL"
+                            if order.side == 1
+                            else str(order.side)
+                        )
+                        print(f"   ✅ Cancelled order {order.id} ({order_type} {side})")
+                    else:
+                        print(f"   ⚠️ Failed to cancel order {order.id}")
+                except Exception as e:
+                    print(f"   ⚠️ Error cancelling order {order.id}: {e}")
+        else:
+            print("   No open orders found")
+
+        print()
+
+        # 2. Close all open positions
+        print("2. Checking for open positions...")
+        positions = await suite.positions.get_all_positions()
+
+        if positions:
+            print(f"   Found {len(positions)} open positions to close:")
+            for position in positions:
+                if position.size != 0:
+                    try:
+                        # Place a market order to close the position
+                        # Position type: 1=LONG, 2=SHORT
+                        side = (
+                            1 if position.type == 1 else 0
+                        )  # SELL if long, BUY if short
+                        size = position.size  # size is always positive
+
+                        result = await suite.orders.place_market_order(
+                            contract_id=position.contractId, side=side, size=size
+                        )
+
+                        if result.success:
+                            position_type = (
+                                "LONG"
+                                if position.type == 1
+                                else "SHORT"
+                                if position.type == 2
+                                else "UNKNOWN"
+                            )
+                            print(
+                                f"   ✅ Closed {position_type} position in {position.contractId} (Size: {position.size})"
+                            )
+                        else:
+                            print(
+                                f"   ⚠️ Failed to close position in {position.contractId}: {result.errorMessage}"
+                            )
+                    except Exception as e:
+                        print(
+                            f"   ⚠️ Error closing position in {position.contractId}: {e}"
+                        )
+        else:
+            print("   No open positions found")
+
+        print("\n✅ Demo cleanup complete!")
+
+
 async def main() -> None:
     """Run all demonstrations."""
+    suite = None
     try:
         # Basic order tracking
         await demonstrate_order_tracker()
@@ -399,9 +495,15 @@ async def main() -> None:
         import traceback
 
         traceback.print_exc()
+    finally:
+        # Always run cleanup, even if demo fails
+        try:
+            await cleanup_demo_orders_and_positions()
+        except Exception as cleanup_error:
+            print(f"\n⚠️ Cleanup error: {cleanup_error}")
 
 
 if __name__ == "__main__":
-    print("ProjectX SDK v3.0.0 - Order Lifecycle Tracking")
+    print("ProjectX SDK v3.0.2 - Order Lifecycle Tracking")
     print("=" * 50)
     asyncio.run(main())

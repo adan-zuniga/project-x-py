@@ -2,7 +2,7 @@
 """
 Example 10: Unified Event System with EventBus
 
-This example demonstrates the new unified event system in ProjectX SDK v3.0.0.
+This example demonstrates the new unified event system in ProjectX SDK v3.0.2.
 Instead of registering callbacks with individual components, all events flow
 through a single EventBus accessible via the TradingSuite.
 

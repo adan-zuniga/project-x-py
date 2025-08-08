@@ -136,7 +136,8 @@ class RiskRewardTemplate(OrderTemplate):
         if size is None:
             if risk_amount:
                 # Size = Risk Amount / Stop Distance
-                instrument = await suite.client.get_instrument(suite.instrument)
+                # suite.instrument is already an Instrument object after initialization
+                instrument = suite.instrument
                 tick_value = instrument.tickValue if instrument else 1.0
                 size = int(risk_amount / (stop_dist * tick_value))
             elif risk_percent:
@@ -145,7 +146,8 @@ class RiskRewardTemplate(OrderTemplate):
                 if not account:
                     raise ValueError("No account information available")
                 risk_amount = float(account.balance) * risk_percent
-                instrument = await suite.client.get_instrument(suite.instrument)
+                # suite.instrument is already an Instrument object after initialization
+                instrument = suite.instrument
                 tick_value = instrument.tickValue if instrument else 1.0
                 size = int(risk_amount / (stop_dist * tick_value))
             else:
@@ -430,7 +432,8 @@ class ScalpingTemplate(OrderTemplate):
             BracketOrderResponse with order details
         """
         # Get instrument for tick size
-        instrument = await suite.client.get_instrument(suite.instrument)
+        # suite.instrument is already an Instrument object after initialization
+        instrument = suite.instrument
         if not instrument:
             raise ValueError("Cannot get instrument details")
 
