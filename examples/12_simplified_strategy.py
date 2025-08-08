@@ -24,7 +24,7 @@ class SimplifiedStrategy:
     def __init__(self, trading_suite: TradingSuite, symbol: str):
         self.suite = trading_suite
         self.symbol = symbol
-        self.instrument = trading_suite.instrument_info
+        self.instrument = trading_suite.instrument
         self.data_manager = trading_suite.data
         self.order_manager = trading_suite.orders
         self.position_manager = trading_suite.positions
@@ -130,7 +130,7 @@ async def main():
         # ✅ All components wired together
 
         # Get the instrument info
-        instrument = suite.instrument_info
+        instrument = suite.instrument
 
         print("\n🎯 Trading suite fully initialized!")
         print(f"  Instrument: {instrument.symbolId if instrument else 'Unknown'}")

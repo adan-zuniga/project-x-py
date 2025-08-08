@@ -189,6 +189,14 @@ class CleanTradingStrategy:
             return
 
         print("\n📊 Market Analysis:")
+        if not isinstance(analysis["trend"], str):
+            print("❌ Trend is not a string")
+            return
+
+        if not isinstance(analysis["trend_strength"], float):
+            print("❌ Trend strength is not a float")
+            return
+
         print(f"  Price: ${analysis['price']:,.2f}")
         print(
             f"  Trend: {analysis['trend'].upper()} (strength: {analysis['trend_strength']:.1%})"
@@ -205,11 +213,19 @@ class CleanTradingStrategy:
         print(f"  Short: {position_summary['short_positions']}")
         print(f"  Exposure: ${position_summary['total_exposure']:,.2f}")
 
+        if not isinstance(position_summary["positions"], list):
+            print("❌ Position summary is not a list")
+            return
+
         for pos in position_summary["positions"]:
             print(
                 f"\n  {pos['direction']} {pos['size']} {pos['symbol']} @ ${pos['entry']:,.2f}"
             )
             print(f"    P&L: ${pos['pnl']:+,.2f} ({pos['pnl_ticks']:+.1f} ticks)")
+
+            if not isinstance(pos["pnl_ticks"], float):
+                print("❌ P&L ticks is not a float")
+                return
 
             # Exit logic using clean properties
             if pos["pnl_ticks"] >= self.profit_target_ticks:
@@ -219,6 +235,22 @@ class CleanTradingStrategy:
 
         # 4. Check current orders
         order_summary = await self.check_orders()
+        if not isinstance(order_summary["orders"], list):
+            print("❌ Order summary is not a list")
+            return
+
+        if not isinstance(order_summary["total_orders"], int):
+            print("❌ Order summary is not an integer")
+            return
+
+        if not isinstance(order_summary["working_orders"], int):
+            print("❌ Order summary is not an integer")
+            return
+
+        if not isinstance(order_summary["buy_orders"], int):
+            print("❌ Order summary is not an integer")
+            return
+
         if order_summary["total_orders"] > 0:
             print("\n📋 Order Summary:")
             print(f"  Working: {order_summary['working_orders']}")

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class UnifiedEventDemo:
     """Demonstrates the unified event system."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.suite: TradingSuite | None = None
         self.event_count = {
             "bars": 0,
@@ -62,8 +62,11 @@ class UnifiedEventDemo:
 
         logger.info("Setup complete - all event handlers registered")
 
-    async def _register_event_handlers(self):
+    async def _register_event_handlers(self) -> None:
         """Register handlers for various event types."""
+        if self.suite is None:
+            logger.error("Suite is not initialized")
+            return
 
         # Market Data Events
         await self.suite.on(EventType.NEW_BAR, self._on_new_bar)
@@ -92,7 +95,7 @@ class UnifiedEventDemo:
             await self.suite.on(EventType.MARKET_DEPTH_UPDATE, self._on_market_depth)
 
     # Market Data Event Handlers
-    async def _on_new_bar(self, event: Any):
+    async def _on_new_bar(self, event: Any) -> None:
         """Handle new OHLCV bar events."""
         self.event_count["bars"] += 1
         data = event.data
@@ -103,7 +106,7 @@ class UnifiedEventDemo:
             f"V={data['data']['volume']}"
         )
 
-    async def _on_quote_update(self, event: Any):
+    async def _on_quote_update(self, event: Any) -> None:
         """Handle quote update events."""
         self.event_count["quotes"] += 1
         if self.event_count["quotes"] % 10 == 0:  # Log every 10th quote
@@ -120,7 +123,7 @@ class UnifiedEventDemo:
                 ask = data.get("ask")
             logger.info(f"💱 Quote: Bid={bid} Ask={ask}")
 
-    async def _on_trade_tick(self, event: Any):
+    async def _on_trade_tick(self, event: Any) -> None:
         """Handle trade tick events."""
         self.event_count["trades"] += 1
         data = event.data
@@ -130,7 +133,7 @@ class UnifiedEventDemo:
         )
 
     # Order Event Handlers
-    async def _on_order_placed(self, event: Any):
+    async def _on_order_placed(self, event: Any) -> None:
         """Handle order placed events."""
         self.event_count["orders"] += 1
         data = event.data
@@ -140,7 +143,7 @@ class UnifiedEventDemo:
             f"{data['size']} @ {data.get('limit_price', 'MARKET')}"
         )
 
-    async def _on_order_filled(self, event: Any):
+    async def _on_order_filled(self, event: Any) -> None:
         """Handle order filled events."""
         data = event.data
         logger.info(
@@ -148,11 +151,11 @@ class UnifiedEventDemo:
             f"@ {data['order_data'].get('averagePrice', 'N/A')}"
         )
 
-    async def _on_order_cancelled(self, event: Any):
+    async def _on_order_cancelled(self, event: Any) -> None:
         """Handle order cancelled events."""
         logger.info(f"❌ Order Cancelled: ID={event.data['order_id']}")
 
-    async def _on_order_rejected(self, event: Any):
+    async def _on_order_rejected(self, event: Any) -> None:
         """Handle order rejected events."""
         logger.warning(
             f"🚫 Order Rejected: ID={event.data['order_id']} "
@@ -160,7 +163,7 @@ class UnifiedEventDemo:
         )
 
     # Position Event Handlers
-    async def _on_position_opened(self, event: Any):
+    async def _on_position_opened(self, event: Any) -> None:
         """Handle position opened events."""
         self.event_count["positions"] += 1
         data = event.data
@@ -169,7 +172,7 @@ class UnifiedEventDemo:
             f"Size={data['size']} AvgPrice={data.get('averagePrice', 'N/A')}"
         )
 
-    async def _on_position_closed(self, event: Any):
+    async def _on_position_closed(self, event: Any) -> None:
         """Handle position closed events."""
         data = event.data
         logger.info(
@@ -177,7 +180,7 @@ class UnifiedEventDemo:
             f"P&L={data.get('realizedPnl', 'N/A')}"
         )
 
-    async def _on_position_updated(self, event: Any):
+    async def _on_position_updated(self, event: Any) -> None:
         """Handle position updated events."""
         data = event.data
         logger.info(
@@ -186,20 +189,20 @@ class UnifiedEventDemo:
         )
 
     # System Event Handlers
-    async def _on_connected(self, event: Any):
+    async def _on_connected(self, event: Any) -> None:
         """Handle connection events."""
         logger.info("🔗 System Connected")
 
-    async def _on_disconnected(self, event: Any):
+    async def _on_disconnected(self, event: Any) -> None:
         """Handle disconnection events."""
         logger.warning("🔌 System Disconnected")
 
-    async def _on_error(self, event: Any):
+    async def _on_error(self, event: Any) -> None:
         """Handle error events."""
         logger.error(f"❗ Error: {event.data}")
 
     # OrderBook Event Handlers
-    async def _on_orderbook_update(self, event: Any):
+    async def _on_orderbook_update(self, event: Any) -> None:
         """Handle orderbook update events."""
         # Log periodically to avoid spam
         if hasattr(self, "_orderbook_updates"):
@@ -209,7 +212,7 @@ class UnifiedEventDemo:
         else:
             self._orderbook_updates = 1
 
-    async def _on_market_depth(self, event: Any):
+    async def _on_market_depth(self, event: Any) -> None:
         """Handle market depth update events."""
         data = event.data
         logger.info(
@@ -218,14 +221,18 @@ class UnifiedEventDemo:
             f"Asks={len(data.get('asks', []))}"
         )
 
-    async def demonstrate_advanced_features(self):
+    async def demonstrate_advanced_features(self) -> None:
         """Demonstrate advanced event system features."""
         logger.info("\n=== Advanced Event Features ===")
+
+        if self.suite is None:
+            logger.error("Suite is not initialized")
+            return
 
         # 1. One-time event handler
         logger.info("1. Registering one-time handler for next order fill...")
 
-        async def one_time_fill_handler(event):
+        async def one_time_fill_handler(event: Any) -> None:
             logger.info(f"🎯 One-time handler: Order {event.data['order_id']} filled!")
 
         await self.suite.once(EventType.ORDER_FILLED, one_time_fill_handler)
@@ -247,7 +254,7 @@ class UnifiedEventDemo:
             history = self.suite.events.get_history()
             logger.info(f"4. Event history: {len(history)} events recorded")
 
-    async def run_demo(self, duration: int = 30):
+    async def run_demo(self, duration: int = 30) -> None:
         """Run the event system demo."""
         logger.info(
             f"\n🚀 Starting unified event system demo for {duration} seconds..."
@@ -265,7 +272,7 @@ class UnifiedEventDemo:
         # Print statistics
         self._print_statistics()
 
-    def _print_statistics(self):
+    def _print_statistics(self) -> None:
         """Print event statistics."""
         logger.info("\n📊 Event Statistics:")
         logger.info(f"  New Bars: {self.event_count['bars']}")
@@ -274,17 +281,18 @@ class UnifiedEventDemo:
         logger.info(f"  Order Events: {self.event_count['orders']}")
         logger.info(f"  Position Events: {self.event_count['positions']}")
 
+        assert self.suite is not None
         total_handlers = self.suite.events.get_handler_count()
         logger.info(f"\n  Total Event Handlers: {total_handlers}")
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources."""
         if self.suite:
             logger.info("\n🧹 Cleaning up...")
             await self.suite.disconnect()
 
 
-async def main():
+async def main() -> None:
     """Main demo function."""
     demo = UnifiedEventDemo()
 

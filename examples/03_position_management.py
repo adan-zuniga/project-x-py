@@ -137,8 +137,8 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
     try:
         # Get risk metrics if available
         try:
-            if hasattr(position_manager, "check_risk_limits"):
-                risk_check = await position_manager.check_risk_limits()
+            if hasattr(position_manager, "get_risk_metrics"):
+                risk_check = await position_manager.get_risk_metrics()
                 if risk_check and risk_check.get("within_limits"):
                     print("✅ All positions within risk limits")
                 else:
@@ -146,8 +146,8 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
             else:
                 print("Risk limits check not available")
 
-            if hasattr(position_manager, "get_risk_summary"):
-                risk_summary = await position_manager.get_risk_summary()
+            if hasattr(position_manager, "get_risk_metrics"):
+                risk_summary = await position_manager.get_risk_metrics()
                 print("\nRisk Summary:")
                 print(
                     f"  Total Exposure: ${risk_summary.get('total_exposure', 0):,.2f}"
@@ -218,9 +218,9 @@ async def monitor_positions(
                 print(f"  Total P&L: ${total_pnl:,.2f}")
 
                 # Get summary if available
-                if hasattr(position_manager, "get_portfolio_summary"):
+                if hasattr(position_manager, "get_portfolio_pnl"):
                     try:
-                        summary = await position_manager.get_portfolio_summary()
+                        summary = await position_manager.get_portfolio_pnl()
                         print(
                             f"  Win rate: {summary.get('win_rate', 0):.1%} ({summary.get('winning_trades', 0)}/{summary.get('total_trades', 0)})"
                         )
@@ -330,8 +330,8 @@ async def main() -> bool:
             print("\n📊 Portfolio Statistics:")
             print("-" * 80)
             try:
-                if hasattr(suite.positions, "get_portfolio_statistics"):
-                    stats = await suite.positions.get_portfolio_statistics()
+                if hasattr(suite.positions, "get_portfolio_pnl"):
+                    stats = await suite.positions.get_portfolio_pnl()
                     print(f"  Total Trades: {stats.get('total_trades', 0)}")
                     print(f"  Winning Trades: {stats.get('winning_trades', 0)}")
                     print(f"  Average Win: ${stats.get('average_win', 0):,.2f}")
@@ -347,8 +347,8 @@ async def main() -> bool:
             print("\n📈 Performance Analytics:")
             print("-" * 80)
             try:
-                if hasattr(suite.positions, "get_performance_analytics"):
-                    analytics = await suite.positions.get_performance_analytics()
+                if hasattr(suite.positions, "get_portfolio_pnl"):
+                    analytics = await suite.positions.get_portfolio_pnl()
                     print(f"  Total P&L: ${analytics.get('total_pnl', 0):,.2f}")
                     print(f"  Max Drawdown: ${analytics.get('max_drawdown', 0):,.2f}")
                     print(
@@ -419,8 +419,8 @@ async def main() -> bool:
         print("=" * 80)
 
         try:
-            if hasattr(suite.positions, "get_session_summary"):
-                session_summary = await suite.positions.get_session_summary()
+            if hasattr(suite.positions, "get_portfolio_pnl"):
+                session_summary = await suite.positions.get_portfolio_pnl()
                 print(f"  Session Duration: {session_summary.get('duration', 'N/A')}")
                 print(
                     f"  Positions Opened: {session_summary.get('positions_opened', 0)}"

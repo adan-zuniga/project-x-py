@@ -69,7 +69,7 @@ async def main() -> bool:
         stats = suite.get_stats()
         print(f"   Connected: {stats['connected']}")
         print(f"   Instrument: {stats['instrument']}")
-        print(f"   Features: {stats['features']}")
+        print(f"   Features: {stats['components']}")
 
         # Clean disconnect
         await suite.disconnect()

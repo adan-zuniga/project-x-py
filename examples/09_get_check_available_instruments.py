@@ -22,6 +22,7 @@ import sys
 from contextlib import suppress
 
 from project_x_py import ProjectX
+from project_x_py.client.base import ProjectXBase
 from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Instrument
 
@@ -39,7 +40,7 @@ def display_instrument(instrument: Instrument, prefix: str = "") -> None:
     print(f"{prefix}└" + "─" * 47)
 
 
-async def search_and_display(client: ProjectX, symbol: str) -> None:
+async def search_and_display(client: ProjectXBase, symbol: str) -> None:
     """Search for instruments and display results asynchronously"""
     print(f"\n{'=' * 60}")
     print(f"Searching for: '{symbol}'")
@@ -113,7 +114,7 @@ async def get_user_input(prompt: str) -> str:
     return await loop.run_in_executor(None, input, prompt)
 
 
-async def run_interactive_search(client: ProjectX) -> None:
+async def run_interactive_search(client: ProjectXBase) -> None:
     """Run the interactive search loop."""
     show_common_symbols()
 
@@ -154,6 +155,9 @@ async def main() -> None:
         print("\nConnecting to ProjectX...")
         async with ProjectX.from_env() as client:
             await client.authenticate()
+            if client is None:
+                print("❌ No client found")
+                return
             if client.account_info is None:
                 print("❌ No account info found")
                 return

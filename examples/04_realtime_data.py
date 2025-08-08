@@ -34,12 +34,13 @@ from project_x_py import (
     TradingSuite,
     setup_logging,
 )
+from project_x_py.types.protocols import RealtimeDataManagerProtocol
 
 if TYPE_CHECKING:
     from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
-async def display_current_prices(data_manager: "RealtimeDataManager"):
+async def display_current_prices(data_manager: "RealtimeDataManager") -> None:
     """Display current prices across all timeframes asynchronously."""
     print("\n📊 Current Prices:")
 
@@ -84,7 +85,7 @@ async def display_current_prices(data_manager: "RealtimeDataManager"):
             print(f"   {timeframe:>6}: No data")
 
 
-async def display_memory_stats(data_manager):
+async def display_memory_stats(data_manager: "RealtimeDataManager") -> None:
     """Display memory usage statistics asynchronously."""
     try:
         # get_memory_stats is synchronous in async data manager
@@ -106,7 +107,7 @@ async def display_memory_stats(data_manager):
         print(f"   ❌ Memory stats error: {e}")
 
 
-async def display_system_statistics(data_manager):
+async def display_system_statistics(data_manager: "RealtimeDataManager") -> None:
     """Display comprehensive system and validation statistics asynchronously."""
     try:
         # Use validation status instead of get_statistics (which doesn't exist)
@@ -138,7 +139,7 @@ async def display_system_statistics(data_manager):
         print(f"   ❌ System stats error: {e}")
 
 
-async def demonstrate_historical_analysis(data_manager):
+async def demonstrate_historical_analysis(data_manager: "RealtimeDataManager") -> None:
     """Demonstrate historical data analysis asynchronously."""
     print("\n📈 Historical Data Analysis:")
 
@@ -158,7 +159,7 @@ async def demonstrate_historical_analysis(data_manager):
             if data is not None and not data.is_empty():
                 # Calculate basic statistics
                 avg_price = data["close"].mean()
-                price_range = data["close"].max() - data["close"].min()
+                price_range = float(data["close"].max()) - float(data["close"].min())
                 total_volume = data["volume"].sum()
 
                 print(f"   {tf} Analysis (last 100 bars):")
@@ -172,7 +173,7 @@ async def demonstrate_historical_analysis(data_manager):
         print(f"   ❌ Analysis error: {e}")
 
 
-async def new_bar_callback(data):
+async def new_bar_callback(data: dict[str, Any]) -> None:
     """Handle new bar creation asynchronously."""
     timestamp = datetime.now().strftime("%H:%M:%S")
     timeframe = data["timeframe"]
@@ -182,7 +183,7 @@ async def new_bar_callback(data):
     )
 
 
-async def main():
+async def main() -> bool:
     """Main async real-time data streaming demonstration."""
 
     # Setup logging
@@ -248,7 +249,7 @@ async def main():
         print("\n🔔 Registering optional event handlers for demonstration...")
         try:
             # Use the EventBus through TradingSuite
-            suite.on(EventType.NEW_BAR, new_bar_callback)
+            await suite.on(EventType.NEW_BAR, new_bar_callback)
             print("✅ Optional event handlers registered!")
         except Exception as e:
             print(f"⚠️ Event handler registration error: {e}")
@@ -266,19 +267,19 @@ async def main():
         print("=" * 60)
 
         # Create concurrent monitoring tasks
-        async def monitor_prices():
+        async def monitor_prices() -> None:
             """Monitor and display prices periodically."""
             while True:
                 await asyncio.sleep(10)  # Update every 10 seconds
                 await display_current_prices(data_manager)
 
-        async def monitor_statistics():
+        async def monitor_statistics() -> None:
             """Monitor and display statistics periodically."""
             while True:
                 await asyncio.sleep(30)  # Update every 30 seconds
                 await display_system_statistics(data_manager)
 
-        async def monitor_memory():
+        async def monitor_memory() -> None:
             """Monitor and display memory usage periodically."""
             while True:
                 await asyncio.sleep(60)  # Update every minute

@@ -26,8 +26,9 @@ Date: July 2025
 import asyncio
 import logging
 import signal
+import sys
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from project_x_py import (
     TradingSuite,
@@ -81,7 +82,9 @@ class MultiTimeframeStrategy:
 
         self.logger = logging.getLogger(__name__)
 
-    async def analyze_timeframes_concurrently(self):
+    async def analyze_timeframes_concurrently(
+        self,
+    ) -> dict[str, dict[str, float | str] | None]:
         """Analyze all timeframes concurrently for maximum efficiency."""
         # Create tasks for each timeframe analysis
         tasks = {
@@ -105,7 +108,7 @@ class MultiTimeframeStrategy:
 
         return analysis
 
-    async def _analyze_longterm_trend(self):
+    async def _analyze_longterm_trend(self) -> dict[str, float | str] | None:
         """Analyze 4hr timeframe for overall trend direction."""
         data = await self.data_manager.get_data("4hr")
         if data is None or len(data) < 50:
@@ -124,7 +127,7 @@ class MultiTimeframeStrategy:
             "sma": last_sma,
         }
 
-    async def _analyze_medium_trend(self):
+    async def _analyze_medium_trend(self) -> dict[str, float | str] | None:
         """Analyze 1hr timeframe for medium-term trend."""
         data = await self.data_manager.get_data("1hr")
         if data is None or len(data) < 20:
@@ -146,7 +149,7 @@ class MultiTimeframeStrategy:
             "sma": last_sma,
         }
 
-    async def _analyze_short_term(self):
+    async def _analyze_short_term(self) -> dict[str, float | str | None] | None:
         """Analyze 15min timeframe for entry signals."""
         data = await self.data_manager.get_data("15min")
         if data is None or len(data) < 20:
@@ -177,7 +180,7 @@ class MultiTimeframeStrategy:
             "close": recent["close"].item(1),
         }
 
-    async def _analyze_orderbook(self):
+    async def _analyze_orderbook(self) -> dict[str, float | str | None] | None:
         """Analyze orderbook for market microstructure."""
         # Check if orderbook is available
         if not self.orderbook:
@@ -193,7 +196,17 @@ class MultiTimeframeStrategy:
             "imbalance_side": imbalance.get("side", "neutral"),
         }
 
-    async def generate_trading_signal(self):
+    async def generate_trading_signal(
+        self,
+    ) -> (
+        dict[str, float | str | None]
+        | None
+        | float
+        | str
+        | dict[str, float | str | None]
+        | Any
+        | float
+    ):
         """Generate trading signal based on multi-timeframe analysis."""
         async with self.strategy_lock:
             # Analyze all timeframes concurrently
@@ -220,7 +233,7 @@ class MultiTimeframeStrategy:
 
                     # Boost confidence if momentum is strong
                     if medium["momentum"] == "strong":
-                        confidence = min(confidence * 1.2, 100)
+                        confidence = min(float(confidence) * 1.2, 100)
 
             elif (
                 shortterm["signal"] == "sell"
@@ -232,7 +245,7 @@ class MultiTimeframeStrategy:
 
                 # Boost confidence if momentum is strong
                 if medium["momentum"] == "weak":
-                    confidence = min(confidence * 1.2, 100)
+                    confidence = min(float(confidence) * 1.2, 100)
 
             if signal:
                 self.signal_count += 1
@@ -254,8 +267,14 @@ class MultiTimeframeStrategy:
 
             return None
 
-    async def execute_signal(self, signal_data: dict):
+    async def execute_signal(
+        self, signal_data: dict[str, float | str | None] | Any | None
+    ) -> None | Any | float | str | dict[str, float | str | None] | Any | float:
         """Execute trading signal with proper risk management."""
+        if signal_data is None:
+            self.logger.error("No signal data provided")
+            return
+
         # Check current position
         positions: list[Position] = await self.position_manager.get_all_positions()
         current_position = next(
@@ -265,7 +284,7 @@ class MultiTimeframeStrategy:
         # Position size limits
         if current_position and abs(current_position.size) >= self.max_position_size:
             self.logger.info("Max position size reached, skipping signal")
-            return
+            return None
 
         # Get account info for position sizing
         account_balance = (
@@ -273,7 +292,9 @@ class MultiTimeframeStrategy:
         )
 
         # Calculate position size based on risk
-        entry_price = signal_data["price"]
+        entry_price = (
+            float(signal_data["price"]) if signal_data["price"] is not None else 0.0
+        )
         stop_distance = entry_price * 0.01  # 1% stop loss
 
         if signal_data["signal"] == "BUY":
@@ -302,13 +323,13 @@ class MultiTimeframeStrategy:
 
         if position_size == 0:
             self.logger.warning("Position size calculated as 0, skipping order")
-            return
+            return None
 
         # Get active contract
         instrument = await self.client.get_instrument(self.symbol)
         if not instrument:
             self.logger.error(f"Could not find instrument {self.symbol}")
-            return
+            return None
 
         contract_id = instrument.id
 
@@ -320,8 +341,10 @@ class MultiTimeframeStrategy:
 
         # Calculate take profit (2:1 risk/reward)
         if side == 0:  # Buy
+            assert isinstance(stop_distance, float)
             take_profit = entry_price + (2 * stop_distance)
         else:  # Sell
+            assert isinstance(stop_distance, float)
             take_profit = entry_price - (2 * stop_distance)
 
         try:
@@ -336,7 +359,7 @@ class MultiTimeframeStrategy:
 
             if not isinstance(response, BracketOrderResponse):
                 self.logger.error(f"❌ Unexpected order type: {type(response)}")
-                return
+                return None
 
             if response and response.success:
                 self.logger.info(
@@ -347,8 +370,9 @@ class MultiTimeframeStrategy:
 
         except Exception as e:
             self.logger.error(f"Error placing order: {e}")
+            return None
 
-    async def run_strategy_loop(self, check_interval: int = 60):
+    async def run_strategy_loop(self, check_interval: int = 60) -> None:
         """Run the strategy loop with specified check interval."""
         self.is_running = True
         self.logger.info(
@@ -367,8 +391,10 @@ class MultiTimeframeStrategy:
                     )
 
                     # Execute if confidence is high enough
-                    if signal["confidence"] >= 70:
-                        await self.execute_signal(signal)
+                    if float(signal["confidence"]) >= 70:
+                        await self.execute_signal(
+                            signal
+                        ) if signal is not None else None
                     else:
                         self.logger.info("Signal confidence too low, skipping")
 
@@ -382,7 +408,7 @@ class MultiTimeframeStrategy:
                 self.logger.error(f"Strategy error: {e}", exc_info=True)
                 await asyncio.sleep(check_interval)
 
-    async def _display_status(self):
+    async def _display_status(self) -> None:
         """Display current strategy status."""
         positions = await self.position_manager.get_all_positions()
         portfolio_pnl = await self.position_manager.get_portfolio_pnl()
@@ -397,16 +423,20 @@ class MultiTimeframeStrategy:
             print(f"  Portfolio P&L: ${portfolio_pnl:.2f}")
 
         if self.last_signal_time:
-            time_since = (datetime.now() - self.last_signal_time).seconds
+            time_since = (
+                (datetime.now() - self.last_signal_time).seconds
+                if self.last_signal_time is not None
+                else 0
+            )
             print(f"  Last Signal: {time_since}s ago")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the strategy."""
         self.is_running = False
         self.logger.info("🛑 Strategy stopped")
 
 
-async def main():
+async def main() -> int | None:
     """Main async function for multi-timeframe strategy."""
     logger = setup_logging(level="INFO")
     logger.info("🚀 Starting Async Multi-Timeframe Strategy (v3.0.0)")
@@ -414,7 +444,7 @@ async def main():
     # Signal handler for graceful shutdown
     stop_event = asyncio.Event()
 
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame: Any) -> None:
         print("\n⚠️  Shutdown signal received...")
         stop_event.set()
 
@@ -436,7 +466,7 @@ async def main():
         if not account:
             print("❌ No account info found")
             await suite.disconnect()
-            return
+            return 1
 
         print(f"   Connected as: {account.name}")
         print(f"   Account ID: {account.id}")
@@ -481,6 +511,7 @@ async def main():
 
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
@@ -488,4 +519,5 @@ if __name__ == "__main__":
     print("ASYNC MULTI-TIMEFRAME TRADING STRATEGY")
     print("=" * 60 + "\n")
 
-    asyncio.run(main())
+    success = asyncio.run(main())
+    sys.exit(0 if success else 1)

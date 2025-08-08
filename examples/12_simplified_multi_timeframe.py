@@ -68,9 +68,14 @@ class SimplifiedMTFStrategy:
 
         # 4. Get current price using new convenience method
         current_price = await self.data.get_latest_price()
+        if current_price is None:
+            return None
 
         # 5. Get recent price action stats
         price_stats = await self.data.get_price_range(bars=20, timeframe="15min")
+        if price_stats is None:
+            return None
+
         volume_stats = await self.data.get_volume_stats(bars=20, timeframe="15min")
 
         return {
@@ -102,33 +107,34 @@ class SimplifiedMTFStrategy:
             and analysis["medium"]["rsi"] < 70
         ):  # Not overbought
             # Additional filters using new methods
-            if analysis["volume_strength"] > 1.2:  # Above average volume
-                if analysis["price_position"] < 0.7:  # Not at resistance
-                    return {
-                        "action": "BUY",
-                        "confidence": min(
-                            analysis["longterm"]["strength"],
-                            analysis["entry"]["strength"],
-                            analysis["volume_strength"] - 1.0,
-                        ),
-                    }
+            if (
+                analysis["volume_strength"] > 1.2 and analysis["price_position"] < 0.7
+            ):  # Above average volume
+                return {
+                    "action": "BUY",
+                    "confidence": min(
+                        analysis["longterm"]["strength"],
+                        analysis["entry"]["strength"],
+                        analysis["volume_strength"] - 1.0,
+                    ),
+                }
 
         elif (
             analysis["longterm"]["trend"] == "bearish"
             and analysis["medium"]["momentum"] == "weak"
             and analysis["entry"]["signal"] == "sell"
             and analysis["medium"]["rsi"] > 30
+            and analysis["volume_strength"] > 1.2
+            and analysis["price_position"] > 0.3
         ):  # Not oversold
-            if analysis["volume_strength"] > 1.2:
-                if analysis["price_position"] > 0.3:  # Not at support
-                    return {
-                        "action": "SELL",
-                        "confidence": min(
-                            analysis["longterm"]["strength"],
-                            analysis["entry"]["strength"],
-                            analysis["volume_strength"] - 1.0,
-                        ),
-                    }
+            return {
+                "action": "SELL",
+                "confidence": min(
+                    analysis["longterm"]["strength"],
+                    analysis["entry"]["strength"],
+                    analysis["volume_strength"] - 1.0,
+                ),
+            }
 
         return None
 
@@ -175,6 +181,10 @@ async def run_simplified_mtf_strategy() -> None:
                 # Show multi-timeframe alignment
                 print("\n   Timeframe Alignment:")
                 analysis = await strategy.analyze_market()
+                if analysis is None:
+                    print("❌ Analysis is None")
+                    return
+
                 print(
                     f"   - 4hr: {analysis['longterm']['trend'].upper()} "
                     f"(strength: {analysis['longterm']['strength']:.1%})"

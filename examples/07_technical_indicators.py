@@ -21,7 +21,9 @@ Date: July 2025
 """
 
 import asyncio
+import sys
 import time
+from collections.abc import Callable
 from datetime import datetime
 
 import polars as pl
@@ -51,6 +53,7 @@ from project_x_py.indicators import (
     WAE,
     WILLR,
 )
+from project_x_py.realtime_data_manager.core import RealtimeDataManager
 
 
 async def calculate_indicators_concurrently(data: pl.DataFrame):
@@ -84,7 +87,9 @@ async def calculate_indicators_concurrently(data: pl.DataFrame):
     }
 
     # Run all calculations concurrently
-    async def calc_indicator(name, func):
+    async def calc_indicator(
+        name: str, func: Callable[[pl.DataFrame], pl.DataFrame]
+    ) -> tuple[str, pl.DataFrame]:
         loop = asyncio.get_event_loop()
         return name, await loop.run_in_executor(None, func, data)
 
@@ -102,7 +107,7 @@ async def calculate_indicators_concurrently(data: pl.DataFrame):
     return result_data
 
 
-async def analyze_multiple_timeframes(suite: TradingSuite, symbol="MNQ"):
+async def analyze_multiple_timeframes(suite: TradingSuite, symbol: str = "MNQ") -> None:
     """Analyze indicators across multiple timeframes concurrently."""
     timeframe_configs = [
         ("5min", 7, 5),  # 1 day of 5-minute bars
@@ -114,7 +119,9 @@ async def analyze_multiple_timeframes(suite: TradingSuite, symbol="MNQ"):
     print(f"\n📊 Analyzing {symbol} across multiple timeframes...")
 
     # Fetch data for all timeframes concurrently
-    async def get_timeframe_data(name, days, interval):
+    async def get_timeframe_data(
+        name: str, days: int, interval: int
+    ) -> tuple[str, pl.DataFrame | None]:
         data = await suite.client.get_bars(symbol, days=days, interval=interval)
         return name, data
 
@@ -266,13 +273,15 @@ async def analyze_timeframe(timeframe: str, data: pl.DataFrame):
     return analysis
 
 
-async def real_time_indicator_updates(data_manager, duration_seconds=30):
+async def real_time_indicator_updates(
+    data_manager: RealtimeDataManager, duration_seconds: int = 30
+) -> None:
     """Monitor indicators with real-time updates."""
     print(f"\n🔄 Monitoring indicators in real-time for {duration_seconds} seconds...")
 
     update_count = 0
 
-    async def on_data_update(timeframe):
+    async def on_data_update(timeframe: str) -> None:
         """Handle real-time data updates."""
         nonlocal update_count
         update_count += 1
@@ -349,7 +358,7 @@ async def real_time_indicator_updates(data_manager, duration_seconds=30):
     print(f"\n✅ Monitoring complete. Received {update_count} updates.")
 
 
-async def analyze_pattern_indicators(suite: TradingSuite, symbol="MNQ"):
+async def analyze_pattern_indicators(suite: TradingSuite, symbol: str = "MNQ") -> None:
     """Demonstrate pattern recognition indicators in detail."""
     print("\n🎯 Pattern Recognition Analysis...")
 
@@ -435,7 +444,7 @@ async def analyze_pattern_indicators(suite: TradingSuite, symbol="MNQ"):
         print(f"    Nearest Bearish OB: ${last_row['ob_nearest_bearish'].item():.2f}")
 
 
-async def performance_comparison(suite: TradingSuite, symbol="MNQ"):
+async def performance_comparison(suite: TradingSuite, symbol: str = "MNQ") -> None:
     """Compare performance of concurrent vs sequential indicator calculation."""
     print("\n⚡ Performance Comparison: Concurrent vs Sequential")
 
@@ -482,7 +491,7 @@ async def performance_comparison(suite: TradingSuite, symbol="MNQ"):
     print(f"\n  🚀 Speedup: {speedup:.2f}x faster with concurrent processing!")
 
 
-async def main():
+async def main() -> int | None:
     """Main async function for technical indicators example."""
     logger = setup_logging(level="INFO")
     logger.info("🚀 Starting Async Technical Indicators Example (v3.0.0)")
@@ -502,7 +511,7 @@ async def main():
         if not account:
             print("❌ No account info found")
             await suite.disconnect()
-            return
+            return 1
 
         print(f"   Connected as: {account.name}")
 
@@ -535,6 +544,7 @@ async def main():
 
     except Exception as e:
         logger.error(f"❌ Error: {e}", exc_info=True)
+        return 0
 
 
 if __name__ == "__main__":
@@ -542,6 +552,7 @@ if __name__ == "__main__":
     print("ASYNC TECHNICAL INDICATORS ANALYSIS")
     print("=" * 60 + "\n")
 
-    asyncio.run(main())
+    success = asyncio.run(main())
+    sys.exit(0 if success else 1)
 
     print("\n✅ Example completed!")

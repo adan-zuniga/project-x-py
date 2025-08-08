@@ -245,7 +245,7 @@ async def main() -> bool:
             print("   (Will trigger if price reaches this level)")
 
             if await wait_for_user_confirmation("Place stop order?"):
-                stop_response = await order_manager.place_stop_order(  # type: ignore[misc]
+                stop_response = await order_manager.place_stop_order(
                     contract_id=contract_id,
                     side=0,  # Buy
                     size=1,
@@ -286,7 +286,7 @@ async def main() -> bool:
             print("   Risk/Reward: 1:2 ratio")
 
             if await wait_for_user_confirmation("Place bracket order?"):
-                bracket_response = await order_manager.place_bracket_order(  # type: ignore[misc]
+                bracket_response = await order_manager.place_bracket_order(
                     contract_id=contract_id,
                     side=0,  # Buy
                     size=1,
@@ -504,7 +504,7 @@ async def main() -> bool:
                             f"Closing {side_text} position: {position.contractId} ({position.size} contracts)"
                         )
 
-                        response = await order_manager.close_position(  # type: ignore[misc]
+                        response = await order_manager.close_position(
                             position.contractId, method="market"
                         )
 

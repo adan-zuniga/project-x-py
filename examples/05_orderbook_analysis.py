@@ -41,7 +41,7 @@ from project_x_py import (
 from project_x_py.orderbook import OrderBook
 
 
-async def display_best_prices(orderbook):
+async def display_best_prices(orderbook: OrderBook) -> None:
     """Display current best bid/ask prices."""
     best_prices = await orderbook.get_best_bid_ask()
     best_bid = best_prices.get("bid")
@@ -67,7 +67,7 @@ async def display_best_prices(orderbook):
         print("   No bid/ask available", flush=True)
 
 
-async def display_market_depth(orderbook):
+async def display_market_depth(orderbook: OrderBook) -> None:
     """Display market depth on both sides."""
     # Get bid and ask levels separately
     bids_df = await orderbook.get_orderbook_bids(levels=5)
@@ -116,7 +116,7 @@ async def display_market_depth(orderbook):
             print("(Balanced ⚖️)", flush=True)
 
 
-async def display_trade_flow(orderbook):
+async def display_trade_flow(orderbook: OrderBook) -> None:
     """Display recent trade flow analysis."""
     trades = await orderbook.get_recent_trades(count=10)
 
@@ -153,7 +153,7 @@ async def display_trade_flow(orderbook):
         )
 
 
-async def display_market_microstructure(orderbook):
+async def display_market_microstructure(orderbook: OrderBook) -> None:
     """Display market microstructure analysis."""
     # Use get_advanced_market_metrics instead
     try:
@@ -189,7 +189,7 @@ async def display_market_microstructure(orderbook):
         )
 
 
-async def display_iceberg_detection(orderbook):
+async def display_iceberg_detection(orderbook: OrderBook) -> None:
     """Display potential iceberg orders."""
     # Use detect_iceberg_orders instead of detect_icebergs
     icebergs = await orderbook.detect_iceberg_orders()
@@ -215,7 +215,7 @@ async def display_iceberg_detection(orderbook):
         print("   No iceberg orders detected", flush=True)
 
 
-async def monitor_orderbook_realtime(orderbook: OrderBook, duration: int = 45):
+async def monitor_orderbook_realtime(orderbook: OrderBook, duration: int = 45) -> None:
     """Monitor orderbook in real-time for specified duration."""
     print(f"\n🔄 Real-time Monitoring ({duration} seconds)...", flush=True)
     print("=" * 60, flush=True)
@@ -253,7 +253,7 @@ async def monitor_orderbook_realtime(orderbook: OrderBook, duration: int = 45):
     print("\n✅ Real-time monitoring completed", flush=True)
 
 
-async def demonstrate_comprehensive_methods(orderbook: OrderBook):
+async def demonstrate_comprehensive_methods(orderbook: OrderBook) -> None:
     """Demonstrate all comprehensive orderbook methods after 2 minutes."""
     print("\n⏰ Waiting 2 minutes for data accumulation...", flush=True)
     print(
@@ -398,7 +398,7 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook):
         print(f"   Error: {e}", flush=True)
 
 
-async def main():
+async def main() -> bool:
     """Main async orderbook analysis demonstration."""
     logger = setup_logging(level="INFO")
     print("🚀 Async Level 2 Orderbook Analysis Example (v3.0.0)", flush=True)

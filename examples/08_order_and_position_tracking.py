@@ -295,7 +295,7 @@ class OrderPositionDemo:
         except Exception as e:
             print(f"❌ Error in monitoring loop: {e}")
 
-    async def cleanup_all_positions_and_orders(self):
+    async def cleanup_all_positions_and_orders(self) -> None:
         """Clean up all open positions and orders asynchronously before exit."""
         try:
             print("\n🧹 Cleaning up all positions and orders...")
@@ -366,7 +366,7 @@ class OrderPositionDemo:
         except Exception as e:
             print(f"❌ Error during cleanup: {e}")
 
-    async def run(self):
+    async def run(self) -> bool:
         """Main demo execution."""
         self.setup_signal_handlers()
 
@@ -421,7 +421,7 @@ class OrderPositionDemo:
         return True
 
 
-async def main():
+async def main() -> int:
     """Main entry point."""
     setup_logging(level="INFO")
     demo = OrderPositionDemo()
