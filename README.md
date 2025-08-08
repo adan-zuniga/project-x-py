@@ -21,11 +21,17 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.0.1 - TradingSuite Architecture
+## 🚀 v3.0.2 - Production-Ready Trading Suite
 
-**Latest Update (v3.0.1)**: Complete architectural upgrade with TradingSuite for simplified SDK usage, feature flags, and unified event handling.
+**Latest Update (v3.0.2)**: Bug fixes and improvements to order lifecycle tracking, comprehensive cleanup functionality, and enhanced error handling.
 
-### What's New in v3.0.1
+### What's New in v3.0.2
+
+- **Fixed Order Lifecycle Tracking**: Corrected asyncio concurrency issues and field references
+- **Automatic Cleanup**: Added comprehensive cleanup for orders and positions in examples
+- **Bug Fixes**: Fixed instrument lookup in order templates and improved error handling
+
+### Key Features from v3.0.1
 
 - **TradingSuite Class**: New unified entry point for simplified SDK usage
 - **One-line Initialization**: TradingSuite.create() handles all setup
@@ -33,7 +39,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - **Context Manager Support**: Automatic cleanup with async with statements
 - **Unified Event Handling**: Built-in EventBus for all components
 
-**BREAKING CHANGE**: Version 3.0.1 replaces factory functions with TradingSuite. See migration guide below.
+**BREAKING CHANGE**: Version 3.0+ replaces factory functions with TradingSuite. See migration guide below.
 
 ### Why Async?
 
@@ -43,15 +49,15 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - **WebSocket Native**: Perfect for real-time trading applications
 - **Modern Python**: Leverages Python 3.12+ async features
 
-### Migration to v3.0.1
+### Migration to v3.0+
 
-If you're upgrading from v2.x or v3.0.0, key changes include TradingSuite replacing factories:
+If you're upgrading from v2.x, key changes include TradingSuite replacing factories:
 
 ```python
-# Old (v2.x/v3.0.0)
+# Old (v2.x)
 suite = await create_initialized_trading_suite(\"MNQ\", client)
 
-# New (v3.0.1)
+# New (v3.0+)
 suite = await TradingSuite.create(\"MNQ\")
 ```
 
@@ -120,7 +126,7 @@ if __name__ == \"__main__\":
     asyncio.run(main())
 ```
 
-### Trading Suite (NEW in v3.0.1)
+### Trading Suite (NEW in v3.0+)
 
 The easiest way to get started with a complete trading setup:
 

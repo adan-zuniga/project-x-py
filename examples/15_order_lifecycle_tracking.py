@@ -13,7 +13,7 @@ Key features shown:
 - Order chain builder for complex orders
 - Common order templates
 
-Author: SDK v3.0.0 Examples
+Author: SDK v3.0.2 Examples
 """
 
 import asyncio
@@ -504,6 +504,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    print("ProjectX SDK v3.0.0 - Order Lifecycle Tracking")
+    print("ProjectX SDK v3.0.2 - Order Lifecycle Tracking")
     print("=" * 50)
     asyncio.run(main())

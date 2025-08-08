@@ -13,6 +13,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [3.0.2] - 2025-08-08
+
+### Fixed
+- **🐛 Order Lifecycle Tracking**: Fixed critical issues in order lifecycle tracking example
+  - Corrected asyncio.wait() usage by creating tasks instead of passing coroutines
+  - Fixed instrument lookup - recognized that suite.instrument is already an Instrument object
+  - Fixed Order field references (use `type` not `orderType`)
+  - Fixed Position field references (use `size` not `netQuantity`)
+  - Fixed cancel_order return type handling (returns bool not object)
+
+- **🔧 Order Templates**: Fixed instrument lookup issues
+  - Removed unnecessary async calls to get_instrument()
+  - suite.instrument is already resolved after TradingSuite initialization
+
+### Added
+- **🧹 Cleanup Functionality**: Comprehensive cleanup for demos and examples
+  - Automatic cancellation of all open orders at demo completion
+  - Automatic closing of all open positions
+  - Cleanup runs in finally block to ensure execution even on errors
+  - Prevents accumulation of test orders when running examples repeatedly
+
+### Improved
+- **📚 Documentation**: Updated all documentation to reflect v3.0.2
+  - Updated version references throughout
+  - Added clear documentation of breaking changes
+  - Improved migration guide clarity
+
 ## [3.0.1] - 2025-08-08
 
 ### Added

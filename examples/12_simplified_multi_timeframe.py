@@ -8,7 +8,7 @@ and providing cleaner access patterns.
 
 Compare this with 06_multi_timeframe_strategy.py to see the improvements!
 
-Author: SDK v3.0.0 Examples
+Author: SDK v3.0.2 Examples
 """
 
 import asyncio
@@ -294,6 +294,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    print("ProjectX SDK v3.0.0 - Simplified Multi-Timeframe Strategy")
+    print("ProjectX SDK v3.0.2 - Simplified Multi-Timeframe Strategy")
     print("=" * 60)
     asyncio.run(main())

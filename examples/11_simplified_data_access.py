@@ -3,7 +3,7 @@
 Example: Simplified Data Access with v3.0.0
 
 This example demonstrates the new convenience methods for accessing market data
-in the ProjectX SDK v3.0.0. These methods provide a cleaner, more intuitive API
+in the ProjectX SDK v3.0.2. These methods provide a cleaner, more intuitive API
 for common data access patterns.
 
 Key improvements:
@@ -15,7 +15,7 @@ Key improvements:
 - is_data_ready() - Check if enough data is loaded
 - get_bars_since() - Get data since a specific time
 
-Author: SDK v3.0.0 Examples
+Author: SDK v3.0.2 Examples
 """
 
 import asyncio
@@ -171,6 +171,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    print("ProjectX SDK v3.0.0 - Simplified Data Access")
+    print("ProjectX SDK v3.0.2 - Simplified Data Access")
     print("=" * 50)
     asyncio.run(main())
