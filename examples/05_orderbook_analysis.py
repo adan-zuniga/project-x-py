@@ -192,25 +192,39 @@ async def display_market_microstructure(orderbook: OrderBook) -> None:
 async def display_iceberg_detection(orderbook: OrderBook) -> None:
     """Display potential iceberg orders."""
     # Use detect_iceberg_orders instead of detect_icebergs
-    icebergs = await orderbook.detect_iceberg_orders()
+    icebergs = await orderbook.detect_iceberg_orders(
+        min_refreshes=5,
+        volume_threshold=50,
+        time_window_minutes=10,
+    )
 
     print("\n🧊 Iceberg Detection:", flush=True)
     if icebergs and "iceberg_levels" in icebergs:
         iceberg_list = icebergs["iceberg_levels"]
-        for iceberg in iceberg_list[:3]:  # Show top 3
-            side = "BID" if iceberg["side"] == "bid" else "ASK"
-            print(
-                f"   Potential {side} iceberg at ${iceberg['price']:,.2f}",
-                flush=True,
-            )
-            print(f"     - Visible: {iceberg.get('visible_size', 'N/A')}", flush=True)
-            print(
-                f"     - Refill Count: {iceberg.get('refill_count', 'N/A')}", flush=True
-            )
-            print(
-                f"     - Total Volume: {iceberg.get('total_volume', 'N/A')}", flush=True
-            )
-            print(f"     - Confidence: {iceberg.get('confidence', 0):.1%}", flush=True)
+        if iceberg_list:
+            for iceberg in iceberg_list[:3]:  # Show top 3
+                side = "BID" if iceberg["side"] == "bid" else "ASK"
+                print(
+                    f"   Potential {side} iceberg at ${iceberg['price']:,.2f}",
+                    flush=True,
+                )
+                print(
+                    f"     - Avg Volume: {iceberg.get('avg_volume', 'N/A'):.1f}",
+                    flush=True,
+                )
+                print(
+                    f"     - Refresh Count: {iceberg.get('refresh_count', 'N/A')}",
+                    flush=True,
+                )
+                print(
+                    f"     - Replenishments: {iceberg.get('replenishment_count', 'N/A')}",
+                    flush=True,
+                )
+                print(
+                    f"     - Confidence: {iceberg.get('confidence', 0):.1%}", flush=True
+                )
+        else:
+            print("   No iceberg orders detected", flush=True)
     else:
         print("   No iceberg orders detected", flush=True)
 
@@ -295,18 +309,24 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook) -> None:
     try:
         order_stats = await orderbook.get_order_type_statistics()
         if order_stats:
-            print(
-                f"   Market Orders: {order_stats.get('market_orders', 0):,}", flush=True
+            # The stats are tracked by DomType numbers
+            total_events = sum(
+                v for k, v in order_stats.items() if k.startswith("type_")
             )
-            print(
-                f"   Limit Orders: {order_stats.get('limit_orders', 0):,}", flush=True
-            )
-            print(f"   Stop Orders: {order_stats.get('stop_orders', 0):,}", flush=True)
-            if order_stats.get("avg_order_size"):
-                print(
-                    f"   Avg Order Size: {order_stats['avg_order_size']:.1f}",
-                    flush=True,
-                )
+            if total_events > 0:
+                print(f"   Total Events: {total_events:,}", flush=True)
+                # Show top event types
+                top_types = sorted(
+                    [(k, v) for k, v in order_stats.items() if k.startswith("type_")],
+                    key=lambda x: x[1],
+                    reverse=True,
+                )[:5]
+                for type_key, count in top_types:
+                    if count > 0:
+                        type_num = type_key.replace("type_", "").replace("_count", "")
+                        print(f"   Type {type_num}: {count:,} events", flush=True)
+            else:
+                print("   No order statistics available", flush=True)
         else:
             print("   No order statistics available", flush=True)
     except Exception as e:
@@ -412,19 +432,6 @@ async def main() -> bool:
     print("   - 30 seconds: Comprehensive method demonstrations", flush=True)
     print("\nPress Ctrl+C at any time to stop early.", flush=True)
 
-    # Ask for confirmation
-    print("\n❓ Continue with the full demonstration? (y/N): ", end="", flush=True)
-    try:
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: input().strip().lower()
-        )
-        if response != "y":
-            print("❌ Orderbook analysis cancelled", flush=True)
-            return False
-    except (EOFError, KeyboardInterrupt):
-        print("\n❌ Orderbook analysis cancelled", flush=True)
-        return False
-
     try:
         # Initialize TradingSuite v3 with orderbook feature
         print("\n🔑 Initializing TradingSuite v3 with orderbook...", flush=True)
@@ -492,11 +499,14 @@ async def main() -> bool:
         # Memory stats
         memory_stats = await orderbook.get_memory_stats()
         print("\n💾 Memory Usage:", flush=True)
-        print(f"   Bid Entries: {memory_stats.get('bid_entries', 0):,}", flush=True)
-        print(f"   Ask Entries: {memory_stats.get('ask_entries', 0):,}", flush=True)
-        print(f"   Trades Stored: {memory_stats.get('trades_stored', 0):,}", flush=True)
+        print(f"   Bid Depth: {memory_stats.get('avg_bid_depth', 0):,}", flush=True)
+        print(f"   Ask Depth: {memory_stats.get('avg_ask_depth', 0):,}", flush=True)
         print(
-            f"   Memory Cleaned: {memory_stats.get('memory_cleanups', 0)} times",
+            f"   Trades Processed: {memory_stats.get('trades_processed', 0):,}",
+            flush=True,
+        )
+        print(
+            f"   Total Volume: {memory_stats.get('total_volume', 0):,}",
             flush=True,
         )
 

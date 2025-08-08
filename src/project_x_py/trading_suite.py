@@ -430,8 +430,9 @@ class TradingSuite:
             # Initialize optional components
             if Features.ORDERBOOK in self.config.features:
                 logger.info("Initializing orderbook...")
+                # Use the actual contract ID for the orderbook to properly match WebSocket updates
                 self.orderbook = OrderBook(
-                    instrument=self._symbol,
+                    instrument=self.instrument.id,  # Use contract ID instead of symbol
                     timezone_str=self.config.timezone,
                     project_x=self.client,
                     config=self.config.get_orderbook_config(),

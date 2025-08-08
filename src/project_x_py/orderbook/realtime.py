@@ -118,12 +118,16 @@ class RealtimeHandler:
 
         Args:
             realtime_client: real-time client instance
-            subscribe_to_depth: Subscribe to market depth updates
-            subscribe_to_quotes: Subscribe to quote updates
+            subscribe_to_depth: Subscribe to market depth updates (kept for compatibility)
+            subscribe_to_quotes: Subscribe to quote updates (kept for compatibility)
 
         Returns:
             bool: True if initialization successful
         """
+        # Note: subscribe_to_depth and subscribe_to_quotes are kept for API compatibility
+        # The actual subscription happens at the TradingSuite level
+        _ = subscribe_to_depth  # Acknowledge parameter
+        _ = subscribe_to_quotes  # Acknowledge parameter
         try:
             self.realtime_client = realtime_client
 
@@ -528,6 +532,13 @@ class RealtimeHandler:
         self.orderbook.vwap_numerator += price * volume
         self.orderbook.vwap_denominator += volume
 
+        # Update memory stats for total volume
+        self.orderbook.memory_manager.memory_stats["total_volume"] = (
+            self.orderbook.memory_manager.memory_stats.get("total_volume", 0) + volume
+        )
+        if volume > self.orderbook.memory_manager.memory_stats.get("largest_trade", 0):
+            self.orderbook.memory_manager.memory_stats["largest_trade"] = volume
+
         # Create trade record
         new_trade = pl.DataFrame(
             {
@@ -593,10 +604,6 @@ class RealtimeHandler:
             This method assumes the orderbook lock is already held and modifies
             the orderbook DataFrames in-place.
         """
-        # Select the appropriate DataFrame
-        orderbook_df = (
-            self.orderbook.orderbook_bids if is_bid else self.orderbook.orderbook_asks
-        )
         side = "bid" if is_bid else "ask"
 
         # Update price level history for analytics
@@ -608,6 +615,12 @@ class RealtimeHandler:
                 "change_type": "update",
             }
         )
+
+        # Get the current DataFrame reference
+        if is_bid:
+            orderbook_df = self.orderbook.orderbook_bids
+        else:
+            orderbook_df = self.orderbook.orderbook_asks
 
         # Check if price level exists
         existing = orderbook_df.filter(pl.col("price") == price)
@@ -640,7 +653,7 @@ class RealtimeHandler:
                 )
                 orderbook_df = pl.concat([orderbook_df, new_level], how="vertical")
 
-        # Update the appropriate DataFrame
+        # Always update the appropriate DataFrame reference
         if is_bid:
             self.orderbook.orderbook_bids = orderbook_df
         else:

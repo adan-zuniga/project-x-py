@@ -375,6 +375,9 @@ class MarketAnalytics:
                 "timing_risk": timing_risk,
                 "liquidity_premium": liquidity_premium,
                 "implementation_shortfall": implementation_shortfall,
+                "total_bid_volume": bid_volume,
+                "total_ask_volume": ask_volume,
+                "market_depth_score": confidence_level / 100.0,
                 "timestamp": current_time.isoformat(),
             }
 
@@ -575,17 +578,77 @@ class MarketAnalytics:
             # Get best prices
             best_prices = self.orderbook._get_best_bid_ask_unlocked()
 
+            # Calculate volume statistics
+            total_bid_size = (
+                self.orderbook.orderbook_bids["volume"].sum()
+                if not self.orderbook.orderbook_bids.is_empty()
+                else 0
+            )
+            total_ask_size = (
+                self.orderbook.orderbook_asks["volume"].sum()
+                if not self.orderbook.orderbook_asks.is_empty()
+                else 0
+            )
+
+            # Calculate trade statistics
+            buy_trades = 0
+            sell_trades = 0
+            total_trade_volume = 0
+            if not self.orderbook.recent_trades.is_empty():
+                buy_trades = self.orderbook.recent_trades.filter(
+                    pl.col("side") == "buy"
+                ).height
+                sell_trades = self.orderbook.recent_trades.filter(
+                    pl.col("side") == "sell"
+                ).height
+                total_trade_volume = self.orderbook.recent_trades["volume"].sum()
+
+            avg_trade_size = (
+                total_trade_volume / self.orderbook.recent_trades.height
+                if self.orderbook.recent_trades.height > 0
+                else 0
+            )
+
+            # Calculate VWAP
+            vwap = (
+                self.orderbook.vwap_numerator / self.orderbook.vwap_denominator
+                if self.orderbook.vwap_denominator > 0
+                else 0
+            )
+
+            # Get session high/low from trades
+            session_high = 0
+            session_low = 0
+            if not self.orderbook.recent_trades.is_empty():
+                session_high = self.orderbook.recent_trades["price"].max()
+                session_low = self.orderbook.recent_trades["price"].min()
+
             # Calculate basic stats
             stats = {
                 "instrument": self.orderbook.instrument,
-                "update_count": self.orderbook.level2_update_count,
+                "level2_update_count": self.orderbook.level2_update_count,
                 "last_update": self.orderbook.last_orderbook_update,
                 "best_bid": best_prices.get("bid"),
                 "best_ask": best_prices.get("ask"),
                 "spread": best_prices.get("spread"),
-                "bid_levels": self.orderbook.orderbook_bids.height,
-                "ask_levels": self.orderbook.orderbook_asks.height,
+                "mid_price": best_prices.get("mid")
+                if best_prices.get("mid")
+                else (
+                    (best_prices.get("bid", 0) + best_prices.get("ask", 0)) / 2
+                    if best_prices.get("bid") and best_prices.get("ask")
+                    else 0
+                ),
+                "bid_depth": self.orderbook.orderbook_bids.height,
+                "ask_depth": self.orderbook.orderbook_asks.height,
+                "total_bid_size": int(total_bid_size),
+                "total_ask_size": int(total_ask_size),
                 "total_trades": self.orderbook.recent_trades.height,
+                "buy_trades": buy_trades,
+                "sell_trades": sell_trades,
+                "avg_trade_size": avg_trade_size,
+                "vwap": vwap,
+                "session_high": session_high,
+                "session_low": session_low,
                 "order_type_breakdown": dict(self.orderbook.order_type_stats),
             }
 
