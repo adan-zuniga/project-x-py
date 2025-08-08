@@ -100,7 +100,7 @@ async def demonstrate_order_tracker() -> None:
                 try:
                     # Wait for any terminal status
                     print("Waiting for order completion...")
-                    completed = await tracker.wait_for_status(2, timeout=5)  # FILLED
+                    _completed = await tracker.wait_for_status(2, timeout=5)  # FILLED
                     print("✅ Order reached FILLED status")
 
                 except TimeoutError:

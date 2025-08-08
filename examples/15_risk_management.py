@@ -140,11 +140,11 @@ async def main() -> None:
             stop_loss=current_price - 50,
             take_profit=current_price + 100,
         )
-        
+
         # Optional: Scale in if conditions are met
         if favorable_conditions:
             await trade.scale_in(additional_size=1)
-            
+
         # Optional: Adjust stop to breakeven
         if price_moved_favorably:
             await trade.adjust_stop(new_stop_loss=entry_price)

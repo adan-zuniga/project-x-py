@@ -98,7 +98,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 if TYPE_CHECKING:
-    from project_x_py.types import RealtimeDataManagerProtocol
+    pass
 
 logger = logging.getLogger(__name__)
 

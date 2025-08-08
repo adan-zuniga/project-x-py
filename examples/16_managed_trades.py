@@ -98,21 +98,21 @@ async def advanced_trade_management(suite: TradingSuite) -> None:
             stop_loss=entry_price - 30,     # $30 stop
             order_type=OrderType.LIMIT,
         )
-        
+
         # Wait for fill
         await suite.wait_for(EventType.ORDER_FILLED, timeout=300)
-        
+
         # Scale in if price dips
         if current_price < entry_price - 5:
             await trade.scale_in(
                 additional_size=1,
                 new_stop_loss=entry_price - 25,  # Tighten stop
             )
-            
+
         # Move stop to breakeven after profit
         if current_price > entry_price + 20:
             await trade.adjust_stop(new_stop_loss=entry_price)
-            
+
         # Scale out partial position
         if current_price > entry_price + 40:
             await trade.scale_out(
