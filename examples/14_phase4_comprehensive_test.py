@@ -11,9 +11,9 @@ Author: SDK v3.0.0 Testing
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from project_x_py import EventType, TradingSuite
+from project_x_py import TradingSuite
 from project_x_py.indicators import ATR, RSI, SMA
 
 
@@ -166,7 +166,7 @@ class CleanTradingStrategy:
             print("❌ Market analysis failed")
             return
 
-        print(f"\n📊 Market Analysis:")
+        print("\n📊 Market Analysis:")
         print(f"  Price: ${analysis['price']:,.2f}")
         print(
             f"  Trend: {analysis['trend'].upper()} (strength: {analysis['trend_strength']:.1%})"
@@ -177,7 +177,7 @@ class CleanTradingStrategy:
 
         # 3. Check current positions
         position_summary = await self.check_positions()
-        print(f"\n📈 Position Summary:")
+        print("\n📈 Position Summary:")
         print(f"  Total: {position_summary['total_positions']}")
         print(f"  Long: {position_summary['long_positions']}")
         print(f"  Short: {position_summary['short_positions']}")
@@ -191,14 +191,14 @@ class CleanTradingStrategy:
 
             # Exit logic using clean properties
             if pos["pnl_ticks"] >= self.profit_target_ticks:
-                print(f"    ✅ PROFIT TARGET REACHED!")
+                print("    ✅ PROFIT TARGET REACHED!")
             elif pos["pnl_ticks"] <= -self.stop_loss_ticks:
-                print(f"    🛑 STOP LOSS TRIGGERED!")
+                print("    🛑 STOP LOSS TRIGGERED!")
 
         # 4. Check current orders
         order_summary = await self.check_orders()
         if order_summary["total_orders"] > 0:
-            print(f"\n📋 Order Summary:")
+            print("\n📋 Order Summary:")
             print(f"  Working: {order_summary['working_orders']}")
             print(f"  Buy Orders: {order_summary['buy_orders']}")
             print(f"  Sell Orders: {order_summary['sell_orders']}")
@@ -319,7 +319,7 @@ async def demonstrate_phase4_improvements():
             averagePrice=16500.0,
         )
 
-        print(f"Position Properties:")
+        print("Position Properties:")
         print(f"  direction: {demo_pos.direction}")
         print(f"  symbol: {demo_pos.symbol}")
         print(f"  is_long: {demo_pos.is_long}")
@@ -341,7 +341,7 @@ async def demonstrate_phase4_improvements():
             limitPrice=16450.0,
         )
 
-        print(f"\nOrder Properties:")
+        print("\nOrder Properties:")
         print(f"  side_str: {demo_order.side_str}")
         print(f"  type_str: {demo_order.type_str}")
         print(f"  status_str: {demo_order.status_str}")

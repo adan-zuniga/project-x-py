@@ -12,9 +12,8 @@ Author: SDK v3.0.0 Examples
 """
 
 import asyncio
-from datetime import datetime
 
-from project_x_py import EventType, TradingSuite
+from project_x_py import TradingSuite
 from project_x_py.indicators import RSI, SMA
 
 

@@ -17,7 +17,6 @@ Author: SDK v3.0.0 Examples
 """
 
 import asyncio
-from datetime import datetime
 
 from project_x_py import EventType, OrderLifecycleError, TradingSuite, get_template
 
@@ -99,7 +98,7 @@ async def demonstrate_order_tracker():
                     # Wait for any terminal status
                     print("Waiting for order completion...")
                     completed = await tracker.wait_for_status(2, timeout=5)  # FILLED
-                    print(f"✅ Order reached FILLED status")
+                    print("✅ Order reached FILLED status")
 
                 except TimeoutError:
                     print("⏱️ Order still pending")
@@ -130,7 +129,7 @@ async def demonstrate_order_chain():
         result = await order_chain.execute()
 
         if result.success:
-            print(f"✅ Bracket order placed successfully:")
+            print("✅ Bracket order placed successfully:")
             print(f"   Entry: Market order (ID: {result.entry_order_id})")
             print(
                 f"   Stop: ${result.stop_loss_price:,.2f} (ID: {result.stop_order_id})"
@@ -155,7 +154,7 @@ async def demonstrate_order_chain():
                 .with_take_profit(price=current_price + 20)
             )
 
-            print(f"Building order:")
+            print("Building order:")
             print(f"   Entry: Limit BUY at ${current_price - 10:,.2f}")
             print(f"   Stop: ${current_price - 30:,.2f}")
             print(f"   Target: ${current_price + 20:,.2f}")
@@ -184,7 +183,7 @@ async def demonstrate_order_templates():
             )
 
             if result.success:
-                print(f"✅ 2:1 R/R order placed:")
+                print("✅ 2:1 R/R order placed:")
                 print(f"   Entry: ${result.entry_price:,.2f}")
                 print(f"   Stop: ${result.stop_loss_price:,.2f}")
                 print(f"   Target: ${result.take_profit_price:,.2f}")
@@ -217,9 +216,9 @@ async def demonstrate_order_templates():
             )
 
             if result.success:
-                print(f"✅ ATR-based order placed:")
-                print(f"   Stop distance based on 2x ATR")
-                print(f"   Target distance based on 3x ATR")
+                print("✅ ATR-based order placed:")
+                print("   Stop distance based on 2x ATR")
+                print("   Target distance based on 3x ATR")
                 print(f"   Entry: ${result.entry_price:,.2f}")
                 print(f"   Stop: ${result.stop_loss_price:,.2f}")
                 print(f"   Target: ${result.take_profit_price:,.2f}")
@@ -245,9 +244,9 @@ async def demonstrate_order_templates():
             )
 
             if result.success:
-                print(f"✅ Scalp order placed:")
-                print(f"   4 tick stop, 8 tick target")
-                print(f"   Entry: Market order")
+                print("✅ Scalp order placed:")
+                print("   4 tick stop, 8 tick target")
+                print("   Entry: Market order")
                 print(f"   Stop: ${result.stop_loss_price:,.2f}")
                 print(f"   Target: ${result.take_profit_price:,.2f}")
             else:
@@ -316,7 +315,7 @@ async def demonstrate_advanced_tracking():
             for task in pending:
                 task.cancel()
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             print("⏱️ No orders filled")
 
         finally:

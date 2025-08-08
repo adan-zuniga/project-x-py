@@ -17,7 +17,6 @@ import asyncio
 import os
 import sys
 from datetime import datetime
-from decimal import Decimal
 
 # Add the src directory to the Python path
 sys.path.insert(
@@ -25,7 +24,6 @@ sys.path.insert(
 )
 
 from project_x_py import TradingSuite
-from project_x_py.event_bus import EventType
 from project_x_py.models import Order
 from project_x_py.types import OrderSide, OrderType
 
@@ -125,13 +123,13 @@ async def main():
     print("\n=== Managed Trade Example (Simulation) ===")
 
     print("\nManaged trade would execute:")
-    print(f"1. Calculate position size based on risk")
-    print(f"2. Validate trade against risk rules")
-    print(f"3. Place entry order")
+    print("1. Calculate position size based on risk")
+    print("2. Validate trade against risk rules")
+    print("3. Place entry order")
     print(f"4. Automatically attach stop-loss at ${stop_loss:,.2f}")
     print(f"5. Automatically attach take-profit at ${current_price + 100:,.2f}")
-    print(f"6. Monitor position and adjust stops if configured")
-    print(f"7. Clean up on exit")
+    print("6. Monitor position and adjust stops if configured")
+    print("7. Clean up on exit")
 
     # Show example code
     print("\nExample code:")

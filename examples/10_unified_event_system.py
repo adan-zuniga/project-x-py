@@ -20,7 +20,6 @@ Date: 2025-08-04
 
 import asyncio
 import logging
-from datetime import datetime
 from typing import Any
 
 from project_x_py import TradingSuite
@@ -236,7 +235,7 @@ class UnifiedEventDemo:
         try:
             event = await self.suite.wait_for(EventType.POSITION_OPENED, timeout=10)
             logger.info(f"✅ Position event received: {event.data}")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.info("⏱️ No position event within timeout")
 
         # 3. Remove specific handler

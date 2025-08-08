@@ -22,7 +22,6 @@ Date: July 2025
 """
 
 import asyncio
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from project_x_py import (
@@ -32,7 +31,6 @@ from project_x_py import (
 
 if TYPE_CHECKING:
     from project_x_py.position_manager import PositionManager
-    from project_x_py.realtime_data_manager import RealtimeDataManager
 
 
 async def get_current_market_price(

@@ -41,7 +41,7 @@ async def main():
         bars = await suite.client.get_bars(suite.symbol, days=1)
         if bars is not None and not bars.is_empty():
             latest = bars.tail(1)
-            print(f"Current market context:")
+            print("Current market context:")
             print(f"  Last price: ${latest['close'][0]:,.2f}")
             print(f"  High: ${latest['high'][0]:,.2f}")
             print(f"  Low: ${latest['low'][0]:,.2f}\n")
@@ -58,9 +58,9 @@ async def main():
                 )
 
                 if join_bid_response.success:
-                    print(f"✅ JoinBid order placed successfully!")
+                    print("✅ JoinBid order placed successfully!")
                     print(f"   Order ID: {join_bid_response.orderId}")
-                    print(f"   This order will buy at the current best bid price\n")
+                    print("   This order will buy at the current best bid price\n")
                 else:
                     error_msg = join_bid_response.errorMessage or "Unknown error"
                     print(f"❌ JoinBid order failed: {error_msg}")
@@ -83,9 +83,9 @@ async def main():
                 )
 
                 if join_ask_response.success:
-                    print(f"✅ JoinAsk order placed successfully!")
+                    print("✅ JoinAsk order placed successfully!")
                     print(f"   Order ID: {join_ask_response.orderId}")
-                    print(f"   This order will sell at the current best ask price\n")
+                    print("   This order will sell at the current best ask price\n")
                 else:
                     error_msg = join_ask_response.errorMessage or "Unknown error"
                     print(f"❌ JoinAsk order failed: {error_msg}")

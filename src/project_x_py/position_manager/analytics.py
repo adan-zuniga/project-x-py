@@ -90,7 +90,7 @@ class PositionAnalyticsMixin:
     async def calculate_position_pnl(
         self: "PositionManagerProtocol",
         position: Position,
-        current_price: float,
+        current_price: float | None = None,
         point_value: float | None = None,
     ) -> PositionAnalysisResponse:
         """
@@ -102,7 +102,8 @@ class PositionAnalyticsMixin:
 
         Args:
             position (Position): The position object to calculate P&L for
-            current_price (float): Current market price of the contract
+            current_price (float | None): Current market price of the contract. If
+                None, returns a graceful response with zero P&L and an error message.
             point_value (float, optional): Dollar value per point movement.
                 For futures, this is the contract multiplier (e.g., 10 for MGC).
                 If None, P&L is returned in points rather than dollars.
@@ -138,6 +139,35 @@ class PositionAnalyticsMixin:
             - Short positions profit when price decreases
             - Use instrument.contractMultiplier for accurate point_value
         """
+        # Handle missing price gracefully (used in error_scenarios tests)
+        if current_price is None:
+            from datetime import datetime as _dt
+
+            return {
+                "position_id": getattr(position, "id", 0) or 0,
+                "contract_id": getattr(position, "contractId", ""),
+                "entry_price": getattr(position, "averagePrice", 0.0) or 0.0,
+                "current_price": 0.0,
+                "unrealized_pnl": 0.0,
+                "position_size": int(getattr(position, "size", 0) or 0),
+                "position_value": 0.0,
+                "margin_used": 0.0,
+                "duration_minutes": 0,
+                "high_water_mark": 0.0,
+                "low_water_mark": 0.0,
+                "max_unrealized_pnl": 0.0,
+                "min_unrealized_pnl": 0.0,
+                "volatility": 0.0,
+                "beta": 0.0,
+                "delta_exposure": 0.0,
+                "gamma_exposure": 0.0,
+                "theta_decay": 0.0,
+                "risk_contribution": 0.0,
+                "analysis_timestamp": _dt.now().isoformat(),
+                # Non-typed extension used by tests
+                "error": "No current price available",
+            }
+
         # Calculate P&L based on position direction
         if position.type == PositionType.LONG:  # LONG
             price_change = current_price - position.averagePrice

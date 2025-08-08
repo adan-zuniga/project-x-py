@@ -247,7 +247,7 @@ class RealtimeDataManager(
         instrument: str,
         project_x: "ProjectXBase",
         realtime_client: "ProjectXRealtimeClient",
-        event_bus: Any,
+        event_bus: Any | None = None,
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
         config: DataManagerConfig | None = None,
@@ -325,7 +325,8 @@ class RealtimeDataManager(
         self.instrument: str = instrument
         self.project_x: ProjectXBase = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
-        self.event_bus = event_bus  # Store the event bus for emitting events
+        # EventBus is optional in tests; fallback to a simple dummy if None
+        self.event_bus = event_bus if event_bus is not None else object()
 
         self.logger = ProjectXLogger.get_logger(__name__)
 
@@ -692,5 +693,19 @@ class RealtimeDataManager(
             self.current_tick_data.clear()
             # EventBus handles all event cleanup
             self.indicator_cache.clear()
+
+            # Backward-compatible attributes used in some tests/examples
+            # Use dynamic attribute access safely without type checker complaints
+            bars_attr = getattr(self, "bars", None)
+            if isinstance(bars_attr, dict):
+                for _tf in list(bars_attr.keys()):
+                    bars_attr[_tf] = []
+            ticks_attr = getattr(self, "ticks", None)
+            if isinstance(ticks_attr, list):
+                ticks_attr.clear()
+            dom_attr = getattr(self, "dom_data", None)
+            if isinstance(dom_attr, dict):
+                for _k in list(dom_attr.keys()):
+                    dom_attr[_k] = []
 
         self.logger.info("✅ RealtimeDataManager cleanup completed")

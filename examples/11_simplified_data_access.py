@@ -21,7 +21,7 @@ Author: SDK v3.0.0 Examples
 import asyncio
 from datetime import datetime, timedelta
 
-from project_x_py import EventType, TradingSuite
+from project_x_py import TradingSuite
 
 
 async def demonstrate_simplified_access():
@@ -48,7 +48,7 @@ async def demonstrate_simplified_access():
         # 3. Get OHLC as a simple dictionary
         ohlc = await suite.data.get_ohlc("5min")
         if ohlc:
-            print(f"\n📈 Latest 5min Bar:")
+            print("\n📈 Latest 5min Bar:")
             print(f"   Open:   ${ohlc['open']:,.2f}")
             print(f"   High:   ${ohlc['high']:,.2f}")
             print(f"   Low:    ${ohlc['low']:,.2f}")
@@ -58,7 +58,7 @@ async def demonstrate_simplified_access():
         # 4. Get latest few bars - cleaner syntax
         recent_bars = await suite.data.get_latest_bars(count=5, timeframe="1min")
         if recent_bars is not None:
-            print(f"\n📊 Last 5 1-minute bars:")
+            print("\n📊 Last 5 1-minute bars:")
             for i in range(len(recent_bars)):
                 bar = recent_bars.row(i, named=True)
                 print(
@@ -68,7 +68,7 @@ async def demonstrate_simplified_access():
         # 5. Get price range statistics
         range_stats = await suite.data.get_price_range(bars=20, timeframe="5min")
         if range_stats:
-            print(f"\n📊 20-bar Price Range (5min):")
+            print("\n📊 20-bar Price Range (5min):")
             print(f"   High:  ${range_stats['high']:,.2f}")
             print(f"   Low:   ${range_stats['low']:,.2f}")
             print(f"   Range: ${range_stats['range']:,.2f}")
@@ -77,7 +77,7 @@ async def demonstrate_simplified_access():
         # 6. Get volume statistics
         vol_stats = await suite.data.get_volume_stats(bars=20, timeframe="5min")
         if vol_stats:
-            print(f"\n📊 20-bar Volume Stats (5min):")
+            print("\n📊 20-bar Volume Stats (5min):")
             print(f"   Current Volume: {vol_stats['current']:,.0f}")
             print(f"   Average Volume: {vol_stats['average']:,.0f}")
             print(f"   Relative Volume: {vol_stats['relative']:.1%}")

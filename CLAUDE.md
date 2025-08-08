@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v2.0.4 - Async Architecture
+## Project Status: v3.0.1 - Production-Ready Async Architecture
 
-**IMPORTANT**: This project has migrated to a fully asynchronous architecture as of v2.0.0. All APIs are now async-only with no backward compatibility to synchronous versions.
+**IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
 ## Development Phase Guidelines
 
@@ -74,7 +74,7 @@ uv run python -m build       # Alternative build command
 
 ## Project Architecture
 
-### Core Components (v2.0.4 - Multi-file Packages)
+### Core Components (v3.0.1 - Multi-file Packages)
 
 **ProjectX Client (`src/project_x_py/client/`)**
 - Main async API client for TopStepX ProjectX Gateway
@@ -93,11 +93,17 @@ uv run python -m build       # Alternative build command
   - `bracket_orders.py`: OCO and bracket order logic
   - `position_orders.py`: Position-based order management
   - `tracking.py`: Order state tracking
+  - `templates.py`: Order templates for common strategies
 - `PositionManager` (`position_manager/`): Async position tracking and risk management
   - `core.py`: Position management core
   - `risk.py`: Risk calculations and limits
   - `analytics.py`: Performance analytics
   - `monitoring.py`: Real-time position monitoring
+  - `tracking.py`: Position lifecycle tracking
+- `RiskManager` (`risk_manager/`): Integrated risk management
+  - `core.py`: Risk limits and validation
+  - `monitoring.py`: Real-time risk monitoring
+  - `analytics.py`: Risk metrics and reporting
 - `ProjectXRealtimeDataManager` (`realtime_data_manager/`): Async WebSocket data
   - `core.py`: Main data manager
   - `callbacks.py`: Event callback handling
@@ -126,6 +132,13 @@ uv run python -m build       # Alternative build command
 - Environment variable based configuration
 - JSON config file support (`~/.config/projectx/config.json`)
 - ProjectXConfig dataclass for type safety
+- ConfigManager for centralized configuration handling
+
+**Event System**
+- Unified EventBus for cross-component communication
+- Type-safe event definitions
+- Async event handlers with priority support
+- Built-in event types for all trading events
 
 ### Architecture Patterns
 
@@ -265,23 +278,49 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
+### v3.0.1 - Production Ready
+- **Performance Optimizations**: Enhanced connection pooling and caching
+- **Event Bus System**: Unified event handling across all components
+- **Risk Management**: Integrated risk manager with position limits and monitoring
+- **Order Tracking**: Comprehensive order lifecycle tracking and management
+- **Memory Management**: Optimized sliding windows and automatic cleanup
+- **Enhanced Models**: Improved data models with better type safety
+
+### v3.0.0 - Major Architecture Improvements
+- **Trading Suite**: Unified trading suite with all managers integrated
+- **Advanced Order Types**: OCO, bracket orders, and position-based orders
+- **Real-time Integration**: Seamless WebSocket data flow across all components
+- **Protocol-based Design**: Type-safe protocols for all major interfaces
+
 ### v2.0.4 - Package Refactoring
-- **Major Architecture Change**: Converted monolithic modules to multi-file packages
-- All core modules now organized as packages with focused submodules
-- Improved code organization, maintainability, and testability
-- Backward compatible - all imports work as before
+- Converted monolithic modules to multi-file packages
+- All core modules organized as packages with focused submodules
+- Improved code organization and maintainability
 
-### v2.0.2 - Pattern Recognition Indicators
-- Added Fair Value Gap (FVG) indicator for price imbalance detection
-- Added Order Block indicator for institutional zone identification  
-- Added Waddah Attar Explosion for volatility-based trend strength
-- All indicators support async data processing
+### Trading Suite Usage
+```python
+# Complete trading suite with all managers
+from project_x_py import create_trading_suite
 
-### v2.0.0 - Complete Async Migration
-- **Breaking Change**: Entire SDK migrated to async-only architecture
-- All methods now require `await` keyword
-- Context managers for proper resource management
-- No synchronous fallbacks or compatibility layers
+async def main():
+    suite = await create_trading_suite(
+        instrument="MNQ",
+        timeframes=["1min", "5min"],
+        enable_orderbook=True,
+        enable_risk_management=True
+    )
+    
+    # All managers are integrated and ready
+    await suite.start()
+    
+    # Access individual managers
+    order = await suite.order_manager.place_market_order(
+        "MNQ", 1, "BUY"
+    )
+    
+    position = suite.position_manager.get_position("MNQ")
+    bars = suite.data_manager.get_bars("MNQ", "1min")
+```
 
 ### Key Async Examples
 ```python

@@ -1,12 +1,9 @@
 """Tests for RiskManager core functionality."""
 
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from project_x_py.exceptions import ProjectXError
-from project_x_py.models import Position
 from project_x_py.risk_manager import RiskManager
 
 

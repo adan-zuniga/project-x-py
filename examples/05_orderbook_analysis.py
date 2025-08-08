@@ -318,7 +318,7 @@ async def demonstrate_comprehensive_methods(orderbook: OrderBook):
         # Use get_orderbook_depth for market impact analysis
         impact = await orderbook.get_orderbook_depth(price_range=50.0)
         if impact:
-            print(f"   Market Impact Analysis (50 tick range):", flush=True)
+            print("   Market Impact Analysis (50 tick range):", flush=True)
             print(
                 f"   Estimated Fill Price: ${impact.get('estimated_fill_price', 0):,.2f}",
                 flush=True,

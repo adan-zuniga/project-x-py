@@ -202,6 +202,11 @@ class OrderTrackingMixin:
             logger.error(f"Error handling order update: {e}")
             logger.debug(f"Order data received: {order_data}")
 
+    # Back-compat helper for tests that directly call _process_order_update
+    async def _process_order_update(self, order_data: dict[str, Any]) -> None:
+        """Process a single order update (compat wrapper used by tests)."""
+        await self._on_order_update(order_data)
+
     async def _on_trade_execution(self, trade_data: dict[str, Any] | list[Any]) -> None:
         """Handle real-time trade execution events."""
         try:

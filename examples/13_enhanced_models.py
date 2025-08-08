@@ -15,7 +15,7 @@ Author: SDK v3.0.0 Examples
 import asyncio
 from datetime import datetime
 
-from project_x_py import EventType, TradingSuite
+from project_x_py import TradingSuite
 
 
 async def demonstrate_position_properties():
@@ -62,7 +62,7 @@ async def demonstrate_position_properties():
             print(f"  Total Cost: ${pos.total_cost:,.2f}")
 
             # Boolean checks
-            print(f"\n  Position Checks:")
+            print("\n  Position Checks:")
             print(f"    Is Long? {pos.is_long}")
             print(f"    Is Short? {pos.is_short}")
 
@@ -148,7 +148,7 @@ async def demonstrate_order_properties():
             print(f"  Symbol: {order.symbol}")
 
             # Boolean checks make logic cleaner
-            print(f"\n  Order State:")
+            print("\n  Order State:")
             print(f"    Is Open? {order.is_open}")
             print(f"    Is Filled? {order.is_filled}")
             print(f"    Is Working? {order.is_working}")
@@ -156,7 +156,7 @@ async def demonstrate_order_properties():
 
             # Fill information
             if order.fillVolume:
-                print(f"\n  Fill Progress:")
+                print("\n  Fill Progress:")
                 print(
                     f"    Filled: {order.fillVolume}/{order.size} ({order.filled_percent:.1f}%)"
                 )

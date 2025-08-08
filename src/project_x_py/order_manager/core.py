@@ -363,9 +363,29 @@ class OrderManager(
             custom_tag=custom_tag,
         ):
             # Validate inputs
+            if not isinstance(contract_id, str) or not contract_id:
+                raise ProjectXOrderError(
+                    format_error_message(
+                        ErrorMessages.INSTRUMENT_INVALID_SYMBOL, symbol=contract_id
+                    )
+                )
+
             if size <= 0:
                 raise ProjectXOrderError(
                     format_error_message(ErrorMessages.ORDER_INVALID_SIZE, size=size)
+                )
+
+            # Validate order side and type against expected enums
+            if side not in (0, 1):
+                raise ProjectXOrderError(
+                    format_error_message(ErrorMessages.ORDER_INVALID_SIDE, side=side)
+                )
+
+            if order_type not in {1, 2, 3, 4, 5, 6, 7}:
+                raise ProjectXOrderError(
+                    format_error_message(
+                        ErrorMessages.ORDER_INVALID_TYPE, order_type=order_type
+                    )
                 )
 
             self.logger.info(

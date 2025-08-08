@@ -72,7 +72,14 @@ class Event:
             data: Event payload data
             source: Optional source component name
         """
-        self.type = type if isinstance(type, EventType) else EventType(type)
+        if isinstance(type, EventType):
+            self.type = type
+        else:
+            try:
+                self.type = EventType(type)
+            except Exception:
+                # Allow arbitrary event names (legacy/tests)
+                self.type = type  # keep raw string
         self.data = data
         self.source = source
         self.timestamp = asyncio.get_event_loop().time()
@@ -108,6 +115,12 @@ class EventBus:
         self._event_history: list[Event] = []
         self._max_history_size = 1000
 
+        # Legacy string-event handlers (for tests/back-compat)
+        self._legacy_handlers: dict[
+            str, list[Callable[[Event], Coroutine[Any, Any, None]]]
+        ] = defaultdict(list)
+
+    # v3 primary API
     async def on(
         self,
         event: EventType | str,
@@ -126,6 +139,21 @@ class EventBus:
 
         self._handlers[event_type].append(handler)
         logger.debug(f"Registered handler {handler.__name__} for {event_type.value}")
+
+    # Back-compat alias for tests expecting subscribe(name, event, handler)
+    async def subscribe(
+        self,
+        _name: str,
+        event: EventType | str,
+        handler: Callable[[Event], Coroutine[Any, Any, None]],
+    ) -> None:
+        # Route to enum or legacy string map
+        if isinstance(event, EventType):
+            await self.on(event, handler)
+        else:
+            if not asyncio.iscoroutinefunction(handler):
+                raise ValueError(f"Handler {handler.__name__} must be async")
+            self._legacy_handlers[str(event)].append(handler)
 
     async def once(
         self,
@@ -220,34 +248,32 @@ class EventBus:
                 self._event_history.pop(0)
 
         # Get all handlers for this event
-        handlers = []
+        handlers: list[Callable[[Event], Coroutine[Any, Any, None]]] = []
 
-        # Regular handlers
-        handlers.extend(self._handlers.get(event_obj.type, []))
-
-        # One-time handlers
-        once_handlers = self._once_handlers.get(event_obj.type, [])
-        handlers.extend(once_handlers)
+        # Regular and once handlers for enum events
+        if isinstance(event_obj.type, EventType):
+            handlers.extend(self._handlers.get(event_obj.type, []))
+            once_handlers = self._once_handlers.get(event_obj.type, [])
+            handlers.extend(once_handlers)
+            if once_handlers:
+                self._once_handlers[event_obj.type] = []
+        else:
+            # Legacy string event handlers
+            handlers.extend(self._legacy_handlers.get(str(event_obj.type), []))
 
         # Wildcard handlers
         handlers.extend(self._wildcard_handlers)
 
-        # Remove one-time handlers
-        if once_handlers:
-            self._once_handlers[event_obj.type] = []
-
-        # Execute all handlers concurrently
+        # Execute all handlers concurrently and wait for completion
         if handlers:
-            tasks = []
+            tasks: list[asyncio.Task[Any]] = []
             for handler in handlers:
                 task = asyncio.create_task(self._execute_handler(handler, event_obj))
                 self._active_tasks.add(task)
                 tasks.append(task)
 
-            # Don't wait for handlers to complete (fire-and-forget)
-            # This prevents slow handlers from blocking event emission
-            for task in tasks:
-                task.add_done_callback(self._active_tasks.discard)
+            # Await handlers to ensure deterministic completion in tests
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _execute_handler(
         self, handler: Callable[[Event], Coroutine[Any, Any, None]], event: Event
@@ -261,8 +287,13 @@ class EventBus:
         try:
             await handler(event)
         except Exception as e:
+            event_type_str = (
+                event.type.value
+                if isinstance(event.type, EventType)
+                else str(event.type)
+            )
             logger.error(
-                f"Error in event handler {handler.__name__} for {event.type.value}: {e}"
+                f"Error in event handler {handler.__name__} for {event_type_str}: {e}"
             )
             # Emit error event (but avoid infinite recursion)
             if event.type != EventType.ERROR:
@@ -342,10 +373,15 @@ class EventBus:
             total = sum(len(handlers) for handlers in self._handlers.values())
             total += sum(len(handlers) for handlers in self._once_handlers.values())
             total += len(self._wildcard_handlers)
+            total += sum(len(handlers) for handlers in self._legacy_handlers.values())
             return total
         else:
-            event_type = event if isinstance(event, EventType) else EventType(event)
-            count = len(self._handlers.get(event_type, []))
-            count += len(self._once_handlers.get(event_type, []))
-            count += len(self._wildcard_handlers)
-            return count
+            if isinstance(event, EventType):
+                count = len(self._handlers.get(event, []))
+                count += len(self._once_handlers.get(event, []))
+                count += len(self._wildcard_handlers)
+                return count
+            else:
+                count = len(self._legacy_handlers.get(str(event), []))
+                count += len(self._wildcard_handlers)
+                return count

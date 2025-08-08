@@ -8,10 +8,7 @@ import pytest
 import pytz
 
 from project_x_py.exceptions import (
-    ProjectXAuthenticationError,
-    ProjectXConnectionError,
     ProjectXDataError,
-    ProjectXError,
     ProjectXOrderError,
     ProjectXRateLimitError,
 )

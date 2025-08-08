@@ -10,9 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from project_x_py import TradingSuite
 from project_x_py.event_bus import Event, EventBus, EventType
-from project_x_py.exceptions import ProjectXError
 
 
 @pytest.mark.asyncio

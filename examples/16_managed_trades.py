@@ -22,8 +22,7 @@ sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
 )
 
-from project_x_py import EventType, TradingSuite
-from project_x_py.types import OrderType
+from project_x_py import TradingSuite
 
 
 async def simple_long_trade(suite: TradingSuite):
@@ -60,12 +59,12 @@ async def simple_long_trade(suite: TradingSuite):
 
         # For demo purposes, show what would happen
         print("Trade execution steps:")
-        print(f"1. Calculate position size for 1% risk")
-        print(f"2. Validate trade against risk rules")
-        print(f"3. Place market/limit entry order")
+        print("1. Calculate position size for 1% risk")
+        print("2. Validate trade against risk rules")
+        print("3. Place market/limit entry order")
         print(f"4. Attach stop-loss at ${current_price - 50:,.2f}")
         print(f"5. Attach take-profit at ${current_price + 100:,.2f}")
-        print(f"6. Monitor position until exit")
+        print("6. Monitor position until exit")
 
     except ValueError as e:
         print(f"Trade rejected: {e}")
@@ -157,25 +156,25 @@ async def risk_validation_demo(suite: TradingSuite):
     )
     print(f"   Position size: {sizing['position_size']} contracts")
     print(f"   Risk amount: ${sizing['risk_amount']:,.2f}")
-    print(f"   ✓ Would pass validation")
+    print("   ✓ Would pass validation")
 
     # 2. Excessive position size
     print("\n2. Excessive position size:")
-    print(f"   Requested: 15 contracts")
+    print("   Requested: 15 contracts")
     print(f"   Max allowed: {suite.risk_manager.config.max_position_size}")
-    print(f"   ✗ Would be rejected")
+    print("   ✗ Would be rejected")
 
     # 3. Too many positions
     print("\n3. Too many open positions:")
-    print(f"   Current positions: 3")
+    print("   Current positions: 3")
     print(f"   Max allowed: {suite.risk_manager.config.max_positions}")
-    print(f"   ✗ Would be rejected")
+    print("   ✗ Would be rejected")
 
     # 4. Daily loss limit
     print("\n4. Daily loss limit reached:")
-    print(f"   Daily loss: 3.5%")
+    print("   Daily loss: 3.5%")
     print(f"   Max allowed: {suite.risk_manager.config.max_daily_loss * 100}%")
-    print(f"   ✗ Would be rejected")
+    print("   ✗ Would be rejected")
 
 
 async def main():
@@ -192,7 +191,7 @@ async def main():
     )
 
     print(f"✓ Suite created for {suite.instrument_id}")
-    print(f"✓ Risk manager enabled")
+    print("✓ Risk manager enabled")
 
     # Wait for data
     print("\nWaiting for data...")

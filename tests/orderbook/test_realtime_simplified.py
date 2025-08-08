@@ -1,11 +1,8 @@
 """Simplified tests for OrderBook public API only."""
 
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
-import polars as pl
 import pytest
-import pytz
 
 from project_x_py.orderbook import OrderBook
 

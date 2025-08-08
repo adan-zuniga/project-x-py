@@ -13,6 +13,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [3.0.1] - 2025-08-08
+
+### Added
+- **📄 GEMINI.md Documentation**: Comprehensive AI integration guide for the SDK
+  - Detailed SDK architecture overview
+  - Complete function reference for all components
+  - Code generation templates for trading strategies
+  - Advanced usage patterns and best practices
+  - Integration examples with AI-powered trading
+
+### Improved
+- **📚 Documentation Updates**: 
+  - Updated CLAUDE.md to reflect v3.0.1 production status
+  - Enhanced project status description
+  - Added Trading Suite usage examples
+  - Documented Event Bus system
+  - Added Risk Manager module documentation
+
+### Technical Details
+- **🔧 Production Hardening**: Final optimizations for production deployment
+- **✅ Test Suite**: Comprehensive test coverage across all modules
+- **🎯 Type Safety**: Full mypy compliance with strict type checking
+
+## [3.0.0] - 2025-08-07
+
+### Breaking Changes
+- **🏗️ Complete Architecture Overhaul**: Major v3 refactor for production readiness
+  - Removed all factory functions in favor of unified `TradingSuite`
+  - Simplified initialization with single entry point
+  - All examples updated to use new architecture
+  - No backward compatibility with v2.x factory functions
+
+### Added
+- **🎯 TradingSuite**: Unified trading interface for simplified SDK usage
+  - Single initialization point for all components
+  - Automatic component integration and dependency management
+  - Built-in event coordination between managers
+  - Simplified configuration with sensible defaults
+  ```python
+  suite = await TradingSuite.create(
+      instrument="MNQ",
+      timeframes=["1min", "5min"],
+      enable_orderbook=True,
+      enable_risk_management=True
+  )
+  ```
+
+- **📊 Comprehensive Type System**: Production-grade type definitions
+  - Protocol-based interfaces for all components
+  - Type-safe event definitions
+  - Structured configuration types
+  - Response type definitions for API calls
+  - Stats and metrics type definitions
+
+- **🔄 Event-Driven Architecture**: Unified event bus system
+  - Cross-component communication via EventBus
+  - Type-safe event handlers with priority support
+  - Built-in events for all trading operations
+  - Async event processing with error handling
+
+- **🛡️ Risk Manager**: Integrated risk management system
+  - Position limits and exposure controls
+  - Real-time risk monitoring
+  - Risk metrics and analytics
+  - Integration with order and position managers
+
+- **📈 Order Lifecycle Management**: Complete order tracking system
+  - Comprehensive order state tracking
+  - Order templates for common strategies
+  - Position-based order management
+  - Automatic order-position synchronization
+
+### Changed
+- **🔄 API Simplification**: Streamlined initialization process
+  - Single `TradingSuite.create()` replaces multiple factory functions
+  - Automatic component wiring and integration
+  - Simplified configuration with intelligent defaults
+  - Reduced boilerplate code by 80%
+
+- **📦 Module Organization**: Enhanced package structure
+  - All managers now properly integrated
+  - Consistent async patterns throughout
+  - Better separation of concerns
+  - Improved testability
+
+### Improved
+- **⚡ Performance**: Production-level optimizations
+  - Enhanced connection pooling
+  - Optimized memory management
+  - Efficient event processing
+  - Reduced API call overhead
+
+- **🧪 Test Coverage**: Comprehensive test suite
+  - 250+ tests across all modules
+  - Integration tests for complete workflows
+  - Performance and memory testing
+  - Error scenario coverage
+
+### Migration from v2.x to v3.0
+```python
+# Old (v2.x with factory functions)
+from project_x_py import create_trading_suite
+suite = await create_trading_suite(
+    instrument="MNQ",
+    project_x=client,
+    jwt_token=token,
+    account_id=account_id
+)
+
+# New (v3.0 with TradingSuite)
+from project_x_py import TradingSuite
+suite = await TradingSuite.create(
+    instrument="MNQ",
+    timeframes=["1min", "5min"]
+)
+# Client authentication handled internally
+```
+
+### Technical Details
+- **Phase 1**: Type system implementation (250+ type definitions)
+- **Phase 2**: Structured response types (30+ response models)
+- **Phase 3**: Event-driven architecture (20+ event types)
+- **Phase 4**: Data and order improvements (15+ enhancements)
+- **Phase 5**: Order lifecycle management (10+ tracking features)
+
 ## [2.0.8] - 2025-08-03
 
 ### Added

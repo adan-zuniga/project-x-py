@@ -385,6 +385,10 @@ class Position:
     size: int
     averagePrice: float
 
+    # Allow dict-like access for compatibility in tests/utilities
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
     @property
     def is_long(self) -> bool:
         """Check if this is a long position."""
