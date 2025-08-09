@@ -258,7 +258,10 @@ class OrderBookBase:
 
         # Cumulative delta tracking
         self.cumulative_delta = 0
-        self.delta_history: list[dict[str, Any]] = []
+        # Use deque for automatic size management of delta history
+        from collections import deque
+
+        self.delta_history: deque[dict[str, Any]] = deque(maxlen=1000)
 
         # VWAP tracking
         self.vwap_numerator = 0.0

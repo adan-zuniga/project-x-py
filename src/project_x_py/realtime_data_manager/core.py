@@ -367,7 +367,10 @@ class RealtimeDataManager(
         self.data: dict[str, pl.DataFrame] = {}
 
         # Real-time data components
-        self.current_tick_data: list[dict[str, Any]] = []
+        # Use deque for automatic size management of tick data
+        from collections import deque
+
+        self.current_tick_data: deque[dict[str, Any]] = deque(maxlen=10000)
         self.last_bar_times: dict[str, datetime] = {}
 
         # Async synchronization

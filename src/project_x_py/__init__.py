@@ -99,6 +99,9 @@ __version__ = "3.0.2"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
+# Enable uvloop for better async performance (if available and not on Windows)
+import sys
+
 from project_x_py.client import ProjectX
 
 # Configuration management
@@ -207,6 +210,14 @@ from project_x_py.utils import (
     round_to_tick_size,
     setup_logging,
 )
+
+if sys.platform != "win32":
+    try:
+        import uvloop
+
+        uvloop.install()
+    except ImportError:
+        pass  # uvloop not available, use default event loop
 
 __all__ = [
     # Data Models

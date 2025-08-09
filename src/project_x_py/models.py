@@ -477,6 +477,20 @@ class Trade:
         >>> print(f"{side_str} {trade.size} @ ${trade.price} - P&L: {pnl_str}")
     """
 
+    __slots__ = (
+        "accountId",
+        "contractId",
+        "creationTimestamp",
+        "fees",
+        "id",
+        "orderId",
+        "price",
+        "profitAndLoss",
+        "side",
+        "size",
+        "voided",
+    )
+
     id: int
     accountId: int
     contractId: str

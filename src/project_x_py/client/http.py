@@ -108,17 +108,17 @@ class HttpMixin:
         """
         # Configure timeout
         timeout = httpx.Timeout(
-            connect=10.0,
+            connect=5.0,  # Reduced from 10.0 for faster connection establishment
             read=self.config.timeout_seconds,
             write=self.config.timeout_seconds,
-            pool=self.config.timeout_seconds,
+            pool=5.0,  # Reduced pool timeout for faster failover
         )
 
-        # Configure limits for connection pooling
+        # Configure optimized limits for high-frequency trading
         limits = httpx.Limits(
-            max_keepalive_connections=20,
-            max_connections=100,
-            keepalive_expiry=30.0,
+            max_keepalive_connections=50,  # Increased from 20 for more persistent connections
+            max_connections=200,  # Increased from 100 for higher concurrency
+            keepalive_expiry=60.0,  # Increased from 30 to maintain connections longer
         )
 
         # Create async client with HTTP/2 support
