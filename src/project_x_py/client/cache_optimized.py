@@ -7,6 +7,8 @@ This module provides high-performance caching using:
 - cachetools for intelligent cache management
 """
 
+import gc
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -15,42 +17,69 @@ import msgpack  # type: ignore[import-untyped]
 import polars as pl
 from cachetools import LRUCache, TTLCache  # type: ignore[import-untyped]
 
+from project_x_py.models import Instrument
+
 if TYPE_CHECKING:
     from project_x_py.types import ProjectXClientProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class OptimizedCacheMixin:
     """
-    High-performance caching mixin with msgpack and lz4.
+    High-performance drop-in replacement for CacheMixin.
 
-    Provides 2-5x faster serialization and 70% memory reduction
-    compared to standard pickle-based caching.
+    This optimized version provides:
+    - 2-5x faster serialization with msgpack
+    - 70% memory reduction with lz4 compression
+    - Better cache eviction with LRU and TTL strategies
+    - Same interface as CacheMixin for compatibility
     """
 
-    def __init__(self: "ProjectXClientProtocol") -> None:
+    def __init__(self) -> None:
         """Initialize optimized caches."""
         super().__init__()
 
-        # LRU cache for instruments (max 1000 items)
-        self._instrument_cache = LRUCache(maxsize=1000)
+        # Internal optimized caches
+        self._opt_instrument_cache: LRUCache[str, Instrument] = LRUCache(maxsize=1000)
+        self._opt_instrument_cache_time: dict[str, float] = {}
 
-        # TTL cache for market data (5 minute TTL, max 10000 items)
-        self._market_data_cache = TTLCache(maxsize=10000, ttl=300)
+        self._opt_market_data_cache: TTLCache[str, bytes] = TTLCache(
+            maxsize=10000, ttl=300
+        )
+        self._opt_market_data_cache_time: dict[str, float] = {}
 
-        # Cache statistics
-        self._cache_hits = 0
-        self._cache_misses = 0
+        # Compatibility attributes for existing code
+        self._instrument_cache: dict[str, Instrument] = {}
+        self._instrument_cache_time: dict[str, float] = {}
+        self._market_data_cache: dict[str, pl.DataFrame] = {}
+        self._market_data_cache_time: dict[str, float] = {}
+
+        # Cache settings
+        self.cache_ttl = 300  # 5 minutes default
+        self.last_cache_cleanup = time.time()
+        self.cache_hit_count = 0
 
         # Compression settings
         self.compression_threshold = 1024  # Compress data > 1KB
         self.compression_level = 3  # lz4 compression level (0-16)
 
-    def _serialize_for_cache(self, data: Any) -> bytes:
+    def _serialize_dataframe(self, df: pl.DataFrame) -> bytes:
         """
-        Serialize data using msgpack with optional lz4 compression.
+        Serialize Polars DataFrame efficiently using msgpack.
 
-        2-5x faster than pickle, with 50% smaller output.
+        Optimized for DataFrames with numeric data.
         """
+        if df.is_empty():
+            return b""
+
+        # Convert to dictionary format for msgpack
+        data = {
+            "schema": {name: str(dtype) for name, dtype in df.schema.items()},
+            "columns": {col: df[col].to_list() for col in df.columns},
+            "shape": df.shape,
+        }
+
         # Use msgpack for serialization
         packed = msgpack.packb(
             data,
@@ -69,12 +98,11 @@ class OptimizedCacheMixin:
             # Add header to indicate compression
             return b"LZ4" + compressed
 
-        result: bytes = b"RAW" + packed
-        return result
+        return b"RAW" + packed
 
-    def _deserialize_from_cache(self, data: bytes) -> Any:
+    def _deserialize_dataframe(self, data: bytes) -> pl.DataFrame | None:
         """
-        Deserialize data from cache with automatic decompression.
+        Deserialize DataFrame from cached bytes.
         """
         if not data:
             return None
@@ -90,95 +118,185 @@ class OptimizedCacheMixin:
             except Exception:
                 # Fall back to raw data if decompression fails
                 payload = data[3:]
-
-        # Deserialize with msgpack
-        return msgpack.unpackb(payload, raw=False, timestamp=3)
-
-    def serialize_dataframe(self, df: pl.DataFrame) -> bytes:
-        """
-        Serialize Polars DataFrame efficiently using msgpack.
-
-        Optimized for DataFrames with numeric data.
-        """
-        if df.is_empty():
-            return b""
-
-        # Convert to dictionary format for msgpack
-        data = {
-            "schema": {name: str(dtype) for name, dtype in df.schema.items()},
-            "columns": {col: df[col].to_list() for col in df.columns},
-            "shape": df.shape,
-        }
-
-        # Serialize and compress
-        return self._serialize_for_cache(data)
-
-    def deserialize_dataframe(self, data: bytes) -> pl.DataFrame | None:
-        """
-        Deserialize DataFrame from cached bytes.
-        """
-        if not data:
-            return None
+        elif header == b"RAW":
+            pass  # Already uncompressed
+        else:
+            # Legacy uncompressed data
+            payload = data
 
         try:
-            unpacked = self._deserialize_from_cache(data)
+            # Deserialize with msgpack
+            unpacked = msgpack.unpackb(payload, raw=False, timestamp=3)
             if not unpacked or "columns" not in unpacked:
                 return None
 
             # Reconstruct DataFrame
             return pl.DataFrame(unpacked["columns"])
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to deserialize DataFrame: {e}")
             return None
 
-    def cache_get(self, cache_name: str, key: str) -> Any:
+    def get_cached_instrument(self, symbol: str) -> Instrument | None:
         """
-        Get item from specified cache with statistics tracking.
-        """
-        cache = getattr(self, f"_{cache_name}_cache", None)
-        if not cache:
-            return None
+        Get cached instrument data if available and not expired.
 
-        value = cache.get(key)
-        if value is not None:
-            self._cache_hits += 1
-        else:
-            self._cache_misses += 1
+        Compatible with CacheMixin interface.
 
-        return value
+        Args:
+            symbol: Trading symbol
 
-    def cache_set(self, cache_name: str, key: str, value: Any) -> None:
+        Returns:
+            Cached instrument or None if not found/expired
         """
-        Set item in specified cache.
+        cache_key = symbol.upper()
+
+        # Try optimized cache first
+        if cache_key in self._opt_instrument_cache:
+            self.cache_hit_count += 1
+            return self._opt_instrument_cache[cache_key]
+
+        return None
+
+    def cache_instrument(self, symbol: str, instrument: Instrument) -> None:
         """
-        cache = getattr(self, f"_{cache_name}_cache", None)
-        if cache:
-            cache[key] = value
+        Cache instrument data.
+
+        Compatible with CacheMixin interface.
+
+        Args:
+            symbol: Trading symbol
+            instrument: Instrument object to cache
+        """
+        cache_key = symbol.upper()
+
+        # Store in optimized cache
+        self._opt_instrument_cache[cache_key] = instrument
+        self._opt_instrument_cache_time[cache_key] = time.time()
+
+        # Also store in compatibility dict for any code that accesses it directly
+        self._instrument_cache[cache_key] = instrument
+        self._instrument_cache_time[cache_key] = time.time()
+
+    def get_cached_market_data(self, cache_key: str) -> pl.DataFrame | None:
+        """
+        Get cached market data if available and not expired.
+
+        Compatible with CacheMixin interface.
+
+        Args:
+            cache_key: Unique key for the cached data
+
+        Returns:
+            Cached DataFrame or None if not found/expired
+        """
+        # Try optimized cache first
+        if cache_key in self._opt_market_data_cache:
+            serialized = self._opt_market_data_cache[cache_key]
+            df = self._deserialize_dataframe(serialized)
+            if df is not None:
+                self.cache_hit_count += 1
+                return df
+
+        return None
+
+    def cache_market_data(self, cache_key: str, data: pl.DataFrame) -> None:
+        """
+        Cache market data.
+
+        Compatible with CacheMixin interface.
+
+        Args:
+            cache_key: Unique key for the data
+            data: DataFrame to cache
+        """
+        # Serialize and store in optimized cache
+        serialized = self._serialize_dataframe(data)
+        self._opt_market_data_cache[cache_key] = serialized
+        self._opt_market_data_cache_time[cache_key] = time.time()
+
+        # Also store in compatibility dict (limited size to prevent memory issues)
+        if len(self._market_data_cache) < 100:  # Keep only recent 100 for compatibility
+            self._market_data_cache[cache_key] = data
+            self._market_data_cache_time[cache_key] = time.time()
+
+    async def _cleanup_cache(self: "ProjectXClientProtocol") -> None:
+        """
+        Clean up expired cache entries to manage memory usage.
+
+        Compatible with CacheMixin interface.
+        """
+        current_time = time.time()
+
+        # Clean compatibility dicts (same as original CacheMixin)
+        expired_instruments = [
+            symbol
+            for symbol, cache_time in self._instrument_cache_time.items()
+            if current_time - cache_time > self.cache_ttl
+        ]
+        for symbol in expired_instruments:
+            del self._instrument_cache[symbol]
+            del self._instrument_cache_time[symbol]
+
+        expired_data = [
+            key
+            for key, cache_time in self._market_data_cache_time.items()
+            if current_time - cache_time > self.cache_ttl
+        ]
+        for key in expired_data:
+            del self._market_data_cache[key]
+            del self._market_data_cache_time[key]
+
+        self.last_cache_cleanup = current_time
+
+        # Force garbage collection if caches were large
+        if len(expired_instruments) > 10 or len(expired_data) > 10:
+            gc.collect()
+
+    def clear_all_caches(self) -> None:
+        """
+        Clear all cached data.
+
+        Compatible with CacheMixin interface.
+        """
+        # Clear optimized caches
+        self._opt_instrument_cache.clear()
+        self._opt_instrument_cache_time.clear()
+        self._opt_market_data_cache.clear()
+        self._opt_market_data_cache_time.clear()
+
+        # Clear compatibility caches
+        self._instrument_cache.clear()
+        self._instrument_cache_time.clear()
+        self._market_data_cache.clear()
+        self._market_data_cache_time.clear()
+
+        # Reset stats
+        self.cache_hit_count = 0
+        gc.collect()
 
     def get_cache_stats(self) -> dict[str, Any]:
         """
         Get comprehensive cache statistics.
+
+        Extended version with optimization metrics.
         """
-        hit_rate = (
-            self._cache_hits / (self._cache_hits + self._cache_misses)
-            if (self._cache_hits + self._cache_misses) > 0
-            else 0
-        )
+        total_hits = self.cache_hit_count
 
         return {
-            "cache_hits": self._cache_hits,
-            "cache_misses": self._cache_misses,
-            "hit_rate": hit_rate,
-            "instrument_cache_size": len(self._instrument_cache),
-            "market_data_cache_size": len(self._market_data_cache),
-            "instrument_cache_max": self._instrument_cache.maxsize,
-            "market_data_cache_max": self._market_data_cache.maxsize,
+            "cache_hits": total_hits,
+            "instrument_cache_size": len(self._opt_instrument_cache),
+            "market_data_cache_size": len(self._opt_market_data_cache),
+            "instrument_cache_max": getattr(
+                self._opt_instrument_cache, "maxsize", 1000
+            ),
+            "market_data_cache_max": getattr(
+                self._opt_market_data_cache, "maxsize", 10000
+            ),
+            "compression_enabled": True,
+            "serialization": "msgpack",
+            "compression": "lz4",
         }
 
-    def clear_all_caches(self) -> None:
-        """
-        Clear all caches and reset statistics.
-        """
-        self._instrument_cache.clear()
-        self._market_data_cache.clear()
-        self._cache_hits = 0
-        self._cache_misses = 0
+
+# Alias for backwards compatibility
+CacheMixin = OptimizedCacheMixin

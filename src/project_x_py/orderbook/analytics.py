@@ -620,9 +620,9 @@ class MarketAnalytics:
                 max_price = self.orderbook.recent_trades["price"].max()
                 min_price = self.orderbook.recent_trades["price"].min()
                 # Handle Polars return types
-                if isinstance(max_price, (int, float)):
+                if isinstance(max_price, int | float):
                     session_high = int(max_price)
-                if isinstance(min_price, (int, float)):
+                if isinstance(min_price, int | float):
                     session_low = int(min_price)
 
             # Calculate basic stats
