@@ -316,21 +316,25 @@ class OrderBookBase:
             best_bid = None
             best_ask = None
 
-            # Get best bid (highest price)
+            # Get best bid (highest price) - optimized with chaining
             if self.orderbook_bids.height > 0:
-                bid_with_volume = self.orderbook_bids.filter(pl.col("volume") > 0).sort(
-                    "price", descending=True
+                bid_with_volume = (
+                    self.orderbook_bids.filter(pl.col("volume") > 0)
+                    .sort("price", descending=True)
+                    .head(1)
                 )
                 if bid_with_volume.height > 0:
-                    best_bid = float(bid_with_volume.row(0)[0])
+                    best_bid = float(bid_with_volume["price"][0])
 
-            # Get best ask (lowest price)
+            # Get best ask (lowest price) - optimized with chaining
             if self.orderbook_asks.height > 0:
-                ask_with_volume = self.orderbook_asks.filter(pl.col("volume") > 0).sort(
-                    "price", descending=False
+                ask_with_volume = (
+                    self.orderbook_asks.filter(pl.col("volume") > 0)
+                    .sort("price", descending=False)
+                    .head(1)
                 )
                 if ask_with_volume.height > 0:
-                    best_ask = float(ask_with_volume.row(0)[0])
+                    best_ask = float(ask_with_volume["price"][0])
 
             # Calculate spread
             spread = None
@@ -437,11 +441,13 @@ class OrderBookBase:
                     },
                 )
 
-            # Get top N bid levels by price
+            # Get top N bid levels by price - optimized chaining
             return (
-                self.orderbook_bids.filter(pl.col("volume") > 0)
+                self.orderbook_bids.lazy()  # Use lazy evaluation for better performance
+                .filter(pl.col("volume") > 0)
                 .sort("price", descending=True)
                 .head(levels)
+                .collect()
             )
         except Exception as e:
             self.logger.error(
@@ -469,11 +475,13 @@ class OrderBookBase:
                     },
                 )
 
-            # Get top N ask levels by price
+            # Get top N ask levels by price - optimized chaining
             return (
-                self.orderbook_asks.filter(pl.col("volume") > 0)
+                self.orderbook_asks.lazy()  # Use lazy evaluation for better performance
+                .filter(pl.col("volume") > 0)
                 .sort("price", descending=False)
                 .head(levels)
+                .collect()
             )
         except Exception as e:
             self.logger.error(

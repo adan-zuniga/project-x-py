@@ -592,12 +592,21 @@ class MarketAnalytics:
             sell_trades = 0
             total_trade_volume = 0
             if not self.orderbook.recent_trades.is_empty():
-                buy_trades = self.orderbook.recent_trades.filter(
-                    pl.col("side") == "buy"
-                ).height
-                sell_trades = self.orderbook.recent_trades.filter(
-                    pl.col("side") == "sell"
-                ).height
+                # Optimized: Single pass through data with aggregation
+                trade_stats = self.orderbook.recent_trades.group_by("side").agg(
+                    [
+                        pl.count().alias("count"),
+                        pl.col("volume").sum().alias("total_volume"),
+                    ]
+                )
+
+                # Extract buy/sell counts
+                for row in trade_stats.iter_rows(named=True):
+                    if row["side"] == "buy":
+                        buy_trades = row["count"]
+                    elif row["side"] == "sell":
+                        sell_trades = row["count"]
+
                 total_trade_volume = int(self.orderbook.recent_trades["volume"].sum())
 
             avg_trade_size = int(
