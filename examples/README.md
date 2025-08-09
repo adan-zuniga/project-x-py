@@ -1,6 +1,8 @@
-# ProjectX Python SDK Examples
+# ProjectX Python SDK Examples (v3.1.0)
 
-This directory contains comprehensive working examples demonstrating all major features of the ProjectX Python SDK. All examples use **MNQ (Micro E-mini NASDAQ)** contracts to minimize risk during testing.
+This directory contains comprehensive working examples demonstrating all major features of the ProjectX Python SDK v3.1.0. All examples use **MNQ (Micro E-mini NASDAQ)** contracts to minimize risk during testing.
+
+**Note:** Version 3.1.0 includes significant performance improvements with memory-mapped overflow storage, orjson integration, and WebSocket batching for 2-5x performance gains.
 
 ## ⚠️ Important Safety Notice
 

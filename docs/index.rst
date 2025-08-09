@@ -17,10 +17,10 @@ project-x-py Documentation
    :target: https://project-x-py.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-**project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 55+ TA-Lib compatible indicators.
+**project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
 .. note::
-   **Version 3.0.0**: Complete async architecture with EventBus integration for unified event handling. All components now use factory functions and dependency injection patterns. Enterprise-grade error handling with centralized logging and comprehensive retry mechanisms.
+   **Version 3.1.0**: High-performance production suite with 2-5x performance improvements. Features memory-mapped overflow storage, orjson integration, WebSocket message batching, and advanced caching with compression. Complete async architecture with unified TradingSuite interface.
 
 .. warning::
    **Development Phase**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
@@ -47,37 +47,33 @@ Set up your credentials::
 Start trading::
 
    import asyncio
-   from project_x_py import ProjectX
+   from project_x_py import TradingSuite
    from project_x_py.indicators import RSI, SMA, MACD
    
    async def main():
-       # V3: Create client with async context manager
-       async with ProjectX.from_env() as client:
-           await client.authenticate()
-           
-           # Get market data with technical analysis
-           data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
-           data = RSI(data, period=14)         # Add RSI
-           data = SMA(data, period=20)         # Add moving average
-           data = MACD(data)                   # Add MACD
-           
-           # V3: Place an order with JWT authentication
-           from project_x_py import create_order_manager, create_realtime_client
-           instrument = await client.get_instrument('MNQ')
-           
-           # V3: Create realtime client with JWT and account ID
-           realtime_client = await create_realtime_client(
-               jwt_token=client.jwt_token,
-               account_id=str(client.account_id)
-           )
-           order_manager = create_order_manager(client, realtime_client)
-           
-           response = await order_manager.place_limit_order(
-               contract_id=instrument.id, 
-               side=0, 
-               size=1, 
-               limit_price=21050.0  # V3: realistic MNQ price
-           )
+       # V3.1: Use unified TradingSuite for simplified initialization
+       suite = await TradingSuite.create(
+           instrument="MNQ",
+           timeframes=["1min", "5min"],
+           features=["orderbook", "risk_manager"]
+       )
+       
+       # Get market data with technical analysis
+       data = await suite.client.get_bars('MNQ', days=30, interval=60)
+       data = RSI(data, period=14)         # Add RSI
+       data = SMA(data, period=20)         # Add moving average
+       data = MACD(data)                   # Add MACD
+       
+       # Place an order using the integrated order manager
+       response = await suite.orders.place_limit_order(
+           contract_id=suite.instrument.id, 
+           side=0, 
+           size=1, 
+           limit_price=21050.0
+       )
+       
+       # Clean up when done
+       await suite.disconnect()
    
    # Run the async function
    asyncio.run(main())
@@ -95,7 +91,7 @@ Key Features
    * Async historical OHLCV data with multiple timeframes
    * Real-time market data feeds via async WebSocket
    * **Level 2 orderbook analysis** with institutional-grade features
-   * **55+ Technical Indicators** with TA-Lib compatibility (RSI, MACD, Bollinger Bands, etc.)
+   * **58+ Technical Indicators** with TA-Lib compatibility (RSI, MACD, Bollinger Bands, Pattern Recognition, etc.)
    * **Advanced market microstructure** analysis (iceberg detection, order flow, volume profile)
 
 🔧 **Developer Tools**

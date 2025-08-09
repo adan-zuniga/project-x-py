@@ -81,34 +81,26 @@ Step 4: Place Your First Order
 
 .. code-block:: python
 
-   from project_x_py import create_order_manager, create_realtime_client
+   from project_x_py import TradingSuite
 
    async def place_order():
-       async with ProjectX.from_env() as client:
-           await client.authenticate()
-           
-           # Get instrument details first
-           instrument = await client.get_instrument('MNQ')  # V3: actual symbol
-           
-           # V3: Create realtime client with JWT token and account ID
-           realtime_client = await create_realtime_client(
-               jwt_token=client.jwt_token,
-               account_id=str(client.account_id)
-           )
-           order_manager = create_order_manager(client, realtime_client)
+       # V3.1: Use TradingSuite for simplified initialization
+       suite = await TradingSuite.create("MNQ")
+       
+       # Place a limit order using the integrated order manager
+       response = await suite.orders.place_limit_order(
+           contract_id=suite.instrument.id,  # Use pre-loaded instrument ID
+           side=0,                     # 0=Buy, 1=Sell
+           size=1,                     # 1 contract
+           limit_price=21050.0         # Limit price
+       )
 
-           # Place a limit order
-           response = await order_manager.place_limit_order(
-               contract_id=instrument.id,  # Use instrument ID
-               side=0,                     # 0=Buy, 1=Sell
-               size=1,                     # 1 contract
-               limit_price=21050.0         # Limit price (V3: realistic MNQ price)
-           )
-
-           if response.success:
-               print(f"Order placed! Order ID: {response.orderId}")
-           else:
-               print(f"Order failed: {response}")
+       if response.success:
+           print(f"Order placed! Order ID: {response.orderId}")
+       else:
+           print(f"Order failed: {response}")
+       
+       await suite.disconnect()
 
    asyncio.run(place_order())
 
@@ -117,28 +109,23 @@ Step 5: Monitor Positions
 
 .. code-block:: python
 
-   from project_x_py import create_position_manager, create_realtime_client
+   from project_x_py import TradingSuite
 
    async def monitor_positions():
-       async with ProjectX.from_env() as client:
-           await client.authenticate()
-           
-           # V3: Create realtime client with JWT and account ID
-           realtime_client = await create_realtime_client(
-               jwt_token=client.jwt_token,
-               account_id=str(client.account_id)
-           )
-           position_manager = create_position_manager(client, realtime_client)
+       # V3.1: Use TradingSuite for all components
+       suite = await TradingSuite.create("MNQ")
+       
+       # Get all open positions using integrated position manager
+       positions = await suite.positions.get_all_positions()
+       for position in positions:
+           direction = "LONG" if position.side == 0 else "SHORT"
+           print(f"{position.contract_id}: {direction} {position.size} @ ${position.average_price:.2f}")
 
-           # Get all open positions
-           positions = await position_manager.get_all_positions()
-           for position in positions:
-               direction = "LONG" if position.side == 0 else "SHORT"
-               print(f"{position.contract_id}: {direction} {position.size} @ ${position.average_price:.2f}")
-
-           # Get portfolio metrics
-           portfolio = await position_manager.get_portfolio_pnl()
-           print(f"Total positions: {portfolio['position_count']}")
+       # Get portfolio metrics
+       portfolio = await suite.positions.get_portfolio_pnl()
+       print(f"Total positions: {portfolio['position_count']}")
+       
+       await suite.disconnect()
 
    asyncio.run(monitor_positions())
 
@@ -147,38 +134,27 @@ Step 6: Real-time Data (Optional)
 
 .. code-block:: python
 
-   from project_x_py import create_trading_suite
-   from project_x_py.events import EventBus, EventType
+   from project_x_py import TradingSuite, EventType
 
    async def setup_realtime():
-       async with ProjectX.from_env() as client:
-           await client.authenticate()
-           
-           # V3: Create complete trading suite with EventBus
-           suite = await create_trading_suite(
-               instrument='MNQ',  # V3: actual symbol
-               project_x=client,
-               jwt_token=client.jwt_token,
-               account_id=client.account_id,
-               timeframes=['1min', '5min', '15min']
-           )
+       # V3.1: Use TradingSuite for complete setup
+       suite = await TradingSuite.create(
+           instrument='MNQ',
+           timeframes=['1min', '5min', '15min']
+       )
 
-           # V3: Register event handlers via EventBus
-           @suite.event_bus.on(EventType.NEW_BAR)
-           async def on_new_bar(data):
-               print(f"New bar: {data['timeframe']} - {data['close']}")
+       # Register event handlers via integrated EventBus
+       @suite.events.on(EventType.NEW_BAR)
+       async def on_new_bar(event):
+           print(f"New bar: {event.data['timeframe']} - {event.data['close']}")
 
-           # V3: Connect and start real-time feeds
-           await suite.realtime_client.connect()
-           await suite.data_manager.initialize(initial_days=1)
-           await suite.data_manager.start_realtime_feed()
-
-           # V3: Access components directly
-           live_data = await suite.data_manager.get_data('5min')
-           print(f"Live data: {len(live_data)} bars")
-           
-           # Keep running for 60 seconds to collect data
-           await asyncio.sleep(60)
+       # Access live data (automatically initialized)
+       live_data = await suite.data.get_data('5min')
+       print(f"Live data: {len(live_data)} bars")
+       
+       # Keep running for 60 seconds to collect data
+       await asyncio.sleep(60)
+       await suite.disconnect()
 
    asyncio.run(setup_realtime())
 
