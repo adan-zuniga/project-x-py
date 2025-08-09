@@ -109,10 +109,21 @@ class BatchedWebSocketHandler:
                 if self.process_callback:
                     try:
                         await self.process_callback(batch)
+                    except asyncio.CancelledError:
+                        # Re-raise cancellation for proper shutdown
+                        raise
                     except Exception as e:
                         logger.error(
-                            f"Error processing batch of {len(batch)} messages: {e}"
+                            f"Error processing batch of {len(batch)} messages: {e}",
+                            exc_info=True,
                         )
+                        # Track failures for circuit breaker
+                        self.failed_batches = getattr(self, "failed_batches", 0) + 1
+                        if self.failed_batches > 10:
+                            logger.critical(
+                                "Batch processing circuit breaker triggered"
+                            )
+                            self.processing = False
 
                 # Update metrics
                 processing_time = time.time() - start_time

@@ -57,9 +57,13 @@ class CacheMixin:
         )
         self._opt_market_data_cache_time: dict[str, float] = {}
 
-        # Compression settings
-        self.compression_threshold = 1024  # Compress data > 1KB
-        self.compression_level = 3  # lz4 compression level (0-16)
+        # Compression settings (configurable)
+        self.compression_threshold = getattr(self, "config", {}).get(
+            "compression_threshold", 1024
+        )  # Compress data > 1KB
+        self.compression_level = getattr(self, "config", {}).get(
+            "compression_level", 3
+        )  # lz4 compression level (0-16)
 
     def _serialize_dataframe(self, df: pl.DataFrame) -> bytes:
         """

@@ -6,7 +6,8 @@ when in-memory limits are reached, preventing memory exhaustion while
 maintaining fast access to recent data.
 """
 
-from datetime import datetime
+from contextlib import suppress
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -41,11 +42,31 @@ class MMapOverflowMixin:
         """Initialize memory-mapped overflow storage."""
         super().__init__()
 
-        # Storage configuration
-        self.enable_mmap_overflow = True
-        self.overflow_threshold = 0.8  # Start overflow at 80% of max bars
-        self.mmap_storage_path = Path.home() / ".projectx" / "data_overflow"
-        self.mmap_storage_path.mkdir(parents=True, exist_ok=True)
+        # Storage configuration (can be overridden via config)
+        self.enable_mmap_overflow = getattr(self, "config", {}).get(
+            "enable_mmap_overflow", True
+        )
+        self.overflow_threshold = getattr(self, "config", {}).get(
+            "overflow_threshold", 0.8
+        )  # Start overflow at 80% of max bars
+
+        # Validate and create storage path
+        base_path = getattr(self, "config", {}).get(
+            "mmap_storage_path", Path.home() / ".projectx" / "data_overflow"
+        )
+        self.mmap_storage_path = Path(base_path)
+
+        # Validate path to prevent directory traversal
+        try:
+            self.mmap_storage_path = self.mmap_storage_path.resolve()
+            if not str(self.mmap_storage_path).startswith(str(Path.home())):
+                raise ValueError(f"Invalid storage path: {self.mmap_storage_path}")
+            self.mmap_storage_path.mkdir(
+                parents=True, exist_ok=True, mode=0o700
+            )  # Secure permissions
+        except Exception as e:
+            logger.error(f"Failed to create overflow storage directory: {e}")
+            self.enable_mmap_overflow = False
 
         # Storage instances per timeframe
         self._mmap_storages: dict[str, MemoryMappedStorage] = {}
@@ -260,18 +281,42 @@ class MMapOverflowMixin:
     async def cleanup_overflow_storage(self) -> None:
         """Clean up old overflow files and close storage instances."""
         try:
-            # Close all storage instances
-            for storage in self._mmap_storages.values():
-                storage.close()
+            # Close all storage instances properly
+            for timeframe, storage in list(self._mmap_storages.items()):
+                try:
+                    storage.close()
+                    logger.debug(f"Closed mmap storage for {timeframe}")
+                except Exception as e:
+                    logger.warning(f"Error closing storage for {timeframe}: {e}")
             self._mmap_storages.clear()
 
-            # Clean up old files (optional - keep last N days)
-            # This could be configured based on requirements
+            # Clean up old files based on config
+            cleanup_days = getattr(self, "config", {}).get("mmap_cleanup_days", 7)
+            if cleanup_days > 0:
+                cutoff_time = datetime.now() - timedelta(days=cleanup_days)
+                try:
+                    for file_path in self.mmap_storage_path.glob("*.mmap"):
+                        if file_path.stat().st_mtime < cutoff_time.timestamp():
+                            file_path.unlink()
+                            # Also remove metadata file
+                            meta_path = file_path.with_suffix(".meta")
+                            if meta_path.exists():
+                                meta_path.unlink()
+                            logger.info(f"Removed old overflow file: {file_path.name}")
+                except Exception as e:
+                    logger.warning(f"Error cleaning old files: {e}")
 
             logger.info("Cleaned up overflow storage")
 
         except Exception as e:
             logger.error(f"Error cleaning up overflow storage: {e}")
+
+    def __del__(self) -> None:
+        """Ensure cleanup on deletion."""
+        # Synchronous cleanup for destructor
+        for storage in self._mmap_storages.values():
+            with suppress(Exception):
+                storage.close()
 
     def get_overflow_stats(self) -> dict[str, Any]:
         """
