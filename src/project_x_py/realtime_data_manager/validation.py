@@ -91,9 +91,10 @@ See Also:
     - `realtime_data_manager.memory_management.MemoryManagementMixin`
 """
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
+
+import orjson
 
 if TYPE_CHECKING:
     from project_x_py.types import RealtimeDataManagerProtocol
@@ -114,11 +115,11 @@ class ValidationMixin:
                 self.logger.debug(
                     f"Attempting to parse trade JSON string: {trade_data[:200]}..."
                 )
-                trade_data = json.loads(trade_data)
+                trade_data = orjson.loads(trade_data)
                 self.logger.debug(
                     f"Successfully parsed JSON string payload: {type(trade_data)}"
                 )
-            except (json.JSONDecodeError, ValueError) as e:
+            except (orjson.JSONDecodeError, ValueError) as e:
                 self.logger.warning(f"Failed to parse trade payload JSON: {e}")
                 self.logger.warning(f"Trade payload content: {trade_data[:500]}...")
                 return None
@@ -180,11 +181,11 @@ class ValidationMixin:
                 self.logger.debug(
                     f"Attempting to parse quote JSON string: {quote_data[:200]}..."
                 )
-                quote_data = json.loads(quote_data)
+                quote_data = orjson.loads(quote_data)
                 self.logger.debug(
                     f"Successfully parsed JSON string payload: {type(quote_data)}"
                 )
-            except (json.JSONDecodeError, ValueError) as e:
+            except (orjson.JSONDecodeError, ValueError) as e:
                 self.logger.warning(f"Failed to parse quote payload JSON: {e}")
                 self.logger.warning(f"Quote payload content: {quote_data[:500]}...")
                 return None

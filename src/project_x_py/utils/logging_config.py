@@ -97,11 +97,12 @@ See Also:
     - `utils.async_rate_limiter`: Rate limiting with logging
 """
 
-import json
 import logging
 import sys
 from datetime import UTC, datetime
 from typing import Any
+
+import orjson
 
 
 class StructuredFormatter(logging.Formatter):
@@ -166,7 +167,7 @@ class StructuredFormatter(logging.Formatter):
             )
         else:
             # For production, use JSON format
-            return json.dumps(log_data, default=str)
+            return orjson.dumps(log_data, default=str).decode("utf-8")
 
 
 class ProjectXLogger:

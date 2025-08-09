@@ -33,7 +33,6 @@ Example Usage:
     ```
 """
 
-import json
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime
 from enum import Enum
@@ -41,6 +40,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+import orjson
 import yaml
 
 from project_x_py.client import ProjectX
@@ -355,13 +355,14 @@ class TradingSuite:
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
         # Load configuration
-        with open(path) as f:
-            if path.suffix in [".yaml", ".yml"]:
+        if path.suffix in [".yaml", ".yml"]:
+            with open(path) as f:
                 data = yaml.safe_load(f)
-            elif path.suffix == ".json":
-                data = json.load(f)
-            else:
-                raise ValueError(f"Unsupported config format: {path.suffix}")
+        elif path.suffix == ".json":
+            with open(path, "rb") as f:
+                data = orjson.loads(f.read())
+        else:
+            raise ValueError(f"Unsupported config format: {path.suffix}")
 
         # Create suite with loaded configuration
         return await cls.create(**data)
