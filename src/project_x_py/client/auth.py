@@ -53,10 +53,10 @@ See Also:
 
 import base64
 import datetime
-import json
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+import orjson
 import pytz
 
 from project_x_py.exceptions import ProjectXAuthenticationError
@@ -177,7 +177,7 @@ class AuthenticationMixin:
                 token_payload = token_parts[1]
                 token_payload += "=" * (4 - len(token_payload) % 4)
                 decoded = base64.urlsafe_b64decode(token_payload)
-                token_data = json.loads(decoded)
+                token_data = orjson.loads(decoded)
                 self.token_expiry = datetime.datetime.fromtimestamp(
                     token_data["exp"], tz=pytz.UTC
                 )

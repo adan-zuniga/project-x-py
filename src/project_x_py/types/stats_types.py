@@ -63,7 +63,7 @@ See Also:
     - `types.base`: Core type definitions and constants
 """
 
-from typing import NotRequired, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 
 # TradingSuite Statistics Types
@@ -220,6 +220,9 @@ class RealtimeDataManagerStats(TypedDict):
     data_validation_errors: int
     connection_interruptions: int
     recovery_attempts: int
+
+    # Overflow statistics (optional)
+    overflow_stats: NotRequired[dict[str, Any]]
 
 
 class OrderbookStats(TypedDict):

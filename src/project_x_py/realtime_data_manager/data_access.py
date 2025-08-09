@@ -92,6 +92,7 @@ See Also:
 
 import asyncio
 import logging
+from collections import deque
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -110,7 +111,7 @@ class DataAccessMixin:
     if TYPE_CHECKING:
         data_lock: "asyncio.Lock"
         data: dict[str, pl.DataFrame]
-        current_tick_data: list[dict[str, Any]]
+        current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
 
     async def get_data(
         self,

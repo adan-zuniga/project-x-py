@@ -375,9 +375,6 @@ class MarketAnalytics:
                 "timing_risk": timing_risk,
                 "liquidity_premium": liquidity_premium,
                 "implementation_shortfall": implementation_shortfall,
-                "total_bid_volume": bid_volume,
-                "total_ask_volume": ask_volume,
-                "market_depth_score": confidence_level / 100.0,
                 "timestamp": current_time.isoformat(),
             }
 
@@ -595,15 +592,24 @@ class MarketAnalytics:
             sell_trades = 0
             total_trade_volume = 0
             if not self.orderbook.recent_trades.is_empty():
-                buy_trades = self.orderbook.recent_trades.filter(
-                    pl.col("side") == "buy"
-                ).height
-                sell_trades = self.orderbook.recent_trades.filter(
-                    pl.col("side") == "sell"
-                ).height
-                total_trade_volume = self.orderbook.recent_trades["volume"].sum()
+                # Optimized: Single pass through data with aggregation
+                trade_stats = self.orderbook.recent_trades.group_by("side").agg(
+                    [
+                        pl.count().alias("count"),
+                        pl.col("volume").sum().alias("total_volume"),
+                    ]
+                )
 
-            avg_trade_size = (
+                # Extract buy/sell counts
+                for row in trade_stats.iter_rows(named=True):
+                    if row["side"] == "buy":
+                        buy_trades = row["count"]
+                    elif row["side"] == "sell":
+                        sell_trades = row["count"]
+
+                total_trade_volume = int(self.orderbook.recent_trades["volume"].sum())
+
+            avg_trade_size = int(
                 total_trade_volume / self.orderbook.recent_trades.height
                 if self.orderbook.recent_trades.height > 0
                 else 0
@@ -620,8 +626,13 @@ class MarketAnalytics:
             session_high = 0
             session_low = 0
             if not self.orderbook.recent_trades.is_empty():
-                session_high = self.orderbook.recent_trades["price"].max()
-                session_low = self.orderbook.recent_trades["price"].min()
+                max_price = self.orderbook.recent_trades["price"].max()
+                min_price = self.orderbook.recent_trades["price"].min()
+                # Handle Polars return types
+                if isinstance(max_price, int | float):
+                    session_high = int(max_price)
+                if isinstance(min_price, int | float):
+                    session_low = int(min_price)
 
             # Calculate basic stats
             stats = {

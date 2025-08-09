@@ -1,6 +1,6 @@
 [project]
 name = "project-x-py"
-version = "3.0.2"
+version = "3.1.0"
 description = "High-performance Python SDK for futures trading with real-time WebSocket data, technical indicators, order management, and market depth analysis"
 readme = "README.md"
 license = { text = "MIT" }
@@ -41,6 +41,11 @@ dependencies = [
     "websocket-client>=1.0.0",
     "pydantic>=2.11.7",
     "pyyaml>=6.0.2",
+    "orjson>=3.11.1",
+    "uvloop>=0.21.0",
+    "msgpack-python>=0.5.6",
+    "lz4>=4.4.4",
+    "cachetools>=6.1.0",
 ]
 
 [project.optional-dependencies]

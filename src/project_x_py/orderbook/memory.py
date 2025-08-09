@@ -331,13 +331,8 @@ class MemoryManager:
             ]
             self.memory_stats["history_cleaned"] += removed
 
-        # Delta history
-        if len(self.orderbook.delta_history) > self.config.max_delta_history:
-            removed = len(self.orderbook.delta_history) - self.config.max_delta_history
-            self.orderbook.delta_history = self.orderbook.delta_history[
-                -self.config.max_delta_history :
-            ]
-            self.memory_stats["history_cleaned"] += removed
+        # Delta history - deque handles its own cleanup with maxlen
+        # No manual cleanup needed for deque with maxlen
 
     async def get_memory_stats(self) -> OrderbookStats:
         """

@@ -88,12 +88,13 @@ See Also:
     - `utils.environment`: Environment variable utilities
 """
 
-import json
 import logging
 import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+
+import orjson
 
 from project_x_py.models import ProjectXConfig
 from project_x_py.utils import get_env_var
@@ -169,9 +170,10 @@ class ConfigManager:
 
         try:
             with open(self.config_file, encoding="utf-8") as f:
-                data = json.load(f)
+                content = f.read()
+                data = orjson.loads(content)
                 return dict(data) if isinstance(data, dict) else {}
-        except (json.JSONDecodeError, OSError) as e:
+        except (orjson.JSONDecodeError, OSError) as e:
             logger.error(f"Error loading config file: {e}")
             return {}
 
@@ -230,8 +232,8 @@ class ConfigManager:
 
             # Convert config to dict and save as JSON
             config_dict = asdict(config)
-            with open(target_file, "w", encoding="utf-8") as f:
-                json.dump(config_dict, f, indent=2)
+            with open(target_file, "wb") as f:
+                f.write(orjson.dumps(config_dict, option=orjson.OPT_INDENT_2))
 
             logger.info(f"Configuration saved to {target_file}")
 
@@ -397,8 +399,8 @@ def create_config_template(file_path: str | Path) -> None:
     file_path = Path(file_path)
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(template, f, indent=2)
+    with open(file_path, "wb") as f:
+        f.write(orjson.dumps(template, option=orjson.OPT_INDENT_2))
 
     logger.info(f"Configuration template created at {file_path}")
 

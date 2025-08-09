@@ -72,12 +72,20 @@ from collections.abc import Callable, Coroutine
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from project_x_py.realtime.batched_handler import OptimizedRealtimeHandler
+
 if TYPE_CHECKING:
     from project_x_py.types import ProjectXRealtimeClientProtocol
 
 
 class EventHandlingMixin:
-    """Mixin for event handling and callback management."""
+    """Mixin for event handling and callback management with optional batching."""
+
+    def __init__(self) -> None:
+        """Initialize event handling with batching support."""
+        super().__init__()
+        self._batched_handler: OptimizedRealtimeHandler | None = None
+        self._use_batching = False
 
     async def add_callback(
         self: "ProjectXRealtimeClientProtocol",
@@ -293,6 +301,32 @@ class EventHandlingMixin:
         """
         self._schedule_async_task("trade_execution", args)
 
+    def enable_batching(self: "ProjectXRealtimeClientProtocol") -> None:
+        """Enable message batching for improved throughput with high-frequency data."""
+        if not self._batched_handler:
+            self._batched_handler = OptimizedRealtimeHandler(self)
+        self._use_batching = True
+
+    def disable_batching(self: "ProjectXRealtimeClientProtocol") -> None:
+        """Disable message batching and use direct processing."""
+        self._use_batching = False
+
+    async def stop_batching(self: "ProjectXRealtimeClientProtocol") -> None:
+        """Stop batching and flush any pending messages."""
+        if self._batched_handler:
+            await self._batched_handler.stop()
+            self._batched_handler = None
+        self._use_batching = False
+
+    def get_batching_stats(
+        self: "ProjectXRealtimeClientProtocol",
+    ) -> dict[str, Any] | None:
+        """Get performance statistics from the batch handler."""
+        if self._batched_handler:
+            stats: dict[str, Any] = self._batched_handler.get_all_stats()
+            return stats
+        return None
+
     def _forward_quote_update(
         self: "ProjectXRealtimeClientProtocol", *args: Any
     ) -> None:
@@ -308,7 +342,13 @@ class EventHandlingMixin:
         Event Data Format:
             Callbacks receive: {"contract_id": str, "data": quote_dict}
         """
-        self._schedule_async_task("quote_update", args)
+        if self._use_batching and self._batched_handler and args:
+            # Use batched processing for high-frequency quotes
+            task = asyncio.create_task(self._batched_handler.handle_quote(args[0]))
+            # Fire and forget - we don't need to await the task
+            task.add_done_callback(lambda t: None)
+        else:
+            self._schedule_async_task("quote_update", args)
 
     def _forward_market_trade(
         self: "ProjectXRealtimeClientProtocol", *args: Any
@@ -325,7 +365,13 @@ class EventHandlingMixin:
         Event Data Format:
             Callbacks receive: {"contract_id": str, "data": trade_dict}
         """
-        self._schedule_async_task("market_trade", args)
+        if self._use_batching and self._batched_handler and args:
+            # Use batched processing for trades
+            task = asyncio.create_task(self._batched_handler.handle_trade(args[0]))
+            # Fire and forget - we don't need to await the task
+            task.add_done_callback(lambda t: None)
+        else:
+            self._schedule_async_task("market_trade", args)
 
     def _forward_market_depth(
         self: "ProjectXRealtimeClientProtocol", *args: Any
@@ -342,7 +388,13 @@ class EventHandlingMixin:
         Event Data Format:
             Callbacks receive: {"contract_id": str, "data": depth_dict}
         """
-        self._schedule_async_task("market_depth", args)
+        if self._use_batching and self._batched_handler and args:
+            # Use batched processing for depth updates
+            task = asyncio.create_task(self._batched_handler.handle_depth(args[0]))
+            # Fire and forget - we don't need to await the task
+            task.add_done_callback(lambda t: None)
+        else:
+            self._schedule_async_task("market_depth", args)
 
     def _schedule_async_task(
         self: "ProjectXRealtimeClientProtocol", event_type: str, data: Any
