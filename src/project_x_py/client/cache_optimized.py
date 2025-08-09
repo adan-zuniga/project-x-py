@@ -10,10 +10,10 @@ This module provides high-performance caching using:
 import time
 from typing import TYPE_CHECKING, Any
 
-import lz4.frame
-import msgpack
+import lz4.frame  # type: ignore[import-untyped]
+import msgpack  # type: ignore[import-untyped]
 import polars as pl
-from cachetools import LRUCache, TTLCache
+from cachetools import LRUCache, TTLCache  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
     from project_x_py.types import ProjectXClientProtocol
@@ -61,7 +61,7 @@ class OptimizedCacheMixin:
 
         # Compress if data is large
         if len(packed) > self.compression_threshold:
-            compressed = lz4.frame.compress(
+            compressed: bytes = lz4.frame.compress(
                 packed,
                 compression_level=self.compression_level,
                 content_checksum=False,  # Skip checksum for speed
@@ -69,7 +69,8 @@ class OptimizedCacheMixin:
             # Add header to indicate compression
             return b"LZ4" + compressed
 
-        return b"RAW" + packed
+        result: bytes = b"RAW" + packed
+        return result
 
     def _deserialize_from_cache(self, data: bytes) -> Any:
         """

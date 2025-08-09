@@ -92,6 +92,7 @@ import asyncio
 import gc
 import logging
 import time
+from collections import deque
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
@@ -118,7 +119,7 @@ class MemoryManagementMixin:
         timeframes: dict[str, dict[str, Any]]
         data: dict[str, pl.DataFrame]
         max_bars_per_timeframe: int
-        current_tick_data: list[dict[str, Any]]
+        current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         tick_buffer_size: int
         memory_stats: dict[str, Any]
         is_running: bool
@@ -156,11 +157,8 @@ class MemoryManagementMixin:
 
                     total_bars_after += len(self.data[tf_key])
 
-            # Cleanup tick buffer
-            if len(self.current_tick_data) > self.tick_buffer_size:
-                self.current_tick_data = self.current_tick_data[
-                    -self.tick_buffer_size // 2 :
-                ]
+            # Cleanup tick buffer - deque handles its own cleanup with maxlen
+            # No manual cleanup needed for deque with maxlen
 
             # Update stats
             self.last_cleanup = current_time

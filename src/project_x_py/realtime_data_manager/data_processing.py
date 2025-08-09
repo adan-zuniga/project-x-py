@@ -89,6 +89,7 @@ See Also:
 """
 
 import logging
+from collections import deque
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -112,7 +113,7 @@ class DataProcessingMixin:
         logger: logging.Logger
         timezone: BaseTzInfo
         data_lock: Lock
-        current_tick_data: list[dict[str, Any]]
+        current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         timeframes: dict[str, dict[str, Any]]
         data: dict[str, pl.DataFrame]
         last_bar_times: dict[str, datetime]
