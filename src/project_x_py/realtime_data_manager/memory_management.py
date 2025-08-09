@@ -124,6 +124,11 @@ class MemoryManagementMixin:
         memory_stats: dict[str, Any]
         is_running: bool
 
+        # Optional methods from overflow mixin
+        async def _check_overflow_needed(self, timeframe: str) -> bool: ...
+        async def _overflow_to_disk(self, timeframe: str) -> None: ...
+        def get_overflow_stats(self) -> dict[str, Any]: ...
+
     def __init__(self) -> None:
         """Initialize memory management attributes."""
         super().__init__()
@@ -148,6 +153,15 @@ class MemoryManagementMixin:
                 if tf_key in self.data and not self.data[tf_key].is_empty():
                     initial_count = len(self.data[tf_key])
                     total_bars_before += initial_count
+
+                    # Check if overflow is needed (if mixin is available)
+                    if hasattr(
+                        self, "_check_overflow_needed"
+                    ) and await self._check_overflow_needed(tf_key):
+                        await self._overflow_to_disk(tf_key)
+                        # Data has been overflowed, update count
+                        total_bars_after += len(self.data[tf_key])
+                        continue
 
                     # Keep only the most recent bars (sliding window)
                     if initial_count > self.max_bars_per_timeframe:
@@ -234,6 +248,11 @@ class MemoryManagementMixin:
         )  # Very rough estimate
         self.memory_stats["memory_usage_mb"] = estimated_memory_mb
 
+        # Add overflow stats if available
+        overflow_stats = {}
+        if hasattr(self, "get_overflow_stats"):
+            overflow_stats = self.get_overflow_stats()
+
         return {
             "bars_processed": self.memory_stats["bars_processed"],
             "ticks_processed": self.memory_stats["ticks_processed"],
@@ -256,6 +275,7 @@ class MemoryManagementMixin:
             "data_validation_errors": self.memory_stats["data_validation_errors"],
             "connection_interruptions": self.memory_stats["connection_interruptions"],
             "recovery_attempts": self.memory_stats["recovery_attempts"],
+            "overflow_stats": overflow_stats,
         }
 
     async def stop_cleanup_task(self) -> None:

@@ -17,15 +17,7 @@ class TestCache:
         """Create a properly initialized ProjectX instance with cache attributes."""
         with patch("httpx.AsyncClient", return_value=mock_httpx_client):
             async with ProjectX("testuser", "test-api-key") as client:
-                # Initialize cache attributes manually
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
-                client.cache_ttl = 300
-                client.last_cache_cleanup = time.time()
-                client.cache_hit_count = 0
-
+                # Client now has optimized cache initialized in __init__
                 yield client
 
     @pytest.mark.asyncio
@@ -129,10 +121,10 @@ class TestCache:
         await client._cleanup_cache()
 
         # Cache should be empty
-        assert len(client._instrument_cache) == 0
-        assert len(client._instrument_cache_time) == 0
-        assert len(client._market_data_cache) == 0
-        assert len(client._market_data_cache_time) == 0
+        assert len(client._opt_instrument_cache) == 0
+        assert len(client._opt_instrument_cache_time) == 0
+        assert len(client._opt_market_data_cache) == 0
+        assert len(client._opt_market_data_cache_time) == 0
 
     @pytest.mark.asyncio
     async def test_clear_all_caches(self, mock_project_x, mock_instrument):
@@ -145,17 +137,17 @@ class TestCache:
         client.cache_market_data("test_key", test_data)
 
         # Verify items are in cache
-        assert len(client._instrument_cache) == 1
-        assert len(client._market_data_cache) == 1
+        assert len(client._opt_instrument_cache) == 1
+        assert len(client._opt_market_data_cache) == 1
 
         # Clear all caches
         client.clear_all_caches()
 
         # Cache should be empty
-        assert len(client._instrument_cache) == 0
-        assert len(client._instrument_cache_time) == 0
-        assert len(client._market_data_cache) == 0
-        assert len(client._market_data_cache_time) == 0
+        assert len(client._opt_instrument_cache) == 0
+        assert len(client._opt_instrument_cache_time) == 0
+        assert len(client._opt_market_data_cache) == 0
+        assert len(client._opt_market_data_cache_time) == 0
 
     @pytest.mark.asyncio
     async def test_cache_hit_tracking(self, mock_project_x, mock_instrument):

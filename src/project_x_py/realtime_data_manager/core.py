@@ -129,6 +129,7 @@ from project_x_py.realtime_data_manager.callbacks import CallbackMixin
 from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
+from project_x_py.realtime_data_manager.mmap_overflow import MMapOverflowMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
 from project_x_py.types.config_types import DataManagerConfig
 from project_x_py.utils import (
@@ -148,6 +149,7 @@ if TYPE_CHECKING:
 class RealtimeDataManager(
     DataProcessingMixin,
     MemoryManagementMixin,
+    MMapOverflowMixin,
     CallbackMixin,
     DataAccessMixin,
     ValidationMixin,
@@ -322,6 +324,7 @@ class RealtimeDataManager(
         if timeframes is None:
             timeframes = ["5min"]
 
+        # Set basic attributes needed by mixins
         self.instrument: str = instrument
         self.project_x: ProjectXBase = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
@@ -332,7 +335,21 @@ class RealtimeDataManager(
 
         # Store configuration with defaults
         self.config = config or {}
+
+        # Create data lock needed by mixins
+        self.data_lock: asyncio.Lock = asyncio.Lock()
+
+        # Initialize timeframes needed by mixins
+        self.timeframes: dict[str, dict[str, Any]] = {}
+
+        # Initialize data storage
+        self.data: dict[str, pl.DataFrame] = {}
+
+        # Apply defaults which sets max_bars_per_timeframe etc.
         self._apply_config_defaults()
+
+        # Initialize all mixins (they may need the above attributes)
+        super().__init__()
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone
@@ -354,17 +371,13 @@ class RealtimeDataManager(
             "1month": {"interval": 1, "unit": 6, "name": "1month"},
         }
 
-        # Initialize timeframes as dict mapping timeframe names to configs
-        self.timeframes: dict[str, dict[str, Any]] = {}
+        # Update timeframes with configs (dict already created above)
         for tf in timeframes:
             if tf not in timeframes_dict:
                 raise ValueError(
                     f"Invalid timeframe: {tf}, valid timeframes are: {list(timeframes_dict.keys())}"
                 )
             self.timeframes[tf] = timeframes_dict[tf]
-
-        # OHLCV data storage for each timeframe
-        self.data: dict[str, pl.DataFrame] = {}
 
         # Real-time data components
         # Use deque for automatic size management of tick data
@@ -374,7 +387,6 @@ class RealtimeDataManager(
         self.last_bar_times: dict[str, datetime] = {}
 
         # Async synchronization
-        self.data_lock: asyncio.Lock = asyncio.Lock()
         self.is_running: bool = False
         # EventBus is now used for all event handling
         self.indicator_cache: defaultdict[str, dict[str, Any]] = defaultdict(dict)

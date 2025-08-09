@@ -53,7 +53,7 @@ from typing import Any
 import httpx
 
 from project_x_py.client.auth import AuthenticationMixin
-from project_x_py.client.cache_optimized import OptimizedCacheMixin as CacheMixin
+from project_x_py.client.cache import CacheMixin
 from project_x_py.client.http import HttpMixin
 from project_x_py.client.market_data import MarketDataMixin
 from project_x_py.client.trading import TradingMixin

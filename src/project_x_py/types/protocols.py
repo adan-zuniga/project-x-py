@@ -144,10 +144,12 @@ class ProjectXClientProtocol(Protocol):
     cache_hit_count: int
     cache_ttl: int
     last_cache_cleanup: float
-    _instrument_cache: dict[str, "Instrument"]
-    _instrument_cache_time: dict[str, float]
-    _market_data_cache: dict[str, pl.DataFrame]
-    _market_data_cache_time: dict[str, float]
+
+    # Optimized cache attributes
+    _opt_instrument_cache: Any  # LRUCache[str, Instrument]
+    _opt_instrument_cache_time: dict[str, float]
+    _opt_market_data_cache: Any  # TTLCache[str, bytes]
+    _opt_market_data_cache_time: dict[str, float]
 
     # Authentication methods
     def _should_refresh_token(self) -> bool: ...
@@ -533,6 +535,10 @@ class ProjectXRealtimeClientProtocol(Protocol):
 
     # Event loop
     _loop: asyncio.AbstractEventLoop | None
+
+    # Batching support (optimized)
+    _batched_handler: Any | None  # OptimizedRealtimeHandler
+    _use_batching: bool
 
     # Methods required by mixins
     async def setup_connections(self) -> None: ...
