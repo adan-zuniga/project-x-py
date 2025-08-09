@@ -372,33 +372,25 @@ class WMA(OverlapIndicator):
         self.validate_period(period, min_period=1)
         self.validate_data_length(data, period)
 
-        # Calculate WMA using polars operations
-        def wma_calc(series: list[float]) -> list[float | None]:
-            """Calculate WMA for a series"""
-            n = len(series)
-            if n < period:
-                return [None] * n
+        # Calculate WMA using vectorized Polars operations
+        # Create weights from 1 to period
+        weights = list(range(1, period + 1))
+        weight_sum = sum(weights)
 
-            result: list[float | None] = []
-            for i in range(n):
-                if i < period - 1:
-                    result.append(None)
-                else:
-                    values = series[i - period + 1 : i + 1]
-                    weighted_sum = sum(val * (j + 1) for j, val in enumerate(values))
-                    weight_sum = sum(range(1, period + 1))
-                    wma_value = weighted_sum / weight_sum
-                    result.append(wma_value)
-
-            return result
-
-        # Apply WMA calculation
-        values = data[column].to_list()
-        wma_values = wma_calc(values)
-
-        return data.with_columns(
-            pl.Series(name=f"wma_{period}", values=wma_values, dtype=pl.Float64)
+        # Use Polars rolling window with custom aggregation
+        wma = (
+            data[column]
+            .rolling_map(
+                lambda x: sum(v * w for v, w in zip(x, weights, strict=False))
+                / weight_sum
+                if len(x) == period
+                else None,
+                window_size=period,
+            )
+            .alias(f"wma_{period}")
         )
+
+        return data.with_columns(wma)
 
 
 class MIDPOINT(OverlapIndicator):
@@ -563,47 +555,47 @@ class KAMA(OverlapIndicator):
         self.validate_data(data, [column])
         self.validate_period(period, min_period=2)
 
-        def kama_calc(series: list[float]) -> list[float | None]:
-            """Calculate KAMA for a series"""
-            n = len(series)
-            if n < period + 1:
-                return [None] * n
+        # Calculate KAMA using more efficient Polars operations
+        fast_alpha = 2.0 / (fast_sc + 1.0)
+        slow_alpha = 2.0 / (slow_sc + 1.0)
 
-            result: list[float | None] = [None] * n
+        # Calculate direction (change over period)
+        direction = (data[column] - data[column].shift(period)).abs()
 
-            # Initialize first KAMA value with SMA
-            result[period] = sum(series[: period + 1]) / (period + 1)
+        # Calculate volatility (sum of absolute price changes)
+        price_diff = data[column].diff().abs()
+        volatility = price_diff.rolling_sum(window_size=period)
 
-            fast_alpha = 2.0 / (fast_sc + 1.0)
-            slow_alpha = 2.0 / (slow_sc + 1.0)
+        # Calculate efficiency ratio
+        efficiency_ratio = (
+            pl.when(volatility != 0).then(direction / volatility).otherwise(0)
+        )
 
+        # Calculate smoothing constant
+        smoothing_constant = (
+            efficiency_ratio * (fast_alpha - slow_alpha) + slow_alpha
+        ).pow(2)
+
+        # Create a custom KAMA calculation
+        # We need to use numpy for the recursive calculation
+        values = data[column].to_numpy()
+        sc_values = data.select(smoothing_constant).to_numpy().flatten()
+        n = len(values)
+        result: list[float | None] = [None] * n
+
+        # Initialize first KAMA value
+        if n > period:
+            result[period] = float(sum(values[: period + 1]) / (period + 1))
+
+            # Calculate KAMA recursively
             for i in range(period + 1, n):
-                # Calculate change over period
-                change = abs(series[i] - series[i - period])
-
-                # Calculate volatility (sum of absolute changes)
-                volatility = sum(
-                    abs(series[j] - series[j - 1]) for j in range(i - period + 1, i + 1)
-                )
-
-                # Calculate efficiency ratio
-                er = change / volatility if volatility != 0 else 0
-
-                # Calculate smoothing constant
-                sc = (er * (fast_alpha - slow_alpha) + slow_alpha) ** 2
-
-                # Calculate KAMA
-                prev_kama = result[i - 1]
-                if prev_kama is not None:
-                    result[i] = prev_kama + sc * (series[i] - prev_kama)
-
-            return result
-
-        values = data[column].to_list()
-        kama_values = kama_calc(values)
+                if result[i - 1] is not None:
+                    result[i] = result[i - 1] + sc_values[i] * (
+                        values[i] - result[i - 1]
+                    )
 
         return data.with_columns(
-            pl.Series(name=f"kama_{period}", values=kama_values, dtype=pl.Float64)
+            pl.Series(name=f"kama_{period}", values=result, dtype=pl.Float64)
         )
 
 
