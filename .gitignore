@@ -234,7 +234,6 @@ secrets/
 private/
 
 # Trading/Financial data
-data/
 logs/
 backups/
 *.csv
