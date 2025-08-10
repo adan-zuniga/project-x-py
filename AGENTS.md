@@ -1,5 +1,39 @@
 # Repository Guidelines
 
+## Project Status: v3.1.1 - Stable Production Release
+
+**IMPORTANT**: This project has reached stable production status. When making changes:
+
+1. **Maintain Backward Compatibility**: Keep existing APIs functional with deprecation warnings
+2. **Deprecation Policy**: Mark deprecated features with warnings, remove after 2 minor versions  
+3. **Semantic Versioning**: Follow semver strictly (MAJOR.MINOR.PATCH)
+4. **Migration Paths**: Provide clear migration guides for breaking changes
+5. **Modern Patterns**: Use the latest Python patterns while maintaining compatibility
+6. **Gradual Refactoring**: Improve code quality without breaking existing interfaces
+7. **Async-First**: All new code must use async/await patterns
+
+### Deprecation Process
+- Mark as deprecated with `warnings.warn()` and `@deprecated` decorator
+- Document replacement in deprecation message
+- Keep deprecated feature for at least 2 minor versions
+- Remove only in major version releases (4.0.0, 5.0.0, etc.)
+
+Example:
+```python
+import warnings
+from typing import deprecated
+
+@deprecated("Use new_method() instead. Will be removed in v4.0.0")
+def old_method(self):
+    warnings.warn(
+        "old_method() is deprecated, use new_method() instead. "
+        "Will be removed in v4.0.0",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return self.new_method()
+```
+
 ## Project Structure & Module Organization
 - Source: `src/project_x_py/` (core SDK: client, realtime, orderbook, indicators, utils, etc.).
 - Tests: `tests/` (pytest; async tests supported).

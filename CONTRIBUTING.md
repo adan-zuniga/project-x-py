@@ -207,6 +207,44 @@ Good documentation is essential for this project:
 
 ## Architecture Guidelines
 
+### Backward Compatibility Policy (v3.1.1+)
+
+**IMPORTANT**: This project maintains strict backward compatibility:
+
+1. **API Stability**: Public APIs must remain stable between minor versions
+2. **Deprecation Process**:
+   - Add deprecation warnings using `warnings.warn()` and `@deprecated` decorator
+   - Document the replacement in the deprecation message
+   - Keep deprecated features for at least 2 minor versions
+   - Only remove in major version releases (4.0.0, 5.0.0, etc.)
+
+3. **Adding Deprecation Warnings**:
+   ```python
+   import warnings
+   from typing import deprecated
+   
+   @deprecated("Use new_method() instead. Will be removed in v4.0.0")
+   def old_method(self):
+       warnings.warn(
+           "old_method() is deprecated, use new_method() instead. "
+           "Will be removed in v4.0.0",
+           DeprecationWarning,
+           stacklevel=2
+       )
+       return self.new_method()
+   ```
+
+4. **Introducing New Features**:
+   - Add new methods/classes alongside existing ones
+   - Provide migration guides in docstrings
+   - Update examples to use new patterns
+   - Keep old patterns working with deprecation warnings
+
+5. **Version Numbering** (Semantic Versioning):
+   - PATCH (x.x.N): Bug fixes only, no API changes
+   - MINOR (x.N.x): New features, deprecations allowed, no breaking changes
+   - MAJOR (N.x.x): Breaking changes allowed, remove deprecated features
+
 ### Project Structure
 
 The SDK uses a modular architecture where large components are split into multi-file packages:

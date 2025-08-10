@@ -7,29 +7,51 @@ This is a Python SDK/client library for the ProjectX Trading Platform Gateway AP
 
 **Note**: Focus on toolkit development, not on creating trading strategies.
 
-## Project Status: v2.0.4 - Async Architecture
+## Project Status: v3.1.1 - Stable Production Release
 
-**IMPORTANT**: This project has migrated to a fully asynchronous architecture as of v2.0.0. All APIs are now async-only with no backward compatibility to synchronous versions.
+**IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
 ## Development Phase Guidelines
 
-**IMPORTANT**: This project is in active development. When making changes:
+**IMPORTANT**: This project has reached stable production status. When making changes:
 
-1. **No Backward Compatibility**: Do not maintain old implementations for compatibility
-2. **Clean Code Priority**: Always refactor to the cleanest, most modern approach
-3. **Remove Legacy Code**: Delete old logic when implementing improvements
-4. **Breaking Changes Allowed**: Make breaking changes freely to improve architecture
-5. **Modern Patterns**: Use the latest Python patterns and best practices
-6. **Simplify Aggressively**: Remove complexity rather than adding compatibility layers
+1. **Maintain Backward Compatibility**: Keep existing APIs functional with deprecation warnings
+2. **Deprecation Policy**: Mark deprecated features with warnings, remove after 2 minor versions
+3. **Semantic Versioning**: Follow semver strictly (MAJOR.MINOR.PATCH)
+4. **Migration Paths**: Provide clear migration guides for breaking changes
+5. **Modern Patterns**: Use the latest Python patterns while maintaining compatibility
+6. **Gradual Refactoring**: Improve code quality without breaking existing interfaces
 7. **Async-First**: All new code must use async/await patterns
 
 Example approach:
-- ❌ DON'T: Keep old method signatures with deprecation warnings
-- ✅ DO: Replace methods entirely with better implementations
-- ❌ DON'T: Add compatibility shims or adapters
-- ✅ DO: Update all callers to use new patterns
-- ❌ DON'T: Create synchronous wrappers for async methods
-- ✅ DO: Use async/await throughout the entire call stack
+- ✅ DO: Keep old method signatures with deprecation warnings
+- ✅ DO: Provide new improved APIs alongside old ones
+- ✅ DO: Add compatibility shims when necessary
+- ✅ DO: Document migration paths clearly
+- ❌ DON'T: Break existing APIs without major version bump
+- ❌ DON'T: Remove deprecated features without proper notice period
+
+### Deprecation Process
+1. Mark as deprecated with `warnings.warn()` and `@deprecated` decorator
+2. Document replacement in deprecation message
+3. Keep deprecated feature for at least 2 minor versions
+4. Remove only in major version releases (4.0.0, 5.0.0, etc.)
+
+Example:
+```python
+import warnings
+from typing import deprecated
+
+@deprecated("Use new_method() instead. Will be removed in v4.0.0")
+def old_method(self):
+    warnings.warn(
+        "old_method() is deprecated, use new_method() instead. "
+        "Will be removed in v4.0.0",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return self.new_method()
+```
 
 ## Tool Usage Guidelines
 As Grok CLI, you have access to tools like view_file, create_file, str_replace_editor, bash, search, and todo lists. Use them efficiently for tasks.

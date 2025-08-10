@@ -21,11 +21,16 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.1 - High-Performance Production Suite
+## 🚀 v3.1.1 - Stable Production Release
 
-**Latest Update (v3.1.1)**: Bug fixes and improvements for test suite compatibility with optimized cache implementation, enhanced datetime serialization, and WebSocket handler improvements.
+**Latest Update (v3.1.1)**: The SDK has reached stable production status with a commitment to backward compatibility. Bug fixes and improvements for test suite compatibility with optimized cache implementation, enhanced datetime serialization, and WebSocket handler improvements.
 
 ### What's New in v3.1.1
+- **📦 MAJOR POLICY CHANGE**: Project has reached stable production status
+  - Now maintaining backward compatibility between minor versions
+  - Deprecation warnings will be provided for at least 2 minor versions
+  - Breaking changes only in major releases (4.0.0+)
+  - Strict semantic versioning (MAJOR.MINOR.PATCH)
 - **Fixed**: Test suite compatibility with optimized cache implementation
 - **Fixed**: Datetime serialization/deserialization in cached DataFrames
 - **Fixed**: BatchedWebSocketHandler flush and race condition issues
@@ -55,7 +60,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - **Context Manager Support**: Automatic cleanup with async with statements
 - **Unified Event Handling**: Built-in EventBus for all components
 
-**BREAKING CHANGE**: Version 3.0+ replaces factory functions with TradingSuite. See migration guide below.
+**Note**: Version 3.0+ introduced TradingSuite, replacing factory functions. From v3.1.1 onward, we maintain strict backward compatibility between minor versions. See migration guide below for upgrading from v2.x.
 
 ### Why Async?
 
@@ -442,6 +447,19 @@ except Exception as e:
 # 2. Add delays between operations
 # 3. Use batch operations where available
 ```
+
+## 📌 Versioning Policy
+
+As of v3.1.1, this project follows strict [Semantic Versioning](https://semver.org/):
+
+- **PATCH** (x.x.N): Bug fixes only, no API changes
+- **MINOR** (x.N.x): New features, backward compatible, deprecation warnings added
+- **MAJOR** (N.x.x): Breaking changes allowed, deprecated features removed
+
+### Deprecation Policy
+- Features marked as deprecated will include clear migration instructions
+- Deprecated features maintained for at least 2 minor versions
+- Removal only occurs in major version releases
 
 ## 🤝 Contributing
 

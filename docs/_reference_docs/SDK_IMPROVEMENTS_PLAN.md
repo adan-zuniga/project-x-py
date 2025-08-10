@@ -9,11 +9,12 @@ This document outlines the comprehensive improvements being implemented in the P
 **Target Completion**: 2025-09-08 (5 weeks)  
 **Status**: IN PROGRESS
 
-## Development Philosophy
-- **No backward compatibility** - Breaking changes are encouraged
-- **Clean code first** - Remove old implementations immediately
-- **Modern patterns** - Use latest Python 3.12+ features
-- **Developer experience** - Prioritize simplicity and intuitiveness
+## Development Philosophy (Updated v3.1.1)
+- **Maintain backward compatibility** - Keep existing APIs working with deprecation warnings
+- **Clean code with migration paths** - Provide gradual transitions to new implementations
+- **Modern patterns** - Use latest Python 3.12+ features while maintaining compatibility
+- **Developer experience** - Prioritize simplicity and intuitiveness with stable APIs
+- **Semantic versioning** - Follow MAJOR.MINOR.PATCH strictly
 
 ## 1. Event-Driven Architecture Improvements
 
@@ -89,8 +90,8 @@ await suite.on(EventType.ORDER_FILLED, handle_order_filled)
 2. Add EventType enum with all event types
 3. Integrate EventBus into existing components
 4. Update components to emit events through the bus
-5. Add backward compatibility layer
-6. Update documentation and examples
+5. Maintain backward compatibility with deprecation warnings
+6. Update documentation and examples with migration guides
 
 ### Timeline: 2 weeks
 
@@ -942,8 +943,8 @@ def get_stats(self) -> TradingSuiteStats:
 ## Development Phase Approach
 
 ### Clean Code Priority
-- **No backward compatibility layers** - remove old code immediately
-- **No deprecation warnings** - make breaking changes freely
+- **Maintain compatibility layers** - keep old APIs working with deprecation warnings
+- **Add deprecation warnings** - provide clear migration paths
 - **Direct refactoring** - update all code to use new patterns
 - **Remove unused code** - delete anything not actively used
 
@@ -1046,7 +1047,7 @@ def get_stats(self) -> TradingSuiteStats:
 - **Simplified API** that's intuitive for new users
 - **Complete factory function removal** - eliminated 340+ lines of obsolete code
 - **Full IDE support** with comprehensive autocomplete and type checking
-- **Modern codebase** with no backward compatibility layers
+- **Modern codebase** with maintained backward compatibility
 - **Unified event system** - EventBus mandatory in all components
 - **Single event API** - TradingSuite.on() replaces all callback systems
 - **Clean architecture** - no dual systems or legacy code
