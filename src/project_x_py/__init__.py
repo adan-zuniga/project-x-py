@@ -112,6 +112,9 @@ from project_x_py.config import (
     load_topstepx_config,
 )
 
+# Data management
+from project_x_py.data import MemoryMappedStorage, TimeSeriesStorage
+
 # Event system
 from project_x_py.event_bus import EventBus, EventType
 
@@ -251,6 +254,9 @@ __all__ = [
     "PositionManagerConfig",
     "PositionType",
     "ProjectX",
+    # Data management
+    "MemoryMappedStorage",
+    "TimeSeriesStorage",
     # Exceptions
     "ProjectXAuthenticationError",
     "ProjectXConfig",
