@@ -75,7 +75,7 @@ class TestClientIntegration:
         # Step 2: Get instrument data
         instrument = await client.get_instrument("MGC")
         assert instrument is not None
-        assert "MGC" in client._instrument_cache
+        assert "MGC" in client._opt_instrument_cache
 
         # Step 3: Get market data
         bars = await client.get_bars("MGC", days=5, interval=5)
@@ -85,7 +85,7 @@ class TestClientIntegration:
 
         # Step 4: Verify cache is populated
         cache_key = "MGC_5_5_2_True"
-        assert cache_key in client._market_data_cache
+        assert cache_key in client._opt_market_data_cache
 
     @pytest.mark.asyncio
     async def test_trading_workflow(

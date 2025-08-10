@@ -1,6 +1,6 @@
 """Tests for realtime connection management."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -68,7 +68,8 @@ class TestConnectionManagement:
             "project_x_py.realtime.connection_management.HubConnectionBuilder"
         ) as mock_builder:
             mock_connection = MagicMock()
-            mock_connection.start = AsyncMock(return_value=True)
+            # Use regular Mock for synchronous start method
+            mock_connection.start = MagicMock(return_value=True)
             mock_builder.return_value.with_url.return_value.configure_logging.return_value.with_automatic_reconnect.return_value.build.return_value = mock_connection
 
             result = await mixin.connect()
@@ -86,7 +87,8 @@ class TestConnectionManagement:
             "project_x_py.realtime.connection_management.HubConnectionBuilder"
         ) as mock_builder:
             mock_connection = MagicMock()
-            mock_connection.start = AsyncMock(
+            # Use regular Mock for synchronous start method
+            mock_connection.start = MagicMock(
                 side_effect=Exception("Connection failed")
             )
             mock_builder.return_value.with_url.return_value.configure_logging.return_value.with_automatic_reconnect.return_value.build.return_value = mock_connection
@@ -100,9 +102,11 @@ class TestConnectionManagement:
         """Test graceful disconnection."""
         mixin = connection_mixin
         mock_user_connection = MagicMock()
-        mock_user_connection.stop = AsyncMock(return_value=None)
+        # Use regular Mock for synchronous stop method
+        mock_user_connection.stop = MagicMock(return_value=None)
         mock_market_connection = MagicMock()
-        mock_market_connection.stop = AsyncMock(return_value=None)
+        # Use regular Mock for synchronous stop method
+        mock_market_connection.stop = MagicMock(return_value=None)
 
         mixin.user_connection = mock_user_connection
         mixin.market_connection = mock_market_connection
@@ -124,7 +128,8 @@ class TestConnectionManagement:
             "project_x_py.realtime.connection_management.HubConnectionBuilder"
         ) as mock_builder:
             mock_connection = MagicMock()
-            mock_connection.start = AsyncMock(return_value=True)
+            # Use regular Mock for synchronous start method
+            mock_connection.start = MagicMock(return_value=True)
             mock_builder.return_value.with_url.return_value.configure_logging.return_value.with_automatic_reconnect.return_value.build.return_value = mock_connection
 
             # Connect initially
@@ -134,7 +139,7 @@ class TestConnectionManagement:
             await mixin.disconnect()
 
             # Reconnect
-            result = await mixin.connect()
+            await mixin.connect()
 
             # Should be able to reconnect
             assert mock_connection.start.called

@@ -21,9 +21,15 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.0 - High-Performance Production Suite
+## 🚀 v3.1.1 - High-Performance Production Suite
 
-**Latest Update (v3.1.0)**: Major performance optimizations delivering 2-5x improvements across the board with automatic memory management and enterprise-grade caching.
+**Latest Update (v3.1.1)**: Bug fixes and improvements for test suite compatibility with optimized cache implementation, enhanced datetime serialization, and WebSocket handler improvements.
+
+### What's New in v3.1.1
+- **Fixed**: Test suite compatibility with optimized cache implementation
+- **Fixed**: Datetime serialization/deserialization in cached DataFrames
+- **Fixed**: BatchedWebSocketHandler flush and race condition issues
+- **Fixed**: SignalR mock methods in connection management tests
 
 ### What's New in v3.1.0
 

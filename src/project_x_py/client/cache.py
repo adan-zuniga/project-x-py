@@ -9,6 +9,7 @@ This module provides high-performance caching using:
 
 import gc
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -75,9 +76,20 @@ class CacheMixin:
             return b""
 
         # Convert to dictionary format for msgpack
+        columns_data = {}
+        for col in df.columns:
+            col_data = df[col]
+            # Convert datetime columns to ISO strings for msgpack serialization
+            if col_data.dtype in [pl.Datetime, pl.Date]:
+                columns_data[col] = col_data.dt.to_string(
+                    "%Y-%m-%d %H:%M:%S%.f"
+                ).to_list()
+            else:
+                columns_data[col] = col_data.to_list()
+
         data = {
             "schema": {name: str(dtype) for name, dtype in df.schema.items()},
-            "columns": {col: df[col].to_list() for col in df.columns},
+            "columns": columns_data,
             "shape": df.shape,
         }
 
@@ -132,8 +144,34 @@ class CacheMixin:
             if not unpacked or "columns" not in unpacked:
                 return None
 
-            # Reconstruct DataFrame
-            return pl.DataFrame(unpacked["columns"])
+            # Reconstruct DataFrame with proper schema
+            df = pl.DataFrame(unpacked["columns"])
+
+            # Restore datetime columns based on stored schema
+            if "schema" in unpacked:
+                for col_name, dtype_str in unpacked["schema"].items():
+                    if "datetime" in dtype_str.lower() and col_name in df.columns:
+                        # Parse timezone from dtype string (e.g., "Datetime(time_unit='us', time_zone='UTC')")
+                        time_zone = None
+                        if "time_zone=" in dtype_str:
+                            # Extract timezone
+                            tz_match = re.search(r"time_zone='([^']+)'", dtype_str)
+                            if tz_match:
+                                time_zone = tz_match.group(1)
+
+                        # Convert string column to datetime
+                        if df[col_name].dtype == pl.Utf8:
+                            df = df.with_columns(
+                                pl.col(col_name)
+                                .str.strptime(
+                                    pl.Datetime("us", time_zone),
+                                    "%Y-%m-%d %H:%M:%S%.f",
+                                    strict=False,
+                                )
+                                .alias(col_name)
+                            )
+
+            return df
         except Exception as e:
             logger.debug(f"Failed to deserialize DataFrame: {e}")
             return None
