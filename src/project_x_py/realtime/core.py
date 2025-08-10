@@ -232,6 +232,9 @@ class ProjectXRealtimeClient(
             - Both hubs must connect successfully for full functionality
             - SignalR connections are established lazily on connect()
         """
+        # Initialize parent mixins
+        super().__init__()
+
         self.jwt_token = jwt_token
         self.account_id = account_id
 
@@ -274,8 +277,9 @@ class ProjectXRealtimeClient(
         self.market_connected = False
         self.setup_complete = False
 
-        # Event callbacks (pure forwarding, no caching)
-        self.callbacks: defaultdict[str, list[Any]] = defaultdict(list)
+        # Event callbacks (pure forwarding, no caching) - already initialized in mixin
+        if not hasattr(self, "callbacks"):
+            self.callbacks: defaultdict[str, list[Any]] = defaultdict(list)
 
         # Basic statistics (no business logic)
         self.stats = {
@@ -295,9 +299,8 @@ class ProjectXRealtimeClient(
         self.logger.info(f"User Hub: {final_user_url}")
         self.logger.info(f"Market Hub: {final_market_url}")
 
-        # Async locks for thread-safe operations
-        self._callback_lock = asyncio.Lock()
-        self._connection_lock = asyncio.Lock()
-
-        # Store the event loop for cross-thread task scheduling
-        self._loop: asyncio.AbstractEventLoop | None = None
+        # Async locks for thread-safe operations - check if not already initialized
+        if not hasattr(self, "_callback_lock"):
+            self._callback_lock = asyncio.Lock()
+        if not hasattr(self, "_connection_lock"):
+            self._connection_lock = asyncio.Lock()
