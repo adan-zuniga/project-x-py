@@ -30,10 +30,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -47,7 +47,7 @@ class TestMarketData:
                 assert instrument.name == "Micro Gold Futures"
 
                 # Should have cached the result
-                assert "MGC" in client._instrument_cache
+                assert "MGC" in client._opt_instrument_cache
 
     @pytest.mark.asyncio
     async def test_get_instrument_from_cache(
@@ -64,10 +64,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -106,10 +106,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -137,10 +137,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -171,10 +171,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -192,10 +192,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -249,10 +249,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -275,7 +275,7 @@ class TestMarketData:
 
                 # Should cache the result
                 cache_key = "MGC_5_5_2_True"
-                assert cache_key in client._market_data_cache
+                assert cache_key in client._opt_market_data_cache
 
     @pytest.mark.asyncio
     async def test_get_bars_from_cache(self, mock_httpx_client, mock_auth_response):
@@ -290,10 +290,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -353,10 +353,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -396,10 +396,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -472,10 +472,10 @@ class TestMarketData:
             async with ProjectX("testuser", "test-api-key") as client:
                 # Initialize required attributes
                 client.api_call_count = 0
-                client._instrument_cache = {}
-                client._instrument_cache_time = {}
-                client._market_data_cache = {}
-                client._market_data_cache_time = {}
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
                 client.cache_ttl = 300
                 client.last_cache_cleanup = time.time()
                 client.cache_hit_count = 0
@@ -491,5 +491,5 @@ class TestMarketData:
                 assert not hourly_bars.is_empty()
 
                 # Different cache keys should be used
-                assert "MGC_30_1_4_True" in client._market_data_cache
-                assert "MGC_7_1_3_True" in client._market_data_cache
+                assert "MGC_30_1_4_True" in client._opt_market_data_cache
+                assert "MGC_7_1_3_True" in client._opt_market_data_cache

@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old implementations are removed when improved
 - Clean, modern code architecture is prioritized
 
+## [3.1.1] - 2025-08-10
+
+### Fixed
+- **🐛 Test Suite Compatibility**: Fixed all failing tests for optimized cache implementation
+  - Updated test references from old cache variables (`_instrument_cache`) to new optimized ones (`_opt_instrument_cache`)
+  - Fixed datetime serialization/deserialization in cached DataFrames to properly preserve timezone information
+  - Resolved BatchedWebSocketHandler flush mechanism with event-based signaling for immediate message processing
+  - Fixed race condition in BatchedWebSocketHandler task creation
+  - Corrected SignalR mock methods in connection management tests (changed from AsyncMock to MagicMock for synchronous methods)
+
+### Improved
+- **✨ Cache Serialization**: Enhanced datetime handling in msgpack cache
+  - Proper timezone preservation for datetime columns in Polars DataFrames
+  - More robust deserialization with fallback handling
+  - Better datetime string format compatibility
+
 ## [3.1.0] - 2025-08-09
 
 ### Added

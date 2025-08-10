@@ -65,6 +65,9 @@ class BatchedWebSocketHandler:
         # Lock for thread safety
         self._lock = asyncio.Lock()
 
+        # Event to signal immediate flush
+        self._flush_event = asyncio.Event()
+
     async def handle_message(self, message: dict[str, Any]) -> None:
         """
         Add a message to the batch queue for processing.
@@ -76,7 +79,9 @@ class BatchedWebSocketHandler:
         self.message_queue.append(message)
 
         # Start batch processing if not already running
-        if not self.processing:
+        if not self.processing and (
+            not self._processing_task or self._processing_task.done()
+        ):
             self._processing_task = asyncio.create_task(self._process_batch())
 
     async def _process_batch(self) -> None:
@@ -90,17 +95,39 @@ class BatchedWebSocketHandler:
             batch: list[dict[str, Any]] = []
             deadline = time.time() + self.batch_timeout
 
-            # Collect messages until batch is full or timeout
-            while time.time() < deadline and len(batch) < self.batch_size:
+            # Collect messages until batch is full or timeout or flush is requested
+            while (
+                time.time() < deadline
+                and len(batch) < self.batch_size
+                and not self._flush_event.is_set()
+            ):
                 if self.message_queue:
                     # Get all available messages up to batch size
                     while self.message_queue and len(batch) < self.batch_size:
                         batch.append(self.message_queue.popleft())
                 else:
-                    # Wait a bit for more messages
+                    # Wait a bit for more messages or flush event
                     remaining = deadline - time.time()
                     if remaining > 0:
-                        await asyncio.sleep(min(0.001, remaining))
+                        try:
+                            # Wait for either timeout or flush event
+                            await asyncio.wait_for(
+                                self._flush_event.wait(),
+                                timeout=min(
+                                    0.01, remaining
+                                ),  # Increased from 0.001 to 0.01
+                            )
+                            # Flush was triggered, break the loop
+                            break
+                        except TimeoutError:
+                            # Normal timeout, continue
+                            pass
+
+            # If flush was triggered, get any remaining messages
+            if self._flush_event.is_set():
+                while self.message_queue and len(batch) < 10000:  # Safety limit
+                    batch.append(self.message_queue.popleft())
+                self._flush_event.clear()
 
             # Process the batch if we have messages
             if batch:
@@ -148,17 +175,16 @@ class BatchedWebSocketHandler:
 
     async def flush(self) -> None:
         """Force processing of all queued messages immediately."""
-        # Wait for any current processing to complete first
+        # Signal the processing task to flush immediately
+        self._flush_event.set()
+
+        # Wait for the current processing task to complete if it exists
         if self._processing_task and not self._processing_task.done():
-            with contextlib.suppress(TimeoutError, asyncio.CancelledError):
+            with contextlib.suppress(asyncio.TimeoutError, asyncio.CancelledError):
                 await asyncio.wait_for(self._processing_task, timeout=1.0)
 
-        # Give the processing task a chance to actually process
-        await asyncio.sleep(0)  # Yield to let other tasks run
-
-        # Now process any remaining messages
-        while self.message_queue:
-            # Process all remaining messages
+        # Process any remaining messages that weren't picked up
+        if self.message_queue:
             batch = list(self.message_queue)
             self.message_queue.clear()
 
@@ -169,6 +195,10 @@ class BatchedWebSocketHandler:
                     self.messages_processed += len(batch)
                 except Exception as e:
                     logger.error(f"Error flushing batch of {len(batch)} messages: {e}")
+
+        # Clear the flush event for next time
+        self._flush_event.clear()
+        self.processing = False
 
     def get_stats(self) -> dict[str, Any]:
         """
@@ -202,6 +232,9 @@ class BatchedWebSocketHandler:
 
     async def stop(self) -> None:
         """Stop the batch handler and process remaining messages."""
+        # Signal flush to trigger immediate processing
+        self._flush_event.set()
+
         # Wait for current processing to complete
         if self._processing_task and not self._processing_task.done():
             try:
@@ -211,7 +244,7 @@ class BatchedWebSocketHandler:
                 with contextlib.suppress(asyncio.CancelledError):
                     await self._processing_task
 
-        # Flush remaining messages
+        # Process any remaining messages that weren't handled
         await self.flush()
 
         logger.info(

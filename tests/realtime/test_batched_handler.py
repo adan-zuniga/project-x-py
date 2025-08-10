@@ -113,11 +113,13 @@ class TestBatchedWebSocketHandler:
         for i in range(7):
             await handler.handle_message({"id": i})
 
-        # Flush immediately
+        # Flush immediately - should interrupt the processing task
         await handler.flush()
 
         # Should have processed all messages
-        assert len(processed_batches) == 1
+        assert len(processed_batches) == 1, (
+            f"Expected 1 batch, got {len(processed_batches)} batches: {processed_batches}"
+        )
         assert len(processed_batches[0]) == 7
         assert handler.messages_processed == 7
 
@@ -190,8 +192,8 @@ class TestBatchedWebSocketHandler:
         for i in range(5):
             await handler.handle_message({"id": i})
 
-        # Give a tiny bit of time for the task to start (but not complete)
-        await asyncio.sleep(0.01)
+        # Give the processing task a moment to start
+        await asyncio.sleep(0)  # Yield control to allow task to start
 
         # Stop should flush remaining messages
         await handler.stop()
