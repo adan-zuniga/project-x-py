@@ -21,9 +21,14 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.1 - Stable Production Release
+## 🚀 v3.1.4 - Stable Production Release
 
-**Latest Update (v3.1.1)**: The SDK has reached stable production status with a commitment to backward compatibility. Bug fixes and improvements for test suite compatibility with optimized cache implementation, enhanced datetime serialization, and WebSocket handler improvements.
+**Latest Update (v3.1.4)**: Fixed critical WebSocket connection issue with proper mixin initialization in ProjectXRealtimeClient, ensuring stable real-time data streaming.
+
+### What's New in v3.1.4
+- **Fixed**: WebSocket connection error (`_use_batching` attribute missing)
+- **Improved**: Proper initialization of all mixins in ProjectXRealtimeClient
+- **Enhanced**: More robust real-time connection handling
 
 ### What's New in v3.1.1
 - **📦 MAJOR POLICY CHANGE**: Project has reached stable production status

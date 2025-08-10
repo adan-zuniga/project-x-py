@@ -14,6 +14,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.4] - 2025-08-10
+
+### Fixed
+- **🐛 WebSocket Connection**: Fixed missing `_use_batching` attribute in ProjectXRealtimeClient
+  - Added proper mixin initialization with `super().__init__()` call
+  - Ensures EventHandlingMixin and ConnectionManagementMixin are properly initialized
+  - Resolves WebSocket error: 'ProjectXRealtimeClient' object has no attribute '_use_batching'
+  - Added safeguards to prevent duplicate initialization of shared attributes
+
+## [3.1.3] - 2025-08-10
+
+### Fixed
+- Minor bug fixes and improvements
+
+## [3.1.2] - 2025-08-10
+
+### Fixed
+- Data directory handling improvements
+
 ## [3.1.1] - 2025-08-10
 
 ### Changed

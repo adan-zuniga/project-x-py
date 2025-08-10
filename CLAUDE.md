@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.1 - Stable Production Release
+## Project Status: v3.1.4 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -299,6 +299,11 @@ async with ProjectX.from_env() as client:
 - `cache_max_size = 100` (Indicator cache entries)
 
 ## Recent Changes
+
+### v3.1.4 - WebSocket Connection Fix
+- **Fixed**: Critical WebSocket error with missing `_use_batching` attribute
+- **Improved**: Proper mixin initialization in ProjectXRealtimeClient
+- **Enhanced**: More robust real-time connection handling
 
 ### v3.0.2 - Bug Fixes and Improvements
 - **Order Lifecycle Tracking**: Fixed asyncio concurrency and field reference issues
