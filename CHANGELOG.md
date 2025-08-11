@@ -14,6 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.5] - 2025-08-11
+
+### Added
+- **📊 Enhanced Bar Data Retrieval**: Added optional `start_time` and `end_time` parameters to `get_bars()` method
+  - Allows precise time range specification for historical data queries
+  - Parameters override the `days` argument when provided
+  - Supports both timezone-aware and naive datetime objects
+  - Automatically converts times to UTC for API consistency
+  - Smart defaults: `end_time` defaults to now, `start_time` defaults based on `days` parameter
+  - Full backward compatibility maintained - existing code using `days` parameter continues to work
+
+### Tests
+- Added comprehensive test coverage for new time-based parameters
+  - Tests for both `start_time` and `end_time` together
+  - Tests for individual parameter usage
+  - Tests for timezone-aware datetime handling
+  - Tests confirming time parameters override `days` parameter
+
 ## [3.1.4] - 2025-08-10
 
 ### Fixed

@@ -1,10 +1,12 @@
 """Tests for the market data functionality of ProjectX client."""
 
+import datetime
 import time
 from unittest.mock import patch
 
 import polars as pl
 import pytest
+import pytz
 
 from project_x_py import ProjectX
 from project_x_py.exceptions import ProjectXInstrumentError
@@ -493,3 +495,246 @@ class TestMarketData:
                 # Different cache keys should be used
                 assert "MGC_30_1_4_True" in client._opt_market_data_cache
                 assert "MGC_7_1_3_True" in client._opt_market_data_cache
+
+    @pytest.mark.asyncio
+    async def test_get_bars_with_start_and_end_time(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_bars_response,
+    ):
+        """Test getting bars with start_time and end_time parameters."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            mock_bars_response,  # Bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Test with both start_time and end_time
+                start = datetime.datetime(2025, 1, 1, 9, 30)
+                end = datetime.datetime(2025, 1, 5, 16, 0)
+
+                bars = await client.get_bars(
+                    "MGC", start_time=start, end_time=end, interval=15
+                )
+
+                # Verify dataframe structure
+                assert not bars.is_empty()
+                assert "timestamp" in bars.columns
+                assert "open" in bars.columns
+
+                # Should use time-based cache key
+                start_utc = pytz.UTC.localize(start)
+                end_utc = pytz.UTC.localize(end)
+                cache_key = (
+                    f"MGC_{start_utc.isoformat()}_{end_utc.isoformat()}_15_2_True"
+                )
+                assert cache_key in client._opt_market_data_cache
+
+    @pytest.mark.asyncio
+    async def test_get_bars_with_only_start_time(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_bars_response,
+    ):
+        """Test getting bars with only start_time parameter."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            mock_bars_response,  # Bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Test with only start_time (end_time should default to now)
+                start = datetime.datetime(2025, 1, 1, 9, 30)
+
+                bars = await client.get_bars("MGC", start_time=start, interval=5)
+
+                # Verify dataframe structure
+                assert not bars.is_empty()
+                assert "timestamp" in bars.columns
+
+    @pytest.mark.asyncio
+    async def test_get_bars_with_only_end_time(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_bars_response,
+    ):
+        """Test getting bars with only end_time parameter."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            mock_bars_response,  # Bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Test with only end_time (start_time should default to days ago)
+                end = datetime.datetime(2025, 1, 5, 16, 0)
+
+                bars = await client.get_bars(
+                    "MGC",
+                    end_time=end,
+                    days=3,  # Should use this for start_time calculation
+                    interval=60,
+                )
+
+                # Verify dataframe structure
+                assert not bars.is_empty()
+                assert "timestamp" in bars.columns
+
+    @pytest.mark.asyncio
+    async def test_get_bars_with_timezone_aware_times(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_bars_response,
+    ):
+        """Test getting bars with timezone-aware datetime parameters."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            mock_bars_response,  # Bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Test with timezone-aware datetimes
+                chicago_tz = pytz.timezone("America/Chicago")
+                start = chicago_tz.localize(datetime.datetime(2025, 1, 1, 9, 30))
+                end = chicago_tz.localize(datetime.datetime(2025, 1, 5, 16, 0))
+
+                bars = await client.get_bars(
+                    "MGC", start_time=start, end_time=end, interval=30
+                )
+
+                # Verify dataframe structure
+                assert not bars.is_empty()
+                assert "timestamp" in bars.columns
+
+                # Cache key should use UTC times
+                start_utc = start.astimezone(pytz.UTC)
+                end_utc = end.astimezone(pytz.UTC)
+                cache_key = (
+                    f"MGC_{start_utc.isoformat()}_{end_utc.isoformat()}_30_2_True"
+                )
+                assert cache_key in client._opt_market_data_cache
+
+    @pytest.mark.asyncio
+    async def test_get_bars_time_params_override_days(
+        self,
+        mock_httpx_client,
+        mock_auth_response,
+        mock_instrument_response,
+        mock_bars_response,
+    ):
+        """Test that start_time/end_time override the days parameter."""
+        auth_response, accounts_response = mock_auth_response
+        mock_httpx_client.request.side_effect = [
+            auth_response,  # Initial auth
+            accounts_response,  # Initial accounts
+            mock_instrument_response,  # Instrument search
+            mock_bars_response,  # Bars data
+        ]
+
+        with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+            async with ProjectX("testuser", "test-api-key") as client:
+                # Initialize required attributes
+                client.api_call_count = 0
+                client._opt_instrument_cache = {}
+                client._opt_instrument_cache_time = {}
+                client._opt_market_data_cache = {}
+                client._opt_market_data_cache_time = {}
+                client.cache_ttl = 300
+                client.last_cache_cleanup = time.time()
+                client.cache_hit_count = 0
+                client.rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+                await client.authenticate()
+
+                # Test that time params override days
+                start = datetime.datetime(2025, 1, 1, 9, 30)
+                end = datetime.datetime(2025, 1, 2, 16, 0)
+
+                bars = await client.get_bars(
+                    "MGC",
+                    days=100,  # This should be ignored
+                    start_time=start,
+                    end_time=end,
+                    interval=15,
+                )
+
+                # Verify that the cache key uses the time range, not days
+                start_utc = pytz.UTC.localize(start)
+                end_utc = pytz.UTC.localize(end)
+                time_based_key = (
+                    f"MGC_{start_utc.isoformat()}_{end_utc.isoformat()}_15_2_True"
+                )
+                days_based_key = "MGC_100_15_2_True"
+
+                assert time_based_key in client._opt_market_data_cache
+                assert days_based_key not in client._opt_market_data_cache
