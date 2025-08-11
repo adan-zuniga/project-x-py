@@ -328,6 +328,8 @@ class MarketDataMixin:
         unit: int = 2,
         limit: int | None = None,
         partial: bool = True,
+        start_time: datetime.datetime | None = None,
+        end_time: datetime.datetime | None = None,
     ) -> pl.DataFrame:
         """
         Retrieve historical OHLCV bar data for an instrument.
@@ -338,12 +340,14 @@ class MarketDataMixin:
 
         Args:
             symbol: Symbol of the instrument (e.g., "MGC", "MNQ", "ES")
-            days: Number of days of historical data (default: 8)
+            days: Number of days of historical data (default: 8, ignored if start_time/end_time provided)
             interval: Interval between bars in the specified unit (default: 5)
             unit: Time unit for the interval (default: 2 for minutes)
                   1=Second, 2=Minute, 3=Hour, 4=Day, 5=Week, 6=Month
             limit: Maximum number of bars to retrieve (auto-calculated if None)
             partial: Include incomplete/partial bars (default: True)
+            start_time: Optional start datetime (overrides days if provided)
+            end_time: Optional end datetime (defaults to now if not provided)
 
         Returns:
             pl.DataFrame: DataFrame with OHLCV data and timezone-aware timestamps
@@ -371,6 +375,11 @@ class MarketDataMixin:
             >>> # V3: Different time units available
             >>> # unit=1 (seconds), 2 (minutes), 3 (hours), 4 (days)
             >>> hourly_data = await client.get_bars("ES", days=1, interval=1, unit=3)
+            >>> # V3: Use specific time range
+            >>> from datetime import datetime
+            >>> start = datetime(2025, 1, 1, 9, 30)
+            >>> end = datetime(2025, 1, 1, 16, 0)
+            >>> data = await client.get_bars("ES", start_time=start, end_time=end)
         """
         with LogContext(
             logger,
@@ -383,8 +392,42 @@ class MarketDataMixin:
         ):
             await self._ensure_authenticated()
 
+            # Calculate date range
+            from datetime import timedelta
+
+            if start_time is not None or end_time is not None:
+                # Use provided time range
+                if start_time is not None:
+                    # Ensure timezone awareness
+                    if start_time.tzinfo is None:
+                        start_date = pytz.UTC.localize(start_time)
+                    else:
+                        start_date = start_time.astimezone(pytz.UTC)
+                else:
+                    # Default to days parameter ago if only end_time provided
+                    start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
+
+                if end_time is not None:
+                    # Ensure timezone awareness
+                    if end_time.tzinfo is None:
+                        end_date = pytz.UTC.localize(end_time)
+                    else:
+                        end_date = end_time.astimezone(pytz.UTC)
+                else:
+                    # Default to now if only start_time provided
+                    end_date = datetime.datetime.now(pytz.UTC)
+
+                # Calculate days for cache key (approximate)
+                days_calc = int((end_date - start_date).total_seconds() / 86400)
+                cache_key = f"{symbol}_{start_date.isoformat()}_{end_date.isoformat()}_{interval}_{unit}_{partial}"
+            else:
+                # Use days parameter
+                start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
+                end_date = datetime.datetime.now(pytz.UTC)
+                days_calc = days
+                cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
+
             # Check market data cache
-            cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
             cached_data = self.get_cached_market_data(cache_key)
             if cached_data is not None:
                 logger.debug(LogMessages.CACHE_HIT, extra={"cache_key": cache_key})
@@ -392,17 +435,11 @@ class MarketDataMixin:
 
             logger.debug(
                 LogMessages.DATA_FETCH,
-                extra={"symbol": symbol, "days": days, "interval": interval},
+                extra={"symbol": symbol, "days": days_calc, "interval": interval},
             )
 
             # Lookup instrument
             instrument = await self.get_instrument(symbol)
-
-            # Calculate date range
-            from datetime import timedelta
-
-            start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
-            end_date = datetime.datetime.now(pytz.UTC)
 
         # Calculate limit based on unit type
         if limit is None:

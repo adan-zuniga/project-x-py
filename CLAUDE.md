@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.4 - Stable Production Release
+## Project Status: v3.1.5 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -299,6 +299,12 @@ async with ProjectX.from_env() as client:
 - `cache_max_size = 100` (Indicator cache entries)
 
 ## Recent Changes
+
+### v3.1.5 - Enhanced Bar Data Retrieval
+- **Added**: Optional `start_time` and `end_time` parameters to `get_bars()` method
+- **Improved**: Precise time range specification for historical data queries
+- **Enhanced**: Full timezone support with automatic UTC conversion
+- **Maintained**: Complete backward compatibility with existing `days` parameter
 
 ### v3.1.4 - WebSocket Connection Fix
 - **Fixed**: Critical WebSocket error with missing `_use_batching` attribute

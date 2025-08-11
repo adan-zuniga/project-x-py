@@ -294,8 +294,14 @@ All 58+ indicators work with async data pipelines:
 import polars as pl
 from project_x_py.indicators import RSI, SMA, MACD, FVG, ORDERBLOCK, WAE
 
-# Get data
-data = await client.get_bars("ES", days=30)
+# Get data - multiple ways
+data = await client.get_bars("ES", days=30)  # Last 30 days
+
+# Or use specific time range (v3.1.5+)
+from datetime import datetime
+start = datetime(2025, 1, 1, 9, 30)
+end = datetime(2025, 1, 10, 16, 0)
+data = await client.get_bars("ES", start_time=start, end_time=end)
 
 # Apply traditional indicators
 data = data.pipe(SMA, period=20).pipe(RSI, period=14)
