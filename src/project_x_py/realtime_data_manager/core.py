@@ -781,16 +781,18 @@ class RealtimeDataManager(
                 interval = tf_config["interval"]
                 unit = tf_config["unit"]
 
-                # Convert to seconds based on numeric unit
-                # Units: 1=seconds, 2=minutes, 4=days, 5=weeks, 6=months
-                if unit == 1:  # seconds
-                    seconds = interval
-                elif unit == 2:  # minutes
-                    seconds = interval * 60
-                elif unit == 4:  # days
-                    seconds = interval * 86400
-                elif unit == 5:  # weeks
-                    seconds = interval * 604800
+                # Convert to seconds based on numeric unit value
+                # Unit mapping: {1: seconds, 2: minutes, 4: days, 5: weeks, 6: months}
+                unit_seconds_map = {
+                    1: 1,  # seconds
+                    2: 60,  # minutes
+                    4: 86400,  # days
+                    5: 604800,  # weeks
+                    6: 2629746,  # months (approximate)
+                }
+
+                if unit in unit_seconds_map:
+                    seconds = interval * unit_seconds_map[unit]
                 else:
                     continue  # Skip unsupported units
 
@@ -841,10 +843,16 @@ class RealtimeDataManager(
                         current_data.select(pl.col("timestamp")).tail(1).item()
                     )
 
-                    # Calculate what the current bar time should be
-                    expected_bar_time = self._calculate_bar_time(
-                        current_time, tf_config["interval"], tf_config["unit"]
-                    )
+                    try:
+                        # Calculate what the current bar time should be
+                        expected_bar_time = self._calculate_bar_time(
+                            current_time, tf_config["interval"], tf_config["unit"]
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            f"Error calculating bar time for {tf_key}: {e}"
+                        )
+                        continue  # Skip this timeframe if calculation fails
 
                     # If we're missing bars, create empty ones
                     if expected_bar_time > last_bar_time:
@@ -852,6 +860,7 @@ class RealtimeDataManager(
                         last_close = current_data.select(pl.col("close")).tail(1).item()
 
                         # Create empty bar with last close as OHLC, volume=0
+                        # Using DataFrame constructor is efficient for single rows
                         new_bar = pl.DataFrame(
                             {
                                 "timestamp": [expected_bar_time],
@@ -882,7 +891,9 @@ class RealtimeDataManager(
 
             # Trigger events outside the lock (non-blocking)
             for event in events_to_trigger:
-                asyncio.create_task(self._trigger_callbacks("new_bar", event))
+                # Store task reference to avoid warning (though we don't need to track it)
+                _ = asyncio.create_task(self._trigger_callbacks("new_bar", event))
 
         except Exception as e:
             self.logger.error(f"Error checking/creating empty bars: {e}")
+            # Don't re-raise - bar timer should continue even if one check fails
