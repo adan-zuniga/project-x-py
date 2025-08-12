@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.7] - 2025-08-12
+
+### Changed
+- Updated documentation and examples for better clarity
+- Minor code improvements and optimizations
+
+### Documentation
+- Updated CLAUDE.md with current v3.1.7 information
+- Corrected code examples to use TradingSuite API
+- Removed references to deprecated factory functions
+
 ## [3.1.6] - 2025-08-12
 
 ### Fixed

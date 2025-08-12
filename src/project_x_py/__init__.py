@@ -78,7 +78,7 @@ Architecture Benefits:
 It provides the infrastructure to help developers create their own trading applications
 that integrate with the ProjectX platform.
 
-Version: 3.0.0
+Version: 3.1.7
 Author: TexasCoding
 
 See Also:
