@@ -112,6 +112,7 @@ class DataAccessMixin:
         data_lock: "asyncio.Lock"
         data: dict[str, pl.DataFrame]
         current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
+        tick_size: float
 
     async def get_data(
         self,
@@ -235,9 +236,14 @@ class DataAccessMixin:
         """
         # Try to get from tick data first
         if self.current_tick_data:
-            return float(self.current_tick_data[-1]["price"])
+            # Import here to avoid circular import
+            from project_x_py.order_manager.utils import align_price_to_tick
 
-        # Fallback to most recent bar close
+            raw_price = float(self.current_tick_data[-1]["price"])
+            # Align the price to tick size
+            return align_price_to_tick(raw_price, self.tick_size)
+
+        # Fallback to most recent bar close (already aligned)
         async with self.data_lock:
             for tf_key in ["1min", "5min", "15min"]:  # Check common timeframes
                 if tf_key in self.data and not self.data[tf_key].is_empty():
