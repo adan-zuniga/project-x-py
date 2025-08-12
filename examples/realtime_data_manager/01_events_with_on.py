@@ -10,7 +10,7 @@ async def main():
     # Note: Use "MNQ" for Micro E-mini Nasdaq-100 futures
     # "NQ" resolves to E-mini Nasdaq (ENQ) which may have different data characteristics
     suite = await TradingSuite.create(
-        instrument="ES",  # Works best with MNQ for consistent real-time updates
+        instrument="MNQ",  # Works best with MNQ for consistent real-time updates
         timeframes=["15sec"],
     )
     print("TradingSuite created!")
