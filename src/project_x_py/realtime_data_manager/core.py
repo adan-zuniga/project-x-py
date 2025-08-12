@@ -402,6 +402,8 @@ class RealtimeDataManager(
         self.contract_id: str | None = None
         # Actual symbol ID from the resolved instrument (e.g., "ENQ" when user specifies "NQ")
         self.instrument_symbol_id: str | None = None
+        # Tick size for price alignment
+        self.tick_size: float = 0.25  # Default, will be updated in initialize()
 
         # Memory management settings are set in _apply_config_defaults()
         self.last_cleanup: float = time.time()
@@ -534,6 +536,9 @@ class RealtimeDataManager(
 
             # Store the exact contract ID for real-time subscriptions
             self.contract_id = instrument_info.id
+
+            # Store the tick size for price alignment
+            self.tick_size = getattr(instrument_info, "tickSize", 0.25)
 
             # Store the actual symbol ID for matching (e.g., "ENQ" when user specifies "NQ")
             # Extract from symbolId like "F.US.ENQ" -> "ENQ"
@@ -806,9 +811,6 @@ class RealtimeDataManager(
             while self.is_running:
                 await asyncio.sleep(check_interval)
 
-                if not self.is_running:
-                    break
-
                 # Check each timeframe for stale bars
                 await self._check_and_create_empty_bars()
 
@@ -859,15 +861,21 @@ class RealtimeDataManager(
                         # Get the last close price to use for empty bars
                         last_close = current_data.select(pl.col("close")).tail(1).item()
 
+                        # Import here to avoid circular import
+                        from project_x_py.order_manager.utils import align_price_to_tick
+
+                        # Align the last close price to tick size
+                        aligned_close = align_price_to_tick(last_close, self.tick_size)
+
                         # Create empty bar with last close as OHLC, volume=0
                         # Using DataFrame constructor is efficient for single rows
                         new_bar = pl.DataFrame(
                             {
                                 "timestamp": [expected_bar_time],
-                                "open": [last_close],
-                                "high": [last_close],
-                                "low": [last_close],
-                                "close": [last_close],
+                                "open": [aligned_close],
+                                "high": [aligned_close],
+                                "low": [aligned_close],
+                                "close": [aligned_close],
                                 "volume": [0],  # Zero volume for empty bars
                             }
                         )
@@ -892,7 +900,7 @@ class RealtimeDataManager(
             # Trigger events outside the lock (non-blocking)
             for event in events_to_trigger:
                 # Store task reference to avoid warning (though we don't need to track it)
-                _ = asyncio.create_task(self._trigger_callbacks("new_bar", event))
+                _ = asyncio.create_task(self._trigger_callbacks("new_bar", event))  # noqa: RUF006
 
         except Exception as e:
             self.logger.error(f"Error checking/creating empty bars: {e}")

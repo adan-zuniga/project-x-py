@@ -222,7 +222,7 @@ class MemoryMappedStorage:
                         offset = max(offset, col_info["offset"] + col_info["size"])
 
             # Convert DataFrame to dict format
-            data = {
+            data: dict[str, Any] = {
                 "schema": {name: str(dtype) for name, dtype in df.schema.items()},
                 "columns": {},
                 "shape": df.shape,
@@ -347,7 +347,7 @@ class TimeSeriesStorage(MemoryMappedStorage):
                 self.open()
 
             # Create row array
-            row = np.zeros(len(self.columns) + 1, dtype=self.dtype)
+            row: np.ndarray = np.zeros(len(self.columns) + 1, dtype=self.dtype)
             row[0] = timestamp
 
             for i, col in enumerate(self.columns):
@@ -407,7 +407,7 @@ class TimeSeriesStorage(MemoryMappedStorage):
                 # Read raw bytes and convert to array
                 if self.mmap and offset + row_size <= len(self.mmap):
                     row_bytes = self.mmap[offset : offset + row_size]
-                    row = np.frombuffer(
+                    row: np.ndarray = np.frombuffer(
                         row_bytes, dtype=self.dtype, count=len(self.columns) + 1
                     )
 

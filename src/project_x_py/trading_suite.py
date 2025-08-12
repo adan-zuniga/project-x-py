@@ -263,16 +263,24 @@ class TradingSuite:
 
         Example:
             ```python
-            # Simple usage with defaults
-            suite = await TradingSuite.create("MNQ")
+            # Simple usage with defaults (with proper cleanup)
+            async with await TradingSuite.create("MNQ") as suite:
+                # Use the suite for trading
+                current_price = await suite.data.get_current_price()
+                print(f"Current price: {current_price}")
 
-            # With custom configuration
+            # Or manage lifecycle manually
             suite = await TradingSuite.create(
                 "MNQ",
                 timeframes=["1min", "5min", "15min"],
                 features=["orderbook", "risk_manager"],
                 initial_days=10,
             )
+            try:
+                # Use the suite
+                pass
+            finally:
+                await suite.disconnect()
             ```
         """
         # Build configuration
@@ -347,6 +355,7 @@ class TradingSuite:
             ```
 
             ```python
+            # Note: Create the config file first with the above content
             suite = await TradingSuite.from_config("config/trading.yaml")
             ```
         """
@@ -548,19 +557,28 @@ class TradingSuite:
         Example:
             ```python
             async def handle_new_bar(event):
-                bar = event.data
-                print(f"New bar: {bar['close']} at {bar['timestamp']}")
+                # event.data contains: {'timeframe': str, 'data': bar_dict}
+                bar_data = event.data.get("data", {})
+                timeframe = event.data.get("timeframe", "")
+                print(f"New {timeframe} bar: ${bar_data.get('close', 0):.2f}")
 
 
             async def handle_position_closed(event):
+                # event.data contains the position object
                 position = event.data
                 print(f"Position closed: P&L = {position.pnl}")
+
+
+            async def handle_order_filled(event):
+                # event.data contains the order object
+                order = event.data
+                print(f"Order filled at {order.filledPrice}")
 
 
             # Register handlers
             await suite.on(EventType.NEW_BAR, handle_new_bar)
             await suite.on(EventType.POSITION_CLOSED, handle_position_closed)
-            await suite.on("order_filled", handle_order_filled)
+            await suite.on(EventType.ORDER_FILLED, handle_order_filled)
             ```
         """
         await self.events.on(event, handler)
@@ -604,10 +622,12 @@ class TradingSuite:
 
         Example:
             ```python
+            from project_x_py.types.trading import OrderSide
+
             # Track a new order
             async with suite.track_order() as tracker:
                 order = await suite.orders.place_limit_order(
-                    contract_id=instrument.id,
+                    contract_id=suite.instrument_id,
                     side=OrderSide.BUY,
                     size=1,
                     price=current_price - 10,
@@ -637,9 +657,10 @@ class TradingSuite:
         Example:
             ```python
             # Build a bracket order with stops and targets
+            # Note: side=0 for BUY, side=1 for SELL
             order_chain = (
                 suite.order_chain()
-                .market_order(size=2)
+                .market_order(size=2, side=0)  # BUY 2 contracts
                 .with_stop_loss(offset=50)
                 .with_take_profit(offset=100)
                 .with_trail_stop(offset=25, trigger_offset=50)
@@ -650,7 +671,7 @@ class TradingSuite:
             # Or use a limit entry
             order_chain = (
                 suite.order_chain()
-                .limit_order(size=1, price=16000)
+                .limit_order(size=1, price=16000, side=0)  # BUY limit
                 .with_stop_loss(price=15950)
                 .with_take_profit(price=16100)
             )

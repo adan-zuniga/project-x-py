@@ -63,12 +63,10 @@ class FVG(BaseIndicator):
         Calculate Fair Value Gaps (FVG).
 
         A bullish FVG occurs when:
-        - Current candle's low > Previous candle's high
-        - Previous candle's low > Two candles ago's high
+        - Current candle's low > Previous candle's high (gap up)
 
         A bearish FVG occurs when:
-        - Current candle's high < Previous candle's low
-        - Previous candle's high < Two candles ago's low
+        - Current candle's high < Previous candle's low (gap down)
 
         Args:
             data: DataFrame with OHLC data
@@ -84,8 +82,10 @@ class FVG(BaseIndicator):
             DataFrame with FVG columns added:
             - fvg_bullish: Boolean indicating bullish FVG
             - fvg_bearish: Boolean indicating bearish FVG
-            - fvg_gap_top: Top of the gap (resistance for bullish, support for bearish)
-            - fvg_gap_bottom: Bottom of the gap (support for bullish, resistance for bearish)
+            - fvg_bullish_start: Start of bullish gap (previous high)
+            - fvg_bullish_end: End of bullish gap (current low)
+            - fvg_bearish_start: Start of bearish gap (previous low)
+            - fvg_bearish_end: End of bearish gap (current high)
             - fvg_gap_size: Size of the gap
             - fvg_mitigated: Boolean indicating if gap has been mitigated (if check_mitigation=True)
 
@@ -104,7 +104,7 @@ class FVG(BaseIndicator):
 
         required_cols: list[str] = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
-        self.validate_data_length(data, 3)  # Need at least 3 candles
+        self.validate_data_length(data, 2)  # Need at least 2 candles
 
         # Get shifted values for comparison
         result = data.with_columns(
@@ -112,75 +112,51 @@ class FVG(BaseIndicator):
                 # Previous candle values
                 pl.col(high_column).shift(1).alias("prev_high"),
                 pl.col(low_column).shift(1).alias("prev_low"),
-                # Two candles ago values
-                pl.col(high_column).shift(2).alias("prev2_high"),
-                pl.col(low_column).shift(2).alias("prev2_low"),
             ]
         )
 
-        # Identify FVGs
+        # Identify FVGs (gaps between consecutive bars)
         result = result.with_columns(
             [
-                # Bullish FVG: current low > prev high AND prev low > prev2 high
-                (
-                    (pl.col(low_column) > pl.col("prev_high"))
-                    & (pl.col("prev_low") > pl.col("prev2_high"))
-                ).alias("fvg_bullish_raw"),
-                # Bearish FVG: current high < prev low AND prev high < prev2 low
-                (
-                    (pl.col(high_column) < pl.col("prev_low"))
-                    & (pl.col("prev_high") < pl.col("prev2_low"))
-                ).alias("fvg_bearish_raw"),
+                # Bullish FVG: current low > prev high (gap up)
+                (pl.col(low_column) > pl.col("prev_high")).alias("fvg_bullish_raw"),
+                # Bearish FVG: current high < prev low (gap down)
+                (pl.col(high_column) < pl.col("prev_low")).alias("fvg_bearish_raw"),
             ]
         )
 
         # Calculate gap boundaries and size
         result = result.with_columns(
             [
-                # Bullish gap: between prev high and current low
-                pl.when(pl.col("fvg_bullish_raw"))
-                .then(pl.col(low_column))
-                .otherwise(None)
-                .alias("bullish_gap_top"),
+                # Bullish gap: from prev high to current low
                 pl.when(pl.col("fvg_bullish_raw"))
                 .then(pl.col("prev_high"))
                 .otherwise(None)
-                .alias("bullish_gap_bottom"),
-                # Bearish gap: between prev low and current high
+                .alias("fvg_bullish_start"),
+                pl.when(pl.col("fvg_bullish_raw"))
+                .then(pl.col(low_column))
+                .otherwise(None)
+                .alias("fvg_bullish_end"),
+                # Bearish gap: from prev low to current high
                 pl.when(pl.col("fvg_bearish_raw"))
                 .then(pl.col("prev_low"))
                 .otherwise(None)
-                .alias("bearish_gap_top"),
+                .alias("fvg_bearish_start"),
                 pl.when(pl.col("fvg_bearish_raw"))
                 .then(pl.col(high_column))
                 .otherwise(None)
-                .alias("bearish_gap_bottom"),
-            ]
-        )
-
-        # Combine gap boundaries
-        result = result.with_columns(
-            [
-                pl.when(pl.col("fvg_bullish_raw"))
-                .then(pl.col("bullish_gap_top"))
-                .when(pl.col("fvg_bearish_raw"))
-                .then(pl.col("bearish_gap_top"))
-                .otherwise(None)
-                .alias("fvg_gap_top"),
-                pl.when(pl.col("fvg_bullish_raw"))
-                .then(pl.col("bullish_gap_bottom"))
-                .when(pl.col("fvg_bearish_raw"))
-                .then(pl.col("bearish_gap_bottom"))
-                .otherwise(None)
-                .alias("fvg_gap_bottom"),
+                .alias("fvg_bearish_end"),
             ]
         )
 
         # Calculate gap size
         result = result.with_columns(
             [
-                (pl.col("fvg_gap_top") - pl.col("fvg_gap_bottom"))
-                .abs()
+                pl.when(pl.col("fvg_bullish_raw"))
+                .then((pl.col("fvg_bullish_end") - pl.col("fvg_bullish_start")).abs())
+                .when(pl.col("fvg_bearish_raw"))
+                .then((pl.col("fvg_bearish_start") - pl.col("fvg_bearish_end")).abs())
+                .otherwise(None)
                 .alias("fvg_gap_size")
             ]
         )
@@ -205,7 +181,14 @@ class FVG(BaseIndicator):
             # Find gap indices
             gap_indices = result.filter(
                 pl.col("fvg_bullish") | pl.col("fvg_bearish")
-            ).select("_row_idx", "fvg_bullish", "fvg_gap_top", "fvg_gap_bottom")
+            ).select(
+                "_row_idx",
+                "fvg_bullish",
+                "fvg_bullish_start",
+                "fvg_bullish_end",
+                "fvg_bearish_start",
+                "fvg_bearish_end",
+            )
 
             # Initialize mitigation column
             mitigated = pl.Series("fvg_mitigated", [False] * len(result))
@@ -214,23 +197,27 @@ class FVG(BaseIndicator):
             for row in gap_indices.iter_rows(named=True):
                 gap_idx = row["_row_idx"]
                 is_bullish = row["fvg_bullish"]
-                gap_top = row["fvg_gap_top"]
-                gap_bottom = row["fvg_gap_bottom"]
-                gap_size = gap_top - gap_bottom
-                mitigation_amount = gap_size * mitigation_threshold
 
                 # Look at subsequent candles for mitigation
                 future_data = result.filter(pl.col("_row_idx") > gap_idx)
 
                 if is_bullish:
-                    # Bullish gap is mitigated when price goes below gap_top - mitigation_amount
-                    mitigation_level = gap_top - mitigation_amount
+                    gap_start = row["fvg_bullish_start"]
+                    gap_end = row["fvg_bullish_end"]
+                    gap_size = gap_end - gap_start
+                    mitigation_amount = gap_size * mitigation_threshold
+                    # Bullish gap is mitigated when price goes back below gap_end - mitigation_amount
+                    mitigation_level = gap_end - mitigation_amount
                     mitigated_rows = future_data.filter(
                         pl.col(low_column) <= mitigation_level
                     )
                 else:
-                    # Bearish gap is mitigated when price goes above gap_bottom + mitigation_amount
-                    mitigation_level = gap_bottom + mitigation_amount
+                    gap_start = row["fvg_bearish_start"]
+                    gap_end = row["fvg_bearish_end"]
+                    gap_size = gap_start - gap_end
+                    mitigation_amount = gap_size * mitigation_threshold
+                    # Bearish gap is mitigated when price goes back above gap_end + mitigation_amount
+                    mitigation_level = gap_end + mitigation_amount
                     mitigated_rows = future_data.filter(
                         pl.col(high_column) >= mitigation_level
                     )
@@ -257,14 +244,8 @@ class FVG(BaseIndicator):
         columns_to_drop: list[str] = [
             "prev_high",
             "prev_low",
-            "prev2_high",
-            "prev2_low",
             "fvg_bullish_raw",
             "fvg_bearish_raw",
-            "bullish_gap_top",
-            "bullish_gap_bottom",
-            "bearish_gap_top",
-            "bearish_gap_bottom",
         ]
 
         result = result.drop(columns_to_drop)

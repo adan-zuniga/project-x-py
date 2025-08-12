@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.8 - Stable Production Release
+## Project Status: v3.1.9 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -288,13 +288,20 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.8 - Latest Release
+### v3.1.9 - Latest Release
+- **Fixed**: Tick price alignment in real-time data manager
+  - All OHLC prices now properly aligned to instrument tick size
+  - `get_current_price()` returns tick-aligned values
+  - Prevents invalid prices (e.g., $23,927.62 for NQ now snaps to $23,927.50)
+- **Documented**: ProjectX volume data limitation (platform-specific, not full exchange volume)
+
+### v3.1.8 - Previous Release  
 - **Fixed**: Real-time data processing for E-mini contracts (NQ/ES) that resolve to different symbols
 - **Added**: Bar timer mechanism to create empty bars during low-volume periods
 - **Improved**: Symbol matching to handle contract resolution (e.g., NQ→ENQ)
 - **Enhanced**: Real-time data manager now properly processes all futures contracts
 
-### v3.1.7 - Previous Release
+### v3.1.7
 - Minor updates and improvements
 - Documentation enhancements
 
