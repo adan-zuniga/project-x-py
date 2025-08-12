@@ -88,6 +88,7 @@ See Also:
     - `realtime_data_manager.validation.ValidationMixin`
 """
 
+import asyncio
 import logging
 from collections import deque
 from datetime import datetime
@@ -295,19 +296,32 @@ class DataProcessingMixin:
             price = tick["price"]
             volume = tick.get("volume", 0)
 
+            # Collect events to trigger after releasing the lock
+            events_to_trigger = []
+
             # Update each timeframe
             async with self.data_lock:
                 # Add to current tick data for get_current_price()
                 self.current_tick_data.append(tick)
 
                 for tf_key in self.timeframes:
-                    await self._update_timeframe_data(tf_key, timestamp, price, volume)
+                    new_bar_event = await self._update_timeframe_data(
+                        tf_key, timestamp, price, volume
+                    )
+                    if new_bar_event:
+                        events_to_trigger.append(new_bar_event)
 
-            # Trigger callbacks for data updates
-            await self._trigger_callbacks(
-                "data_update",
-                {"timestamp": timestamp, "price": price, "volume": volume},
+            # Trigger callbacks for data updates (outside the lock, non-blocking)
+            asyncio.create_task(
+                self._trigger_callbacks(
+                    "data_update",
+                    {"timestamp": timestamp, "price": price, "volume": volume},
+                )
             )
+
+            # Trigger any new bar events (outside the lock, non-blocking)
+            for event in events_to_trigger:
+                asyncio.create_task(self._trigger_callbacks("new_bar", event))
 
             # Update memory stats and periodic cleanup
             self.memory_stats["ticks_processed"] += 1
@@ -322,7 +336,7 @@ class DataProcessingMixin:
         timestamp: datetime,
         price: float,
         volume: int,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         """
         Update a specific timeframe with new tick data.
 
@@ -331,6 +345,9 @@ class DataProcessingMixin:
             timestamp: Timestamp of the tick
             price: Price of the tick
             volume: Volume of the tick
+
+        Returns:
+            dict: New bar event data if a new bar was created, None otherwise
         """
         try:
             interval = self.timeframes[tf_key]["interval"]
@@ -383,15 +400,12 @@ class DataProcessingMixin:
                     self.data[tf_key] = pl.concat([current_data, new_bar])
                     self.last_bar_times[tf_key] = bar_time
 
-                    # Trigger new bar callback
-                    await self._trigger_callbacks(
-                        "new_bar",
-                        {
-                            "timeframe": tf_key,
-                            "bar_time": bar_time,
-                            "data": new_bar.to_dicts()[0],
-                        },
-                    )
+                    # Return new bar event data to be triggered outside the lock
+                    return {
+                        "timeframe": tf_key,
+                        "bar_time": bar_time,
+                        "data": new_bar.to_dicts()[0],
+                    }
 
                 elif bar_time == last_bar_time:
                     # Update existing bar
@@ -446,8 +460,12 @@ class DataProcessingMixin:
             if self.data[tf_key].height > 1000:
                 self.data[tf_key] = self.data[tf_key].tail(1000)
 
+            # Return None if no new bar was created
+            return None
+
         except Exception as e:
             self.logger.error(f"Error updating {tf_key} timeframe: {e}")
+            return None
 
     def _calculate_bar_time(
         self,
