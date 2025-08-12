@@ -27,27 +27,30 @@ Tracking Capabilities:
 
 Example Usage:
     ```python
-    # Register position update callbacks
+    # V3: Using EventBus for unified event handling is the recommended approach.
+    # The old add_callback method is deprecated.
+    from project_x_py import EventBus, EventType
+
+    event_bus = EventBus()
+    # position_manager would be initialized with this event_bus instance.
+
+
+    # Register for position update events
+    @event_bus.on(EventType.POSITION_UPDATED)
     async def on_position_update(data):
-        pos = data.get("data", {})
-        print(f"Position updated: {pos.get('contractId')} size: {pos.get('size')}")
+        print(f"Position updated: {data.get('contractId')} size: {data.get('size')}")
 
 
-    await position_manager.add_callback("position_update", on_position_update)
-
-
-    # Register position closure callbacks
+    # Register for position closure events
+    @event_bus.on(EventType.POSITION_CLOSED)
     async def on_position_closed(data):
-        pos = data.get("data", {})
-        print(f"Position closed: {pos.get('contractId')}")
+        print(f"Position closed: {data.get('contractId')}")
 
-
-    await position_manager.add_callback("position_closed", on_position_closed)
 
     # Get position history
-    history = await position_manager.get_position_history("MGC", limit=10)
-    for entry in history:
-        print(f"{entry['timestamp']}: {entry['size_change']:+d} contracts")
+    # history = await position_manager.get_position_history("MGC", limit=10)
+    # for entry in history:
+    #     print(f"{entry['timestamp']}: {entry['size_change']:+d} contracts")
     ```
 
 See Also:

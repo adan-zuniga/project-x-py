@@ -27,6 +27,13 @@ Real-time Capabilities:
     - Memory management with automatic data cleanup
     - Performance monitoring and statistics
 
+Note:
+    While this module provides direct access to the `RealtimeDataManager`, for most
+    trading applications, it is recommended to use the `TradingSuite`. The suite
+    automatically creates, configures, and manages the data manager, providing
+    simplified access to its data and events via `suite.data` and `suite.on()`.
+    The example below shows the lower-level manual setup.
+
 Example Usage:
     ```python
     # V3: Uses factory functions and EventBus integration

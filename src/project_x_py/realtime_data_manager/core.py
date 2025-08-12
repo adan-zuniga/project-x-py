@@ -33,6 +33,12 @@ Performance Benefits:
     - Minimal latency for trading signals
     - Resilience to network issues
 
+Note:
+    This class is the core implementation of the real-time data manager. For most
+    applications, it is recommended to interact with it through the `TradingSuite`
+    (`suite.data`), which handles its lifecycle and integration automatically.
+    The example below demonstrates direct, low-level instantiation and usage.
+
 Example Usage:
     ```python
     # V3: Create shared async realtime client with factory

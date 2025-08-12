@@ -28,6 +28,13 @@ Position Management Capabilities:
     - Direct position operations through ProjectX API
     - Comprehensive reporting and historical analysis
 
+Note:
+    While this module provides direct access to the `PositionManager`, for most
+    trading applications, it is recommended to use the `TradingSuite`. The suite
+    automatically creates, configures, and manages the position manager, providing
+    simplified access to its functionality via `suite.positions`.
+    The example below shows the lower-level manual setup.
+
 Example Usage:
     ```python
     # V3: Comprehensive position management with EventBus integration

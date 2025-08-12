@@ -31,7 +31,16 @@ Real-time Hubs:
     - User Hub: Account, position, and order updates
     - Market Hub: Quote, trade, and market depth data
 
+Note:
+    This class forms the low-level foundation for real-time data. For most applications,
+    the `TradingSuite` is the recommended entry point as it abstracts away the direct
+    management of this client, its connections, and its events.
+
 Example Usage:
+    The example below shows how to use the client directly. In a real application,
+    the `position_manager`, `order_manager`, and `data_manager` would be instances
+    of the SDK's manager classes.
+
     ```python
     # V3: Create async client with ProjectX Gateway URLs
     import asyncio
@@ -43,9 +52,9 @@ Example Usage:
         client = await create_realtime_client(jwt_token, account_id)
 
         # V3: Register async managers for event handling
-        await client.add_callback("position_update", position_manager.handle_update)
-        await client.add_callback("order_update", order_manager.handle_update)
-        await client.add_callback("quote_update", data_manager.handle_quote)
+        # await client.add_callback("position_update", position_manager.handle_update)
+        # await client.add_callback("order_update", order_manager.handle_update)
+        # await client.add_callback("quote_update", data_manager.handle_quote)
 
         # V3: Connect and check both hub connections
         if await client.connect():
@@ -63,7 +72,7 @@ Example Usage:
             await client.disconnect()
 
 
-    asyncio.run(main())
+    # asyncio.run(main())
     ```
 
 Event Types (per ProjectX Gateway docs):
