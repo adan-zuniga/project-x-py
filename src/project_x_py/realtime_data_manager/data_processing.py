@@ -96,6 +96,7 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
+from project_x_py.order_manager.utils import align_price_to_tick
 from project_x_py.types.trading import TradeLogType
 
 if TYPE_CHECKING:
@@ -110,6 +111,7 @@ class DataProcessingMixin:
     """Mixin for tick processing and OHLCV bar creation."""
 
     # Type hints for mypy - these attributes are provided by the main class
+    tick_size: float
     if TYPE_CHECKING:
         logger: logging.Logger
         timezone: BaseTzInfo
@@ -362,6 +364,9 @@ class DataProcessingMixin:
 
             current_data = self.data[tf_key]
 
+            # Align price to tick size
+            aligned_price = align_price_to_tick(price, self.tick_size)
+
             # Check if we need to create a new bar or update existing
             if current_data.height == 0:
                 # First bar - ensure minimum volume for pattern detection
@@ -369,10 +374,10 @@ class DataProcessingMixin:
                 new_bar = pl.DataFrame(
                     {
                         "timestamp": [bar_time],
-                        "open": [price],
-                        "high": [price],
-                        "low": [price],
-                        "close": [price],
+                        "open": [aligned_price],
+                        "high": [aligned_price],
+                        "low": [aligned_price],
+                        "close": [aligned_price],
                         "volume": [bar_volume],
                     }
                 )
@@ -389,10 +394,10 @@ class DataProcessingMixin:
                     new_bar = pl.DataFrame(
                         {
                             "timestamp": [bar_time],
-                            "open": [price],
-                            "high": [price],
-                            "low": [price],
-                            "close": [price],
+                            "open": [aligned_price],
+                            "high": [aligned_price],
+                            "low": [aligned_price],
+                            "close": [aligned_price],
                             "volume": [bar_volume],
                         }
                     )
@@ -416,12 +421,12 @@ class DataProcessingMixin:
                     current_high = (
                         last_row.select(pl.col("high")).item()
                         if last_row.height > 0
-                        else price
+                        else aligned_price
                     )
                     current_low = (
                         last_row.select(pl.col("low")).item()
                         if last_row.height > 0
-                        else price
+                        else aligned_price
                     )
                     current_volume = (
                         last_row.select(pl.col("volume")).item()
@@ -429,9 +434,13 @@ class DataProcessingMixin:
                         else 0
                     )
 
-                    # Calculate new values
-                    new_high = max(current_high, price)
-                    new_low = min(current_low, price)
+                    # Calculate new values with tick alignment
+                    new_high = align_price_to_tick(
+                        max(current_high, aligned_price), self.tick_size
+                    )
+                    new_low = align_price_to_tick(
+                        min(current_low, aligned_price), self.tick_size
+                    )
                     new_volume = max(current_volume + volume, 1)
 
                     # Update with new values
@@ -446,7 +455,7 @@ class DataProcessingMixin:
                             .otherwise(pl.col("low"))
                             .alias("low"),
                             pl.when(last_row_mask)
-                            .then(pl.lit(price))
+                            .then(pl.lit(aligned_price))
                             .otherwise(pl.col("close"))
                             .alias("close"),
                             pl.when(last_row_mask)
