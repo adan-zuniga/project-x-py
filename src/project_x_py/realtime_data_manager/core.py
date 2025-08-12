@@ -781,15 +781,18 @@ class RealtimeDataManager(
                 interval = tf_config["interval"]
                 unit = tf_config["unit"]
 
-                # Convert to seconds
-                if unit == "sec":
+                # Convert to seconds based on numeric unit
+                # Units: 1=seconds, 2=minutes, 4=days, 5=weeks, 6=months
+                if unit == 1:  # seconds
                     seconds = interval
-                elif unit == "min":
+                elif unit == 2:  # minutes
                     seconds = interval * 60
-                elif unit == "hr":
-                    seconds = interval * 3600
+                elif unit == 4:  # days
+                    seconds = interval * 86400
+                elif unit == 5:  # weeks
+                    seconds = interval * 604800
                 else:
-                    continue
+                    continue  # Skip unsupported units
 
                 min_seconds = min(min_seconds, seconds)
 
