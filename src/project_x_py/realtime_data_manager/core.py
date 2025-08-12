@@ -117,6 +117,7 @@ See Also:
 """
 
 import asyncio
+import contextlib
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -399,6 +400,8 @@ class RealtimeDataManager(
 
         # Contract ID for real-time subscriptions
         self.contract_id: str | None = None
+        # Actual symbol ID from the resolved instrument (e.g., "ENQ" when user specifies "NQ")
+        self.instrument_symbol_id: str | None = None
 
         # Memory management settings are set in _apply_config_defaults()
         self.last_cleanup: float = time.time()
@@ -430,6 +433,9 @@ class RealtimeDataManager(
 
         # Background cleanup task
         self._cleanup_task: asyncio.Task[None] | None = None
+
+        # Background bar timer task for low-volume periods
+        self._bar_timer_task: asyncio.Task[None] | None = None
 
         self.logger.info(
             "RealtimeDataManager initialized", extra={"instrument": instrument}
@@ -528,6 +534,16 @@ class RealtimeDataManager(
 
             # Store the exact contract ID for real-time subscriptions
             self.contract_id = instrument_info.id
+
+            # Store the actual symbol ID for matching (e.g., "ENQ" when user specifies "NQ")
+            # Extract from symbolId like "F.US.ENQ" -> "ENQ"
+            if instrument_info.symbolId and "." in instrument_info.symbolId:
+                parts = instrument_info.symbolId.split(".")
+                self.instrument_symbol_id = (
+                    parts[-1] if parts else instrument_info.symbolId
+                )
+            else:
+                self.instrument_symbol_id = instrument_info.symbolId or self.instrument
 
             # Load initial data for all timeframes
             async with self.data_lock:
@@ -668,6 +684,9 @@ class RealtimeDataManager(
             # Start cleanup task
             self.start_cleanup_task()
 
+            # Start bar timer task for low-volume periods
+            self._start_bar_timer_task()
+
             self.logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"status": "feed_started", "instrument": self.instrument},
@@ -689,6 +708,9 @@ class RealtimeDataManager(
 
             # Cancel cleanup task
             await self.stop_cleanup_task()
+
+            # Cancel bar timer task
+            await self._stop_bar_timer_task()
 
             # Unsubscribe from market data
             # Note: unsubscribe_market_data will be implemented in ProjectXRealtimeClient
@@ -730,3 +752,134 @@ class RealtimeDataManager(
                     dom_attr[_k] = []
 
         self.logger.info("✅ RealtimeDataManager cleanup completed")
+
+    def _start_bar_timer_task(self) -> None:
+        """Start the bar timer task for creating bars during low-volume periods."""
+        if self._bar_timer_task is None or self._bar_timer_task.done():
+            self._bar_timer_task = asyncio.create_task(self._bar_timer_loop())
+            self.logger.debug("Bar timer task started")
+
+    async def _stop_bar_timer_task(self) -> None:
+        """Stop the bar timer task."""
+        if self._bar_timer_task and not self._bar_timer_task.done():
+            self._bar_timer_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._bar_timer_task
+            self.logger.debug("Bar timer task stopped")
+
+    async def _bar_timer_loop(self) -> None:
+        """
+        Periodic task to create empty bars during low-volume periods.
+
+        This ensures bars are created at regular intervals even when
+        there's no trading activity (important for low-volume instruments).
+        """
+        try:
+            # Find the shortest timeframe interval to check
+            min_seconds = float("inf")
+            for tf_config in self.timeframes.values():
+                interval = tf_config["interval"]
+                unit = tf_config["unit"]
+
+                # Convert to seconds
+                if unit == "sec":
+                    seconds = interval
+                elif unit == "min":
+                    seconds = interval * 60
+                elif unit == "hr":
+                    seconds = interval * 3600
+                else:
+                    continue
+
+                min_seconds = min(min_seconds, seconds)
+
+            # Check at least every 5 seconds, but no more than the shortest interval
+            check_interval = min(5.0, min_seconds / 3)
+
+            self.logger.debug(f"Bar timer checking every {check_interval} seconds")
+
+            while self.is_running:
+                await asyncio.sleep(check_interval)
+
+                if not self.is_running:
+                    break
+
+                # Check each timeframe for stale bars
+                await self._check_and_create_empty_bars()
+
+        except asyncio.CancelledError:
+            self.logger.debug("Bar timer task cancelled")
+            raise
+        except Exception as e:
+            self.logger.error(f"Error in bar timer loop: {e}")
+
+    async def _check_and_create_empty_bars(self) -> None:
+        """
+        Check each timeframe and create empty bars if needed.
+
+        This handles low-volume periods where no ticks are coming in,
+        ensuring bars are still created at the proper intervals.
+        """
+        try:
+            current_time = datetime.now(self.timezone)
+            events_to_trigger = []
+
+            async with self.data_lock:
+                for tf_key, tf_config in self.timeframes.items():
+                    if tf_key not in self.data:
+                        continue
+
+                    current_data = self.data[tf_key]
+                    if current_data.height == 0:
+                        continue
+
+                    # Get the last bar time
+                    last_bar_time = (
+                        current_data.select(pl.col("timestamp")).tail(1).item()
+                    )
+
+                    # Calculate what the current bar time should be
+                    expected_bar_time = self._calculate_bar_time(
+                        current_time, tf_config["interval"], tf_config["unit"]
+                    )
+
+                    # If we're missing bars, create empty ones
+                    if expected_bar_time > last_bar_time:
+                        # Get the last close price to use for empty bars
+                        last_close = current_data.select(pl.col("close")).tail(1).item()
+
+                        # Create empty bar with last close as OHLC, volume=0
+                        new_bar = pl.DataFrame(
+                            {
+                                "timestamp": [expected_bar_time],
+                                "open": [last_close],
+                                "high": [last_close],
+                                "low": [last_close],
+                                "close": [last_close],
+                                "volume": [0],  # Zero volume for empty bars
+                            }
+                        )
+
+                        self.data[tf_key] = pl.concat([current_data, new_bar])
+                        self.last_bar_times[tf_key] = expected_bar_time
+
+                        self.logger.debug(
+                            f"Created empty bar for {tf_key} at {expected_bar_time} "
+                            f"(low volume period)"
+                        )
+
+                        # Prepare event to trigger
+                        events_to_trigger.append(
+                            {
+                                "timeframe": tf_key,
+                                "bar_time": expected_bar_time,
+                                "data": new_bar.to_dicts()[0],
+                            }
+                        )
+
+            # Trigger events outside the lock (non-blocking)
+            for event in events_to_trigger:
+                asyncio.create_task(self._trigger_callbacks("new_bar", event))
+
+        except Exception as e:
+            self.logger.error(f"Error checking/creating empty bars: {e}")

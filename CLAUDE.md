@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.7 - Stable Production Release
+## Project Status: v3.1.8 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -288,7 +288,13 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.7 - Latest Release
+### v3.1.8 - Latest Release
+- **Fixed**: Real-time data processing for E-mini contracts (NQ/ES) that resolve to different symbols
+- **Added**: Bar timer mechanism to create empty bars during low-volume periods
+- **Improved**: Symbol matching to handle contract resolution (e.g., NQ→ENQ)
+- **Enhanced**: Real-time data manager now properly processes all futures contracts
+
+### v3.1.7 - Previous Release
 - Minor updates and improvements
 - Documentation enhancements
 

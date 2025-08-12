@@ -95,7 +95,7 @@ from typing import Any
 
 from project_x_py.client.base import ProjectXBase
 
-__version__ = "3.1.7"
+__version__ = "3.1.8"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
