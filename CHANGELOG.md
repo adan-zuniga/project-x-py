@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.9] - 2025-08-12
+
+### Fixed
+- **💹 Tick Price Alignment**: All prices now properly aligned to instrument tick size
+  - Bar OHLC prices aligned during creation and updates (e.g., NQ prices snap to 0.25 increments)
+  - Current price from `get_current_price()` now returns tick-aligned values
+  - Empty bars created during low-volume periods use aligned prices
+  - Prevents invalid prices like $23,927.62 for NQ (now correctly $23,927.50 or $23,927.75)
+
+### Documentation
+- **📊 Volume Data Clarification**: Documented that ProjectX provides platform-specific volume
+  - Volume data represents trades executed through ProjectX platform only
+  - Not full exchange volume from CME
+  - This is a data feed limitation, not a bug in the SDK
+  - Prices remain accurate despite lower volume numbers
+
 ## [3.1.8] - 2025-08-12
 
 ### Fixed
