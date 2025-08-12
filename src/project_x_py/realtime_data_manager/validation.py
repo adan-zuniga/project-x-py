@@ -257,8 +257,9 @@ class ValidationMixin:
             return True
 
         # Check against resolved symbol ID (e.g., "ENQ" when user specified "NQ")
-        if hasattr(self, "instrument_symbol_id") and self.instrument_symbol_id:
-            return base_upper == self.instrument_symbol_id.upper()
+        instrument_symbol_id = getattr(self, "instrument_symbol_id", None)
+        if instrument_symbol_id:
+            return bool(base_upper == instrument_symbol_id.upper())
 
         return False
 

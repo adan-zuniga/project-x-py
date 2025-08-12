@@ -312,7 +312,7 @@ class DataProcessingMixin:
                         events_to_trigger.append(new_bar_event)
 
             # Trigger callbacks for data updates (outside the lock, non-blocking)
-            asyncio.create_task(
+            asyncio.create_task(  # noqa: RUF006
                 self._trigger_callbacks(
                     "data_update",
                     {"timestamp": timestamp, "price": price, "volume": volume},
@@ -321,7 +321,7 @@ class DataProcessingMixin:
 
             # Trigger any new bar events (outside the lock, non-blocking)
             for event in events_to_trigger:
-                asyncio.create_task(self._trigger_callbacks("new_bar", event))
+                asyncio.create_task(self._trigger_callbacks("new_bar", event))  # noqa: RUF006
 
             # Update memory stats and periodic cleanup
             self.memory_stats["ticks_processed"] += 1
@@ -358,7 +358,7 @@ class DataProcessingMixin:
 
             # Get current data for this timeframe
             if tf_key not in self.data:
-                return
+                return None
 
             current_data = self.data[tf_key]
 

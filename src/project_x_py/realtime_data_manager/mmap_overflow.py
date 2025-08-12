@@ -95,7 +95,7 @@ class MMapOverflowMixin:
         max_bars = self.max_bars_per_timeframe
 
         # Check if we've exceeded threshold
-        return current_bars > (max_bars * self.overflow_threshold)
+        return bool(current_bars > (max_bars * self.overflow_threshold))
 
     async def _overflow_to_disk(self, timeframe: str) -> None:
         """

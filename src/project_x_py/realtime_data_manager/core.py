@@ -806,9 +806,6 @@ class RealtimeDataManager(
             while self.is_running:
                 await asyncio.sleep(check_interval)
 
-                if not self.is_running:
-                    break
-
                 # Check each timeframe for stale bars
                 await self._check_and_create_empty_bars()
 
@@ -892,7 +889,7 @@ class RealtimeDataManager(
             # Trigger events outside the lock (non-blocking)
             for event in events_to_trigger:
                 # Store task reference to avoid warning (though we don't need to track it)
-                _ = asyncio.create_task(self._trigger_callbacks("new_bar", event))
+                _ = asyncio.create_task(self._trigger_callbacks("new_bar", event))  # noqa: RUF006
 
         except Exception as e:
             self.logger.error(f"Error checking/creating empty bars: {e}")
