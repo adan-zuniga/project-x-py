@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.5 - Stable Production Release
+## Project Status: v3.1.6 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -299,6 +299,13 @@ async with ProjectX.from_env() as client:
 - `cache_max_size = 100` (Indicator cache entries)
 
 ## Recent Changes
+
+### v3.1.6 - Critical Deadlock Fix
+- **Fixed**: Deadlock when calling `suite.data` methods from event handler callbacks (Issue #39)
+- **Improved**: Event emission now non-blocking to prevent handler deadlocks
+- **Enhanced**: Event triggering moved outside lock scope for better concurrency
+- **Added**: Missing asyncio import in data_processing module
+- **Maintained**: Full API compatibility - no breaking changes
 
 ### v3.1.5 - Enhanced Bar Data Retrieval
 - **Added**: Optional `start_time` and `end_time` parameters to `get_bars()` method
