@@ -144,15 +144,16 @@ async def main():
     )
     
     # Register event handlers
-    # Note: Event data is provided in the event object
-    @suite.events.on(EventType.NEW_BAR)
     async def on_new_bar(event):
-        # Access bar data directly from event (avoids potential deadlock)
+        # Access bar data directly from event
         print(f\"New {event.data['timeframe']} bar: {event.data['data']['close']}\")
     
-    @suite.events.on(EventType.TRADE_TICK)
     async def on_trade(event):
         print(f\"Trade: {event.data['size']} @ {event.data['price']}\")
+    
+    # Register the handlers
+    await suite.on(EventType.NEW_BAR, on_new_bar)
+    await suite.on(EventType.TRADE_TICK, on_trade)
     
     # Access components
     data = await suite.data.get_data(\"5min\")
@@ -208,18 +209,21 @@ Prior to v3.1.6, calling `suite.data` methods from within event handlers could c
 
 ```python
 # Best: Use event data directly
-@suite.events.on(EventType.NEW_BAR)
 async def on_new_bar(event):
     # Bar data is provided in the event
     bar = event.data['data']
     print(f"Close: {bar['close']}, Volume: {bar['volume']}")
 
+# Register the handler
+await suite.on(EventType.NEW_BAR, on_new_bar)
+
 # Also OK (v3.1.6+): Access data methods if needed
-@suite.events.on(EventType.NEW_BAR)
 async def on_new_bar_with_context(event):
     # Safe in v3.1.6+, but slightly slower
     current_price = await suite.data.get_current_price()
     historical = await suite.data.get_data("5min", bars=20)
+
+await suite.on(EventType.NEW_BAR, on_new_bar_with_context)
 ```
 
 ## 📚 Documentation
