@@ -88,38 +88,35 @@ class ProjectX(ProjectXBase):
         >>>
         >>> asyncio.run(main())
 
-    For advanced async trading applications, combine with specialized managers:
-        >>> # V3: Advanced trading with specialized managers
-        >>> from project_x_py import (
-        ...     ProjectX,
-        ...     create_realtime_client,
-        ...     create_order_manager,
-        ...     create_position_manager,
-        ...     create_realtime_data_manager,
-        ... )
+    For advanced async trading applications, use the `TradingSuite`:
+        >>> # V3: Advanced trading with the TradingSuite
+        >>> import asyncio
+        >>> from project_x_py import TradingSuite
         >>>
         >>> async def trading_app():
-        >>>     async with ProjectX.from_env() as client:
-        >>>         await client.authenticate()
+        >>> # The TradingSuite simplifies setup and integrates all managers
+        >>>     suite = await TradingSuite.create(
+        ...         "MNQ",
+        ...         timeframes=["1min", "5min"],
+        ...         features=["orderbook", "risk_manager"]
+        ...     )
         >>>
-        >>> # V3: Create specialized async managers with dependency injection
-        >>>         jwt_token = client.get_session_token()
-        >>>         account_id = str(client.get_account_info().id)
+        >>> # Client is authenticated and real-time data is streaming.
         >>>
-        >>> # V3: Real-time WebSocket client for all managers
-        >>>         realtime_client = await create_realtime_client(jwt_token, account_id)
-        >>> # V3: Create managers with shared realtime client
-        >>>         order_manager = create_order_manager(client, realtime_client)
-        >>>         position_manager = create_position_manager(client, realtime_client)
-        >>>         data_manager = create_realtime_data_manager(
-        ...             "MNQ", client, realtime_client, timeframes=["1min", "5min"]
-        ...         )
+        >>> # Access integrated managers easily
+        >>>     order = await suite.orders.place_market_order(
+        ...         contract_id=suite.instrument_info.id,
+        ...         side=0,  # Buy
+        ...         size=1
+        ...     )
         >>>
-        >>> # V3: Connect and start real-time trading
-        >>>         await realtime_client.connect()
-        >>>         await data_manager.start_realtime_feed()
-        >>> # V3: Now ready for real-time trading with all managers
-        >>> # ... your trading logic here ...
+        >>>     position = await suite.positions.get_position("MNQ")
+        >>>     bars = await suite.data.get_data("1min")
+        >>>
+        >>>     print(f"Placed order {order.id}, current position: {position.netPos}")
+        >>>     print(f"Latest 1-min bar: {bars.tail(1)}")
+        >>>
+        >>> asyncio.run(trading_app())
     """
 
 

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.6 - Stable Production Release
+## Project Status: v3.1.8 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -166,29 +166,17 @@ uv run python -m build       # Alternative build command
 
 **Async Factory Functions**: Use async `create_*` functions for component initialization:
 ```python
-# Async factory pattern (v2.0.0+)
+# TradingSuite - Recommended approach (v3.0.0+)
 async def setup_trading():
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        
-        # Create managers with async patterns
-        realtime_client = await create_realtime_client(
-            client.jwt_token, 
-            str(client.account_id)
-        )
-        
-        order_manager = create_order_manager(client, realtime_client)
-        position_manager = create_position_manager(client, realtime_client)
-        
-        # Or use the all-in-one factory
-        suite = await create_trading_suite(
-            instrument="MNQ",
-            project_x=client,
-            jwt_token=client.jwt_token,
-            account_id=client.account_id
-        )
-        
-        return suite
+    # Simple one-line setup with TradingSuite
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min"],
+        features=["orderbook"]
+    )
+    
+    # Everything is ready - client authenticated, realtime connected
+    return suite
 ```
 
 **Dependency Injection**: Managers receive their dependencies (ProjectX client, realtime client) rather than creating them.
@@ -300,6 +288,16 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
+### v3.1.8 - Latest Release
+- **Fixed**: Real-time data processing for E-mini contracts (NQ/ES) that resolve to different symbols
+- **Added**: Bar timer mechanism to create empty bars during low-volume periods
+- **Improved**: Symbol matching to handle contract resolution (e.g., NQ→ENQ)
+- **Enhanced**: Real-time data manager now properly processes all futures contracts
+
+### v3.1.7 - Previous Release
+- Minor updates and improvements
+- Documentation enhancements
+
 ### v3.1.6 - Critical Deadlock Fix
 - **Fixed**: Deadlock when calling `suite.data` methods from event handler callbacks (Issue #39)
 - **Improved**: Event emission now non-blocking to prevent handler deadlocks
@@ -343,29 +341,31 @@ async with ProjectX.from_env() as client:
 - All core modules organized as packages with focused submodules
 - Improved code organization and maintainability
 
-### Trading Suite Usage
+### Trading Suite Usage (v3.0.0+)
 ```python
 # Complete trading suite with all managers
-from project_x_py import create_trading_suite
+from project_x_py import TradingSuite
 
 async def main():
-    suite = await create_trading_suite(
-        instrument="MNQ",
+    suite = await TradingSuite.create(
+        "MNQ",
         timeframes=["1min", "5min"],
-        enable_orderbook=True,
-        enable_risk_management=True
+        features=["orderbook", "risk_manager"],
+        initial_days=5
     )
     
     # All managers are integrated and ready
-    await suite.start()
+    # No need to call start() - already connected
     
     # Access individual managers
-    order = await suite.order_manager.place_market_order(
-        "MNQ", 1, "BUY"
+    order = await suite.orders.place_market_order(
+        contract_id=suite.instrument_info.id,
+        side=0,  # Buy
+        size=1
     )
     
-    position = suite.position_manager.get_position("MNQ")
-    bars = suite.data_manager.get_bars("MNQ", "1min")
+    position = await suite.positions.get_position("MNQ")
+    bars = await suite.data.get_data("1min")
 ```
 
 ### Key Async Examples
@@ -375,24 +375,23 @@ async with ProjectX.from_env() as client:
     await client.authenticate()
     bars = await client.get_bars("MNQ", days=5)
     
-# Real-time data
+# Real-time data with TradingSuite
 async def stream_data():
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        
-        realtime = await create_realtime_client(
-            client.jwt_token,
-            str(client.account_id)
-        )
-        
-        data_manager = create_realtime_data_manager(
-            "MNQ", client, realtime
-        )
-        
-        # Set up callbacks
-        data_manager.on_bar_received = handle_bar
-        
-        # Start streaming
-        await realtime.connect()
-        await data_manager.start_realtime_feed()
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min"]
+    )
+    
+    # Register event handlers
+    from project_x_py import EventType
+    
+    async def handle_bar(event):
+        print(f"New bar: {event.data}")
+    
+    await suite.on(EventType.NEW_BAR, handle_bar)
+    
+    # Data is already streaming
+    # Access current data
+    current_price = await suite.data.get_current_price()
+    bars = await suite.data.get_data("1min")
 ```

@@ -26,7 +26,15 @@ Real-time Capabilities:
     - Subscription management for specific contracts
     - Connection health monitoring and statistics
 
+Note:
+    While this module provides direct access to the real-time client, for most
+    trading applications, it is recommended to use the `TradingSuite`. The suite
+    manages the real-time client, data processing, and event handling automatically,
+    offering a simpler and more robust development experience.
+
 Example Usage:
+    The example below demonstrates the low-level usage of the `ProjectXRealtimeClient`.
+
     ```python
     # V3: Real-time WebSocket client with async callbacks
     import asyncio

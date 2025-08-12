@@ -26,24 +26,32 @@ Connection Management Capabilities:
     - Statistics tracking and health reporting
 
 Example Usage:
+    The functionality of this mixin is consumed through a `ProjectXRealtimeClient` instance.
+    For most use cases, this is handled automatically by the `TradingSuite`.
+
     ```python
-    # Setup and connect
-    client = ProjectXRealtimeClient(jwt_token, account_id)
-    await client.setup_connections()
+    # The following demonstrates the low-level connection lifecycle managed by this mixin.
+    # Note: In a typical application, you would use TradingSuite, which handles this.
+    from project_x_py import create_realtime_client
 
-    if await client.connect():
-        print("Connected to ProjectX Gateway")
+    # 1. Initialization (handled by factory or TradingSuite)
+    # realtime_client = await create_realtime_client(jwt, account_id)
 
-        # Check connection status
-        if client.is_connected():
-            print("Both hubs connected")
+    # 2. Connection (handled by TradingSuite.create() or client.connect())
+    # if await realtime_client.connect():
+    #     print("Successfully connected to both User and Market hubs.")
 
-        # Get connection statistics
-        stats = client.get_stats()
-        print(f"Events received: {stats['events_received']}")
+    #     # 3. Health Monitoring
+    #     if realtime_client.is_connected():
+    #         stats = realtime_client.get_stats()
+    #         print(f"Events received so far: {stats['events_received']}")
 
-        # Update JWT token on refresh
-        await client.update_jwt_token(new_jwt_token)
+    #     # 4. Token Refresh (if managing tokens manually)
+    #     # new_token = await get_new_token()
+    #     # await realtime_client.update_jwt_token(new_token)
+
+    #     # 5. Disconnection (handled by TradingSuite context manager or client.disconnect())
+    #     await realtime_client.disconnect()
     ```
 
 See Also:

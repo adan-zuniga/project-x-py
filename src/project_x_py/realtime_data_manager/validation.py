@@ -248,8 +248,19 @@ class ValidationMixin:
         else:
             base_symbol = symbol
 
-        # Compare with our instrument (case-insensitive)
-        return base_symbol.upper() == self.instrument.upper()
+        # Compare with both our original instrument and the resolved symbol ID
+        # This handles cases like NQ -> ENQ resolution
+        base_upper = base_symbol.upper()
+
+        # Check against original instrument (e.g., "NQ")
+        if base_upper == self.instrument.upper():
+            return True
+
+        # Check against resolved symbol ID (e.g., "ENQ" when user specified "NQ")
+        if hasattr(self, "instrument_symbol_id") and self.instrument_symbol_id:
+            return base_upper == self.instrument_symbol_id.upper()
+
+        return False
 
     def get_realtime_validation_status(
         self: "RealtimeDataManagerProtocol",

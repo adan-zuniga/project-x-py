@@ -20,13 +20,11 @@ Key Features:
     - Comprehensive position operations (close, partial close)
     - Statistics, history, and report generation
 
-Position Manager Components:
-    - PositionTrackingMixin: Real-time position tracking and callbacks
-    - PositionAnalyticsMixin: P&L calculations and portfolio analytics
-    - RiskManagementMixin: Risk metrics and position sizing
-    - PositionMonitoringMixin: Position monitoring and alerts
-    - PositionOperationsMixin: Direct position operations
-    - PositionReportingMixin: Statistics, history, and reports
+Note:
+    This class is the core implementation of the position manager. For most
+    applications, it is recommended to interact with it through the `TradingSuite`
+    (`suite.positions`), which handles its lifecycle and integration automatically.
+    The example below demonstrates direct, low-level instantiation and usage.
 
 Example Usage:
     ```python

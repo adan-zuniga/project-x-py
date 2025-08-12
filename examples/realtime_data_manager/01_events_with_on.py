@@ -7,8 +7,10 @@ from project_x_py.event_bus import EventType
 
 async def main():
     print("Creating TradingSuite...")
+    # Note: Use "MNQ" for Micro E-mini Nasdaq-100 futures
+    # "NQ" resolves to E-mini Nasdaq (ENQ) which may have different data characteristics
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        instrument="MNQ",  # Works best with MNQ for consistent real-time updates
         timeframes=["15sec"],
     )
     print("TradingSuite created!")
@@ -19,7 +21,7 @@ async def main():
     # Set up signal handler for clean exit
     shutdown_event = asyncio.Event()
 
-    def signal_handler(signum, frame):
+    def signal_handler(_signum, _frame):
         print("\n\nReceived interrupt signal. Shutting down gracefully...")
         shutdown_event.set()
 

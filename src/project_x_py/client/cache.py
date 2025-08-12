@@ -1,10 +1,19 @@
 """
-Optimized caching with msgpack serialization and lz4 compression.
+Optimized caching with msgpack serialization and lz4 compression for ProjectX.
 
-This module provides high-performance caching using:
-- msgpack for 2-5x faster serialization
-- lz4 for fast compression (70% size reduction)
-- cachetools for intelligent cache management
+This module provides a high-performance caching layer (`CacheMixin`) designed to
+significantly reduce latency and memory usage for the ProjectX async client. It
+replaces standard pickle/JSON serialization with faster and more efficient alternatives.
+
+Key Features:
+- msgpack: For serialization that is 2-5x faster than pickle.
+- lz4: For high-speed data compression, achieving up to 70% size reduction on market data.
+- cachetools: Implements intelligent LRU (Least Recently Used) and TTL (Time-to-Live)
+  cache eviction policies for instruments and market data respectively.
+- Automatic Compression: Data payloads exceeding a configurable threshold (default 1KB)
+  are automatically compressed.
+- Performance-Tuned: Optimized for handling Polars DataFrames and other data models
+  used within the SDK.
 """
 
 import gc
