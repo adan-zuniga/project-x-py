@@ -14,6 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.6] - 2025-08-12
+
+### Fixed
+- **🔒 Critical Deadlock Fix**: Resolved deadlock when calling `suite.data` methods from event handler callbacks (#39)
+  - Event handlers can now safely call `get_current_price()` and `get_data()` without deadlocking
+  - Event emission is now non-blocking using `asyncio.create_task()`
+  - Event triggering moved outside lock scope for better concurrency
+  - Added missing `asyncio` import in data_processing module
+  - Full API compatibility maintained - no breaking changes
+
+### Added
+- **📚 Example Scripts**: Added comprehensive examples for event handling patterns
+  - `examples/realtime_data_manager/00_events_with_wait_for.py` - Using wait_for pattern
+  - `examples/realtime_data_manager/01_events_with_on.py` - Using event handler pattern
+  - `examples/realtime_data_manager/01_events_with_on_simple.py` - Queue-based workaround pattern
+
+### Internal
+- Modified `_update_timeframe_data()` to return event data instead of triggering directly
+- Improved concurrency in real-time data processing pipeline
+
 ## [3.1.5] - 2025-08-11
 
 ### Added

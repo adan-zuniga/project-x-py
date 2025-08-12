@@ -21,51 +21,27 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.4 - Stable Production Release
+## 🚀 v3.1.6 - Stable Production Release
 
-**Latest Update (v3.1.4)**: Fixed critical WebSocket connection issue with proper mixin initialization in ProjectXRealtimeClient, ensuring stable real-time data streaming.
+**Latest Version**: v3.1.6 - Fixed critical deadlock in event handlers. See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
-### What's New in v3.1.4
-- **Fixed**: WebSocket connection error (`_use_batching` attribute missing)
-- **Improved**: Proper initialization of all mixins in ProjectXRealtimeClient
-- **Enhanced**: More robust real-time connection handling
+### 📦 Production Stability Guarantee
 
-### What's New in v3.1.1
-- **📦 MAJOR POLICY CHANGE**: Project has reached stable production status
-  - Now maintaining backward compatibility between minor versions
-  - Deprecation warnings will be provided for at least 2 minor versions
-  - Breaking changes only in major releases (4.0.0+)
-  - Strict semantic versioning (MAJOR.MINOR.PATCH)
-- **Fixed**: Test suite compatibility with optimized cache implementation
-- **Fixed**: Datetime serialization/deserialization in cached DataFrames
-- **Fixed**: BatchedWebSocketHandler flush and race condition issues
-- **Fixed**: SignalR mock methods in connection management tests
+Since v3.1.1, this project maintains:
+- ✅ Backward compatibility between minor versions
+- ✅ Deprecation warnings for at least 2 minor versions before removal  
+- ✅ Breaking changes only in major releases (4.0.0+)
+- ✅ Strict semantic versioning (MAJOR.MINOR.PATCH)
 
-### What's New in v3.1.0
-
-#### Performance Enhancements (75% Complete)
-- **Memory-Mapped Overflow Storage**: Automatic overflow to disk when memory limits reached
-- **orjson Integration**: 2-3x faster JSON serialization/deserialization 
-- **WebSocket Message Batching**: Reduced overhead for high-frequency data
-- **Advanced Caching**: msgpack serialization with lz4 compression
-- **Optimized DataFrames**: 20-40% faster Polars operations
-- **Connection Pooling**: 30-50% faster API responses
-
-#### Memory Management
-- **Automatic Overflow**: Data automatically overflows to disk at 80% memory threshold
-- **Transparent Access**: Seamless retrieval from both memory and disk storage
-- **Sliding Windows**: Efficient memory usage with configurable limits
-- **Smart Compression**: Automatic compression for data >1KB
-
-### Key Features from v3.0
+### Key Features
 
 - **TradingSuite Class**: Unified entry point for simplified SDK usage
-- **One-line Initialization**: TradingSuite.create() handles all setup
+- **One-line Initialization**: `TradingSuite.create()` handles all setup
 - **Feature Flags**: Easy enabling of optional components
-- **Context Manager Support**: Automatic cleanup with async with statements
+- **Context Manager Support**: Automatic cleanup with `async with` statements
 - **Unified Event Handling**: Built-in EventBus for all components
-
-**Note**: Version 3.0+ introduced TradingSuite, replacing factory functions. From v3.1.1 onward, we maintain strict backward compatibility between minor versions. See migration guide below for upgrading from v2.x.
+- **Performance Optimized**: Connection pooling, caching, and WebSocket batching
+- **Memory Management**: Automatic overflow to disk with transparent access
 
 ### Why Async?
 
@@ -168,9 +144,11 @@ async def main():
     )
     
     # Register event handlers
+    # Note: Event data is provided in the event object
     @suite.events.on(EventType.NEW_BAR)
     async def on_new_bar(event):
-        print(f\"New {event.data['timeframe']} bar: {event.data['close']}\")
+        # Access bar data directly from event (avoids potential deadlock)
+        print(f\"New {event.data['timeframe']} bar: {event.data['data']['close']}\")
     
     @suite.events.on(EventType.TRADE_TICK)
     async def on_trade(event):
@@ -220,6 +198,28 @@ async def main():
 
 if __name__ == \"__main__\":
     asyncio.run(main())
+```
+
+## ⚡ Event Handling Best Practices
+
+### Avoiding Deadlocks (Fixed in v3.1.6)
+
+Prior to v3.1.6, calling `suite.data` methods from within event handlers could cause deadlocks. This has been fixed, but for best performance:
+
+```python
+# Best: Use event data directly
+@suite.events.on(EventType.NEW_BAR)
+async def on_new_bar(event):
+    # Bar data is provided in the event
+    bar = event.data['data']
+    print(f"Close: {bar['close']}, Volume: {bar['volume']}")
+
+# Also OK (v3.1.6+): Access data methods if needed
+@suite.events.on(EventType.NEW_BAR)
+async def on_new_bar_with_context(event):
+    # Safe in v3.1.6+, but slightly slower
+    current_price = await suite.data.get_current_price()
+    historical = await suite.data.get_data("5min", bars=20)
 ```
 
 ## 📚 Documentation
