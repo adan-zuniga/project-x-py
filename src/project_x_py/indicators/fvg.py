@@ -170,19 +170,15 @@ class FVG(BaseIndicator):
                 # Calculate gap as percentage of price
                 pl.when(pl.col("fvg_bullish_raw"))
                 .then(
-                    (
-                        (pl.col("fvg_bullish_end") - pl.col("fvg_bullish_start")).abs()
-                        / pl.col("fvg_bullish_start")
-                        * 100
-                    )
+                    (pl.col("fvg_bullish_end") - pl.col("fvg_bullish_start")).abs()
+                    / pl.col("fvg_bullish_start")
+                    * 100
                 )
                 .when(pl.col("fvg_bearish_raw"))
                 .then(
-                    (
-                        (pl.col("fvg_bearish_start") - pl.col("fvg_bearish_end")).abs()
-                        / pl.col("fvg_bearish_start")
-                        * 100
-                    )
+                    (pl.col("fvg_bearish_start") - pl.col("fvg_bearish_end")).abs()
+                    / pl.col("fvg_bearish_start")
+                    * 100
                 )
                 .otherwise(None)
                 .alias("fvg_gap_percent"),
