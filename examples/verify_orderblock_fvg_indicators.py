@@ -166,8 +166,8 @@ async def main():
             # Get 10 days of 1-minute bars for more samples
             bars_df = await client.get_bars(
                 instrument,
-                days=10,
-                interval=1,  # 1-minute bars
+                days=25,
+                interval=15,  # 1-minute bars
                 unit=2,  # 2 = minutes
             )
 
