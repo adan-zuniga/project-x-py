@@ -60,13 +60,15 @@ class FVG(BaseIndicator):
         **kwargs: Any,
     ) -> pl.DataFrame:
         """
-        Calculate Fair Value Gaps (FVG).
+        Calculate Fair Value Gaps (FVG) using three-candle pattern.
 
         A bullish FVG occurs when:
-        - Current candle's low > Previous candle's high (gap up)
+        - Candle 3's low > Candle 1's high (creating an unfilled gap)
+        - This gap represents an area of imbalance
 
         A bearish FVG occurs when:
-        - Current candle's high < Previous candle's low (gap down)
+        - Candle 3's high < Candle 1's low (creating an unfilled gap)
+        - This gap represents an area of imbalance
 
         Args:
             data: DataFrame with OHLC data
@@ -75,6 +77,7 @@ class FVG(BaseIndicator):
                 low_column: Low price column (default: "low")
                 close_column: Close price column (default: "close")
                 min_gap_size: Minimum gap size (in price units) to consider valid (default: 0.0)
+                min_gap_percent: Minimum gap size as percentage (default: 0.0)
                 check_mitigation: Whether to check if gaps have been mitigated (default: False)
                 mitigation_threshold: Percentage of gap that needs to be filled to consider it mitigated (default: 0.5)
 
@@ -82,11 +85,12 @@ class FVG(BaseIndicator):
             DataFrame with FVG columns added:
             - fvg_bullish: Boolean indicating bullish FVG
             - fvg_bearish: Boolean indicating bearish FVG
-            - fvg_bullish_start: Start of bullish gap (previous high)
-            - fvg_bullish_end: End of bullish gap (current low)
-            - fvg_bearish_start: Start of bearish gap (previous low)
-            - fvg_bearish_end: End of bearish gap (current high)
+            - fvg_bullish_start: Start of bullish gap (candle 1 high)
+            - fvg_bullish_end: End of bullish gap (candle 3 low)
+            - fvg_bearish_start: Start of bearish gap (candle 1 low)
+            - fvg_bearish_end: End of bearish gap (candle 3 high)
             - fvg_gap_size: Size of the gap
+            - fvg_gap_percent: Gap size as percentage
             - fvg_mitigated: Boolean indicating if gap has been mitigated (if check_mitigation=True)
 
         Example:
@@ -99,47 +103,52 @@ class FVG(BaseIndicator):
         low_column = kwargs.get("low_column", "low")
         close_column = kwargs.get("close_column", "close")
         min_gap_size = kwargs.get("min_gap_size", 0.0)
+        min_gap_percent = kwargs.get("min_gap_percent", 0.0)
         check_mitigation = kwargs.get("check_mitigation", False)
         mitigation_threshold = kwargs.get("mitigation_threshold", 0.5)
 
         required_cols: list[str] = [high_column, low_column, close_column]
         self.validate_data(data, required_cols)
-        self.validate_data_length(data, 2)  # Need at least 2 candles
+        self.validate_data_length(data, 3)  # Need at least 3 candles for pattern
 
-        # Get shifted values for comparison
+        # Get values for three-candle pattern
         result = data.with_columns(
             [
-                # Previous candle values
-                pl.col(high_column).shift(1).alias("prev_high"),
-                pl.col(low_column).shift(1).alias("prev_low"),
+                # Candle 1 (two bars ago)
+                pl.col(high_column).shift(2).alias("candle1_high"),
+                pl.col(low_column).shift(2).alias("candle1_low"),
+                # Candle 2 (previous bar) - not used in gap detection but kept for potential future use
+                pl.col(high_column).shift(1).alias("candle2_high"),
+                pl.col(low_column).shift(1).alias("candle2_low"),
+                # Candle 3 is current bar
             ]
         )
 
-        # Identify FVGs (gaps between consecutive bars)
+        # Identify FVGs using three-candle pattern
         result = result.with_columns(
             [
-                # Bullish FVG: current low > prev high (gap up)
-                (pl.col(low_column) > pl.col("prev_high")).alias("fvg_bullish_raw"),
-                # Bearish FVG: current high < prev low (gap down)
-                (pl.col(high_column) < pl.col("prev_low")).alias("fvg_bearish_raw"),
+                # Bullish FVG: current low > candle 1 high
+                (pl.col(low_column) > pl.col("candle1_high")).alias("fvg_bullish_raw"),
+                # Bearish FVG: current high < candle 1 low
+                (pl.col(high_column) < pl.col("candle1_low")).alias("fvg_bearish_raw"),
             ]
         )
 
         # Calculate gap boundaries and size
         result = result.with_columns(
             [
-                # Bullish gap: from prev high to current low
+                # Bullish gap: from candle 1 high to current low
                 pl.when(pl.col("fvg_bullish_raw"))
-                .then(pl.col("prev_high"))
+                .then(pl.col("candle1_high"))
                 .otherwise(None)
                 .alias("fvg_bullish_start"),
                 pl.when(pl.col("fvg_bullish_raw"))
                 .then(pl.col(low_column))
                 .otherwise(None)
                 .alias("fvg_bullish_end"),
-                # Bearish gap: from prev low to current high
+                # Bearish gap: from candle 1 low to current high
                 pl.when(pl.col("fvg_bearish_raw"))
-                .then(pl.col("prev_low"))
+                .then(pl.col("candle1_low"))
                 .otherwise(None)
                 .alias("fvg_bearish_start"),
                 pl.when(pl.col("fvg_bearish_raw"))
@@ -149,7 +158,7 @@ class FVG(BaseIndicator):
             ]
         )
 
-        # Calculate gap size
+        # Calculate gap size and percentage
         result = result.with_columns(
             [
                 pl.when(pl.col("fvg_bullish_raw"))
@@ -157,18 +166,41 @@ class FVG(BaseIndicator):
                 .when(pl.col("fvg_bearish_raw"))
                 .then((pl.col("fvg_bearish_start") - pl.col("fvg_bearish_end")).abs())
                 .otherwise(None)
-                .alias("fvg_gap_size")
+                .alias("fvg_gap_size"),
+                # Calculate gap as percentage of price
+                pl.when(pl.col("fvg_bullish_raw"))
+                .then(
+                    (
+                        (pl.col("fvg_bullish_end") - pl.col("fvg_bullish_start")).abs()
+                        / pl.col("fvg_bullish_start")
+                        * 100
+                    )
+                )
+                .when(pl.col("fvg_bearish_raw"))
+                .then(
+                    (
+                        (pl.col("fvg_bearish_start") - pl.col("fvg_bearish_end")).abs()
+                        / pl.col("fvg_bearish_start")
+                        * 100
+                    )
+                )
+                .otherwise(None)
+                .alias("fvg_gap_percent"),
             ]
         )
 
-        # Apply minimum gap size filter
+        # Apply minimum gap size and percentage filters
         result = result.with_columns(
             [
                 (
-                    pl.col("fvg_bullish_raw") & (pl.col("fvg_gap_size") >= min_gap_size)
+                    pl.col("fvg_bullish_raw")
+                    & (pl.col("fvg_gap_size") >= min_gap_size)
+                    & (pl.col("fvg_gap_percent") >= min_gap_percent)
                 ).alias("fvg_bullish"),
                 (
-                    pl.col("fvg_bearish_raw") & (pl.col("fvg_gap_size") >= min_gap_size)
+                    pl.col("fvg_bearish_raw")
+                    & (pl.col("fvg_gap_size") >= min_gap_size)
+                    & (pl.col("fvg_gap_percent") >= min_gap_percent)
                 ).alias("fvg_bearish"),
             ]
         )
@@ -201,26 +233,28 @@ class FVG(BaseIndicator):
                 # Look at subsequent candles for mitigation
                 future_data = result.filter(pl.col("_row_idx") > gap_idx)
 
-                if is_bullish:
+                if is_bullish and row["fvg_bullish_start"] is not None:
                     gap_start = row["fvg_bullish_start"]
                     gap_end = row["fvg_bullish_end"]
                     gap_size = gap_end - gap_start
                     mitigation_amount = gap_size * mitigation_threshold
-                    # Bullish gap is mitigated when price goes back below gap_end - mitigation_amount
-                    mitigation_level = gap_end - mitigation_amount
+                    # Bullish gap is mitigated when price retraces into the gap
+                    mitigation_level = gap_start + mitigation_amount
                     mitigated_rows = future_data.filter(
                         pl.col(low_column) <= mitigation_level
                     )
-                else:
+                elif not is_bullish and row["fvg_bearish_start"] is not None:
                     gap_start = row["fvg_bearish_start"]
                     gap_end = row["fvg_bearish_end"]
                     gap_size = gap_start - gap_end
                     mitigation_amount = gap_size * mitigation_threshold
-                    # Bearish gap is mitigated when price goes back above gap_end + mitigation_amount
-                    mitigation_level = gap_end + mitigation_amount
+                    # Bearish gap is mitigated when price retraces into the gap
+                    mitigation_level = gap_start - mitigation_amount
                     mitigated_rows = future_data.filter(
                         pl.col(high_column) >= mitigation_level
                     )
+                else:
+                    continue
 
                 if len(mitigated_rows) > 0:
                     mitigated[gap_idx] = True
@@ -242,8 +276,10 @@ class FVG(BaseIndicator):
 
         # Clean up intermediate columns
         columns_to_drop: list[str] = [
-            "prev_high",
-            "prev_low",
+            "candle1_high",
+            "candle1_low",
+            "candle2_high",
+            "candle2_low",
             "fvg_bullish_raw",
             "fvg_bearish_raw",
         ]
@@ -259,11 +295,12 @@ def calculate_fvg(
     low_column: str = "low",
     close_column: str = "close",
     min_gap_size: float = 0.0,
+    min_gap_percent: float = 0.0,
     check_mitigation: bool = False,
     mitigation_threshold: float = 0.5,
 ) -> pl.DataFrame:
     """
-    Calculate Fair Value Gaps (convenience function).
+    Calculate Fair Value Gaps using three-candle pattern (convenience function).
 
     See FVG.calculate() for detailed documentation.
 
@@ -273,6 +310,7 @@ def calculate_fvg(
         low_column: Low price column
         close_column: Close price column
         min_gap_size: Minimum gap size to consider valid
+        min_gap_percent: Minimum gap size as percentage
         check_mitigation: Whether to check if gaps have been mitigated
         mitigation_threshold: Percentage of gap that needs to be filled to consider it mitigated
 
@@ -286,6 +324,7 @@ def calculate_fvg(
         low_column=low_column,
         close_column=close_column,
         min_gap_size=min_gap_size,
+        min_gap_percent=min_gap_percent,
         check_mitigation=check_mitigation,
         mitigation_threshold=mitigation_threshold,
     )

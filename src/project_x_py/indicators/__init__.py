@@ -931,16 +931,18 @@ def FVG(
     low_column: str = "low",
     close_column: str = "close",
     min_gap_size: float = 0.0,
+    min_gap_percent: float = 0.0,
     check_mitigation: bool = False,
     mitigation_threshold: float = 0.5,
 ) -> pl.DataFrame:
-    """Fair Value Gap (TA-Lib style)."""
+    """Fair Value Gap (TA-Lib style) - uses three-candle pattern."""
     return calculate_fvg(
         data,
         high_column=high_column,
         low_column=low_column,
         close_column=close_column,
         min_gap_size=min_gap_size,
+        min_gap_percent=min_gap_percent,
         check_mitigation=check_mitigation,
         mitigation_threshold=mitigation_threshold,
     )
