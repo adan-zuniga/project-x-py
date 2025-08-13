@@ -734,6 +734,7 @@ class TradingSuite:
             order_manager=self.orders,
             position_manager=self.positions,
             instrument_id=self.instrument_id or self._symbol,
+            data_manager=self.data,
             max_risk_percent=max_risk_percent,
             max_risk_amount=max_risk_amount,
         )

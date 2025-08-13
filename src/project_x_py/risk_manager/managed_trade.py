@@ -31,6 +31,7 @@ class ManagedTrade:
         order_manager: OrderManagerProtocol,
         position_manager: PositionManagerProtocol,
         instrument_id: str,
+        data_manager: Any | None = None,
         max_risk_percent: float | None = None,
         max_risk_amount: float | None = None,
     ):
@@ -41,6 +42,7 @@ class ManagedTrade:
             order_manager: Order manager instance
             position_manager: Position manager instance
             instrument_id: Instrument/contract ID to trade
+            data_manager: Optional data manager for market price fetching
             max_risk_percent: Override max risk percentage
             max_risk_amount: Override max risk dollar amount
         """
@@ -48,6 +50,7 @@ class ManagedTrade:
         self.orders = order_manager
         self.positions = position_manager
         self.instrument_id = instrument_id
+        self.data_manager = data_manager
         self.max_risk_percent = max_risk_percent
         self.max_risk_amount = max_risk_amount
 
@@ -534,7 +537,45 @@ class ManagedTrade:
         )
 
     async def _get_market_price(self) -> float:
-        """Get current market price for instrument."""
-        # TODO: Implement actual market price fetching
-        # This would typically come from data manager
-        raise NotImplementedError("Market price fetching not yet implemented")
+        """Get current market price for instrument.
+
+        Returns:
+            Current market price as a float
+
+        Raises:
+            RuntimeError: If unable to fetch market price
+        """
+        if not self.data_manager:
+            raise RuntimeError(
+                "No data manager available for market price fetching. "
+                "Please provide entry_price explicitly or initialize ManagedTrade with a data_manager."
+            )
+
+        # Try to get the most recent price from smallest available timeframe
+        timeframes_to_try = ["1sec", "15sec", "1min", "5min"]
+
+        for timeframe in timeframes_to_try:
+            try:
+                # Get the most recent bar
+                data = await self.data_manager.get_data(timeframe, bars=1)
+
+                if data is not None and not data.is_empty():
+                    # Return the close price of the most recent bar
+                    close_price = data["close"].tail(1)[0]
+                    return float(close_price)
+            except Exception:
+                # Try next timeframe if this one fails
+                continue
+
+        # If we still don't have data, try to get current price directly
+        try:
+            current_price = await self.data_manager.get_current_price()
+            if current_price is not None:
+                return float(current_price)
+        except Exception:
+            pass
+
+        raise RuntimeError(
+            f"Unable to fetch current market price for {self.instrument_id} - no data available. "
+            "Please ensure data manager is connected and receiving data."
+        )

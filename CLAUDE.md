@@ -288,7 +288,17 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.9 - Latest Release
+### v3.1.11 - Latest Release
+- **Fixed**: ManagedTrade `_get_market_price()` implementation
+  - ManagedTrade can now fetch current market prices from data manager
+  - Automatic fallback through multiple timeframes (1sec, 15sec, 1min, 5min)
+  - Enables risk-managed trades without explicit entry prices
+  - Proper integration with TradingSuite's data manager
+
+### v3.1.10
+- Minor version bump for internal improvements
+
+### v3.1.9
 - **Fixed**: Tick price alignment in real-time data manager
   - All OHLC prices now properly aligned to instrument tick size
   - `get_current_price()` returns tick-aligned values

@@ -14,6 +14,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.11] - 2025-08-13
+
+### Fixed
+- **🎯 Risk Manager Market Price Fetching**: Implemented `_get_market_price()` in ManagedTrade
+  - ManagedTrade can now fetch current market prices from data manager
+  - Automatic fallback through multiple timeframes (1sec, 15sec, 1min, 5min)
+  - Enables risk-managed trades without explicit entry prices
+  - Proper integration with TradingSuite's data manager
+  - Fixes NotImplementedError when entering positions without explicit entry price
+
+### Improved
+- ManagedTrade constructor now accepts optional data_manager parameter
+- TradingSuite automatically passes data manager to ManagedTrade instances
+- Better error messages when market price cannot be fetched
+
+## [3.1.10] - 2025-08-13
+
+### Changed
+- Minor version bump for internal improvements
+
 ## [3.1.9] - 2025-08-12
 
 ### Fixed
