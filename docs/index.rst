@@ -20,10 +20,10 @@ project-x-py Documentation
 **project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
 .. note::
-   **Version 3.1.0**: High-performance production suite with 2-5x performance improvements. Features memory-mapped overflow storage, orjson integration, WebSocket message batching, and advanced caching with compression. Complete async architecture with unified TradingSuite interface.
+   **Version 3.1.11**: High-performance production suite with 2-5x performance improvements. Features memory-mapped overflow storage, orjson integration, WebSocket message batching, and advanced caching with compression. Complete async architecture with unified TradingSuite interface. Latest update includes ManagedTrade automatic market price fetching for risk-managed trades.
 
-.. warning::
-   **Development Phase**: This project is under active development. New updates may introduce breaking changes without backward compatibility. During this development phase, we prioritize clean, modern code architecture over maintaining legacy implementations.
+.. note::
+   **Stable Production Release**: Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
 
 .. note::
    **Important**: This is a **client library/SDK**, not a trading strategy. It provides the tools and infrastructure to help developers create their own trading strategies that integrate with the ProjectX platform.
@@ -66,7 +66,7 @@ Start trading::
        
        # Place an order using the integrated order manager
        response = await suite.orders.place_limit_order(
-           contract_id=suite.instrument.id, 
+           contract_id=suite.instrument_id, 
            side=0, 
            size=1, 
            limit_price=21050.0

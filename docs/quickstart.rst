@@ -89,7 +89,7 @@ Step 4: Place Your First Order
        
        # Place a limit order using the integrated order manager
        response = await suite.orders.place_limit_order(
-           contract_id=suite.instrument.id,  # Use pre-loaded instrument ID
+           contract_id=suite.instrument_id,  # Use instrument ID
            side=0,                     # 0=Buy, 1=Sell
            size=1,                     # 1 contract
            limit_price=21050.0         # Limit price
@@ -166,43 +166,45 @@ Basic Trading Workflow
 
 .. code-block:: python
 
-   from project_x_py import ProjectX, create_order_manager, create_position_manager, create_realtime_client
+   from project_x_py import TradingSuite
 
    async def trading_workflow():
-       # 1. Initialize client
-       async with ProjectX.from_env() as client:
-           await client.authenticate()
-           
-           # Get instrument details
-           instrument = await client.get_instrument('MNQ')  # V3: actual symbol
-           
-           # 2. V3: Set up trading managers with JWT and account ID
-           realtime_client = await create_realtime_client(
-               jwt_token=client.jwt_token,
-               account_id=str(client.account_id)
-           )
-           order_manager = create_order_manager(client, realtime_client)
-           position_manager = create_position_manager(client, realtime_client)
+       # V3.1: Use TradingSuite for simplified initialization
+       suite = await TradingSuite.create('MNQ')
+       
+       # All managers are automatically initialized and connected
+       # suite.client - Authenticated ProjectX client
+       # suite.orders - Order manager
+       # suite.positions - Position manager
+       # suite.data - Real-time data manager
+       # suite.events - Event bus for notifications
 
-           # 3. Check account status
-           print(f"Account balance: ${client.account_info.balance:,.2f}")
+       # Check account status
+       print(f"Account balance: ${suite.client.account_info.balance:,.2f}")
 
-           # 4. Get market data
-           data = await client.get_bars('MNQ', days=1, interval=5)  # V3: actual symbol
+       # Get market data using integrated data manager
+       data = await suite.data.get_data('5min')
+       if data is not None and not data.is_empty():
+           current_price = float(data['close'].tail(1).item())
+       else:
+           # Fallback to client API if real-time data not available
+           data = await suite.client.get_bars('MNQ', days=1, interval=5)
            current_price = float(data.select('close').tail(1).item())
 
-           # 5. Place bracket order (entry + stop + target)
-           bracket = await order_manager.place_bracket_order(
-               contract_id=instrument.id,
-               side=0,                    # Buy
-               size=1,
-               entry_price=current_price - 5.0,   # Entry below market
-               stop_loss_price=current_price - 10.0,  # $5 risk
-               take_profit_price=current_price + 5.0  # $10 profit target
-           )
+       # Place bracket order (entry + stop + target)
+       bracket = await suite.orders.place_bracket_order(
+           contract_id=suite.instrument_id,
+           side=0,                    # Buy
+           size=1,
+           entry_price=current_price - 5.0,   # Entry below market
+           stop_loss_price=current_price - 10.0,  # $10 risk
+           take_profit_price=current_price + 10.0  # $10 profit target
+       )
 
-           if bracket.success:
-               print("Bracket order placed successfully!")
+       if bracket.success:
+           print("Bracket order placed successfully!")
+       
+       await suite.disconnect()
 
    asyncio.run(trading_workflow())
 
@@ -253,28 +255,25 @@ Error Handling
 
 .. code-block:: python
 
-   from project_x_py import ProjectXError, ProjectXOrderError
+   from project_x_py import TradingSuite, ProjectXError, ProjectXOrderError
 
    async def place_order_with_error_handling():
        try:
-           async with ProjectX.from_env() as client:
-               await client.authenticate()
-               
-               instrument = await client.get_instrument('MNQ')  # V3: actual symbol
-               # V3: Create realtime client with JWT
-               realtime_client = await create_realtime_client(
-                   jwt_token=client.jwt_token,
-                   account_id=str(client.account_id)
-               )
-               order_manager = create_order_manager(client, realtime_client)
-               
-               # Attempt to place order
-               response = await order_manager.place_limit_order(
-                   contract_id=instrument.id, 
-                   side=0, 
-                   size=1, 
-                   limit_price=21050.0  # V3: realistic MNQ price
-               )
+           # V3.1: Use TradingSuite for all trading operations
+           suite = await TradingSuite.create('MNQ')
+           
+           # Attempt to place order using integrated order manager
+           response = await suite.orders.place_limit_order(
+               contract_id=suite.instrument_id, 
+               side=0, 
+               size=1, 
+               limit_price=21050.0  # Realistic MNQ price
+           )
+           
+           if response.success:
+               print(f"Order placed: {response.orderId}")
+           
+           await suite.disconnect()
                
        except ProjectXOrderError as e:
            print(f"Order error: {e}")
