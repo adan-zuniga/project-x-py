@@ -36,58 +36,62 @@ Note:
 
 Example Usage:
     ```python
-    # V3: Uses factory functions and EventBus integration
-    from project_x_py import ProjectX, EventBus
-    from project_x_py.realtime import create_realtime_client
-    from project_x_py.realtime_data_manager import RealtimeDataManager
+    # V3.1: TradingSuite manages data manager automatically
+    import asyncio
+    from project_x_py import TradingSuite, EventType
 
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
+    # V3.1: TradingSuite creates and manages all components
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min", "15min", "1hr"],
+        initial_days=5,
+    )
 
-        # V3: Create real-time client with factory
-        realtime_client = await create_realtime_client(
-            jwt_token=client.jwt_token, account_id=str(client.account_id)
-        )
+    # V3.1: Data manager is automatically initialized and connected
+    # Access it via suite.data
+    print(f"Data manager ready for {suite.instrument}")
 
-        # V3: Initialize with EventBus for unified events
-        event_bus = EventBus()
 
-        # Create data manager for multiple timeframes
-        data_manager = RealtimeDataManager(
-            instrument="MNQ",  # V3: Using actual contract symbols
-            project_x=client,
-            realtime_client=realtime_client,
-            timeframes=["1min", "5min", "15min", "1hr"],
-            timezone="America/Chicago",
-            event_bus=event_bus,  # V3: EventBus integration
-        )
+    # V3.1: Register callbacks via suite's event bus
+    async def on_new_bar(event):
+        bar = event.data["data"]
+        timeframe = event.data["timeframe"]
+        print(f"New {timeframe} bar:")
+        print(f"  Open: {bar['open']}, High: {bar['high']}")
+        print(f"  Low: {bar['low']}, Close: {bar['close']}")
+        print(f"  Volume: {bar['volume']}")
 
-        # Initialize with historical data
-        if await data_manager.initialize(initial_days=5):
-            # Start real-time feed
-            if await data_manager.start_realtime_feed():
-                # V3: Register callbacks for new bars with actual field names
-                async def on_new_bar(data):
-                    bar = data["data"]
-                    print(f"New {data['timeframe']} bar:")
-                    print(f"  Open: {bar['open']}, High: {bar['high']}")
-                    print(f"  Low: {bar['low']}, Close: {bar['close']}")
-                    print(f"  Volume: {bar['volume']}")
 
-                await data_manager.add_callback("new_bar", on_new_bar)
+    await suite.on(EventType.NEW_BAR, on_new_bar)
 
-                # V3: Access real-time data with proper methods
-                current_price = await data_manager.get_current_price()
-                data_5m = await data_manager.get_data("5min", bars=100)
+    # V3.1: Access real-time data via suite.data
+    current_price = await suite.data.get_current_price()
+    data_5m = await suite.data.get_data("5min", bars=100)
 
-                # V3: Get memory stats for monitoring
-                stats = await data_manager.get_memory_stats()
-                print(f"Memory usage: {stats}")
+    # V3.1: Monitor memory stats
+    stats = suite.data.get_memory_stats()
+    print(f"Memory usage: {stats}")
 
-                # Process data...
-                await asyncio.sleep(60)
+    # Process data...
+    await asyncio.sleep(60)
 
-                await data_manager.cleanup()
+    # V3.1: Cleanup is automatic with context manager
+    await suite.disconnect()
+
+    # V3.1: Low-level direct usage (advanced users only)
+    # from project_x_py import ProjectX
+    # from project_x_py.realtime_data_manager import RealtimeDataManager
+    #
+    # async with ProjectX.from_env() as client:
+    #     await client.authenticate()
+    #     # Create components manually
+    #     data_manager = RealtimeDataManager(
+    #         instrument="MNQ",
+    #         project_x=client,
+    #         realtime_client=realtime_client,
+    #         timeframes=["1min", "5min"],
+    #         event_bus=event_bus,
+    #     )
     ```
 
 Supported Timeframes:
