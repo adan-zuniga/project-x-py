@@ -26,19 +26,23 @@ Risk Management Capabilities:
 
 Example Usage:
     ```python
-    # Analyze portfolio risk
-    risk_metrics = await position_manager.get_risk_metrics()
+    # V3.1: Analyze portfolio risk with TradingSuite
+    risk_metrics = await suite.positions.get_risk_metrics()
     print(f"Portfolio risk: {risk_metrics['portfolio_risk']:.2%}")
     print(f"Diversification: {risk_metrics['diversification_score']:.2f}")
 
-    # Check for risk warnings
+    # V3.1: Check for risk warnings
     if risk_metrics["risk_warnings"]:
         for warning in risk_metrics["risk_warnings"]:
             print(f"⚠️  {warning}")
 
-    # Calculate position size
-    sizing = await position_manager.calculate_position_size(
-        "MGC", risk_amount=500.0, entry_price=2050.0, stop_price=2040.0
+    # V3.1: Calculate position size
+    current_price = await suite.data.get_current_price()
+    sizing = await suite.positions.calculate_position_size(
+        suite.instrument_id,
+        risk_amount=500.0,
+        entry_price=current_price,
+        stop_price=current_price - 10.0,
     )
     print(f"Suggested size: {sizing['suggested_size']} contracts")
     print(f"Risk: ${sizing['total_risk']:.2f} ({sizing['risk_percentage']:.1f}%)")
@@ -261,7 +265,7 @@ class RiskManagementMixin:
         risk amount if the stop loss is hit.
 
         Args:
-            contract_id (str): Contract to size position for (e.g., "MGC")
+            contract_id (str): Contract to size position for (e.g., "MNQ")
             risk_amount (float): Maximum dollar amount to risk on the trade
             entry_price (float): Planned entry price for the position
             stop_price (float): Stop loss price for risk management
@@ -284,9 +288,13 @@ class RiskManagementMixin:
                 - error (str): Error message if calculation fails
 
         Example:
-            >>> # Size position for $500 risk on Gold
-            >>> sizing = await position_manager.calculate_position_size(
-            ...     "MGC", risk_amount=500.0, entry_price=2050.0, stop_price=2040.0
+            >>> # V3.1: Size position for $500 risk with TradingSuite
+            >>> current_price = await suite.data.get_current_price()
+            >>> sizing = await suite.positions.calculate_position_size(
+            ...     suite.instrument_id,
+            ...     risk_amount=500.0,
+            ...     entry_price=current_price,
+            ...     stop_price=current_price - 10.0,
             ... )
             >>> print(f"Trade {sizing['suggested_size']} contracts")
             >>> print(

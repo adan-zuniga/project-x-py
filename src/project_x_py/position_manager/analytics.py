@@ -26,16 +26,18 @@ Analytics Capabilities:
 
 Example Usage:
     ```python
-    # Calculate individual position P&L
-    position = await position_manager.get_position("MGC")
-    pnl = await position_manager.calculate_position_pnl(
-        position, current_price=2050.0, point_value=10.0
+    # V3.1: Calculate individual position P&L with TradingSuite
+    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    position = await suite.positions.get_position(suite.instrument_id)
+    current_price = await suite.data.get_current_price()
+    pnl = await suite.positions.calculate_position_pnl(
+        position, current_price=current_price, point_value=2.0
     )
     print(f"P&L: ${pnl['unrealized_pnl']:.2f}")
 
-    # Portfolio P&L with current market prices
-    prices = {"MGC": 2050.0, "NQ": 15500.0, "ES": 4400.0}
-    portfolio_pnl = await position_manager.calculate_portfolio_pnl(prices)
+    # V3.1: Portfolio P&L with current market prices
+    prices = {"MNQ": current_price, "ES": 4500.0, "NQ": 15500.0}
+    portfolio_pnl = await suite.positions.calculate_portfolio_pnl(prices)
     print(f"Total P&L: ${portfolio_pnl['total_pnl']:.2f}")
     ```
 
@@ -105,7 +107,7 @@ class PositionAnalyticsMixin:
             current_price (float | None): Current market price of the contract. If
                 None, returns a graceful response with zero P&L and an error message.
             point_value (float, optional): Dollar value per point movement.
-                For futures, this is the contract multiplier (e.g., 10 for MGC).
+                For futures, this is the contract multiplier (e.g., 2 for MNQ).
                 If None, P&L is returned in points rather than dollars.
                 Defaults to None.
 
@@ -121,15 +123,18 @@ class PositionAnalyticsMixin:
                 - price_change (float): Favorable price movement amount
 
         Example:
-            >>> # Calculate P&L in points
-            >>> position = await position_manager.get_position("MGC")
-            >>> pnl = await position_manager.calculate_position_pnl(position, 2050.0)
+            >>> # V3.1: Calculate P&L in points with TradingSuite
+            >>> position = await suite.positions.get_position(suite.instrument_id)
+            >>> current_price = await suite.data.get_current_price()
+            >>> pnl = await suite.positions.calculate_position_pnl(
+            ...     position, current_price
+            ... )
             >>> print(f"Unrealized P&L: {pnl['unrealized_pnl']:.2f} points")
-            >>> # Calculate P&L in dollars with contract multiplier
-            >>> pnl = await position_manager.calculate_position_pnl(
+            >>> # V3.1: Calculate P&L in dollars with contract multiplier
+            >>> pnl = await suite.positions.calculate_position_pnl(
             ...     position,
-            ...     2050.0,
-            ...     point_value=10.0,  # MGC = $10/point
+            ...     current_price,
+            ...     point_value=2.0,  # MNQ = $2/point
             ... )
             >>> print(f"Unrealized P&L: ${pnl['unrealized_pnl']:.2f}")
             >>> print(f"Per contract: ${pnl['pnl_per_contract']:.2f}")
@@ -245,7 +250,7 @@ class PositionAnalyticsMixin:
 
         Args:
             current_prices (dict[str, float]): Dictionary mapping contract IDs to
-                their current market prices. Example: {"MGC": 2050.0, "NQ": 15500.0}
+                their current market prices. Example: {"MNQ": 18500.0, "ES": 4500.0}
             account_id (int, optional): The account ID to calculate P&L for.
                 If None, uses the default account from authentication.
                 Defaults to None.
@@ -263,9 +268,10 @@ class PositionAnalyticsMixin:
                 - last_updated (str): ISO timestamp
 
         Example:
-            >>> # Get current prices from market data
-            >>> prices = {"MGC": 2050.0, "NQ": 15500.0, "ES": 4400.0}
-            >>> portfolio = await position_manager.calculate_portfolio_pnl(prices)
+            >>> # V3.1: Get current prices from market data with TradingSuite
+            >>> current_price = await suite.data.get_current_price()
+            >>> prices = {"MNQ": current_price, "ES": 4500.0, "NQ": 15500.0}
+            >>> portfolio = await suite.positions.calculate_portfolio_pnl(prices)
             >>> print(f"Total P&L: ${portfolio['total_pnl']:.2f}")
             >>> print(f"Total Value: ${portfolio['total_value']:.2f}")
             >>> print(f"Win Rate: {portfolio['win_rate']:.1%}")

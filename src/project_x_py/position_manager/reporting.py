@@ -26,23 +26,23 @@ Reporting Capabilities:
 
 Example Usage:
     ```python
-    # Get system statistics
-    stats = position_manager.get_position_statistics()
+    # V3.1: Get system statistics with TradingSuite
+    stats = suite.positions.get_position_statistics()
     print(f"Health: {stats['health_status']}")
     print(f"Tracking {stats['tracked_positions']} positions")
 
-    # Get position history
-    history = await position_manager.get_position_history("MGC", limit=50)
+    # V3.1: Get position history
+    history = await suite.positions.get_position_history(suite.instrument_id, limit=50)
     for entry in history[-5:]:
         print(f"{entry['timestamp']}: Size {entry['position']['size']}")
 
-    # Generate comprehensive report
-    report = await position_manager.export_portfolio_report()
+    # V3.1: Generate comprehensive report
+    report = await suite.positions.export_portfolio_report()
     print(f"Portfolio Report - {report['report_timestamp']}")
     print(f"Positions: {report['portfolio_summary']['total_positions']}")
 
-    # Check real-time validation
-    status = position_manager.get_realtime_validation_status()
+    # V3.1: Check real-time validation
+    status = suite.positions.get_realtime_validation_status()
     print(f"Real-time enabled: {status['realtime_enabled']}")
     ```
 
@@ -179,7 +179,7 @@ class PositionReportingMixin:
         timestamps, and position snapshots for analysis and debugging.
 
         Args:
-            contract_id (str): Contract ID to retrieve history for (e.g., "MGC")
+            contract_id (str): Contract ID to retrieve history for (e.g., "MNQ")
             limit (int, optional): Maximum number of history entries to return.
                 Returns most recent entries if history exceeds limit.
                 Defaults to 100.
@@ -191,10 +191,12 @@ class PositionReportingMixin:
                 - size_change (int): Change in position size from previous
 
         Example:
-            >>> # Get recent history for Gold position
-            >>> history = await position_manager.get_position_history("MGC", limit=50)
+            >>> # V3.1: Get recent history with TradingSuite
+            >>> history = await suite.positions.get_position_history(
+            ...     suite.instrument_id, limit=50
+            ... )
             >>> print(f"Found {len(history)} historical entries")
-            >>> # Analyze recent changes
+            >>> # V3.1: Analyze recent changes
             >>> for entry in history[-5:]:  # Last 5 changes
             ...     ts = entry["timestamp"].strftime("%H:%M:%S")
             ...     size = entry["position"]["size"]
