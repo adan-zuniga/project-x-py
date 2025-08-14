@@ -27,34 +27,27 @@ Memory Management Strategies:
 
 Example Usage:
     ```python
-    # V3: Memory management with EventBus-enabled orderbook
-    from project_x_py import create_orderbook
-    from project_x_py.events import EventBus
+    # V3.1: Memory management with TradingSuite's orderbook
+    from project_x_py import TradingSuite
 
-    event_bus = EventBus()
-    orderbook = create_orderbook(
-        "MNQ", event_bus, project_x=client
-    )  # V3: actual symbol
-    await orderbook.initialize(realtime_client)
+    suite = await TradingSuite.create("MNQ", features=["orderbook"])
 
-    # V3: Memory manager auto-starts with orderbook
+    # V3.1: Memory manager auto-starts with orderbook
     # Manual cleanup if needed
-    await orderbook.memory_manager.cleanup_old_data()
+    await suite.orderbook.memory_manager.cleanup_old_data()
 
-    # V3: Get comprehensive memory statistics
-    stats = await orderbook.memory_manager.get_memory_stats()
+    # V3.1: Get comprehensive memory statistics
+    stats = await suite.orderbook.memory_manager.get_memory_stats()
     print(f"Trades in memory: {stats['recent_trades_count']}")
     print(f"Bid levels: {stats['orderbook_bids_count']}")
     print(f"Ask levels: {stats['orderbook_asks_count']}")
     print(f"Memory usage: {stats['memory_usage_mb']:.1f} MB")
 
-    # V3: Configure memory limits
-    orderbook.memory_config.max_trades = 5000
-    orderbook.memory_config.max_depth_entries = 200
-    print(f"Recent trades: {memory_stats['recent_trades_count']}")
-    print(
-        f"Items cleaned: {memory_stats['trades_cleaned'] + memory_stats['depth_cleaned']}"
-    )
+    # V3.1: Configure memory limits
+    suite.orderbook.memory_config.max_trades = 5000
+    suite.orderbook.memory_config.max_depth_entries = 200
+
+    await suite.disconnect()
     ```
 
 See Also:
