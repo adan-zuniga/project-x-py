@@ -35,59 +35,51 @@ Real-time Capabilities:
 
 Example Usage:
     ```python
-    # V3: Async order management with event bus integration
+    # V3.1: Order management with TradingSuite
     import asyncio
-    from project_x_py import (
-        ProjectX,
-        create_realtime_client,
-        create_order_manager,
-        EventBus,
-    )
+    from project_x_py import TradingSuite
 
 
     async def main():
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # Create suite with all managers integrated
+        suite = await TradingSuite.create("MNQ")
 
-            # V3: Create event bus and realtime client
-            event_bus = EventBus()
-            realtime_client = await create_realtime_client(
-                client.get_session_token(), str(client.get_account_info().id)
-            )
+        # V3.1: Place a market order using integrated order manager
+        response = await suite.orders.place_market_order(
+            contract_id=suite.instrument_id,
+            side=0,  # Buy
+            size=1,  # 1 contract
+        )
+        print(f"Market order placed: {response.orderId}")
 
-            # V3: Create order manager with dependencies
-            om = create_order_manager(client, realtime_client, event_bus)
-            await om.initialize(realtime_client)
+        # V3.1: Place a bracket order with automatic risk management
+        # Get current price for realistic entry
+        current_price = await suite.data.get_current_price()
 
-            # V3: Place a market order
-            response = await om.place_market_order(
-                "MNQ",
-                side=0,
-                size=1,  # Buy 1 contract
-            )
-            print(f"Market order placed: {response.orderId}")
+        bracket = await suite.orders.place_bracket_order(
+            contract_id=suite.instrument_id,
+            side=0,  # Buy
+            size=1,
+            entry_price=current_price - 10.0,  # Limit entry below market
+            stop_loss_price=current_price - 25.0,  # Stop loss $25 below entry
+            take_profit_price=current_price + 25.0,  # Take profit $25 above entry
+        )
+        print(f"Bracket order IDs:")
+        print(f"  Entry: {bracket.entry_order_id}")
+        print(f"  Stop: {bracket.stop_order_id}")
+        print(f"  Target: {bracket.target_order_id}")
 
-            # V3: Place a bracket order with automatic risk management
-            bracket = await om.place_bracket_order(
-                contract_id="MGC",
-                side=0,  # Buy
-                size=1,
-                entry_price=2050.0,
-                stop_loss_price=2040.0,
-                take_profit_price=2070.0,
-            )
-            print(f"Bracket order IDs:")
-            print(f"  Entry: {bracket.entry_order_id}")
-            print(f"  Stop: {bracket.stop_order_id}")
-            print(f"  Target: {bracket.target_order_id}")
+        # V3.1: Add stop loss to existing position
+        await suite.orders.add_stop_loss_to_position(
+            suite.instrument_id, stop_price=current_price - 20.0
+        )
 
-            # V3: Add stop loss to existing position
-            await om.add_stop_loss_to_position("MGC", stop_price=2040.0)
+        # V3.1: Check order statistics
+        stats = await suite.orders.get_order_statistics()
+        print(f"Orders placed: {stats['orders_placed']}")
+        print(f"Fill rate: {stats['fill_rate']:.1%}")
 
-            # V3: Check order statistics
-            stats = await om.get_order_statistics()
-            print(f"Orders placed: {stats['orders_placed']}")
-            print(f"Fill rate: {stats['fill_rate']:.1%}")
+        await suite.disconnect()
 
 
     asyncio.run(main())

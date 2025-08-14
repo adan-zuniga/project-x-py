@@ -30,13 +30,20 @@ scenarios while maintaining full compatibility with the underlying order system.
 
 Example Usage:
     ```python
-    # Assuming om is an instance of OrderManager
-    await om.place_limit_order("MES", 1, 2, 5000.0)
-    await om.place_market_order("MGC", 0, 1)
-    await om.place_stop_order("MGC", 1, 1, 2040.0)
-    await om.place_trailing_stop_order("MGC", 1, 1, 5.0)
-    await om.place_join_bid_order("MGC", 1)  # Join bid side
-    await om.place_join_ask_order("MGC", 1)  # Join ask side
+    # V3.1: Using TradingSuite's integrated order manager
+    suite = await TradingSuite.create("MNQ")
+
+    # Get current price for realistic order placement
+    current_price = await suite.data.get_current_price()
+
+    await suite.orders.place_limit_order(
+        suite.instrument_id, 1, 2, current_price - 10.0
+    )
+    await suite.orders.place_market_order(suite.instrument_id, 0, 1)
+    await suite.orders.place_stop_order(suite.instrument_id, 1, 1, current_price - 20.0)
+    await suite.orders.place_trailing_stop_order(suite.instrument_id, 1, 1, 15.0)
+    await suite.orders.place_join_bid_order(suite.instrument_id, 1)  # Join bid
+    await suite.orders.place_join_ask_order(suite.instrument_id, 1)  # Join ask
     ```
 
 See Also:
@@ -87,7 +94,10 @@ class OrderTypesMixin:
             OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> response = await order_manager.place_market_order("MGC", 0, 1)
+            >>> # V3.1: Place market order
+            >>> response = await suite.orders.place_market_order(
+            ...     suite.instrument_id, 0, 1
+            ... )
         """
         return await self.place_order(
             contract_id=contract_id,
@@ -119,7 +129,11 @@ class OrderTypesMixin:
             OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> response = await order_manager.place_limit_order("MGC", 1, 1, 2050.0)
+            >>> # V3.1: Place limit order with realistic price
+            >>> current_price = await suite.data.get_current_price()
+            >>> response = await suite.orders.place_limit_order(
+            ...     suite.instrument_id, 1, 1, current_price - 10.0
+            ... )
         """
         return await self.place_order(
             contract_id=contract_id,
@@ -152,8 +166,11 @@ class OrderTypesMixin:
             OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> # Stop loss for long position
-            >>> response = await order_manager.place_stop_order("MGC", 1, 1, 2040.0)
+            >>> # V3.1: Stop loss for long position
+            >>> current_price = await suite.data.get_current_price()
+            >>> response = await suite.orders.place_stop_order(
+            ...     suite.instrument_id, 1, 1, current_price - 20.0
+            ... )
         """
         return await self.place_order(
             contract_id=contract_id,
@@ -186,8 +203,12 @@ class OrderTypesMixin:
             OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> response = await order_manager.place_trailing_stop_order(
-            ...     "MGC", 1, 1, 5.0
+            >>> # V3.1: Trailing stop order
+            >>> response = await suite.orders.place_trailing_stop_order(
+            ...     suite.instrument_id,
+            ...     1,
+            ...     1,
+            ...     15.0,  # Trail by $15
             ... )
         """
         return await self.place_order(
@@ -222,8 +243,10 @@ class OrderTypesMixin:
             OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> # Join the bid to provide liquidity
-            >>> response = await order_manager.place_join_bid_order("MGC", 1)
+            >>> # V3.1: Join the bid to provide liquidity
+            >>> response = await suite.orders.place_join_bid_order(
+            ...     suite.instrument_id, 1
+            ... )
         """
         return await self.place_order(
             contract_id=contract_id,
@@ -256,8 +279,10 @@ class OrderTypesMixin:
             OrderPlaceResponse: Response containing order ID and status
 
         Example:
-            >>> # Join the ask to provide liquidity
-            >>> response = await order_manager.place_join_ask_order("MGC", 1)
+            >>> # V3.1: Join the ask to provide liquidity
+            >>> response = await suite.orders.place_join_ask_order(
+            ...     suite.instrument_id, 1
+            ... )
         """
         return await self.place_order(
             contract_id=contract_id,
