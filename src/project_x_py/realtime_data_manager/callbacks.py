@@ -30,47 +30,52 @@ Callback Capabilities:
 
 Example Usage:
     ```python
-    # V3: Using EventBus for unified event handling
-    from project_x_py import EventBus, EventType
+    # V3.1: TradingSuite provides integrated event handling
+    from project_x_py import TradingSuite, EventType
 
-    event_bus = EventBus()
+    # V3.1: Create suite with data manager and event bus
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min", "15min"],
+        initial_days=5,
+    )
 
 
-    # V3: Register callbacks through EventBus
-    @event_bus.on(EventType.NEW_BAR)
-    async def on_new_bar(data):
-        tf = data["timeframe"]
-        bar = data["data"]
+    # V3.1: Register callbacks through suite's event bus
+    @suite.events.on(EventType.NEW_BAR)
+    async def on_new_bar(event):
+        tf = event.data["timeframe"]
+        bar = event.data["data"]
         print(
             f"New {tf} bar: O={bar['open']}, H={bar['high']}, L={bar['low']}, C={bar['close']}"
         )
 
-        # V3: Implement trading logic with actual field names
+        # V3.1: Implement trading logic with actual field names
         if tf == "5min" and bar["close"] > bar["open"]:
             # Bullish bar detected
-            print(f"Bullish 5min bar detected at {data['bar_time']}")
+            print(f"Bullish 5min bar detected at {event.data['bar_time']}")
 
-            # V3: Emit custom events for strategy
-            await event_bus.emit(
+            # V3.1: Emit custom events for strategy
+            await suite.events.emit(
                 EventType.CUSTOM,
                 {"event": "bullish_signal", "timeframe": tf, "price": bar["close"]},
             )
 
 
-    # V3: Register for tick updates
-    @event_bus.on(EventType.TICK_UPDATE)
-    async def on_tick(data):
+    # V3.1: Register for tick updates
+    @suite.events.on(EventType.TICK_UPDATE)
+    async def on_tick(event):
         # This is called on every tick - keep it lightweight!
+        data = event.data
         print(f"Price: {data['price']}, Volume: {data['volume']}")
 
 
-    # V3: Legacy callback registration (backward compatibility)
-    # Will be removed in V4
-    async def legacy_callback(data):
-        print(f"Legacy: {data}")
+    # V3.1: Alternative registration method
+    async def bar_callback(event):
+        print(f"Bar update: {event.data}")
 
 
-    await data_manager.add_callback("new_bar", legacy_callback)
+    await suite.on(EventType.NEW_BAR, bar_callback)
     ```
 
 Event Data Structures:

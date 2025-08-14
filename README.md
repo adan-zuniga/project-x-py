@@ -21,9 +21,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.9 - Stable Production Release
+## 🚀 v3.1.11 - Stable Production Release
 
-**Latest Version**: v3.1.9 - Fixed tick price alignment in real-time data. See [CHANGELOG.md](CHANGELOG.md) for full release history.
+**Latest Version**: v3.1.11 - Fixed ManagedTrade market price fetching for risk-managed trades. See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
 ### 📦 Production Stability Guarantee
 
@@ -113,7 +113,9 @@ async def main():
     
     print(f\"Connected to account: {suite.client.account_info.name}\")
     
-    print(f\"Trading {suite.instrument.name} - Tick size: ${suite.instrument.tickSize}\")
+    # Get instrument info if needed
+    instrument = await suite.client.get_instrument(suite.instrument_id or \"MNQ\")
+    print(f\"Trading {instrument.name} - Tick size: ${instrument.tickSize}\")
     
     data = await suite.client.get_bars(\"MNQ\", days=5)
     print(f\"Retrieved {len(data)} bars\")
@@ -173,18 +175,20 @@ if __name__ == \"__main__\":
 import asyncio
 from project_x_py import TradingSuite
 
-async def on_tick(tick_data):
+async def on_tick(event):
+    tick_data = event.data
     print(f\"Price: ${tick_data['price']}\")
 
 async def main():
     suite = await TradingSuite.create(\"MNQ\")
     
-    suite.data.add_tick_callback(on_tick)
+    # Register tick callback
+    await suite.data.add_callback(\"tick\", on_tick)
     
     current_price = await suite.data.get_current_price()
     
     response = await suite.orders.place_bracket_order(
-        contract_id=suite.instrument.id,
+        contract_id=suite.instrument_id,
         side=0,  # Buy
         size=1,
         entry_price=current_price,
@@ -267,28 +271,43 @@ await suite.orders.cancel_order(order_id)
 #### PositionManager
 Async position tracking and analytics:
 ```python
-position_manager = suite["position_manager"]
-positions = await position_manager.get_all_positions()
-pnl = await position_manager.get_portfolio_pnl()
-await position_manager.close_position(contract_id)
+positions = await suite.positions.get_all_positions()
+pnl = await suite.positions.get_portfolio_pnl()
+await suite.positions.close_position(contract_id)
 ```
 
 #### RealtimeDataManager
 Async multi-timeframe data management:
 ```python
-data_manager = suite["data_manager"]
-await data_manager.initialize(initial_days=5)
-data = await data_manager.get_data("15min")
-current_price = await data_manager.get_current_price()
+# Data manager is automatically initialized
+data = await suite.data.get_data("15min")
+current_price = await suite.data.get_current_price()
 ```
 
 #### OrderBook
-Async Level 2 market depth analysis:
+Async Level 2 market depth analysis (when enabled):
 ```python
-orderbook = suite["orderbook"]
-spread = await orderbook.get_bid_ask_spread()
-imbalance = await orderbook.get_market_imbalance()
-icebergs = await orderbook.detect_iceberg_orders()
+# Enable orderbook in features when creating suite
+suite = await TradingSuite.create("MNQ", features=["orderbook"])
+
+spread = await suite.orderbook.get_bid_ask_spread()
+imbalance = await suite.orderbook.get_market_imbalance()
+icebergs = await suite.orderbook.detect_iceberg_orders()
+```
+
+#### RiskManager
+Risk management and managed trades (when enabled):
+```python
+# Enable risk manager in features
+suite = await TradingSuite.create("MNQ", features=["risk_manager"])
+
+# Use managed trades for automatic risk management
+async with suite.managed_trade(max_risk_percent=0.01) as trade:
+    # Market price fetched automatically (v3.1.11+)
+    result = await trade.enter_long(
+        stop_loss=current_price - 50,
+        take_profit=current_price + 100
+    )
 ```
 
 ### Technical Indicators
@@ -330,17 +349,33 @@ data_with_ob = ob.calculate(data, use_wicks=True)
 
 The `examples/` directory contains comprehensive async examples:
 
-1. **01_basic_client_connection.py** - Async authentication and basic operations
-2. **02_order_management.py** - Async order placement and management
-3. **03_position_management.py** - Async position tracking and P&L
-4. **04_realtime_data.py** - Real-time async data streaming
-5. **05_orderbook_analysis.py** - Async market depth analysis
-6. **06_multi_timeframe_strategy.py** - Async multi-timeframe trading
-7. **07_technical_indicators.py** - Using indicators with async data
-8. **08_order_and_position_tracking.py** - Integrated async monitoring
-9. **09_get_check_available_instruments.py** - Interactive async instrument search
-10. **12_simplified_strategy.py** - NEW: Simplified strategy using auto-initialization
-11. **13_factory_comparison.py** - NEW: Comparison of factory function approaches
+### Core Functionality
+- **00_trading_suite_demo.py** - Complete TradingSuite demonstration
+- **01_basic_client_connection.py** - Async authentication and basic operations
+- **02_order_management.py** - Async order placement and management
+- **03_position_management.py** - Async position tracking and P&L
+- **04_realtime_data.py** - Real-time async data streaming
+
+### Advanced Features
+- **05_orderbook_analysis.py** - Async market depth analysis
+- **06_advanced_orderbook.py** - Advanced orderbook analytics
+- **06_multi_timeframe_strategy.py** - Async multi-timeframe trading
+- **07_technical_indicators.py** - Using indicators with async data
+- **08_order_and_position_tracking.py** - Integrated async monitoring
+- **09_get_check_available_instruments.py** - Interactive async instrument search
+
+### Event System & Data Access
+- **10_unified_event_system.py** - Event-driven trading with EventBus
+- **11_simplified_data_access.py** - Simplified data access patterns
+- **12_simplified_multi_timeframe.py** - Multi-timeframe analysis
+- **12_simplified_strategy.py** - Simplified strategy using auto-initialization
+
+### Risk Management & Order Lifecycle
+- **13_enhanced_models.py** - Enhanced data models demonstration
+- **15_order_lifecycle_tracking.py** - Complete order lifecycle monitoring
+- **15_risk_management.py** - Risk management features
+- **16_managed_trades.py** - ManagedTrade context manager usage
+- **16_join_orders.py** - Advanced order joining techniques
 
 ## 🔧 Configuration
 
@@ -415,15 +450,16 @@ async def place_order(self, ...):
 
 ## 🔧 Troubleshooting
 
-### Common Issues with Factory Functions
+### Common Issues
 
-#### JWT Token Not Available
+#### Authentication Issues
 ```python
-# Error: "JWT token is required but not available from client"
-# Solution: Ensure client is authenticated before creating suite
-async with ProjectX.from_env() as client:
-    await client.authenticate()  # Don't forget this!
-    suite = await create_initialized_trading_suite("MNQ", client)
+# Error: "PROJECT_X_API_KEY environment variable is required"
+# Solution: Set environment variables before running
+export PROJECT_X_API_KEY="your_api_key"
+export PROJECT_X_USERNAME="your_username"
+
+# Or use config file at ~/.config/projectx/config.json
 ```
 
 #### Instrument Not Found
@@ -435,14 +471,13 @@ async with ProjectX.from_env() as client:
 
 #### Connection Timeouts
 ```python
-# If initialization times out, try manual setup with error handling:
+# The TradingSuite handles connections automatically
+# If you need custom timeout handling:
 try:
-    suite = await create_trading_suite(
-        instrument="MNQ",
-        project_x=client,
-        auto_connect=False
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeout=30  # Custom timeout in seconds
     )
-    await suite["realtime_client"].connect()
 except Exception as e:
     print(f"Connection failed: {e}")
 ```

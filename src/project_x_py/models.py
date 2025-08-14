@@ -38,11 +38,11 @@ Example Usage:
 
     # Create instrument model
     instrument = Instrument(
-        id="CON.F.US.MGC.M25",
-        name="MGCH25",
-        description="Mini Gold Futures March 2025",
-        tickSize=0.1,
-        tickValue=1.0,
+        id="CON.F.US.MNQ.U25",
+        name="MNQU25",
+        description="E-mini NASDAQ-100 Futures September 2025",
+        tickSize=0.25,
+        tickValue=0.50,
         activeContract=True,
     )
 
@@ -50,7 +50,7 @@ Example Usage:
     order = Order(
         id=12345,
         accountId=1001,
-        contractId="CON.F.US.MGC.M25",
+        contractId="CON.F.US.MNQ.U25",
         creationTimestamp="2024-01-01T10:00:00Z",
         updateTimestamp="2024-01-01T10:00:05Z",
         status=OrderStatus.OPEN,
@@ -64,7 +64,7 @@ Example Usage:
     position = Position(
         id=67890,
         accountId=1001,
-        contractId="CON.F.US.MGC.M25",
+        contractId="CON.F.US.MNQ.U25",
         creationTimestamp="2024-01-01T10:00:00Z",
         type=PositionType.LONG,
         size=5,
@@ -137,7 +137,7 @@ class Instrument:
 
     Attributes:
         id (str): Unique contract identifier used in API calls
-        name (str): Contract name/symbol (e.g., "MGCH25")
+        name (str): Contract name/symbol (e.g., "MNQU25", "ESH25")
         description (str): Human-readable description of the contract
         tickSize (float): Minimum price movement (e.g., 0.1)
         tickValue (float): Dollar value per tick movement

@@ -288,16 +288,10 @@ Example: Production Setup
            if not os.getenv('PROJECT_X_USERNAME'):
                raise ValueError("PROJECT_X_USERNAME environment variable not set")
            
-           # Create client
-           client = ProjectX.from_env()
-           
-           # Authenticate
-           await client.authenticate()
-           
-           # Verify authentication
-           print(f"Authenticated successfully: {client.account_info.name}")
-           
-           return client
+           # Note: This function should not be used with async context manager
+           # Instead, use ProjectX.from_env() directly with async with
+           # This is shown here for demonstration purposes only
+           return ProjectX.from_env()
            
        except ProjectXAuthenticationError as e:
            print(f"Authentication failed: {e}")
@@ -307,10 +301,12 @@ Example: Production Setup
            raise
 
    async def main():
-       # Usage with context manager
-       async with await create_authenticated_client() as client:
+       # Correct usage: ProjectX.from_env() returns a client directly
+       # No need to await before using as context manager
+       async with ProjectX.from_env() as client:
+           await client.authenticate()
            # Use client for operations
-           instruments = await client.search_instruments('MGC')
+           instruments = await client.search_instruments('MNQ')
            print(f"Found {len(instruments)} instruments")
 
    asyncio.run(main())

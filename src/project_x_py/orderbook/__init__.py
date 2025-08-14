@@ -36,51 +36,35 @@ Real-time Capabilities:
 
 Example Usage:
     ```python
-    # V3: Uses EventBus and factory functions
-    from project_x_py import ProjectX, create_orderbook, create_realtime_client
-    from project_x_py.events import EventBus, EventType
+    # V3.1: Using TradingSuite with integrated orderbook
+    from project_x_py import TradingSuite, EventType
     import asyncio
 
 
     async def main():
-        # V3: ProjectX client with context manager
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # V3.1: Create suite with orderbook feature
+        suite = await TradingSuite.create(
+            "MNQ", features=["orderbook"], timeframes=["1min"]
+        )
 
-            # V3: Create realtime client with factory function
-            realtime_client = await create_realtime_client(
-                jwt_token=client.jwt_token, account_id=str(client.account_id)
-            )
+        # V3.1: Register event handlers via integrated EventBus
+        @suite.events.on(EventType.MARKET_DEPTH_UPDATE)
+        async def on_depth_update(event):
+            print(f"Depth update: {event.timestamp}")
 
-            # V3: EventBus for unified event handling
-            event_bus = EventBus()
+        # Get basic orderbook snapshot
+        snapshot = await suite.orderbook.get_orderbook_snapshot(levels=10)
+        print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
 
-            # V3: Create orderbook with EventBus
-            orderbook = create_orderbook(
-                "MNQ",  # V3: Using actual contract symbols
-                event_bus=event_bus,
-                project_x=client,
-            )
-            await orderbook.initialize(realtime_client=realtime_client)
+        # Advanced analytics
+        imbalance = await suite.orderbook.get_market_imbalance(levels=5)
+        print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
 
-            # V3: Register event handlers
-            @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
-            async def on_depth_update(data):
-                print(f"Depth update: {data['timestamp']}")
+        # Detection algorithms
+        icebergs = await suite.orderbook.detect_iceberg_orders()
+        print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
 
-            # Get basic orderbook snapshot
-            snapshot = await orderbook.get_orderbook_snapshot(levels=10)
-            print(f"Best bid: {snapshot['best_bid']}, Spread: {snapshot['spread']}")
-
-            # Advanced analytics
-            imbalance = await orderbook.get_market_imbalance(levels=5)
-            print(f"Market imbalance: {imbalance['imbalance_ratio']:.2f}")
-
-            # Detection algorithms
-            icebergs = await orderbook.detect_iceberg_orders()
-            print(f"Detected {len(icebergs['iceberg_levels'])} iceberg orders")
-
-            await orderbook.cleanup()
+        await suite.disconnect()
 
 
     asyncio.run(main())
@@ -200,34 +184,33 @@ class OrderBook(OrderBookBase):
         - Hidden liquidity and volume pattern recognition
 
     Example:
-        >>> # V3: Create orderbook with EventBus
-        >>> event_bus = EventBus()
-        >>> orderbook = OrderBook("MNQ", event_bus, project_x_client)
-        >>> await orderbook.initialize(realtime_client)
+        >>> # V3.1: Using TradingSuite's integrated orderbook
+        >>> suite = await TradingSuite.create("MNQ", features=["orderbook"])
         >>>
-        >>> # V3: Register event handlers
-        >>> @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
-        >>> async def handle_depth(data):
+        >>> # V3.1: Register event handlers via suite's EventBus
+        >>> @suite.events.on(EventType.MARKET_DEPTH_UPDATE)
+        >>> async def handle_depth(event):
+        ...     data = event.data
         ...     print(f"Depth: {data['bids'][0]['price']} @ {data['bids'][0]['size']}")
         >>>
         >>> # Get basic orderbook data
-        >>> snapshot = await orderbook.get_orderbook_snapshot()
+        >>> snapshot = await suite.orderbook.get_orderbook_snapshot()
         >>> print(f"Spread: {snapshot['spread']}")
         >>>
         >>> # Advanced analytics
-        >>> imbalance = await orderbook.get_market_imbalance()
-        >>> liquidity = await orderbook.get_liquidity_levels()
+        >>> imbalance = await suite.orderbook.get_market_imbalance()
+        >>> liquidity = await suite.orderbook.get_liquidity_levels()
         >>>
         >>> # Detection algorithms
-        >>> icebergs = await orderbook.detect_iceberg_orders()
-        >>> clusters = await orderbook.detect_order_clusters()
+        >>> icebergs = await suite.orderbook.detect_iceberg_orders()
+        >>> clusters = await suite.orderbook.detect_order_clusters()
         >>>
         >>> # Volume profiling
-        >>> profile = await orderbook.get_volume_profile()
-        >>> support_resistance = await orderbook.get_support_resistance_levels()
+        >>> profile = await suite.orderbook.get_volume_profile()
+        >>> support_resistance = await suite.orderbook.get_support_resistance_levels()
         >>>
-        >>> # Cleanup when done
-        >>> await orderbook.cleanup()
+        >>> # Cleanup handled automatically
+        >>> await suite.disconnect()
     """
 
     def __init__(
@@ -293,22 +276,13 @@ class OrderBook(OrderBookBase):
                 initialization failed.
 
         Example:
-            >>> # V3: Initialize with EventBus and realtime client
-            >>> event_bus = EventBus()
-            >>> orderbook = OrderBook("MNQ", event_bus, client)
-            >>> # V3: Create realtime client with factory
-            >>> realtime_client = await create_realtime_client(
-            ...     jwt_token=client.jwt_token, account_id=str(client.account_id)
-            ... )
-            >>> success = await orderbook.initialize(
-            ...     realtime_client=realtime_client,
-            ...     subscribe_to_depth=True,
-            ...     subscribe_to_quotes=True,
-            ... )
-            >>> if success:
+            >>> # V3.1: Initialization handled by TradingSuite
+            >>> suite = await TradingSuite.create("MNQ", features=["orderbook"])
+            >>> # Orderbook is automatically initialized with real-time connection
+            >>> if suite.orderbook:
             ...     print("Orderbook initialized and receiving real-time data")
             ... else:
-            ...     print("Failed to initialize orderbook")
+            ...     print("Orderbook not available")
         """
         try:
             # Start memory manager
@@ -526,23 +500,20 @@ def create_orderbook(
         to initialize() before use.
 
     Example:
-        >>> # V3: Create an orderbook with EventBus
-        >>> event_bus = EventBus()
-        >>> orderbook = create_orderbook(
-        ...     instrument="MNQ",  # V3: Using actual contract symbols
-        ...     event_bus=event_bus,
-        ...     project_x=client,
-        ...     timezone_str="America/Chicago",  # V3: Using CME timezone
+        >>> # V3.1: Use TradingSuite instead of factory function
+        >>> # This function is deprecated - use TradingSuite.create()
+        >>> suite = await TradingSuite.create(
+        ...     instrument="MNQ",
+        ...     features=["orderbook"],
+        ...     timezone_str="America/Chicago",  # CME timezone
         ... )
         >>>
-        >>> # V3: Initialize with factory-created realtime client
-        >>> realtime_client = await create_realtime_client(
-        ...     jwt_token=client.jwt_token, account_id=str(client.account_id)
-        ... )
-        >>> await orderbook.initialize(realtime_client=realtime_client)
+        >>> # Orderbook is automatically initialized
+        >>> # Access via suite.orderbook
+        >>> snapshot = await suite.orderbook.get_orderbook_snapshot()
         >>>
-        >>> # Start using the orderbook
-        >>> snapshot = await orderbook.get_orderbook_snapshot()
+        >>> # Note: create_orderbook is maintained for backward compatibility
+        >>> # but TradingSuite is the recommended approach
     """
     # Note: realtime_client is passed to initialize() separately to allow
     # for async initialization

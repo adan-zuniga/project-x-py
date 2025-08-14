@@ -91,11 +91,11 @@ async def align_price_to_tick_size(
         float: Price aligned to tick size, or None if input price is None
 
     Example:
-        >>> # Align a price for MGC (tick size 0.1)
-        >>> aligned = await align_price_to_tick_size(2052.17, "MGC", client)
-        >>> print(aligned)  # 2052.2
+        >>> # V3.1: Align a price for MNQ (tick size 0.25)
+        >>> aligned = await align_price_to_tick_size(20052.17, "MNQ", client)
+        >>> print(aligned)  # 20052.25
 
-        >>> # Align a price for ES (tick size 0.25)
+        >>> # V3.1: Align a price for ES (tick size 0.25)
         >>> aligned = await align_price_to_tick_size(5000.17, "ES", client)
         >>> print(aligned)  # 5000.25
     """

@@ -27,14 +27,24 @@ Data Access Capabilities:
 
 Example Usage:
     ```python
-    # V3: Data access with Polars DataFrames
-    # Get the most recent 100 bars of 5-minute data
-    data_5m = await manager.get_data("5min", bars=100)
+    # V3.1: Data access via TradingSuite
+    from project_x_py import TradingSuite
+    from project_x_py.indicators import RSI, MACD
+
+    # V3.1: Create suite with data manager
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min", "15min"],
+        initial_days=5,
+    )
+
+    # V3.1: Get the most recent 100 bars of 5-minute data
+    data_5m = await suite.data.get_data("5min", bars=100)
 
     if data_5m is not None:
         print(f"Got {len(data_5m)} bars of 5-minute data")
 
-        # V3: Access actual OHLCV columns
+        # V3.1: Access actual OHLCV columns
         latest = data_5m.tail(1)
         print(f"Latest bar:")
         print(f"  Open: {latest['open'][0]}")
@@ -43,23 +53,21 @@ Example Usage:
         print(f"  Close: {latest['close'][0]}")
         print(f"  Volume: {latest['volume'][0]}")
 
-        # V3: Calculate indicators with Polars
+        # V3.1: Calculate indicators with Polars
         if len(data_5m) >= 20:
             sma_20 = data_5m["close"].tail(20).mean()
             print(f"20-bar SMA: {sma_20:.2f}")
 
-            # V3: Use pipe for indicator chaining
-            from project_x_py.indicators import RSI, MACD
-
+            # V3.1: Use pipe for indicator chaining
             with_indicators = data_5m.pipe(RSI, period=14).pipe(MACD)
 
-    # V3: Get current market price
-    current_price = await manager.get_current_price()
+    # V3.1: Get current market price
+    current_price = await suite.data.get_current_price()
     if current_price is not None:
-        print(f"Current MNQ price: ${current_price:.2f}")
+        print(f"Current {suite.instrument} price: ${current_price:.2f}")
 
-    # V3: Get multi-timeframe data for analysis
-    mtf_data = await manager.get_mtf_data()
+    # V3.1: Get multi-timeframe data for analysis
+    mtf_data = await suite.data.get_mtf_data()
     for tf, data in mtf_data.items():
         print(f"{tf}: {len(data)} bars available")
         if len(data) > 0:
@@ -219,7 +227,7 @@ class DataAccessMixin:
                 if current_price > threshold:
                     # Place a sell order
                     await order_manager.place_market_order(
-                        contract_id="MGC",
+                        contract_id="MNQ",
                         side=1,  # Sell
                         size=1,
                     )

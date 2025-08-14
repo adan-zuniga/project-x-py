@@ -26,20 +26,21 @@ Monitoring Capabilities:
 
 Example Usage:
     ```python
-    # Add position alerts
-    await position_manager.add_position_alert("MGC", max_loss=-500.0)
-    await position_manager.add_position_alert("NQ", max_gain=1000.0)
+    # V3.1: Add position alerts with TradingSuite
+    await suite.positions.add_position_alert(suite.instrument_id, max_loss=-500.0)
+    await suite.positions.add_position_alert("ES", max_gain=1000.0)
 
-    # Start monitoring
-    await position_manager.start_monitoring(refresh_interval=30)
-
-
-    # Register alert callbacks
-    async def on_alert(data):
-        print(f"Alert triggered: {data['message']}")
+    # V3.1: Start monitoring
+    await suite.positions.start_monitoring(refresh_interval=30)
 
 
-    await position_manager.add_callback("position_alert", on_alert)
+    # V3.1: Register alert callbacks via EventBus
+    from project_x_py import EventType
+
+
+    @suite.events.on(EventType.POSITION_ALERT)
+    async def on_alert(event):
+        print(f"Alert triggered: {event.data['message']}")
     ```
 
 See Also:
@@ -101,10 +102,12 @@ class PositionMonitoringMixin:
             pnl_threshold: Absolute P&L change threshold
 
         Example:
-            >>> # Alert if MGC loses more than $500
-            >>> await position_manager.add_position_alert("MGC", max_loss=-500.0)
-            >>> # Alert if NQ gains more than $1000
-            >>> await position_manager.add_position_alert("NQ", max_gain=1000.0)
+            >>> # V3.1: Alert if position loses more than $500
+            >>> await suite.positions.add_position_alert(
+            ...     suite.instrument_id, max_loss=-500.0
+            ... )
+            >>> # V3.1: Alert if ES gains more than $1000
+            >>> await suite.positions.add_position_alert("ES", max_gain=1000.0)
         """
         async with self.position_lock:
             self.position_alerts[contract_id] = {
@@ -125,7 +128,8 @@ class PositionMonitoringMixin:
             contract_id: Contract ID to remove alert for
 
         Example:
-            >>> await position_manager.remove_position_alert("MGC")
+            >>> # V3.1: Remove position alert with TradingSuite
+            >>> await suite.positions.remove_position_alert(suite.instrument_id)
         """
         async with self.position_lock:
             if contract_id in self.position_alerts:

@@ -47,8 +47,8 @@ Example Usage:
         print(f"Position closed: {data.get('contractId')}")
 
 
-    # Get position history
-    # history = await position_manager.get_position_history("MGC", limit=10)
+    # V3.1: Get position history with TradingSuite
+    # history = await suite.positions.get_position_history(suite.instrument_id, limit=10)
     # for entry in history:
     #     print(f"{entry['timestamp']}: {entry['size_change']:+d} contracts")
     ```

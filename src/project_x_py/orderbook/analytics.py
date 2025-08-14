@@ -29,29 +29,26 @@ Analytics Categories:
 
 Example Usage:
     ```python
-    # V3: Using analytics with EventBus-enabled orderbook
-    from project_x_py import create_orderbook
-    from project_x_py.events import EventBus
+    # V3.1: Using analytics with TradingSuite's orderbook
+    from project_x_py import TradingSuite
 
-    event_bus = EventBus()
-    orderbook = create_orderbook(
-        "MNQ", event_bus, project_x=client
-    )  # V3: actual symbol
-    await orderbook.initialize(realtime_client)
+    suite = await TradingSuite.create("MNQ", features=["orderbook"])
 
-    # V3: Market imbalance analysis
-    imbalance = await orderbook.get_market_imbalance(levels=10)
+    # V3.1: Market imbalance analysis
+    imbalance = await suite.orderbook.get_market_imbalance(levels=10)
     print(f"Imbalance: {imbalance['imbalance_ratio']:.2%}")
     print(f"Analysis: {imbalance['analysis']}")
 
-    # V3: Depth analysis with actual contract
-    depth = await orderbook.get_orderbook_depth(price_range=5.0)
+    # V3.1: Depth analysis
+    depth = await suite.orderbook.get_orderbook_depth(price_range=5.0)
     print(f"Bid depth: {depth['bid_depth']['total_volume']} contracts")
     print(f"Ask depth: {depth['ask_depth']['total_volume']} contracts")
 
-    # V3: Trade flow analysis
-    delta = await orderbook.get_cumulative_delta(time_window_minutes=60)
+    # V3.1: Trade flow analysis
+    delta = await suite.orderbook.get_cumulative_delta(time_window_minutes=60)
     print(f"Cumulative delta: {delta['cumulative_delta']}")
+
+    await suite.disconnect()
     ```
 
 See Also:

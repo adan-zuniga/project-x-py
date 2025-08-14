@@ -27,49 +27,45 @@ order fills, providing consistent trade management without manual intervention.
 
 Example Usage:
     ```python
-    # V3: Place bracket orders with automatic risk management
+    # V3.1: Place bracket orders with TradingSuite
     import asyncio
-    from project_x_py import ProjectX, create_realtime_client, EventBus
-    from project_x_py.order_manager import OrderManager
+    from project_x_py import TradingSuite
 
 
     async def main():
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # Initialize suite with integrated order manager
+        suite = await TradingSuite.create("MNQ")
 
-            # V3: Initialize order manager with dependencies
-            event_bus = EventBus()
-            realtime_client = await create_realtime_client(
-                client.get_session_token(), str(client.get_account_info().id)
-            )
-            om = OrderManager(client, event_bus)
-            await om.initialize(realtime_client)
+        # Get current market price for realistic order placement
+        current_price = await suite.data.get_current_price()
 
-            # V3: Place a bullish bracket order (buy with stop below, target above)
-            bracket = await om.place_bracket_order(
-                contract_id="MGC",
-                side=0,  # Buy
-                size=1,
-                entry_price=2050.0,
-                stop_loss_price=2040.0,  # Risk: $10 per contract
-                take_profit_price=2070.0,  # Reward: $20 per contract
-                entry_type="limit",  # Can also use "market"
-            )
+        # V3.1: Place a bullish bracket order (buy with stop below, target above)
+        bracket = await suite.orders.place_bracket_order(
+            contract_id=suite.instrument_id,
+            side=0,  # Buy
+            size=1,
+            entry_price=current_price - 10.0,  # Enter below market
+            stop_loss_price=current_price - 30.0,  # Risk: $30 per contract
+            take_profit_price=current_price + 20.0,  # Reward: $30 per contract
+            entry_type="limit",  # Can also use "market"
+        )
 
-            print(f"Bracket order placed successfully:")
-            print(f"  Entry Order ID: {bracket.entry_order_id}")
-            print(f"  Stop Loss ID: {bracket.stop_order_id}")
-            print(f"  Take Profit ID: {bracket.target_order_id}")
+        print(f"Bracket order placed successfully:")
+        print(f"  Entry Order ID: {bracket.entry_order_id}")
+        print(f"  Stop Loss ID: {bracket.stop_order_id}")
+        print(f"  Take Profit ID: {bracket.target_order_id}")
 
-            # V3: Place a bearish bracket order (sell with stop above, target below)
-            short_bracket = await om.place_bracket_order(
-                contract_id="MNQ",
-                side=1,  # Sell
-                size=2,
-                entry_price=18500.0,
-                stop_loss_price=18550.0,  # Stop above for short
-                take_profit_price=18400.0,  # Target below for short
-            )
+        # V3.1: Place a bearish bracket order (sell with stop above, target below)
+        short_bracket = await suite.orders.place_bracket_order(
+            contract_id=suite.instrument_id,
+            side=1,  # Sell
+            size=2,
+            entry_price=current_price + 10.0,  # Enter above market for short
+            stop_loss_price=current_price + 30.0,  # Stop above for short
+            take_profit_price=current_price - 20.0,  # Target below for short
+        )
+
+        await suite.disconnect()
 
 
     asyncio.run(main())

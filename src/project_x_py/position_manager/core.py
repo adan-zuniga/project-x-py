@@ -28,42 +28,34 @@ Note:
 
 Example Usage:
     ```python
-    # V3: Initialize position manager with EventBus and real-time support
+    # V3.1: Initialize position manager with TradingSuite
     import asyncio
-    from project_x_py import ProjectX, create_realtime_client, EventBus
-    from project_x_py.position_manager import PositionManager
+    from project_x_py import TradingSuite
 
 
     async def main():
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # V3.1: Create suite with integrated position manager
+        suite = await TradingSuite.create("MNQ", timeframes=["1min"])
 
-            # V3: Create dependencies
-            event_bus = EventBus()
-            realtime_client = await create_realtime_client(
-                client.get_session_token(), str(client.get_account_info().id)
-            )
+        # V3.1: Get current positions with detailed fields
+        positions = await suite.positions.get_all_positions()
+        for pos in positions:
+            print(f"{pos.contractId}: {pos.netPos} @ ${pos.buyAvgPrice}")
 
-            # V3: Initialize position manager
-            pm = PositionManager(client, event_bus)
-            await pm.initialize(realtime_client)
+        # V3.1: Calculate P&L with market prices
+        current_price = await suite.data.get_current_price()
+        prices = {"MNQ": current_price, "ES": 4500.0}
+        pnl = await suite.positions.calculate_portfolio_pnl(prices)
+        print(f"Total P&L: ${pnl['total_pnl']:.2f}")
 
-            # V3: Get current positions with detailed fields
-            positions = await pm.get_all_positions()
-            for pos in positions:
-                print(f"{pos.contractId}: {pos.netPos} @ ${pos.buyAvgPrice}")
+        # V3.1: Risk analysis
+        risk = await suite.positions.get_risk_metrics()
+        print(f"Portfolio risk: {risk['portfolio_risk']:.2%}")
 
-            # V3: Calculate P&L with market prices
-            prices = {"MGC": 2050.0, "MNQ": 18500.0}
-            pnl = await pm.calculate_portfolio_pnl(prices)
-            print(f"Total P&L: ${pnl['total_pnl']:.2f}")
+        # V3.1: Position operations
+        await suite.positions.close_position_direct(suite.instrument_id)
 
-            # V3: Risk analysis
-            risk = await pm.get_risk_metrics()
-            print(f"Portfolio risk: {risk['portfolio_risk']:.2%}")
-
-            # V3: Position operations
-            await pm.close_position_direct("MGC")
+        await suite.disconnect()
 
 
     asyncio.run(main())
@@ -142,12 +134,9 @@ class PositionManager(
         - Diversification scoring and portfolio health metrics
 
     Example Usage:
-        >>> # V3: Create position manager with EventBus integration
-        >>> event_bus = EventBus()
-        >>> position_manager = PositionManager(project_x_client, event_bus)
-        >>> # V3: Initialize with real-time client for WebSocket updates
-        >>> realtime_client = await create_realtime_client(
-        ...     client.get_session_token(), str(client.get_account_info().id)
+        >>> # V3.1: Create position manager with TradingSuite
+        >>> suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+        >>> # V3.1: Position manager is automatically initialized with real-time updates
         ... )
         >>> await position_manager.initialize(realtime_client=realtime_client)
         >>> # V3: Get current positions with actual field names
@@ -162,12 +151,18 @@ class PositionManager(
         ...     market_prices
         ... )
         >>> risk_metrics = await position_manager.get_risk_metrics()
-        >>> # V3: Position monitoring with alerts
-        >>> await position_manager.add_position_alert("MGC", max_loss=-500.0)
-        >>> await position_manager.start_monitoring(interval_seconds=5)
-        >>> # V3: Position sizing with risk management
-        >>> suggested_size = await position_manager.calculate_position_size(
-        ...     "MGC", risk_amount=100.0, entry_price=2045.0, stop_price=2040.0
+        >>> # V3.1: Position monitoring with alerts via TradingSuite
+        >>> await suite.positions.add_position_alert(
+        ...     suite.instrument_id, max_loss=-500.0
+        ... )
+        >>> await suite.positions.start_monitoring(interval_seconds=5)
+        >>> # V3.1: Position sizing with risk management
+        >>> current_price = await suite.data.get_current_price()
+        >>> suggested_size = await suite.positions.calculate_position_size(
+        ...     suite.instrument_id,
+        ...     risk_amount=100.0,
+        ...     entry_price=current_price,
+        ...     stop_price=current_price - 5.0,
         ... )
     """
 
@@ -205,17 +200,15 @@ class PositionManager(
             risk_settings (dict): Risk management configuration
 
         Example:
-            >>> # V3: Initialize with EventBus for unified event handling
-            >>> async with ProjectX.from_env() as client:
-            ...     await client.authenticate()
-            ...     event_bus = EventBus()
-            ...     position_manager = PositionManager(client, event_bus)
-            ...
-            ...     # V3: Optional - add order manager for synchronization
-            ...     order_manager = OrderManager(client, event_bus)
-            ...     await position_manager.initialize(
-            ...         realtime_client=realtime_client, order_manager=order_manager
-            ...     )
+            >>> # V3.1: Initialize with TradingSuite for unified management
+            >>> suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+            >>>
+            >>> # V3.1: Position manager is automatically initialized
+            >>> # Access via suite.positions
+            >>> positions = await suite.positions.get_all_positions()
+            >>>
+            >>> # V3.1: Real-time and order sync are automatically configured
+            >>> # EventBus integration is handled by the suite
         """
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
@@ -337,18 +330,16 @@ class PositionManager(
             Exception: Logged but not raised - returns False on failure
 
         Example:
-            >>> # V3: Initialize with real-time tracking
-            >>> rt_client = await create_realtime_client(
-            ...     client.get_session_token(), str(client.get_account_info().id)
-            ... )
-            >>> success = await position_manager.initialize(realtime_client=rt_client)
+            >>> # V3.1: Initialize with TradingSuite (automatic setup)
+            >>> suite = await TradingSuite.create("MNQ", timeframes=["1min"])
             >>>
-            >>> # V3: Initialize with both real-time and order sync
-            >>> event_bus = EventBus()
-            >>> order_mgr = OrderManager(client, event_bus)
-            >>> success = await position_manager.initialize(
-            ...     realtime_client=rt_client, order_manager=order_mgr
-            ... )
+            >>> # V3.1: Position manager is automatically initialized with:
+            >>> # - Real-time tracking via WebSocket
+            >>> # - Order synchronization with suite.orders
+            >>> # - EventBus integration via suite.events
+            >>>
+            >>> # V3.1: Access the initialized position manager
+            >>> positions = await suite.positions.get_all_positions()
 
         Note:
             - Real-time mode provides instant position updates via WebSocket
@@ -457,7 +448,7 @@ class PositionManager(
         to an API call.
 
         Args:
-            contract_id (str): The contract ID to search for (e.g., "MGC", "NQ")
+            contract_id (str): The contract ID to search for (e.g., "MNQ", "ES")
             account_id (int, optional): The account ID to search within.
                 If None, uses the default account from authentication.
                 Defaults to None.
@@ -468,16 +459,16 @@ class PositionManager(
                 exists for the contract.
 
         Example:
-            >>> # V3: Check if we have a Gold position
-            >>> mgc_position = await position_manager.get_position("MGC")
-            >>> if mgc_position:
-            ...     print(f"MGC position: {mgc_position.netPos} contracts")
-            ...     print(f"Buy Avg Price: ${mgc_position.buyAvgPrice:.2f}")
-            ...     print(f"Sell Avg Price: ${mgc_position.sellAvgPrice:.2f}")
-            ...     print(f"Unrealized P&L: ${mgc_position.unrealizedPnl:.2f}")
-            ...     print(f"Realized P&L: ${mgc_position.realizedPnl:.2f}")
+            >>> # V3.1: Check if we have a position with TradingSuite
+            >>> position = await suite.positions.get_position(suite.instrument_id)
+            >>> if position:
+            ...     print(f"{suite.instrument} position: {position.netPos} contracts")
+            ...     print(f"Buy Avg Price: ${position.buyAvgPrice:.2f}")
+            ...     print(f"Sell Avg Price: ${position.sellAvgPrice:.2f}")
+            ...     print(f"Unrealized P&L: ${position.unrealizedPnl:.2f}")
+            ...     print(f"Realized P&L: ${position.realizedPnl:.2f}")
             ... else:
-            ...     print("No MGC position found")
+            ...     print(f"No {suite.instrument} position found")
 
         Performance:
             - Real-time mode: O(1) cache lookup, falls back to API if miss
@@ -552,7 +543,7 @@ class PositionManager(
         specific contract without retrieving the full position details.
 
         Args:
-            contract_id (str): The contract ID to check (e.g., "MGC", "NQ")
+            contract_id (str): The contract ID to check (e.g., "MNQ", "ES")
             account_id (int, optional): The account ID to check within.
                 If None, uses the default account from authentication.
                 Defaults to None.
@@ -561,12 +552,12 @@ class PositionManager(
             bool: True if an open position exists (size != 0), False otherwise
 
         Example:
-            >>> # Check before placing an order
-            >>> if await position_manager.is_position_open("MGC"):
-            ...     print("Already have MGC position")
+            >>> # V3.1: Check before placing an order with TradingSuite
+            >>> if await suite.positions.is_position_open(suite.instrument_id):
+            ...     print(f"Already have {suite.instrument} position")
             ... else:
             ...     # Safe to open new position
-            ...     await order_manager.place_market_order("MGC", 0, 1)
+            ...     await suite.orders.place_market_order(suite.instrument_id, 0, 1)
 
         Note:
             A position with size=0 is considered closed and returns False.

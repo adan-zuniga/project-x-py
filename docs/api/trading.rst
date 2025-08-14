@@ -46,7 +46,13 @@ Position Factory Functions
 Trading Suite
 -------------
 
-.. autofunction:: create_trading_suite
+.. autoclass:: TradingSuite
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   
+   The TradingSuite is the primary interface for trading operations, combining all managers
+   into a unified interface. Use the async :meth:`create` class method to initialize.
 
 Order Models
 ------------

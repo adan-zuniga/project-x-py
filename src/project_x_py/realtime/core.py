@@ -37,42 +37,48 @@ Note:
     management of this client, its connections, and its events.
 
 Example Usage:
-    The example below shows how to use the client directly. In a real application,
-    the `position_manager`, `order_manager`, and `data_manager` would be instances
-    of the SDK's manager classes.
+    For most applications, use TradingSuite which manages the real-time client
+    automatically. The example below shows low-level direct usage.
 
     ```python
-    # V3: Create async client with ProjectX Gateway URLs
+    # V3.1: TradingSuite manages real-time client internally
     import asyncio
-    from project_x_py import create_realtime_client
+    from project_x_py import TradingSuite
 
 
     async def main():
-        # V3: Use factory function for proper initialization
-        client = await create_realtime_client(jwt_token, account_id)
+        # V3.1: TradingSuite creates and configures real-time client
+        suite = await TradingSuite.create(
+            "MNQ",
+            timeframes=["1min", "5min"],
+            initial_days=1,
+        )
 
-        # V3: Register async managers for event handling
-        # await client.add_callback("position_update", position_manager.handle_update)
-        # await client.add_callback("order_update", order_manager.handle_update)
-        # await client.add_callback("quote_update", data_manager.handle_quote)
+        # V3.1: Real-time client is accessible if needed
+        print(f"User Hub: {suite.realtime_client.user_connected}")
+        print(f"Market Hub: {suite.realtime_client.market_connected}")
 
-        # V3: Connect and check both hub connections
-        if await client.connect():
-            print(f"User Hub: {client.user_connected}")
-            print(f"Market Hub: {client.market_connected}")
+        # V3.1: Subscriptions are handled automatically
+        # suite.realtime_client already subscribed to user updates
+        # and market data for the configured instrument
 
-            # V3: Subscribe to user and market data
-            await client.subscribe_user_updates()
-            await client.subscribe_market_data(["MGC", "MNQ"])
+        # V3.1: Process events through suite's managers
+        await asyncio.sleep(60)
 
-            # V3: Process events
-            await asyncio.sleep(60)
-
-            # V3: Clean disconnect
-            await client.disconnect()
+        # V3.1: Clean disconnect
+        await suite.disconnect()
 
 
-    # asyncio.run(main())
+    # V3.1: Low-level direct usage (advanced users only)
+    # from project_x_py.realtime import ProjectXRealtimeClient
+    # realtime = ProjectXRealtimeClient(
+    #     jwt_token=client.session_token,
+    #     account_id=str(client.account_info.id),
+    # )
+    # await realtime.connect()
+    # await realtime.subscribe_market_data(["MNQ", "ES"])
+
+    asyncio.run(main())
     ```
 
 Event Types (per ProjectX Gateway docs):
@@ -145,25 +151,26 @@ class ProjectXRealtimeClient(
         - Event statistics and flow monitoring
 
     Example:
-        >>> # V3: Create async client with factory function
-        >>> client = await create_realtime_client(jwt_token, account_id)
-        >>> # V3: Register async callbacks for event handling
-        >>> async def handle_position(data):
-        ...     print(f"Position: {data.get('contractId')} - {data.get('netPos')}")
-        >>> async def handle_order(data):
-        ...     print(f"Order {data.get('id')}: {data.get('status')}")
-        >>> async def handle_quote(data):
-        ...     print(f"Quote: {data.get('bid')} x {data.get('ask')}")
-        >>> await client.add_callback("position_update", handle_position)
-        >>> await client.add_callback("order_update", handle_order)
-        >>> await client.add_callback("quote_update", handle_quote)
+        >>> # V3.1: Use TradingSuite for automatic real-time management
+        >>> suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+        >>> # V3.1: Access real-time client if needed
+        >>> print(f"Connected: {suite.realtime_client.is_connected()}")
         >>>
-        >>> # V3: Connect and subscribe with error handling
-        >>> if await client.connect():
-        ...     await client.subscribe_user_updates()
-        ...     await client.subscribe_market_data(["MGC", "MNQ"])
-        ... else:
-        ...     print("Connection failed")
+        >>> # V3.1: Register callbacks via suite's event bus
+        >>> from project_x_py import EventType
+        >>> async def handle_position(event):
+        ...     data = event.data
+        ...     print(f"Position: {data.get('contractId')} - {data.get('netPos')}")
+        >>> await suite.on(EventType.POSITION_UPDATE, handle_position)
+        >>>
+        >>> # V3.1: Direct low-level usage (advanced)
+        >>> # from project_x_py.realtime import ProjectXRealtimeClient
+        >>> # realtime = ProjectXRealtimeClient(
+        >>> #     jwt_token=client.session_token,
+        >>> #     account_id=str(client.account_info.id),
+        >>> # )
+        >>> # await realtime.connect()
+        >>> # await realtime.subscribe_market_data(["MNQ", "ES"])
 
     Event Types (per ProjectX Gateway docs):
         User Hub: GatewayUserAccount, GatewayUserPosition, GatewayUserOrder, GatewayUserTrade

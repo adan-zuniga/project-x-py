@@ -19,32 +19,31 @@ Key Features:
 
 Example Usage:
     ```python
-    # V3: Initialize order manager with event bus and real-time support
+    # V3.1: Order manager is integrated in TradingSuite
     import asyncio
-    from project_x_py import ProjectX, create_realtime_client, EventBus
-    from project_x_py.order_manager import OrderManager
+    from project_x_py import TradingSuite
 
 
     async def main():
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # All managers are automatically initialized
+        suite = await TradingSuite.create("ES")
 
-            # V3: Create dependencies
-            event_bus = EventBus()
-            realtime_client = await create_realtime_client(
-                client.get_session_token(), str(client.get_account_info().id)
-            )
+        # V3.1: Access instrument ID for orders
+        contract_id = suite.instrument_id
 
-            # V3: Initialize order manager
-            om = OrderManager(client, event_bus)
-            await om.initialize(realtime_client)
+        # V3.1: Place orders with automatic price alignment
+        await suite.orders.place_limit_order(
+            contract_id=contract_id,
+            side=0,  # Buy
+            size=1,
+            limit_price=5000.0,
+        )
 
-            # V3: Place orders with automatic price alignment
-            await om.place_limit_order("ES", side=0, size=1, limit_price=5000.0)
+        # V3.1: Monitor order statistics
+        stats = await suite.orders.get_order_statistics()
+        print(f"Fill rate: {stats['fill_rate']:.1%}")
 
-            # V3: Monitor order statistics
-            stats = await om.get_order_statistics()
-            print(f"Fill rate: {stats['fill_rate']:.1%}")
+        await suite.disconnect()
 
 
     asyncio.run(main())

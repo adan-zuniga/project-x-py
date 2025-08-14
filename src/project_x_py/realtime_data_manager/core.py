@@ -41,63 +41,58 @@ Note:
 
 Example Usage:
     ```python
-    # V3: Create shared async realtime client with factory
-    from project_x_py import EventBus
-    from project_x_py.realtime import create_realtime_client
+    # V3.1: TradingSuite manages data manager automatically
+    from project_x_py import TradingSuite, EventType
 
-    async_realtime_client = await create_realtime_client(
-        jwt_token=client.jwt_token, account_id=str(client.account_id)
-    )
-    await async_realtime_client.connect()
-
-    # V3: Initialize with EventBus for unified event handling
-    event_bus = EventBus()
-
-    # Initialize async data manager with dependency injection
-    manager = RealtimeDataManager(
-        instrument="MNQ",  # V3: Using actual contract symbols
-        project_x=client,  # V3: ProjectX client from context manager
-        realtime_client=async_realtime_client,
+    # V3.1: Create suite with integrated data manager
+    suite = await TradingSuite.create(
+        "MNQ",  # Using E-mini NASDAQ futures
         timeframes=["1min", "5min", "15min", "1hr"],
+        initial_days=5,
         timezone="America/Chicago",  # CME timezone
-        event_bus=event_bus,  # V3: EventBus integration
     )
 
-    # Load historical data for all timeframes
-    if await manager.initialize(initial_days=5):
-        print("Historical data loaded successfully")
-
-    # Start real-time feed (registers callbacks with existing client)
-    if await manager.start_realtime_feed():
-        print("Real-time OHLCV feed active")
+    # V3.1: Data manager is automatically initialized with historical data
+    print(f"Data manager ready for {suite.instrument}")
 
 
-    # V3: Register callback with actual field names
-    async def on_new_bar(data):
-        timeframe = data["timeframe"]
-        bar_data = data["data"]
+    # V3.1: Register callbacks via suite's event bus
+    @suite.events.on(EventType.NEW_BAR)
+    async def on_new_bar(event):
+        timeframe = event.data["timeframe"]
+        bar_data = event.data["data"]
         print(f"New {timeframe} bar:")
         print(f"  Open: {bar_data['open']}, High: {bar_data['high']}")
         print(f"  Low: {bar_data['low']}, Close: {bar_data['close']}")
         print(f"  Volume: {bar_data['volume']}")
 
 
-    await manager.add_callback("new_bar", on_new_bar)
+    # V3.1: Access multi-timeframe OHLCV data via suite.data
+    data_5m = await suite.data.get_data("5min", bars=100)
+    data_15m = await suite.data.get_data("15min", bars=50)
+    mtf_data = await suite.data.get_mtf_data()  # All timeframes at once
 
-    # V3: Access multi-timeframe OHLCV data
-    data_5m = await manager.get_data("5min", bars=100)
-    data_15m = await manager.get_data("15min", bars=50)
-    mtf_data = await manager.get_mtf_data()  # All timeframes at once
+    # V3.1: Get current market price
+    current_price = await suite.data.get_current_price()
 
-    # Get current market price (latest tick or bar close)
-    current_price = await manager.get_current_price()
-
-    # V3: Monitor memory and performance
-    stats = await manager.get_memory_stats()
+    # V3.1: Monitor memory and performance
+    stats = suite.data.get_memory_stats()
     print(f"Data points stored: {stats['total_data_points']}")
 
-    # When done, clean up resources
-    await manager.cleanup()
+    # V3.1: Cleanup is automatic
+    await suite.disconnect()
+
+    # V3.1: Low-level direct usage (advanced users only)
+    # from project_x_py.realtime_data_manager import RealtimeDataManager
+    # manager = RealtimeDataManager(
+    #     instrument="MNQ",
+    #     project_x=client,
+    #     realtime_client=realtime_client,
+    #     timeframes=["1min", "5min"],
+    #     event_bus=event_bus,
+    # )
+    # await manager.initialize(initial_days=5)
+    # await manager.start_realtime_feed()
     ```
 
 Supported Timeframes:
@@ -207,7 +202,7 @@ class RealtimeDataManager(
 
         # Initialize async data manager with dependency injection
         manager = RealtimeDataManager(
-            instrument="MGC",  # Mini Gold futures
+            instrument="MNQ",  # E-mini NASDAQ futures
             project_x=async_project_x_client,  # For historical data loading
             realtime_client=async_realtime_client,
             timeframes=["1min", "5min", "15min", "1hr"],
@@ -270,7 +265,7 @@ class RealtimeDataManager(
         for live WebSocket market data.
 
         Args:
-            instrument: Trading instrument symbol (e.g., "MGC", "MNQ", "ES").
+            instrument: Trading instrument symbol (e.g., "MNQ", "ES", "NQ").
                 This should be the base symbol, not a specific contract.
 
             project_x: ProjectXBase client instance for initial historical data loading.
@@ -311,7 +306,7 @@ class RealtimeDataManager(
 
             # Create data manager with multiple timeframes for Gold mini futures
             data_manager = RealtimeDataManager(
-                instrument="MGC",  # Gold mini futures
+                instrument="MNQ",  # E-mini NASDAQ futures
                 project_x=px_client,
                 realtime_client=realtime_client,
                 timeframes=["1min", "5min", "15min", "1hr"],

@@ -253,7 +253,7 @@ class TradingSuite:
         - Market data subscriptions
 
         Args:
-            instrument: Trading symbol (e.g., "MNQ", "MGC", "ES")
+            instrument: Trading symbol (e.g., "MNQ", "ES", "NQ")
             timeframes: Data timeframes (default: ["5min"])
             features: Optional features to enable
             **kwargs: Additional configuration options

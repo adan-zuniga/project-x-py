@@ -25,20 +25,22 @@ Position Operations:
 
 Example Usage:
     ```python
-    # Close entire position
-    result = await position_manager.close_position_direct("MGC")
+    # V3.1: Close entire position with TradingSuite
+    result = await suite.positions.close_position_direct(suite.instrument_id)
     if result["success"]:
         print(f"Position closed: {result.get('orderId')}")
 
-    # Partial close for profit taking
-    result = await position_manager.partially_close_position("NQ", 5)
+    # V3.1: Partial close for profit taking
+    result = await suite.positions.partially_close_position("ES", 5)
 
-    # Bulk close all positions
-    result = await position_manager.close_all_positions()
+    # V3.1: Bulk close all positions
+    result = await suite.positions.close_all_positions()
     print(f"Closed {result['closed']}/{result['total_positions']} positions")
 
-    # Smart close with size detection
-    result = await position_manager.close_position_by_contract("MGC", close_size=3)
+    # V3.1: Smart close with size detection
+    result = await suite.positions.close_position_by_contract(
+        suite.instrument_id, close_size=3
+    )
     ```
 
 See Also:
@@ -85,7 +87,7 @@ class PositionOperationsMixin:
         market price. This is the fastest way to exit a position completely.
 
         Args:
-            contract_id (str): Contract ID of the position to close (e.g., "MGC")
+            contract_id (str): Contract ID of the position to close (e.g., "MNQ")
             account_id (int, optional): Account ID holding the position.
                 If None, uses the default account from authentication.
                 Defaults to None.
@@ -106,15 +108,17 @@ class PositionOperationsMixin:
             - May trigger order synchronization if enabled
 
         Example:
-            >>> # Close entire Gold position
-            >>> result = await position_manager.close_position_direct("MGC")
+            >>> # V3.1: Close entire position with TradingSuite
+            >>> result = await suite.positions.close_position_direct(
+            ...     suite.instrument_id
+            ... )
             >>> if result["success"]:
             ...     print(f"Position closed with order: {result.get('orderId')}")
             ... else:
             ...     print(f"Failed: {result.get('errorMessage')}")
-            >>> # Close position in specific account
-            >>> result = await position_manager.close_position_direct(
-            ...     "NQ", account_id=12345
+            >>> # V3.1: Close position in specific account
+            >>> result = await suite.positions.close_position_direct(
+            ...     "ES", account_id=12345
             ... )
 
         Note:
@@ -224,13 +228,15 @@ class PositionOperationsMixin:
             - May trigger order synchronization if enabled
 
         Example:
-            >>> # Take profit on half of a 10 contract position
-            >>> result = await position_manager.partially_close_position("MGC", 5)
+            >>> # V3.1: Take profit on half of a 10 contract position
+            >>> result = await suite.positions.partially_close_position(
+            ...     suite.instrument_id, 5
+            ... )
             >>> if result["success"]:
             ...     print(f"Partially closed with order: {result.get('orderId')}")
-            >>> # Scale out of position in steps
+            >>> # V3.1: Scale out of position in steps
             >>> for size in [3, 2, 1]:
-            ...     result = await position_manager.partially_close_position("NQ", size)
+            ...     result = await suite.positions.partially_close_position("ES", size)
             ...     if not result["success"]:
             ...         break
             ...     await asyncio.sleep(60)  # Wait between scales
@@ -344,18 +350,20 @@ class PositionOperationsMixin:
                 - errors (list[str]): Error messages for failed closures
 
         Example:
-            >>> # Emergency close all positions
-            >>> result = await position_manager.close_all_positions()
+            >>> # V3.1: Emergency close all positions with TradingSuite
+            >>> result = await suite.positions.close_all_positions()
             >>> print(
             ...     f"Closed {result['closed']}/{result['total_positions']} positions"
             ... )
             >>> if result["errors"]:
             ...     for error in result["errors"]:
             ...         print(f"Error: {error}")
-            >>> # Close all Gold positions only
-            >>> result = await position_manager.close_all_positions(contract_id="MGC")
-            >>> # Close positions in specific account
-            >>> result = await position_manager.close_all_positions(account_id=12345)
+            >>> # V3.1: Close all MNQ positions only
+            >>> result = await suite.positions.close_all_positions(
+            ...     contract_id=suite.instrument_id
+            ... )
+            >>> # V3.1: Close positions in specific account
+            >>> result = await suite.positions.close_all_positions(account_id=12345)
 
         Warning:
             - Uses market orders - no price control
@@ -421,7 +429,7 @@ class PositionOperationsMixin:
         partial position closure based on the requested size.
 
         Args:
-            contract_id (str): Contract ID of position to close (e.g., "MGC")
+            contract_id (str): Contract ID of position to close (e.g., "MNQ")
             close_size (int, optional): Number of contracts to close.
                 If None or >= position size, closes entire position.
                 If less than position size, closes partially.
@@ -438,11 +446,13 @@ class PositionOperationsMixin:
                 - error (str): Error details or "No open position found"
 
         Example:
-            >>> # Close entire position (auto-detect size)
-            >>> result = await position_manager.close_position_by_contract("MGC")
-            >>> # Close specific number of contracts
-            >>> result = await position_manager.close_position_by_contract(
-            ...     "MGC", close_size=3
+            >>> # V3.1: Close entire position (auto-detect size)
+            >>> result = await suite.positions.close_position_by_contract(
+            ...     suite.instrument_id
+            ... )
+            >>> # V3.1: Close specific number of contracts
+            >>> result = await suite.positions.close_position_by_contract(
+            ...     suite.instrument_id, close_size=3
             ... )
             >>> # Smart scaling - close half of any position
             >>> position = await position_manager.get_position("NQ")

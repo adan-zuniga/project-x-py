@@ -146,7 +146,7 @@ class AuthenticationMixin:
             >>> async with ProjectX.from_env() as client:
             >>>     try:
             >>>         await client.authenticate()
-            >>>         account = client.get_account_info()
+            >>>         account = client.account_info  # Access account info after auth
             >>>         print(f"Authenticated account: {account.name}")
             >>>         print(f"Account ID: {account.id}")
             >>>         print(f"Balance: ${account.balance:,.2f}")
