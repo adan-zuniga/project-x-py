@@ -557,6 +557,28 @@ class RealtimeDataManager(
 
                     if bars is not None and not bars.is_empty():
                         self.data[tf_key] = bars
+                        # Store the last bar time for proper sync with real-time data
+                        last_bar_time = bars.select(pl.col("timestamp")).tail(1).item()
+                        self.last_bar_times[tf_key] = last_bar_time
+
+                        # Check for potential gap between historical data and current time
+                        from datetime import datetime
+
+                        current_time = datetime.now(self.timezone)
+                        time_gap = current_time - last_bar_time
+
+                        # Warn if historical data is more than 5 minutes old
+                        if time_gap.total_seconds() > 300:
+                            self.logger.warning(
+                                f"Historical data for {tf_key} ends at {last_bar_time}, "
+                                f"{time_gap.total_seconds() / 60:.1f} minutes ago. "
+                                "Gap will be filled when real-time data arrives.",
+                                extra={
+                                    "timeframe": tf_key,
+                                    "gap_minutes": time_gap.total_seconds() / 60,
+                                },
+                            )
+
                         self.logger.debug(
                             LogMessages.DATA_RECEIVED,
                             extra={"timeframe": tf_key, "bar_count": len(bars)},
