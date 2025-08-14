@@ -41,12 +41,8 @@ Example Usage:
         print(f"Async callback: {data}")
 
 
-    def sync_handler(data: dict[str, Any]) -> None:
-        print(f"Sync callback: {data}")
-
-
     # Use in function signatures
-    def register_callback(callback: CallbackType) -> None:
+    async def register_callback(callback: AsyncCallback) -> None:
         pass
 
 

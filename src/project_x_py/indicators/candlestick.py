@@ -313,10 +313,6 @@ class BullishEngulfing(BaseIndicator):
         )
 
 
-# Add similar classes for BearishEngulfing, MorningStar, etc.
-
-# For brevity, stopping here. You can add more similarly.
-
 # Convenience functions
 
 
@@ -334,6 +330,3 @@ def calculate_shootingstar(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
 
 def calculate_bullishengulfing(data: pl.DataFrame, **kwargs: Any) -> pl.DataFrame:
     return BullishEngulfing().calculate(data, **kwargs)
-
-
-# Add more convenience functions as classes are added
