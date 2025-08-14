@@ -63,28 +63,28 @@ class ProjectX(ProjectXBase):
         >>>         await client.authenticate()
         >>>
         >>> # V3: Get account info with typed models
-        >>>         account = client.get_account_info()
+        >>>         account = client.account_info  # After authentication
         >>>         print(f"Account: {account.name}")
         >>>         print(f"ID: {account.id}")
         >>>         print(f"Balance: ${account.balance:,.2f}")
         >>>
         >>> # V3: Search for instruments with smart contract selection
-        >>>         instruments = await client.search_instruments("gold")
-        >>>         gold = instruments[0] if instruments else None
-        >>>         if gold:
-        >>>             print(f"Found: {gold.name} ({gold.symbol})")
-        >>>             print(f"Contract ID: {gold.id}")
+        >>>         instruments = await client.search_instruments("MNQ")
+        >>>         mnq = instruments[0] if instruments else None
+        >>>         if mnq:
+        >>>             print(f"Found: {mnq.name} ({mnq.symbol})")
+        >>>             print(f"Contract ID: {mnq.id}")
         >>>
         >>> # V3: Get historical data concurrently (returns Polars DataFrames)
         >>>         tasks = [
-        >>>             client.get_bars("MGC", days=5, interval=5),  # 5-min bars
-        >>>             client.get_bars("MNQ", days=1, interval=1),  # 1-min bars
+        >>>             client.get_bars("MNQ", days=5, interval=5),  # 5-min bars
+        >>>             client.get_bars("ES", days=1, interval=1),   # 1-min bars
         >>>         ]
-        >>>         gold_data, nasdaq_data = await asyncio.gather(*tasks)
+        >>>         nasdaq_data, sp500_data = await asyncio.gather(*tasks)
         >>>
-        >>>         print(f"Gold bars: {len(gold_data)} (Polars DataFrame)")
         >>>         print(f"Nasdaq bars: {len(nasdaq_data)} (Polars DataFrame)")
-        >>>         print(f"Columns: {gold_data.columns}")
+        >>>         print(f"S&P 500 bars: {len(sp500_data)} (Polars DataFrame)")
+        >>>         print(f"Columns: {nasdaq_data.columns}")
         >>>
         >>> asyncio.run(main())
 
@@ -105,7 +105,7 @@ class ProjectX(ProjectXBase):
         >>>
         >>> # Access integrated managers easily
         >>>     order = await suite.orders.place_market_order(
-        ...         contract_id=suite.instrument_info.id,
+        ...         contract_id=suite.instrument_id,
         ...         side=0,  # Buy
         ...         size=1
         ...     )

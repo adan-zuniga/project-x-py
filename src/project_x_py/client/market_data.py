@@ -92,7 +92,7 @@ class MarketDataMixin:
         Get detailed instrument information with caching.
 
         Args:
-            symbol: Trading symbol (e.g., 'NQ', 'ES', 'MGC') or full contract ID
+            symbol: Trading symbol (e.g., 'MNQ', 'ES', 'NQ') or full contract ID
                    (e.g., 'CON.F.US.MNQ.U25')
             live: If True, only return live/active contracts (default: False)
 
@@ -284,7 +284,7 @@ class MarketDataMixin:
 
         Example:
             >>> # V3: Search for instruments by symbol or name
-            >>> instruments = await client.search_instruments("gold")
+            >>> instruments = await client.search_instruments("MNQ")
             >>> for inst in instruments:
             >>>     print(f"{inst.symbol}: {inst.name}")
             >>>     print(f"  Contract ID: {inst.id}")
@@ -339,7 +339,7 @@ class MarketDataMixin:
         for financial analysis and technical indicator calculations.
 
         Args:
-            symbol: Symbol of the instrument (e.g., "MGC", "MNQ", "ES")
+            symbol: Symbol of the instrument (e.g., "MNQ", "ES", "NQ")
             days: Number of days of historical data (default: 8, ignored if start_time/end_time provided)
             interval: Interval between bars in the specified unit (default: 5)
             unit: Time unit for the interval (default: 2 for minutes)
@@ -360,8 +360,8 @@ class MarketDataMixin:
 
         Example:
             >>> # V3: Get historical OHLCV data as Polars DataFrame
-            >>> # Get 5 days of 15-minute gold data
-            >>> data = await client.get_bars("MGC", days=5, interval=15)
+            >>> # Get 5 days of 15-minute Nasdaq futures data
+            >>> data = await client.get_bars("MNQ", days=5, interval=15)
             >>> print(f"Retrieved {len(data)} bars")
             >>> print(f"Columns: {data.columns}")
             >>> print(
