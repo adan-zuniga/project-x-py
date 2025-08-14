@@ -242,14 +242,13 @@ class ConnectionManagementMixin:
             6. Updates connection statistics
 
         Example:
-            >>> client = ProjectXRealtimeClient(jwt_token, account_id)
-            >>> if await client.connect():
-            ...     print("Connected to ProjectX Gateway")
-            ...     # Subscribe to updates
-            ...     await client.subscribe_user_updates()
-            ...     await client.subscribe_market_data(["MGC", "NQ"])
-            ... else:
-            ...     print("Connection failed")
+            >>> # V3.1: TradingSuite handles connection automatically
+            >>> suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+            >>> print(f"Connected: {suite.realtime_client.is_connected()}")
+            >>> # V3.1: Direct usage (advanced)
+            >>> # client = ProjectXRealtimeClient(jwt_token, account_id)
+            >>> # if await client.connect():
+            >>> #     await client.subscribe_market_data(["MNQ", "ES"])
 
         Side Effects:
             - Sets self.user_connected and self.market_connected flags

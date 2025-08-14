@@ -33,61 +33,65 @@ Note:
     offering a simpler and more robust development experience.
 
 Example Usage:
-    The example below demonstrates the low-level usage of the `ProjectXRealtimeClient`.
+    For most applications, use TradingSuite which handles the real-time client automatically.
+    The example below shows low-level direct usage of `ProjectXRealtimeClient`.
 
     ```python
-    # V3: Real-time WebSocket client with async callbacks
+    # V3.1: TradingSuite manages real-time client automatically
     import asyncio
-    from project_x_py import ProjectX, create_realtime_client
+    from project_x_py import TradingSuite, EventType
 
 
     async def main():
-        async with ProjectX.from_env() as client:
-            await client.authenticate()
+        # V3.1: TradingSuite creates and manages real-time client internally
+        suite = await TradingSuite.create(
+            "MNQ",
+            timeframes=["1min", "5min"],
+            initial_days=1,
+        )
 
-            # V3: Create real-time client with factory function
-            realtime_client = await create_realtime_client(
-                jwt_token=client.get_session_token(),
-                account_id=str(client.get_account_info().id),
-            )
+        # V3.1: Register event handlers via suite's event bus
+        async def on_position_update(event):
+            data = event.data
+            print(f"Position update: {data}")
+            if "netPos" in data:
+                print(f"  Net Position: {data['netPos']}")
+                print(f"  Unrealized P&L: ${data.get('unrealizedPnl', 0):.2f}")
 
-            # V3: Register async callbacks for event handling
-            async def on_position_update(data):
-                print(f"Position update: {data}")
-                # V3: Position data includes actual fields
-                if "netPos" in data:
-                    print(f"  Net Position: {data['netPos']}")
-                    print(f"  Unrealized P&L: ${data.get('unrealizedPnl', 0):.2f}")
+        async def on_quote_update(event):
+            data = event.data
+            if "bid" in data and "ask" in data:
+                print(f"{suite.instrument}: {data['bid']} x {data['ask']}")
 
-            async def on_quote_update(data):
-                # V3: Handle ProjectX quote format
-                if isinstance(data, dict) and "contractId" in data:
-                    contract = data["contractId"]
-                    bid = data.get("bid", 0)
-                    ask = data.get("ask", 0)
-                    print(f"{contract}: {bid} x {ask}")
+        # V3.1: Add event handlers via suite's event bus
+        await suite.on(EventType.POSITION_UPDATE, on_position_update)
+        await suite.on(EventType.QUOTE, on_quote_update)
 
-            # V3: Add callbacks for various event types
-            await realtime_client.add_callback("position_update", on_position_update)
-            await realtime_client.add_callback("quote_update", on_quote_update)
+        # V3.1: Real-time connection and subscriptions are automatic
+        print(f"Connected to {suite.instrument} real-time feeds")
+        print(f"Account: {suite.client.account_info.name}")
 
-            # V3: Connect and subscribe to data streams
-            if await realtime_client.connect():
-                print(f"User Hub connected: {realtime_client.user_connected}")
-                print(f"Market Hub connected: {realtime_client.market_connected}")
+        # V3.1: Process events for 60 seconds
+        await asyncio.sleep(60)
 
-                # V3: Subscribe to user events (positions, orders, trades)
-                await realtime_client.subscribe_user_updates()
+        # V3.1: Clean up is automatic with context manager
+        await suite.disconnect()
 
-                # V3: Subscribe to market data for specific contracts
-                await realtime_client.subscribe_market_data(["MGC", "MNQ"])
 
-                # V3: Process events for 60 seconds
-                await asyncio.sleep(60)
-
-                # V3: Clean up connections
-                await realtime_client.disconnect()
-
+    # V3.1: Low-level direct usage (advanced users only)
+    # from project_x_py import ProjectX
+    # from project_x_py.realtime import ProjectXRealtimeClient
+    #
+    # async def low_level_example():
+    #     async with ProjectX.from_env() as client:
+    #         await client.authenticate()
+    #         # Create real-time client directly
+    #         realtime = ProjectXRealtimeClient(
+    #             jwt_token=client.session_token,
+    #             account_id=str(client.account_info.id),
+    #         )
+    #         await realtime.connect()
+    #         await realtime.subscribe_market_data(["MNQ", "ES"])
 
     asyncio.run(main())
     ```

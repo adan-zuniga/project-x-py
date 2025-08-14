@@ -237,10 +237,10 @@ class SubscriptionsMixin:
 
         Example:
             >>> # Subscribe to single contract
-            >>> await client.subscribe_market_data(["MGC"])
+            >>> await client.subscribe_market_data(["MNQ"])
             >>>
             >>> # Subscribe to multiple contracts
-            >>> contracts = ["MGC", "NQ", "ES", "YM"]
+            >>> contracts = ["MNQ", "ES", "NQ", "YM"]
             >>> if await client.subscribe_market_data(contracts):
             ...     print(f"Subscribed to {len(contracts)} contracts")
             >>> # With data handling
@@ -488,7 +488,7 @@ class SubscriptionsMixin:
 
         Example:
             >>> # Unsubscribe specific contracts
-            >>> await client.unsubscribe_market_data(["MGC", "SI"])
+            >>> await client.unsubscribe_market_data(["MNQ", "ES"])
             >>>
             >>> # Dynamic subscription management
             >>> active_contracts = ["ES", "NQ", "YM", "RTY"]

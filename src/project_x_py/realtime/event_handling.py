@@ -470,8 +470,8 @@ class EventHandlingMixin:
             - Triggers all registered callbacks
 
         Example Data Flow:
-            >>> # SignalR sends: ["MGC", {"bid": 2050, "ask": 2051}]
-            >>> # Callbacks receive: {"contract_id": "MGC", "data": {"bid": 2050, "ask": 2051}}
+            >>> # SignalR sends: ["MNQ", {"bid": 18500, "ask": 18501}]
+            >>> # Callbacks receive: {"contract_id": "MNQ", "data": {"bid": 18500, "ask": 18501}}
 
         Note:
             This method runs in the asyncio event loop, ensuring thread safety
