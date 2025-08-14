@@ -686,23 +686,23 @@ class OrderBookBase:
                 the event data specific to that event type.
 
         Example:
-            >>> # V3: DEPRECATED - Use EventBus instead
-            >>> # Old callback style (deprecated):
-            >>> # await orderbook.add_callback("trade", on_trade)
-            >>> # V3: Modern EventBus approach
-            >>> from project_x_py.events import EventBus, EventType
-            >>> event_bus = EventBus()
-            >>> @event_bus.on(EventType.TRADE_TICK)
-            >>> async def on_trade(data):
-            ...     print(
-            ...         f"Trade: {data['size']} @ {data['price']} ({data['side']})"
-            ...     )  # V3: actual field names
-            >>> @event_bus.on(EventType.MARKET_DEPTH_UPDATE)
-            >>> async def on_depth_change(data):
+            >>> # Use TradingSuite with EventBus for callbacks
+            >>> from project_x_py import TradingSuite, EventType
+            >>>
+            >>> suite = await TradingSuite.create("MNQ", features=["orderbook"])
+            >>>
+            >>> @suite.events.on(EventType.TRADE_TICK)
+            >>> async def on_trade(event):
+            ...     data = event.data
+            ...     print(f"Trade: {data['size']} @ {data['price']} ({data['side']})")
+            >>>
+            >>> @suite.events.on(EventType.MARKET_DEPTH_UPDATE)
+            >>> async def on_depth_change(event):
+            ...     data = event.data
             ...     print(
             ...         f"New best bid: {data['bids'][0]['price'] if data['bids'] else 'None'}"
             ...     )
-            >>> # V3: Events automatically flow through EventBus
+            >>> # Events automatically flow through EventBus
         """
         async with self._callback_lock:
             logger.warning(
