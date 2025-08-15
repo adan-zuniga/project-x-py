@@ -177,7 +177,7 @@ class PositionManager(
         self,
         project_x_client: "ProjectXBase",
         event_bus: Any,
-        risk_manager: "RiskManager",
+        risk_manager: Optional["RiskManager"] = None,
         data_manager: Optional["RealtimeDataManagerProtocol"] = None,
         config: PositionManagerConfig | None = None,
     ):
@@ -192,7 +192,8 @@ class PositionManager(
                 used for all API operations. Must be properly authenticated before use.
             event_bus: EventBus instance for unified event handling. Required for all
                 event emissions including position updates, P&L changes, and risk alerts.
-            risk_manager (RiskManager): The main risk manager instance.
+            risk_manager: Optional risk manager instance. If provided, enables advanced
+                risk management features and position sizing calculations.
             data_manager: Optional data manager for market data and P&L alerts.
             config: Optional configuration for position management behavior. If not provided,
                 default values will be used for all configuration options.
@@ -588,7 +589,12 @@ class PositionManager(
 
     async def get_risk_metrics(self) -> "RiskAnalysisResponse":
         """Delegates risk metrics calculation to the main RiskManager."""
-        return await self.risk_manager.get_risk_metrics()
+        if self.risk_manager:
+            return await self.risk_manager.get_risk_metrics()
+        else:
+            raise ValueError(
+                "Risk manager not configured. Enable 'risk_manager' feature in TradingSuite."
+            )
 
     async def calculate_position_size(
         self,
@@ -600,12 +606,17 @@ class PositionManager(
     ) -> "PositionSizingResponse":
         """Delegates position sizing to the main RiskManager."""
         instrument = await self.project_x.get_instrument(contract_id)
-        return await self.risk_manager.calculate_position_size(
-            entry_price=entry_price,
-            stop_loss=stop_price,
-            risk_amount=risk_amount,
-            instrument=instrument,
-        )
+        if self.risk_manager:
+            return await self.risk_manager.calculate_position_size(
+                entry_price=entry_price,
+                stop_loss=stop_price,
+                risk_amount=risk_amount,
+                instrument=instrument,
+            )
+        else:
+            raise ValueError(
+                "Risk manager not configured. Enable 'risk_manager' feature in TradingSuite."
+            )
 
     async def cleanup(self) -> None:
         """

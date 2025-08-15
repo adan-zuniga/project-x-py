@@ -201,9 +201,6 @@ class TradingSuite:
         self.orders = OrderManager(
             client, config=config.get_order_manager_config(), event_bus=self.events
         )
-        self.positions = PositionManager(
-            client, config=config.get_position_manager_config(), event_bus=self.events
-        )
 
         # Optional components
         self.orderbook: OrderBook | None = None
@@ -211,15 +208,29 @@ class TradingSuite:
         self.journal = None  # TODO: Future enhancement
         self.analytics = None  # TODO: Future enhancement
 
-        # Initialize risk manager if enabled
+        # Initialize risk manager first if enabled (needed by PositionManager)
         if Features.RISK_MANAGER in config.features:
+            # Create RiskManager without position_manager first
             self.risk_manager = RiskManager(
                 project_x=client,
                 order_manager=self.orders,
-                position_manager=self.positions,
                 event_bus=self.events,
+                position_manager=None,  # Will be set after PositionManager is created
                 config=config.get_risk_config(),
             )
+
+        # Now create PositionManager with risk_manager
+        self.positions = PositionManager(
+            client,
+            event_bus=self.events,
+            risk_manager=self.risk_manager,
+            data_manager=self.data,
+            config=config.get_position_manager_config(),
+        )
+
+        # Update RiskManager with position_manager reference if it exists
+        if self.risk_manager:
+            self.risk_manager.position_manager = self.positions
 
         # State tracking
         self._connected = False
@@ -414,6 +425,9 @@ class TradingSuite:
             logger.info("Connecting to real-time feeds...")
             await self.realtime.connect()
             await self.realtime.subscribe_user_updates()
+
+            # Initialize order manager with realtime client for order tracking
+            await self.orders.initialize(realtime_client=self.realtime)
 
             # Initialize position manager with order manager for cleanup
             await self.positions.initialize(

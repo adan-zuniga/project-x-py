@@ -215,55 +215,104 @@ class BracketOrderMixin:
                 )
 
             if not entry_response or not entry_response.success:
-                raise ProjectXOrderError("Failed to place entry order")
+                raise ProjectXOrderError("Failed to place entry order for bracket.")
 
-            # Place stop loss (opposite side)
-            stop_side = 1 if side == 0 else 0
-            stop_response = await self.place_stop_order(
-                contract_id, stop_side, size, stop_loss_price, account_id
-            )
-
-            # Place take profit (opposite side)
-            target_response = await self.place_limit_order(
-                contract_id, stop_side, size, take_profit_price, account_id
-            )
-
-            # Create bracket response
-            bracket_response = BracketOrderResponse(
-                success=True,
-                entry_order_id=entry_response.orderId,
-                stop_order_id=stop_response.orderId if stop_response else None,
-                target_order_id=target_response.orderId if target_response else None,
-                entry_price=entry_price if entry_price else 0.0,
-                stop_loss_price=stop_loss_price if stop_loss_price else 0.0,
-                take_profit_price=take_profit_price if take_profit_price else 0.0,
-                entry_response=entry_response,
-                stop_response=stop_response,
-                target_response=target_response,
-                error_message=None,
-            )
-
-            # Track bracket relationship
-            self.position_orders[contract_id]["entry_orders"].append(
-                entry_response.orderId
-            )
-            if stop_response:
-                self.position_orders[contract_id]["stop_orders"].append(
-                    stop_response.orderId
-                )
-            if target_response:
-                self.position_orders[contract_id]["target_orders"].append(
-                    target_response.orderId
-                )
-
-            self.stats["bracket_orders"] += 1
+            entry_order_id = entry_response.orderId
             logger.info(
-                f"✅ Bracket order placed: Entry={entry_response.orderId}, "
-                f"Stop={stop_response.orderId if stop_response else 'None'}, "
-                f"Target={target_response.orderId if target_response else 'None'}"
+                f"Bracket entry order {entry_order_id} placed. Waiting for fill..."
             )
 
-            return bracket_response
+            # Wait for the entry order to fill
+            is_filled = await self._wait_for_order_fill(
+                entry_order_id, timeout_seconds=60
+            )
+
+            if not is_filled:
+                logger.warning(
+                    f"Bracket entry order {entry_order_id} did not fill. Cancelling."
+                )
+                try:
+                    await self.cancel_order(entry_order_id, account_id)
+                except ProjectXOrderError as e:
+                    logger.error(
+                        f"Failed to cancel unfilled bracket entry order {entry_order_id}: {e}"
+                    )
+                raise ProjectXOrderError(
+                    f"Bracket entry order {entry_order_id} did not fill."
+                )
+
+            logger.info(
+                f"Bracket entry order {entry_order_id} filled. Placing protective orders."
+            )
+
+            stop_response = None
+            target_response = None
+            try:
+                # Place stop loss (opposite side)
+                stop_side = 1 if side == 0 else 0
+                stop_response = await self.place_stop_order(
+                    contract_id, stop_side, size, stop_loss_price, account_id
+                )
+
+                # Place take profit (opposite side)
+                target_response = await self.place_limit_order(
+                    contract_id, stop_side, size, take_profit_price, account_id
+                )
+
+                if (
+                    not stop_response
+                    or not stop_response.success
+                    or not target_response
+                    or not target_response.success
+                ):
+                    raise ProjectXOrderError(
+                        "Failed to place one or both protective orders."
+                    )
+
+                # Link the two protective orders for OCO
+                stop_order_id = stop_response.orderId
+                target_order_id = target_response.orderId
+                self._link_oco_orders(stop_order_id, target_order_id)
+
+                # Track all orders for the position
+                await self.track_order_for_position(
+                    contract_id, entry_order_id, "entry"
+                )
+                await self.track_order_for_position(contract_id, stop_order_id, "stop")
+                await self.track_order_for_position(
+                    contract_id, target_order_id, "target"
+                )
+
+                self.stats["bracket_orders"] += 1
+                logger.info(
+                    f"✅ Bracket order completed: Entry={entry_order_id}, Stop={stop_order_id}, Target={target_order_id}"
+                )
+
+                return BracketOrderResponse(
+                    success=True,
+                    entry_order_id=entry_order_id,
+                    stop_order_id=stop_order_id,
+                    target_order_id=target_order_id,
+                    entry_price=entry_price,
+                    stop_loss_price=stop_loss_price,
+                    take_profit_price=take_profit_price,
+                    entry_response=entry_response,
+                    stop_response=stop_response,
+                    target_response=target_response,
+                    error_message=None,
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to place protective orders for filled entry {entry_order_id}: {e}. Closing position."
+                )
+                await self.close_position(contract_id, account_id=account_id)
+                if stop_response and stop_response.success:
+                    await self.cancel_order(stop_response.orderId)
+                if target_response and target_response.success:
+                    await self.cancel_order(target_response.orderId)
+                raise ProjectXOrderError(
+                    f"Failed to place protective orders: {e}"
+                ) from e
 
         except Exception as e:
             logger.error(f"Failed to place bracket order: {e}")

@@ -228,6 +228,7 @@ class OrderManagerProtocol(Protocol):
     order_status_cache: dict[str, int]
     position_orders: dict[str, dict[str, list[int]]]
     order_to_position: dict[int, str]
+    oco_groups: dict[int, int]  # order_id -> other_order_id for OCO pairs
 
     # Methods that mixins need
     async def place_order(

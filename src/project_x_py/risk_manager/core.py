@@ -43,8 +43,8 @@ class RiskManager:
         self,
         project_x: ProjectXClientProtocol,
         order_manager: OrderManagerProtocol,
-        position_manager: PositionManagerProtocol,
         event_bus: "EventBus",
+        position_manager: PositionManagerProtocol | None = None,
         config: RiskConfig | None = None,
         data_manager: Optional["RealtimeDataManagerProtocol"] = None,
     ):
@@ -53,14 +53,17 @@ class RiskManager:
         Args:
             project_x: ProjectX client instance
             order_manager: Order manager instance
-            position_manager: Position manager instance
             event_bus: Event bus for risk events
+            position_manager: Optional position manager instance (can be set later)
             config: Risk configuration (uses defaults if not provided)
             data_manager: Optional data manager for market data
         """
         self.client = project_x
         self.orders = order_manager
         self.positions = position_manager
+        self.position_manager = (
+            position_manager  # Also store as position_manager for compatibility
+        )
         self.event_bus = event_bus
         self.config = config or RiskConfig()
         self.data_manager = data_manager
@@ -187,6 +190,9 @@ class RiskManager:
             reasons = []
             warnings = []
             is_valid = True
+
+            if self.positions is None:
+                raise ValueError("Position manager not set")
 
             # Get current positions if not provided
             if current_positions is None:
@@ -518,6 +524,9 @@ class RiskManager:
             Comprehensive risk analysis
         """
         try:
+            if self.positions is None:
+                raise ValueError("Position manager not set")
+
             account = await self._get_account_info()
             positions = await self.positions.get_all_positions()
 
@@ -737,6 +746,9 @@ class RiskManager:
 
             while True:
                 # Get current price
+                if self.positions is None:
+                    raise ValueError("Position manager not set")
+
                 current_positions = await self.positions.get_all_positions()
                 current_pos = next(
                     (p for p in current_positions if p.id == position.id), None

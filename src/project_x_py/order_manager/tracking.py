@@ -82,6 +82,10 @@ class OrderTrackingMixin:
         _realtime_enabled: bool
         event_bus: Any  # EventBus instance
 
+        async def cancel_order(
+            self, order_id: int, account_id: int | None = None
+        ) -> bool: ...
+
     def __init__(self) -> None:
         """Initialize tracking attributes."""
         # Internal order state tracking (for realtime optimization)
@@ -95,6 +99,12 @@ class OrderTrackingMixin:
             lambda: {"stop_orders": [], "target_orders": [], "entry_orders": []}
         )
         self.order_to_position: dict[int, str] = {}  # order_id -> contract_id
+        self.oco_groups: dict[int, int] = {}  # order_id -> other_order_id
+
+    def _link_oco_orders(self: "OrderManagerProtocol", order1_id: int, order2_id: int):
+        """Links two orders for OCO cancellation."""
+        self.oco_groups[order1_id] = order2_id
+        self.oco_groups[order2_id] = order1_id
 
     async def _setup_realtime_callbacks(self) -> None:
         """Set up callbacks for real-time order monitoring."""
@@ -179,6 +189,27 @@ class OrderTrackingMixin:
                             "new_status": new_status,
                         },
                     )
+
+                    # OCO Logic: If a linked order is filled, cancel the other.
+                    if new_status == 2:  # Filled
+                        order_id_int = int(order_id)
+                        if order_id_int in self.oco_groups:
+                            other_order_id = self.oco_groups[order_id_int]
+                            logger.info(
+                                f"Order {order_id_int} filled, cancelling OCO sibling {other_order_id}."
+                            )
+                            try:
+                                # Use create_task to avoid blocking the event handler
+                                asyncio.create_task(self.cancel_order(other_order_id))  # noqa: RUF006
+                            except Exception as e:
+                                logger.error(
+                                    f"Failed to cancel OCO order {other_order_id}: {e}"
+                                )
+
+                            # Clean up OCO group
+                            del self.oco_groups[order_id_int]
+                            if other_order_id in self.oco_groups:
+                                del self.oco_groups[other_order_id]
 
                 # Check for partial fills
                 fills = actual_order_data.get("fills", [])
@@ -345,3 +376,56 @@ class OrderTrackingMixin:
             "position_links": len(self.order_to_position),
             "monitored_positions": len(self.position_orders),
         }
+
+    async def _wait_for_order_fill(
+        self: "OrderManagerProtocol", order_id: int, timeout_seconds: int = 30
+    ) -> bool:
+        """Waits for an order to fill using an event-driven approach."""
+        fill_event = asyncio.Event()
+        is_filled = False
+
+        async def fill_handler(event: Any):
+            nonlocal is_filled
+            # Extract data from Event object
+            event_data = event.data if hasattr(event, "data") else event
+            if isinstance(event_data, dict) and event_data.get("order_id") == order_id:
+                is_filled = True
+                fill_event.set()
+
+        async def terminal_handler(event: Any):
+            nonlocal is_filled
+            # Extract data from Event object
+            event_data = event.data if hasattr(event, "data") else event
+            if isinstance(event_data, dict) and event_data.get("order_id") == order_id:
+                is_filled = False
+                fill_event.set()
+
+        from project_x_py.event_bus import EventType
+
+        await self.event_bus.on(EventType.ORDER_FILLED, fill_handler)
+        await self.event_bus.on(EventType.ORDER_CANCELLED, terminal_handler)
+        await self.event_bus.on(EventType.ORDER_REJECTED, terminal_handler)
+        await self.event_bus.on(EventType.ORDER_EXPIRED, terminal_handler)
+
+        try:
+            await asyncio.wait_for(fill_event.wait(), timeout=timeout_seconds)
+        except TimeoutError:
+            logger.warning(f"Timeout waiting for order {order_id} to fill/terminate.")
+            is_filled = False
+        finally:
+            # Clean up the event handlers
+            if hasattr(self.event_bus, "remove_callback"):
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_FILLED, fill_handler
+                )
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_CANCELLED, terminal_handler
+                )
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_REJECTED, terminal_handler
+                )
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_EXPIRED, terminal_handler
+                )
+
+        return is_filled
