@@ -148,6 +148,16 @@ if TYPE_CHECKING:
     from project_x_py.realtime import ProjectXRealtimeClient
 
 
+class _DummyEventBus:
+    """A dummy event bus that does nothing, for use when no event bus is provided."""
+
+    async def on(self, event_type: Any, callback: Any) -> None:
+        """No-op event registration."""
+
+    async def emit(self, event_type: Any, data: Any, source: str | None = None) -> None:
+        """No-op event emission."""
+
+
 class RealtimeDataManager(
     DataProcessingMixin,
     MemoryManagementMixin,
@@ -331,7 +341,7 @@ class RealtimeDataManager(
         self.project_x: ProjectXBase = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
         # EventBus is optional in tests; fallback to a simple dummy if None
-        self.event_bus = event_bus if event_bus is not None else object()
+        self.event_bus = event_bus if event_bus is not None else _DummyEventBus()
 
         self.logger = ProjectXLogger.get_logger(__name__)
 
@@ -728,20 +738,27 @@ class RealtimeDataManager(
 
             self.is_running = False
 
-            # Cancel cleanup task
+            # Cancel background tasks first
             await self.stop_cleanup_task()
-
-            # Cancel bar timer task
             await self._stop_bar_timer_task()
 
-            # Unsubscribe from market data
-            # Note: unsubscribe_market_data will be implemented in ProjectXRealtimeClient
+            # Unsubscribe from market data and remove callbacks
             if self.contract_id:
                 self.logger.info(f"📉 Unsubscribing from {self.contract_id}")
+                # Unsubscribe from market data
+                await self.realtime_client.unsubscribe_market_data([self.contract_id])
+
+                # Remove callbacks
+                await self.realtime_client.remove_callback(
+                    "quote_update", self._on_quote_update
+                )
+                await self.realtime_client.remove_callback(
+                    "market_trade", self._on_trade_update
+                )
 
             self.logger.info(f"✅ Real-time feed stopped for {self.instrument}")
 
-        except RuntimeError as e:
+        except Exception as e:
             self.logger.error(f"❌ Error stopping real-time feed: {e}")
 
     async def cleanup(self) -> None:

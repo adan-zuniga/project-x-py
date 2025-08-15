@@ -1,8 +1,10 @@
 """Managed trade context manager for risk-controlled trading."""
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from project_x_py.event_bus import EventType
 from project_x_py.types import OrderSide, OrderType
 from project_x_py.types.protocols import OrderManagerProtocol, PositionManagerProtocol
 
@@ -32,6 +34,7 @@ class ManagedTrade:
         position_manager: PositionManagerProtocol,
         instrument_id: str,
         data_manager: Any | None = None,
+        event_bus: Any | None = None,
         max_risk_percent: float | None = None,
         max_risk_amount: float | None = None,
     ):
@@ -43,6 +46,7 @@ class ManagedTrade:
             position_manager: Position manager instance
             instrument_id: Instrument/contract ID to trade
             data_manager: Optional data manager for market price fetching
+            event_bus: Optional event bus for event-driven waits
             max_risk_percent: Override max risk percentage
             max_risk_amount: Override max risk dollar amount
         """
@@ -51,6 +55,7 @@ class ManagedTrade:
         self.positions = position_manager
         self.instrument_id = instrument_id
         self.data_manager = data_manager
+        self.event_bus = event_bus
         self.max_risk_percent = max_risk_percent
         self.max_risk_amount = max_risk_amount
 
@@ -618,17 +623,53 @@ class ManagedTrade:
     async def _wait_for_order_fill(
         self, order: "Order", timeout_seconds: int = 10
     ) -> bool:
-        """Wait for an order to fill.
+        """Waits for an order to fill, using an event-driven approach if possible."""
+        if not self.event_bus:
+            logger.warning(
+                "No event_bus available on ManagedTrade, falling back to polling for order fill."
+            )
+            return await self._poll_for_order_fill(order, timeout_seconds)
 
-        Args:
-            order: Order to wait for
-            timeout_seconds: Maximum time to wait
+        fill_event = asyncio.Event()
+        filled_successfully = False
 
-        Returns:
-            True if order filled, False if timeout
-        """
-        import asyncio
+        async def order_update_handler(event_data: dict[str, Any]):
+            nonlocal filled_successfully
+            # The event data for order_update is the Order object itself
+            updated_order: Order = event_data.get("data", {})
+            if updated_order and updated_order.id == order.id:
+                if updated_order.is_filled:
+                    filled_successfully = True
+                    fill_event.set()
+                elif updated_order.is_terminal:
+                    filled_successfully = False
+                    fill_event.set()
 
+        await self.event_bus.on(EventType.ORDER_MODIFIED, order_update_handler)
+
+        try:
+            await asyncio.wait_for(fill_event.wait(), timeout=timeout_seconds)
+        except TimeoutError:
+            logger.warning(f"Timeout waiting for order {order.id} to fill via event.")
+            filled_successfully = False
+        finally:
+            # Important: Clean up the event handler to prevent memory leaks
+            # Assuming a `remove_callback` method exists on the event bus
+            if hasattr(self.event_bus, "remove_callback"):
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_MODIFIED, order_update_handler
+                )
+            elif hasattr(self.event_bus, "remove_listener"):
+                await self.event_bus.remove_listener(
+                    EventType.ORDER_MODIFIED, order_update_handler
+                )
+
+        return filled_successfully
+
+    async def _poll_for_order_fill(
+        self, order: "Order", timeout_seconds: int = 10
+    ) -> bool:
+        """Wait for an order to fill by polling its status."""
         start_time = asyncio.get_event_loop().time()
         check_interval = 0.5  # Check every 500ms
 

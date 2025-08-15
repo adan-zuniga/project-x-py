@@ -465,10 +465,6 @@ class DataProcessingMixin:
                         ]
                     )
 
-            # Prune memory
-            if self.data[tf_key].height > 1000:
-                self.data[tf_key] = self.data[tf_key].tail(1000)
-
             # Return None if no new bar was created
             return None
 

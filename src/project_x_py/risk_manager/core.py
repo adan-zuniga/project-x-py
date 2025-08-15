@@ -20,6 +20,7 @@ from project_x_py.types.protocols import (
     OrderManagerProtocol,
     PositionManagerProtocol,
     ProjectXClientProtocol,
+    RealtimeDataManagerProtocol,
 )
 
 from .config import RiskConfig
@@ -45,6 +46,7 @@ class RiskManager:
         position_manager: PositionManagerProtocol,
         event_bus: "EventBus",
         config: RiskConfig | None = None,
+        data_manager: Optional["RealtimeDataManagerProtocol"] = None,
     ):
         """Initialize risk manager.
 
@@ -54,12 +56,14 @@ class RiskManager:
             position_manager: Position manager instance
             event_bus: Event bus for risk events
             config: Risk configuration (uses defaults if not provided)
+            data_manager: Optional data manager for market data
         """
         self.client = project_x
         self.orders = order_manager
         self.positions = position_manager
         self.event_bus = event_bus
         self.config = config or RiskConfig()
+        self.data_manager = data_manager
 
         # Track daily losses and trades
         self._daily_loss = Decimal("0")
@@ -305,15 +309,49 @@ class RiskManager:
 
             # Calculate stop loss if not provided
             if stop_loss is None and self.config.use_stop_loss:
-                if self.config.stop_loss_type == "fixed":
-                    stop_distance = self.config.default_stop_distance * tick_size
-                elif self.config.stop_loss_type == "atr":
-                    # TODO: Get ATR from data manager
-                    stop_distance = self.config.default_stop_distance * tick_size
-                else:  # percentage
+                if self.config.stop_loss_type == "atr":
+                    if not self.data_manager:
+                        logger.warning(
+                            "ATR stop loss configured but no data manager is available. "
+                            "Falling back to fixed stop."
+                        )
+                        stop_distance = self.config.default_stop_distance * tick_size
+                    else:
+                        # Fetch data to calculate ATR. A common period for ATR is 14.
+                        # We need enough data for the calculation. Let's fetch 50 bars.
+                        # A default timeframe of '15min' is reasonable for ATR stops.
+                        ohlc_data = await self.data_manager.get_data(
+                            timeframe="15min", bars=50
+                        )
+                        if ohlc_data is None or ohlc_data.height < 14:
+                            logger.warning(
+                                "Not enough data to calculate ATR. Falling back to fixed stop."
+                            )
+                            stop_distance = (
+                                self.config.default_stop_distance * tick_size
+                            )
+                        else:
+                            from project_x_py.indicators import calculate_atr
+
+                            data_with_atr = calculate_atr(ohlc_data, period=14)
+                            latest_atr = data_with_atr["atr_14"].tail(1).item()
+                            if latest_atr:
+                                stop_distance = (
+                                    latest_atr * self.config.default_stop_atr_multiplier
+                                )
+                            else:
+                                logger.warning(
+                                    "ATR calculation resulted in None. Falling back to fixed stop."
+                                )
+                                stop_distance = (
+                                    self.config.default_stop_distance * tick_size
+                                )
+                elif self.config.stop_loss_type == "percentage":
                     stop_distance = entry_price * (
                         self.config.default_stop_distance / 100
                     )
+                else:  # fixed
+                    stop_distance = self.config.default_stop_distance * tick_size
 
                 stop_loss = (
                     entry_price - stop_distance
@@ -529,16 +567,8 @@ class RiskManager:
         accounts = await self.client.list_accounts()
         if accounts:
             return accounts[0]
-        # Create a default account if none found
-        from project_x_py.models import Account
-
-        return Account(
-            id=0,
-            name="Default",
-            balance=10000.0,
-            canTrade=True,
-            isVisible=True,
-            simulated=True,
+        raise ValueError(
+            "No account found. RiskManager cannot proceed without account information."
         )
 
     def _check_daily_reset(self) -> None:
@@ -670,6 +700,31 @@ class RiskManager:
         parts = contract_id.split(".")
         return parts[3] if len(parts) > 3 else contract_id
 
+    async def _get_market_price(self, contract_id: str) -> float:
+        """Get current market price for a contract."""
+        if not self.data_manager:
+            raise RuntimeError("Data manager not available for market price fetching.")
+
+        # This assumes the data_manager is configured for the correct instrument.
+        timeframes_to_try = ["1sec", "15sec", "1min", "5min"]
+
+        for timeframe in timeframes_to_try:
+            try:
+                data = await self.data_manager.get_data(timeframe, bars=1)
+                if data is not None and not data.is_empty():
+                    return float(data["close"].tail(1).item())
+            except Exception:
+                continue
+
+        try:
+            current_price = await self.data_manager.get_current_price()
+            if current_price is not None:
+                return float(current_price)
+        except Exception:
+            pass
+
+        raise RuntimeError(f"Unable to fetch current market price for {contract_id}")
+
     async def _monitor_trailing_stop(
         self,
         position: "Position",
@@ -691,8 +746,16 @@ class RiskManager:
                     # Position closed
                     break
 
-                # Check if trailing should activate
-                current_price = float(current_pos.averagePrice)
+                # Get current market price
+                try:
+                    current_price = await self._get_market_price(position.contractId)
+                except RuntimeError as e:
+                    logger.warning(
+                        f"Could not fetch price for trailing stop on {position.contractId}: {e}"
+                    )
+                    await asyncio.sleep(10)  # Wait longer if price is unavailable
+                    continue
+
                 profit = (
                     (current_price - entry_price)
                     if is_long
