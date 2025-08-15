@@ -23,8 +23,8 @@ sys.path.insert(0, str(src_dir))
 project = "project-x-py"
 copyright = "2025, Jeff West"
 author = "Jeff West"
-release = "3.1.12"
-version = "3.1.12"
+release = "3.1.13"
+version = "3.1.13"
 
 # -- General configuration ---------------------------------------------------
 
