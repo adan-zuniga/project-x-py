@@ -68,21 +68,34 @@ class ManagedTrade:
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         """Exit managed trade context with cleanup."""
         try:
-            # Cancel any unfilled orders
+            # Only cancel unfilled entry orders, NOT stop/target orders
+            # Stop and target orders should remain active to protect the position
             for order in self._orders:
-                if order.is_working:
+                # Only cancel working entry orders, not stop/target protective orders
+                if (
+                    order.is_working
+                    and order != self._stop_order
+                    and order != self._target_order
+                ):
                     try:
                         await self.orders.cancel_order(order.id)
-                        logger.info(f"Cancelled unfilled order {order.id}")
+                        logger.info(f"Cancelled unfilled entry order {order.id}")
                     except Exception as e:
                         logger.error(f"Error cancelling order {order.id}: {e}")
 
             # Log trade summary
             if self._entry_order:
+                active_stops = (
+                    1 if self._stop_order and self._stop_order.is_working else 0
+                )
+                active_targets = (
+                    1 if self._target_order and self._target_order.is_working else 0
+                )
                 logger.info(
                     f"Managed trade completed for {self.instrument_id}: "
                     f"Entry: {self._entry_order.status_str}, "
-                    f"Positions: {len(self._positions)}"
+                    f"Positions: {len(self._positions)}, "
+                    f"Active stops: {active_stops}, Active targets: {active_targets}"
                 )
 
         except Exception as e:
@@ -172,10 +185,9 @@ class ManagedTrade:
                 self._orders.append(self._entry_order)
 
         # Wait for fill if market order
-        if order_type == OrderType.MARKET:
-            # Market orders should fill immediately
-            # TODO: Add proper fill waiting logic
-            pass
+        if order_type == OrderType.MARKET and self._entry_order:
+            # Wait for market order to fill before proceeding
+            await self._wait_for_order_fill(self._entry_order, timeout_seconds=10)
 
         # Get position and attach risk orders
         positions = await self.positions.get_all_positions()
@@ -195,12 +207,21 @@ class ManagedTrade:
 
             if "bracket_order" in risk_orders:
                 bracket = risk_orders["bracket_order"]
-                if "stop_order" in bracket:
-                    self._stop_order = bracket["stop_order"]
+                # BracketOrderResponse has stop_order_id and target_order_id
+                if bracket.stop_order_id:
+                    # Get the actual order object
+                    orders = await self.orders.search_open_orders()
+                    self._stop_order = next(
+                        (o for o in orders if o.id == bracket.stop_order_id), None
+                    )
                     if self._stop_order:
                         self._orders.append(self._stop_order)
-                if "limit_order" in bracket:
-                    self._target_order = bracket["limit_order"]
+                if bracket.target_order_id:
+                    # Get the actual order object
+                    orders = await self.orders.search_open_orders()
+                    self._target_order = next(
+                        (o for o in orders if o.id == bracket.target_order_id), None
+                    )
                     if self._target_order:
                         self._orders.append(self._target_order)
 
@@ -293,6 +314,11 @@ class ManagedTrade:
             if self._entry_order:
                 self._orders.append(self._entry_order)
 
+        # Wait for fill if market order
+        if order_type == OrderType.MARKET and self._entry_order:
+            # Wait for market order to fill before proceeding
+            await self._wait_for_order_fill(self._entry_order, timeout_seconds=10)
+
         # Get position and attach risk orders
         positions = await self.positions.get_all_positions()
         position = next(
@@ -311,12 +337,21 @@ class ManagedTrade:
 
             if "bracket_order" in risk_orders:
                 bracket = risk_orders["bracket_order"]
-                if "stop_order" in bracket:
-                    self._stop_order = bracket["stop_order"]
+                # BracketOrderResponse has stop_order_id and target_order_id
+                if bracket.stop_order_id:
+                    # Get the actual order object
+                    orders = await self.orders.search_open_orders()
+                    self._stop_order = next(
+                        (o for o in orders if o.id == bracket.stop_order_id), None
+                    )
                     if self._stop_order:
                         self._orders.append(self._stop_order)
-                if "limit_order" in bracket:
-                    self._target_order = bracket["limit_order"]
+                if bracket.target_order_id:
+                    # Get the actual order object
+                    orders = await self.orders.search_open_orders()
+                    self._target_order = next(
+                        (o for o in orders if o.id == bracket.target_order_id), None
+                    )
                     if self._target_order:
                         self._orders.append(self._target_order)
 
@@ -579,3 +614,58 @@ class ManagedTrade:
             f"Unable to fetch current market price for {self.instrument_id} - no data available. "
             "Please ensure data manager is connected and receiving data."
         )
+
+    async def _wait_for_order_fill(
+        self, order: "Order", timeout_seconds: int = 10
+    ) -> bool:
+        """Wait for an order to fill.
+
+        Args:
+            order: Order to wait for
+            timeout_seconds: Maximum time to wait
+
+        Returns:
+            True if order filled, False if timeout
+        """
+        import asyncio
+
+        start_time = asyncio.get_event_loop().time()
+        check_interval = 0.5  # Check every 500ms
+
+        while (asyncio.get_event_loop().time() - start_time) < timeout_seconds:
+            try:
+                # Get updated order status
+                orders = await self.orders.search_open_orders()
+                updated_order = next((o for o in orders if o.id == order.id), None)
+
+                if updated_order:
+                    # Update our reference
+                    if updated_order.is_filled:
+                        logger.info(f"Order {order.id} filled successfully")
+                        return True
+                    elif updated_order.is_terminal and not updated_order.is_filled:
+                        logger.warning(
+                            f"Order {order.id} terminated without fill: {updated_order.status_str}"
+                        )
+                        return False
+                else:
+                    # Order not found in open orders, might be filled
+                    # Check if position exists
+                    positions = await self.positions.get_all_positions()
+                    position = next(
+                        (p for p in positions if p.contractId == self.instrument_id),
+                        None,
+                    )
+                    if position:
+                        logger.info(
+                            f"Order {order.id} appears to be filled (position found)"
+                        )
+                        return True
+
+                await asyncio.sleep(check_interval)
+            except Exception as e:
+                logger.error(f"Error checking order fill status: {e}")
+                await asyncio.sleep(check_interval)
+
+        logger.warning(f"Timeout waiting for order {order.id} to fill")
+        return False

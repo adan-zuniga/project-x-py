@@ -395,35 +395,38 @@ class MarketDataMixin:
             # Calculate date range
             from datetime import timedelta
 
+            # Use the configured timezone (America/Chicago by default)
+            market_tz = pytz.timezone(self.config.timezone)
+
             if start_time is not None or end_time is not None:
                 # Use provided time range
                 if start_time is not None:
                     # Ensure timezone awareness
                     if start_time.tzinfo is None:
-                        start_date = pytz.UTC.localize(start_time)
+                        start_date = market_tz.localize(start_time)
                     else:
-                        start_date = start_time.astimezone(pytz.UTC)
+                        start_date = start_time.astimezone(market_tz)
                 else:
                     # Default to days parameter ago if only end_time provided
-                    start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
+                    start_date = datetime.datetime.now(market_tz) - timedelta(days=days)
 
                 if end_time is not None:
                     # Ensure timezone awareness
                     if end_time.tzinfo is None:
-                        end_date = pytz.UTC.localize(end_time)
+                        end_date = market_tz.localize(end_time)
                     else:
-                        end_date = end_time.astimezone(pytz.UTC)
+                        end_date = end_time.astimezone(market_tz)
                 else:
                     # Default to now if only start_time provided
-                    end_date = datetime.datetime.now(pytz.UTC)
+                    end_date = datetime.datetime.now(market_tz)
 
                 # Calculate days for cache key (approximate)
                 days_calc = int((end_date - start_date).total_seconds() / 86400)
                 cache_key = f"{symbol}_{start_date.isoformat()}_{end_date.isoformat()}_{interval}_{unit}_{partial}"
             else:
                 # Use days parameter
-                start_date = datetime.datetime.now(pytz.UTC) - timedelta(days=days)
-                end_date = datetime.datetime.now(pytz.UTC)
+                start_date = datetime.datetime.now(market_tz) - timedelta(days=days)
+                end_date = datetime.datetime.now(market_tz)
                 days_calc = days
                 cache_key = f"{symbol}_{days}_{interval}_{unit}_{partial}"
 
@@ -456,12 +459,12 @@ class MarketDataMixin:
                 total_minutes = int((end_date - start_date).total_seconds() / 60)
                 limit = int(total_minutes / interval)
 
-        # Prepare payload
+        # Prepare payload - convert to UTC for API
         payload = {
             "contractId": instrument.id,
             "live": False,
-            "startTime": start_date.isoformat(),
-            "endTime": end_date.isoformat(),
+            "startTime": start_date.astimezone(pytz.UTC).isoformat(),
+            "endTime": end_date.astimezone(pytz.UTC).isoformat(),
             "unit": unit,
             "unitNumber": interval,
             "limit": limit,
