@@ -62,6 +62,11 @@ class BatchedWebSocketHandler:
         self.total_processing_time = 0.0
         self.last_batch_time = time.time()
 
+        # Circuit breaker state
+        self.failed_batches = 0
+        self.circuit_breaker_tripped_at: float | None = None
+        self.circuit_breaker_timeout = 60.0  # 60 seconds
+
         # Lock for thread safety
         self._lock = asyncio.Lock()
 
@@ -89,6 +94,18 @@ class BatchedWebSocketHandler:
         async with self._lock:
             if self.processing:
                 return
+
+            # Check circuit breaker
+            if self.circuit_breaker_tripped_at:
+                if (
+                    time.time() - self.circuit_breaker_tripped_at
+                ) > self.circuit_breaker_timeout:
+                    logger.warning("Resetting circuit breaker.")
+                    self.circuit_breaker_tripped_at = None
+                    self.failed_batches = 0
+                else:
+                    return  # Circuit breaker is tripped, do not process
+
             self.processing = True
 
         try:
@@ -136,6 +153,8 @@ class BatchedWebSocketHandler:
                 if self.process_callback:
                     try:
                         await self.process_callback(batch)
+                        # Reset failure count on success
+                        self.failed_batches = 0
                     except asyncio.CancelledError:
                         # Re-raise cancellation for proper shutdown
                         raise
@@ -145,12 +164,14 @@ class BatchedWebSocketHandler:
                             exc_info=True,
                         )
                         # Track failures for circuit breaker
-                        self.failed_batches = getattr(self, "failed_batches", 0) + 1
+                        self.failed_batches += 1
                         if self.failed_batches > 10:
                             logger.critical(
-                                "Batch processing circuit breaker triggered"
+                                f"Batch processing circuit breaker triggered for {self.circuit_breaker_timeout}s."
                             )
+                            self.circuit_breaker_tripped_at = time.time()
                             self.processing = False
+                            return  # Stop processing
 
                 # Update metrics
                 processing_time = time.time() - start_time

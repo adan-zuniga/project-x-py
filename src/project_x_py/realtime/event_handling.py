@@ -430,7 +430,7 @@ class EventHandlingMixin:
                 )
             except Exception as e:
                 # Fallback for logging - avoid recursion
-                print(f"Error scheduling async task: {e}")
+                self.logger.error(f"Error scheduling async task: {e}")
         else:
             # Fallback - try to create task in current loop context
             try:
@@ -439,7 +439,7 @@ class EventHandlingMixin:
                 task.add_done_callback(lambda t: None)
             except RuntimeError:
                 # No event loop available, log and continue
-                print(f"No event loop available for {event_type} event")
+                self.logger.error(f"No event loop available for {event_type} event")
 
     async def _forward_event_async(
         self: "ProjectXRealtimeClientProtocol", event_type: str, args: Any

@@ -95,6 +95,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 import httpx
 import polars as pl
 
+from project_x_py.types.base import HubConnection
 from project_x_py.types.response_types import (
     PerformanceStatsResponse,
     PortfolioMetricsResponse,
@@ -514,8 +515,8 @@ class ProjectXRealtimeClientProtocol(Protocol):
     base_market_url: str
 
     # Connection objects
-    user_connection: Any | None
-    market_connection: Any | None
+    user_connection: HubConnection | None
+    market_connection: HubConnection | None
 
     # Connection state
     user_connected: bool
@@ -532,9 +533,11 @@ class ProjectXRealtimeClientProtocol(Protocol):
     # Logging
     logger: Any
 
-    # Async locks
+    # Async locks and events
     _callback_lock: asyncio.Lock
     _connection_lock: asyncio.Lock
+    user_hub_ready: asyncio.Event
+    market_hub_ready: asyncio.Event
 
     # Event loop
     _loop: asyncio.AbstractEventLoop | None

@@ -100,6 +100,7 @@ from typing import TYPE_CHECKING, Any
 from project_x_py.realtime.connection_management import ConnectionManagementMixin
 from project_x_py.realtime.event_handling import EventHandlingMixin
 from project_x_py.realtime.subscriptions import SubscriptionsMixin
+from project_x_py.types.base import HubConnection
 
 if TYPE_CHECKING:
     from project_x_py.models import ProjectXConfig
@@ -285,17 +286,16 @@ class ProjectXRealtimeClient(
             self.base_market_url = "https://rtc.topstepx.com/hubs/market"
 
         # SignalR connection objects
-        self.user_connection: Any | None = None
-        self.market_connection: Any | None = None
+        self.user_connection: HubConnection | None = None
+        self.market_connection: HubConnection | None = None
 
         # Connection state tracking
         self.user_connected = False
         self.market_connected = False
         self.setup_complete = False
 
-        # Event callbacks (pure forwarding, no caching) - already initialized in mixin
-        if not hasattr(self, "callbacks"):
-            self.callbacks: defaultdict[str, list[Any]] = defaultdict(list)
+        # Event callbacks (pure forwarding, no caching)
+        self.callbacks: defaultdict[str, list[Any]] = defaultdict(list)
 
         # Basic statistics (no business logic)
         self.stats = {
@@ -315,8 +315,10 @@ class ProjectXRealtimeClient(
         self.logger.info(f"User Hub: {final_user_url}")
         self.logger.info(f"Market Hub: {final_market_url}")
 
-        # Async locks for thread-safe operations - check if not already initialized
-        if not hasattr(self, "_callback_lock"):
-            self._callback_lock = asyncio.Lock()
-        if not hasattr(self, "_connection_lock"):
-            self._connection_lock = asyncio.Lock()
+        # Async locks for thread-safe operations
+        self._callback_lock = asyncio.Lock()
+        self._connection_lock = asyncio.Lock()
+
+        # Async events for connection readiness
+        self.user_hub_ready = asyncio.Event()
+        self.market_hub_ready = asyncio.Event()

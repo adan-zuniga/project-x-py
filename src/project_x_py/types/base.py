@@ -78,7 +78,10 @@ See Also:
 """
 
 from collections.abc import Callable, Coroutine
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from signalrcore.hub.base_hub_connection import BaseHubConnection
 
 # Type aliases for callbacks
 AsyncCallback = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
@@ -95,9 +98,16 @@ AccountId = str
 OrderId = str
 PositionId = str
 
+# SignalR connection type
+if TYPE_CHECKING:
+    HubConnection = BaseHubConnection
+else:
+    HubConnection = Any
+
 __all__ = [
     "DEFAULT_TIMEZONE",
     "TICK_SIZE_PRECISION",
+    "HubConnection",
     "AccountId",
     "AsyncCallback",
     "CallbackType",
