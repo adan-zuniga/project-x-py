@@ -155,10 +155,21 @@ class TradingMixin:
             "POST", "/Position/searchOpen", data=payload
         )
 
-        if not response or not response.get("success", False):
+        # Handle both list response (new API) and dict response (legacy)
+        if response is None:
             return []
 
-        positions_data = response.get("positions", [])
+        # If response is a list, use it directly
+        if isinstance(response, list):
+            positions_data = response
+        # If response is a dict with success/positions structure
+        elif isinstance(response, dict):
+            if not response.get("success", False):
+                return []
+            positions_data = response.get("positions", [])
+        else:
+            return []
+
         return [Position(**pos) for pos in positions_data]
 
     async def search_trades(

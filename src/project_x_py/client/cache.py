@@ -50,15 +50,15 @@ class CacheMixin:
         super().__init__()
 
         # Cache settings (set early so they can be overridden)
-        self.cache_ttl = 300  # 5 minutes default
+        self._cache_ttl = 300  # 5 minutes default
         self.cache_hit_count = 0
 
         # Internal optimized caches with time-to-live eviction
         self._opt_instrument_cache: TTLCache[str, Instrument] = TTLCache(
-            maxsize=1000, ttl=self.cache_ttl
+            maxsize=1000, ttl=self._cache_ttl
         )
         self._opt_market_data_cache: TTLCache[str, bytes] = TTLCache(
-            maxsize=10000, ttl=self.cache_ttl
+            maxsize=10000, ttl=self._cache_ttl
         )
 
         # Compression settings (configurable)
@@ -68,6 +68,24 @@ class CacheMixin:
         self.compression_level = getattr(self, "config", {}).get(
             "compression_level", 3
         )  # lz4 compression level (0-16)
+
+    @property
+    def cache_ttl(self) -> float:
+        """Get cache TTL value."""
+        return self._cache_ttl
+
+    @cache_ttl.setter
+    def cache_ttl(self, value: float) -> None:
+        """
+        Set cache TTL and recreate caches with new TTL.
+
+        Args:
+            value: New TTL value in seconds
+        """
+        self._cache_ttl = value
+        # Recreate caches with new TTL
+        self._opt_instrument_cache = TTLCache(maxsize=1000, ttl=value)
+        self._opt_market_data_cache = TTLCache(maxsize=10000, ttl=value)
 
     def _serialize_dataframe(self, df: pl.DataFrame) -> bytes:
         """
