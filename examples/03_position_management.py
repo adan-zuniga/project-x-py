@@ -247,6 +247,7 @@ async def main() -> bool:
         suite = await TradingSuite.create(
             "MNQ",
             timeframes=["1min", "5min"],
+            features=["risk_manager"],
         )
 
         print(

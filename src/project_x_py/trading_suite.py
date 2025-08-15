@@ -224,7 +224,7 @@ class TradingSuite:
             client,
             event_bus=self.events,
             risk_manager=self.risk_manager,
-            data_manager=self.data,
+            data_manager=self.data,  # type: ignore
             config=config.get_position_manager_config(),
         )
 

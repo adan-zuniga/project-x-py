@@ -125,10 +125,10 @@ class DataProcessingMixin:
 
         # Methods from other mixins/main class
         def _parse_and_validate_quote_payload(
-            self, data: dict[str, Any]
+            self, quote_data: Any
         ) -> dict[str, Any] | None: ...
         def _parse_and_validate_trade_payload(
-            self, data: dict[str, Any]
+            self, trade_data: Any
         ) -> dict[str, Any] | None: ...
         def _symbol_matches_instrument(self, symbol: str) -> bool: ...
         async def _trigger_callbacks(
