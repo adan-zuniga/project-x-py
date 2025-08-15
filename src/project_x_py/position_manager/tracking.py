@@ -305,12 +305,49 @@ class PositionTrackingMixin:
             old_size: int = old_position.size if old_position else 0
 
             if is_position_closed:
-                # Position is closed - remove from tracking and trigger closure callbacks
+                # Position is closed - calculate realized P&L and update stats
+                if old_position:
+                    # Assume the averagePrice in the closing update is the exit price
+                    exit_price = actual_position_data.get(
+                        "averagePrice", old_position.averagePrice
+                    )
+                    entry_price = old_position.averagePrice
+                    size = old_position.size
+
+                    # This is a simplified P&L calculation.
+                    # For futures, a point_value/multiplier is needed.
+                    # Assuming point_value of 1 for now.
+                    if old_position.type == PositionType.LONG:
+                        pnl = (exit_price - entry_price) * size
+                    else:  # SHORT
+                        pnl = (entry_price - exit_price) * size
+
+                    self.stats["realized_pnl"] += pnl
+                    self.stats["closed_positions"] += 1
+                    if pnl > 0:
+                        self.stats["winning_positions"] = (
+                            self.stats.get("winning_positions", 0) + 1
+                        )
+                        self.stats["gross_profit"] = (
+                            self.stats.get("gross_profit", 0.0) + pnl
+                        )
+                        if pnl > self.stats.get("best_position_pnl", 0.0):
+                            self.stats["best_position_pnl"] = pnl
+                    else:
+                        self.stats["losing_positions"] = (
+                            self.stats.get("losing_positions", 0) + 1
+                        )
+                        self.stats["gross_loss"] = (
+                            self.stats.get("gross_loss", 0.0) + pnl
+                        )  # pnl is negative
+                        if pnl < self.stats.get("worst_position_pnl", 0.0):
+                            self.stats["worst_position_pnl"] = pnl
+
+                # Remove from tracking
                 if contract_id in self.tracked_positions:
                     del self.tracked_positions[contract_id]
-                    self.logger.info(f"📊 Position closed: {contract_id}")
-                    self.stats["closed_positions"] = (
-                        self.stats.get("closed_positions", 0) + 1
+                    self.logger.info(
+                        f"📊 Position closed: {contract_id}, Realized P&L: {pnl:.2f}"
                     )
 
                 # Synchronize orders - cancel related orders when position is closed
@@ -321,26 +358,43 @@ class PositionTrackingMixin:
                 await self._trigger_callbacks("position_closed", actual_position_data)
             else:
                 # Position is open/updated - create or update position
-                # Build a complete Position object, filling defaults for missing fields
-                # Real-time updates may omit id/accountId/creationTimestamp
-                from datetime import UTC as _UTC, datetime as _dt
+                is_new_position = contract_id not in self.tracked_positions
 
-                position_dict: dict[str, Any] = {
-                    "id": actual_position_data.get("id", -1),
-                    "accountId": actual_position_data.get("accountId", -1),
-                    "contractId": contract_id,
-                    "creationTimestamp": actual_position_data.get(
-                        "creationTimestamp", _dt.now(_UTC).isoformat()
-                    ),
-                    "type": actual_position_data.get("type", PositionType.UNDEFINED),
-                    "size": position_size,
-                    "averagePrice": actual_position_data.get("averagePrice", 0.0),
-                }
+                if is_new_position:
+                    # For new positions, some fields might be missing from the real-time feed.
+                    # We create a new object with defaults for any missing critical fields.
+                    from datetime import UTC as _UTC, datetime as _dt
+
+                    position_dict: dict[str, Any] = {
+                        "id": actual_position_data.get("id", -1),
+                        "accountId": actual_position_data.get("accountId", -1),
+                        "contractId": contract_id,
+                        "creationTimestamp": actual_position_data.get(
+                            "creationTimestamp", _dt.now(_UTC).isoformat()
+                        ),
+                        "type": actual_position_data.get(
+                            "type", PositionType.UNDEFINED
+                        ),
+                        "size": position_size,
+                        "averagePrice": actual_position_data.get("averagePrice", 0.0),
+                    }
+                else:
+                    # For existing positions, merge the update with the cached object
+                    # to preserve fields like 'id' and 'creationTimestamp'.
+                    existing_position = self.tracked_positions[contract_id]
+                    # Manually construct dict from the existing position object
+                    position_dict = {
+                        "id": existing_position.id,
+                        "accountId": existing_position.accountId,
+                        "contractId": existing_position.contractId,
+                        "creationTimestamp": existing_position.creationTimestamp,
+                        "type": existing_position.type,
+                        "size": existing_position.size,
+                        "averagePrice": existing_position.averagePrice,
+                    }
+                    position_dict.update(actual_position_data)
 
                 position: Position = Position(**position_dict)
-
-                # Check if this is a new position (didn't exist before)
-                is_new_position = contract_id not in self.tracked_positions
                 self.tracked_positions[contract_id] = position
 
                 # Emit appropriate event
