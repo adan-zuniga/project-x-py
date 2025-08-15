@@ -21,9 +21,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.11 - Stable Production Release
+## 🚀 v3.1.13 - Stable Production Release
 
-**Latest Version**: v3.1.11 - Fixed ManagedTrade market price fetching for risk-managed trades. See [CHANGELOG.md](CHANGELOG.md) for full release history.
+**Latest Version**: v3.1.13 - Fixed critical event system issues affecting bracket order fill detection and improved real-time connection stability. See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
 ### 📦 Production Stability Guarantee
 

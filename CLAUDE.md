@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.9 - Stable Production Release
+## Project Status: v3.1.13 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -300,15 +300,20 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.13 - Current Development (patching_v4)
-- **Fixed**: Bracket order fill detection through proper WebSocket callback initialization
-- **Fixed**: Circular dependencies between PositionManager and RiskManager
-- **Fixed**: RiskManager integration now properly sets both `positions` and `position_manager` attributes
-- **Enhanced**: Full mypy type checking compliance with 0 errors
-- **Added**: Comprehensive protocol definitions for all manager interfaces
-- **Updated**: Test suite to properly mock cross-component dependencies
+### v3.1.13 - Latest Release
+- **Fixed**: Event system data structure mismatches causing order fill detection failures
+  - Bracket orders now properly detect fills without 60-second timeouts
+  - Event handlers handle both `order_id` and nested `order` object structures
+  - ManagedTrade correctly listens to ORDER_FILLED instead of ORDER_MODIFIED
+- **Fixed**: Type annotations for SignalR hub connections
+  - Created HubConnection type alias for proper IDE support
+  - market_connection and user_connection now have proper types instead of Any
+- **Improved**: Real-time connection stability with circuit breaker pattern
+- **Improved**: Data storage robustness with thread-safety and performance optimizations
+- **Enhanced**: Test coverage increased from 30% to 93% for client module
+- **Fixed**: Multiple asyncio deprecation warnings
 
-### v3.1.12 - Latest Release
+### v3.1.12
 - **Enhanced**: Significantly improved `01_events_with_on.py` real-time data example
   - Added CSV export functionality with interactive prompts
   - Plotly-based candlestick chart generation
