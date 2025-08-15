@@ -85,7 +85,7 @@ class Event:
                 self.type = type  # keep raw string
         self.data = data
         self.source = source
-        self.timestamp = asyncio.get_event_loop().time()
+        self.timestamp = asyncio.get_running_loop().time()
 
 
 class EventBus:
