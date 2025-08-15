@@ -231,6 +231,7 @@ class TradingSuite:
         # Update RiskManager with position_manager reference if it exists
         if self.risk_manager:
             self.risk_manager.position_manager = self.positions
+            self.risk_manager.positions = self.positions  # Also set positions attribute
 
         # State tracking
         self._connected = False
