@@ -239,7 +239,7 @@ class MarketDataMixin:
 
         # First try exact match
         for inst in instruments:
-            if inst.get("symbol", "").upper() == search_upper:
+            if inst.get("name", "").upper() == search_upper:
                 return inst
 
         # For futures, try to find the front month
@@ -248,8 +248,8 @@ class MarketDataMixin:
         base_symbols: dict[str, list[dict[str, Any]]] = {}
 
         for inst in instruments:
-            symbol = inst.get("symbol", "").upper()
-            match = futures_pattern.match(symbol)
+            name = inst.get("name", "").upper()
+            match = futures_pattern.match(name)
             if match:
                 base = match.group(1)
                 if base not in base_symbols:
@@ -264,9 +264,9 @@ class MarketDataMixin:
                 break
 
         if matching_base and base_symbols[matching_base]:
-            # Sort by symbol to get front month (alphabetical = chronological for futures)
+            # Sort by name to get front month (alphabetical = chronological for futures)
             sorted_contracts = sorted(
-                base_symbols[matching_base], key=lambda x: x.get("symbol", "")
+                base_symbols[matching_base], key=lambda x: x.get("name", "")
             )
             return sorted_contracts[0]
 
