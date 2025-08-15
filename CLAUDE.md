@@ -162,6 +162,18 @@ uv run python -m build       # Alternative build command
 - Async event handlers with priority support
 - Built-in event types for all trading events
 
+### Available TradingSuite Features
+
+The `Features` enum defines optional components that can be enabled:
+
+- `ORDERBOOK = "orderbook"` - Level 2 market depth and analysis
+- `RISK_MANAGER = "risk_manager"` - Position sizing and risk management
+- `TRADE_JOURNAL = "trade_journal"` - Trade logging (future)
+- `PERFORMANCE_ANALYTICS = "performance_analytics"` - Advanced metrics (future)
+- `AUTO_RECONNECT = "auto_reconnect"` - Automatic reconnection (future)
+
+**Note**: OrderManager and PositionManager are always included by default.
+
 ### Architecture Patterns
 
 **Async Factory Functions**: Use async `create_*` functions for component initialization:
@@ -288,6 +300,14 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
+### v3.1.13 - Current Development (patching_v4)
+- **Fixed**: Bracket order fill detection through proper WebSocket callback initialization
+- **Fixed**: Circular dependencies between PositionManager and RiskManager
+- **Fixed**: RiskManager integration now properly sets both `positions` and `position_manager` attributes
+- **Enhanced**: Full mypy type checking compliance with 0 errors
+- **Added**: Comprehensive protocol definitions for all manager interfaces
+- **Updated**: Test suite to properly mock cross-component dependencies
+
 ### v3.1.12 - Latest Release
 - **Enhanced**: Significantly improved `01_events_with_on.py` real-time data example
   - Added CSV export functionality with interactive prompts
@@ -375,7 +395,7 @@ async def main():
     suite = await TradingSuite.create(
         "MNQ",
         timeframes=["1min", "5min"],
-        features=["orderbook", "risk_manager"],
+        features=["orderbook", "risk_manager"],  # Optional features
         initial_days=5
     )
     

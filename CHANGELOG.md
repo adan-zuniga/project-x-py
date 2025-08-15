@@ -14,6 +14,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [Unreleased] - patching_v4 branch
+
+### Fixed
+- **🔧 Bracket Order Fill Detection**: OrderManager now properly detects entry order fills
+  - Fixed initialization of OrderManager with realtime client for WebSocket callbacks
+  - Bracket orders now correctly wait for entry fills before placing protective orders
+  - OCO (One-Cancels-Other) linking properly implemented for stop/target pairs
+
+- **🔄 Circular Dependencies**: Resolved circular dependency between PositionManager and RiskManager
+  - Made cross-references optional during initialization
+  - Proper initialization sequence in TradingSuite
+
+- **🎯 RiskManager Integration**: Fixed RiskManager position manager references
+  - Now correctly sets both `positions` and `position_manager` attributes
+  - Ensures all risk methods work properly with PositionManager
+
+### Improved
+- **✅ Type Safety**: Full mypy compliance with 0 errors
+  - Added comprehensive protocol definitions for all manager interfaces
+  - Fixed all async method return type annotations
+  - Proper type hints for event handlers
+
+- **🧪 Test Suite**: Enhanced test mocking for cross-component dependencies
+  - Bracket order tests now properly mock all required methods
+  - Fixed test isolation for mixin testing
+
+### Documentation
+- Added comprehensive Features documentation to README
+- Updated CLAUDE.md with architectural changes
+- Clarified RiskManager feature flag requirements
+- Documented available TradingSuite features and their usage
+
 ## [3.1.12] - 2025-08-15
 
 ### Added

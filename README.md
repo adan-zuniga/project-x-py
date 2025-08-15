@@ -251,6 +251,38 @@ Or use a config file (`~/.config/projectx/config.json`):
 }
 ```
 
+### Available Features
+
+TradingSuite supports optional features that can be enabled during initialization:
+
+| Feature | String Value | Description |
+|---------|-------------|-------------|
+| **OrderBook** | `"orderbook"` | Level 2 market depth, bid/ask analysis, iceberg detection |
+| **Risk Manager** | `"risk_manager"` | Position sizing, risk validation, managed trades |
+| **Trade Journal** | `"trade_journal"` | Trade logging and performance tracking (future) |
+| **Performance Analytics** | `"performance_analytics"` | Advanced metrics and analysis (future) |
+| **Auto Reconnect** | `"auto_reconnect"` | Automatic WebSocket reconnection (future) |
+
+**Note:** PositionManager and OrderManager are always included and don't require feature flags.
+
+```python
+# Enable specific features
+suite = await TradingSuite.create(
+    "MNQ",
+    features=["orderbook", "risk_manager"]
+)
+
+# Access feature-specific components
+if suite.orderbook:  # Only available when orderbook feature is enabled
+    spread = await suite.orderbook.get_bid_ask_spread()
+
+if suite.risk_manager:  # Only available when risk_manager feature is enabled
+    sizing = await suite.risk_manager.calculate_position_size(
+        entry_price=100.0,
+        stop_loss=99.0
+    )
+```
+
 ### Component Overview
 
 #### ProjectX Client
@@ -296,10 +328,18 @@ icebergs = await suite.orderbook.detect_iceberg_orders()
 ```
 
 #### RiskManager
-Risk management and managed trades (when enabled):
+Risk management and managed trades (requires feature flag):
 ```python
 # Enable risk manager in features
 suite = await TradingSuite.create("MNQ", features=["risk_manager"])
+
+# Risk manager integrates with PositionManager automatically
+# Use for position sizing and risk validation
+sizing = await suite.risk_manager.calculate_position_size(
+    entry_price=100.0,
+    stop_loss=99.0,
+    risk_percent=0.02  # Risk 2% of account
+)
 
 # Use managed trades for automatic risk management
 async with suite.managed_trade(max_risk_percent=0.01) as trade:
@@ -309,6 +349,8 @@ async with suite.managed_trade(max_risk_percent=0.01) as trade:
         take_profit=current_price + 100
     )
 ```
+
+**Note:** RiskManager requires the `"risk_manager"` feature flag and automatically integrates with PositionManager for comprehensive risk tracking.
 
 ### Technical Indicators
 
