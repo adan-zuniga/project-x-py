@@ -66,10 +66,12 @@ See Also:
 
 import datetime
 import logging
+import warnings
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytz
+from deprecated import deprecated  # type: ignore
 
 from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Position, Trade
@@ -83,69 +85,50 @@ logger = logging.getLogger(__name__)
 class TradingMixin:
     """Mixin class providing trading functionality."""
 
+    @deprecated(  # type: ignore[misc]
+        "Use search_open_positions() instead. This method will be removed in v4.0.0."
+    )
     async def get_positions(self: "ProjectXClientProtocol") -> list[Position]:
         """
-        Get all open positions for the authenticated account.
+        DEPRECATED: Get all open positions for the authenticated account.
 
-        This method retrieves all current open positions for the currently selected
-        trading account. It provides a snapshot of the portfolio including position
-        size, entry price, unrealized P&L, and other position details.
+        This method is deprecated and will be removed in a future version.
+        Please use `search_open_positions()` instead, which provides the same
+        functionality with a more consistent API endpoint.
 
-        The method automatically ensures authentication before making the API call
-        and handles the conversion of raw position data into strongly-typed Position
-        objects for easier analysis and manipulation.
+        Args:
+            self: The client instance.
 
         Returns:
-            list[Position]: List of Position objects representing current holdings,
-                each containing:
-                - symbol: Instrument symbol
-                - quantity: Position size (positive for long, negative for short)
-                - price: Average entry price
-                - unrealized_pnl: Current unrealized profit/loss
-                - contract_id: Unique contract identifier
-                - position_id: Unique position identifier
-                - timestamp: Position open time
-
-        Raises:
-            ProjectXError: If no account is selected or API call fails
-            ProjectXAuthenticationError: If authentication is required
-
-        Example:
-            >>> # V3: Get detailed position information
-            >>> positions = await client.get_positions()
-            >>> for pos in positions:
-            >>>     print(f"Contract: {pos.contractId}")
-            >>>     print(f"  Net Position: {pos.netPos}")
-            >>>     print(f"  Buy Avg Price: ${pos.buyAvgPrice:.2f}")
-            >>>     print(f"  Sell Avg Price: ${pos.sellAvgPrice:.2f}")
-            >>>     print(f"  Unrealized P&L: ${pos.unrealizedPnl:,.2f}")
-            >>>     print(f"  Realized P&L: ${pos.realizedPnl:,.2f}")
+            A list of Position objects representing current holdings.
         """
-        await self._ensure_authenticated()
-
-        if not self.account_info:
-            raise ProjectXError("No account selected")
-
-        response = await self._make_request(
-            "GET", f"/accounts/{self.account_info.id}/positions"
+        warnings.warn(
+            "get_positions() is deprecated, use search_open_positions() instead. "
+            "This method will be removed in v4.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-
-        if not response or not isinstance(response, list):
-            return []
-
-        return [Position(**pos) for pos in response]
+        return await self.search_open_positions()
 
     async def search_open_positions(
         self: "ProjectXClientProtocol", account_id: int | None = None
     ) -> list[Position]:
         """
-        Search for open positions across accounts.
+        Search for open positions for the currently authenticated account.
+
+        This is the recommended method for retrieving all current open positions.
+        It provides a snapshot of the portfolio including position size, entry price,
+        unrealized P&L, and other key details.
 
         Args:
-            account_id: Optional account ID to filter positions
+            account_id: Optional account ID to filter positions. If not provided,
+                the currently authenticated account's ID will be used.
 
         Returns:
-            List of Position objects
+            List of Position objects representing current holdings.
+
+        Raises:
+            ProjectXError: If no account is selected or the API call fails.
 
         Example:
             >>> # V3: Search open positions with P&L calculation
@@ -157,12 +140,6 @@ class TradingMixin:
             >>> print(f"Total Unrealized P&L: ${total_unrealized:,.2f}")
             >>> print(f"Total Realized P&L: ${total_realized:,.2f}")
             >>> print(f"Total P&L: ${total_unrealized + total_realized:,.2f}")
-            >>> # Group by contract
-            >>> by_contract = {}
-            >>> for pos in positions:
-            >>>     if pos.contractId not in by_contract:
-            >>>         by_contract[pos.contractId] = []
-            >>>     by_contract[pos.contractId].append(pos)
         """
         await self._ensure_authenticated()
 
