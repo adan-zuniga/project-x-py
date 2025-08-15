@@ -288,7 +288,15 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.11 - Latest Release
+### v3.1.12 - Latest Release
+- **Enhanced**: Significantly improved `01_events_with_on.py` real-time data example
+  - Added CSV export functionality with interactive prompts
+  - Plotly-based candlestick chart generation
+  - Non-blocking user input handling
+  - Better bar display formatting and visual indicators
+  - Automatic browser opening for generated charts
+
+### v3.1.11
 - **Fixed**: ManagedTrade `_get_market_price()` implementation
   - ManagedTrade can now fetch current market prices from data manager
   - Automatic fallback through multiple timeframes (1sec, 15sec, 1min, 5min)

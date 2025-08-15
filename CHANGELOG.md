@@ -14,6 +14,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.12] - 2025-08-15
+
+### Added
+- **📊 Enhanced Example**: Significantly improved `01_events_with_on.py` real-time data example
+  - Added CSV export functionality for bar data
+  - Interactive candlestick chart generation using Plotly
+  - Automatic prompt after 10 bars to export data and generate charts
+  - Non-blocking user input handling for CSV export confirmation
+  - Proper bar counting and display formatting
+  - Chart opens automatically in browser when generated
+
+### Improved
+- Example now shows last 6 bars instead of 5 for better context
+- Better formatting of price displays with proper currency formatting
+- Clear visual indicators for new bar events
+- More user-friendly prompts and progress indicators
+
+### Dependencies
+- Added optional Plotly dependency for chart generation in examples
+- Example gracefully handles missing Plotly installation
+
 ## [3.1.11] - 2025-08-13
 
 ### Fixed
