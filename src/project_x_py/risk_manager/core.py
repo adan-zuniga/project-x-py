@@ -83,6 +83,11 @@ class RiskManager:
         self._current_risk = Decimal("0")
         self._max_drawdown = Decimal("0")
 
+    def set_position_manager(self, position_manager: PositionManagerProtocol) -> None:
+        """Set the position manager after initialization to resolve circular dependency."""
+        self.positions = position_manager
+        self.position_manager = position_manager
+
     async def calculate_position_size(
         self,
         entry_price: float,
