@@ -182,15 +182,23 @@ class OrderTrackingMixin:
                 }
 
                 if new_status in status_events:
-                    await self._trigger_callbacks(
-                        status_events[new_status],
-                        {
-                            "order_id": order_id,
-                            "order_data": actual_order_data,
+                    from project_x_py.models import Order
+
+                    try:
+                        order_obj = Order(**actual_order_data)
+                        event_payload = {
+                            "order": order_obj,
                             "old_status": old_status,
                             "new_status": new_status,
-                        },
-                    )
+                        }
+                        await self._trigger_callbacks(
+                            status_events[new_status], event_payload
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create Order object from data: {e}",
+                            extra={"order_data": actual_order_data},
+                        )
 
                     # OCO Logic: If a linked order is filled, cancel the other.
                     if new_status == 2:  # Filled
