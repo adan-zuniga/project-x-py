@@ -22,8 +22,8 @@ import re
 import time
 from typing import TYPE_CHECKING, Any
 
-import lz4.frame  # type: ignore[import-untyped]
-import msgpack  # type: ignore[import-untyped]
+import lz4.frame
+import msgpack
 import polars as pl
 from cachetools import LRUCache, TTLCache  # type: ignore[import-untyped]
 

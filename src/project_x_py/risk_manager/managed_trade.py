@@ -633,7 +633,7 @@ class ManagedTrade:
         fill_event = asyncio.Event()
         filled_successfully = False
 
-        async def order_update_handler(event_data: dict[str, Any]):
+        async def order_update_handler(event_data: dict[str, Any]) -> None:
             nonlocal filled_successfully
             # The event data for order_update is the Order object itself
             updated_order: Order = event_data.get("data", {})

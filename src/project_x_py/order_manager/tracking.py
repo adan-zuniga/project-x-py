@@ -101,7 +101,9 @@ class OrderTrackingMixin:
         self.order_to_position: dict[int, str] = {}  # order_id -> contract_id
         self.oco_groups: dict[int, int] = {}  # order_id -> other_order_id
 
-    def _link_oco_orders(self: "OrderManagerProtocol", order1_id: int, order2_id: int):
+    def _link_oco_orders(
+        self: "OrderManagerProtocol", order1_id: int, order2_id: int
+    ) -> None:
         """Links two orders for OCO cancellation."""
         self.oco_groups[order1_id] = order2_id
         self.oco_groups[order2_id] = order1_id
@@ -384,7 +386,7 @@ class OrderTrackingMixin:
         fill_event = asyncio.Event()
         is_filled = False
 
-        async def fill_handler(event: Any):
+        async def fill_handler(event: Any) -> None:
             nonlocal is_filled
             # Extract data from Event object
             event_data = event.data if hasattr(event, "data") else event
@@ -392,7 +394,7 @@ class OrderTrackingMixin:
                 is_filled = True
                 fill_event.set()
 
-        async def terminal_handler(event: Any):
+        async def terminal_handler(event: Any) -> None:
             nonlocal is_filled
             # Extract data from Event object
             event_data = event.data if hasattr(event, "data") else event

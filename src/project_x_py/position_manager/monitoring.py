@@ -85,9 +85,9 @@ class PositionMonitoringMixin:
         async def calculate_position_pnl(
             self,
             position: Position,
-            current_price: float | None,
-            point_value: float | None,
-        ) -> dict[str, Any]: ...
+            current_price: float | None = None,
+            point_value: float | None = None,
+        ) -> Any: ...
 
     def __init__(self) -> None:
         """Initialize monitoring attributes."""

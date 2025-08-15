@@ -270,7 +270,22 @@ async def main() -> bool:
             print("📝 EXAMPLE 3: BRACKET ORDER")
             print("=" * 50)
 
-            entry_price = current_price - Decimal("5.0")  # Entry $5 below market
+            try:
+                market_data = await suite.client.get_bars(
+                    "MNQ", days=days, interval=interval
+                )
+                if market_data is not None and not market_data.is_empty():
+                    current_price = Decimal(
+                        str(market_data.select("close").tail(1).item())
+                    )
+                    latest_time = market_data.select("timestamp").tail(1).item()
+                    print(f"✅ Retrieved MNQ price: ${current_price:.2f}")
+                    print(f"   Data from: {latest_time} ({days}d {interval}min bars)")
+            except Exception:
+                print("❌ Failed to get market data")
+                return False
+
+            entry_price = current_price - Decimal("1.00")  # Entry $5 below market
             stop_loss = entry_price - Decimal("10.0")  # $10 risk
             take_profit = entry_price + Decimal("20.0")  # $20 profit target (2:1 R/R)
 
