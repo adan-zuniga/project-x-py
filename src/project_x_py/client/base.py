@@ -115,7 +115,7 @@ class ProjectXBase(
 
     async def __aenter__(self) -> "ProjectXBase":
         """Async context manager entry."""
-        self._client = await self._create_client()
+        self._client = await self._create_client()  # type: ignore[misc]
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

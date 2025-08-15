@@ -236,9 +236,6 @@ class HttpMixin:
                 message = format_error_message(
                     ErrorMessages.API_RATE_LIMITED, retry_after=retry_after
                 )
-                # Ensure test expectation for phrase "rate limited" is satisfied
-                if "rate limited" not in message.lower():
-                    message = f"{message} (rate limited)"
                 raise ProjectXRateLimitError(message)
 
             # Handle successful responses
@@ -311,10 +308,8 @@ class HttpMixin:
         Get client statistics and performance metrics.
 
         Returns:
-            Dict containing:
-                - client_stats: Client-side statistics including cache performance
-                - authenticated: Whether the client is authenticated
-                - account: Current account name if authenticated
+            A dictionary containing client-side statistics including API calls
+            and cache performance.
 
         Example:
             >>> # V3: Get comprehensive performance metrics
@@ -322,32 +317,23 @@ class HttpMixin:
             >>> print(f"API Calls: {status['api_calls']}")
             >>> print(f"Cache Hits: {status['cache_hits']}")
             >>> print(f"Cache Hit Ratio: {status['cache_hit_ratio']:.2%}")
-            >>> print(f"Success Rate: {status['success_rate']:.2%}")
+            >>> print(f"Total Requests: {status['total_requests']}")
             >>> print(f"Active Connections: {status['active_connections']}")
         """
         # Calculate client statistics
-        total_cache_requests = self.cache_hit_count + self.api_call_count
-        cache_hit_rate = (
-            self.cache_hit_count / total_cache_requests
-            if total_cache_requests > 0
-            else 0
+        total_requests = self.cache_hit_count + self.api_call_count
+        cache_hit_ratio = (
+            self.cache_hit_count / total_requests if total_requests > 0 else 0
         )
-
-        # Calculate additional metrics for PerformanceStatsResponse
         cache_misses = self.api_call_count  # API calls are essentially cache misses
-        success_rate = 1.0  # Simplified - would need actual failure tracking
-        uptime_seconds = 0  # Would need to track session start time
 
         return {
             "api_calls": self.api_call_count,
             "cache_hits": self.cache_hit_count,
             "cache_misses": cache_misses,
-            "cache_hit_ratio": cache_hit_rate,
-            "avg_response_time_ms": 0.0,  # Would need response time tracking
-            "total_requests": total_cache_requests,
-            "failed_requests": 0,  # Would need failure tracking
-            "success_rate": success_rate,
-            "active_connections": 1 if self._authenticated else 0,
-            "memory_usage_mb": 0.0,  # Would need memory monitoring
-            "uptime_seconds": uptime_seconds,
+            "cache_hit_ratio": cache_hit_ratio,
+            "total_requests": total_requests,
+            "active_connections": 1
+            if self._client and not self._client.is_closed
+            else 0,
         }

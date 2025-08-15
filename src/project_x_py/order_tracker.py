@@ -54,8 +54,11 @@ See Also:
 
 import asyncio
 import logging
+import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Union
+
+from typing_extensions import deprecated
 
 from project_x_py.event_bus import EventType
 from project_x_py.models import BracketOrderResponse, Order, OrderPlaceResponse
@@ -127,15 +130,17 @@ class OrderTracker:
 
         # Handler for order fills
         async def on_fill(data: dict[str, Any]) -> None:
-            if data.get("order_id") == self.order_id:
-                self._filled_order = data.get("order_data")
+            order = data.get("order")
+            if order and order.id == self.order_id:
+                self._filled_order = order
                 self._current_status = 2  # FILLED
                 self._fill_event.set()
 
         # Handler for status changes
         async def on_status_change(data: dict[str, Any]) -> None:
-            if data.get("order_id") == self.order_id:
-                new_status = data.get("new_status")
+            order = data.get("order")
+            if order and order.id == self.order_id:
+                new_status = order.status
                 self._current_status = new_status
 
                 # Set status-specific events
@@ -252,31 +257,37 @@ class OrderTracker:
         if status not in self._status_events:
             self._status_events[status] = asyncio.Event()
 
-        # Check if already at target status
+        # Check current status before waiting
         if self._current_status == status:
-            order = await self.order_manager.get_order_by_id(self.order_id)
-            if order:
-                return order
-
-        try:
-            await asyncio.wait_for(self._status_events[status].wait(), timeout=timeout)
-
-            if self._error and status != self._current_status:
-                raise self._error
-
-            # Fetch latest order data
             order = await self.order_manager.get_order_by_id(self.order_id)
             if order and order.status == status:
                 return order
-            else:
-                raise OrderLifecycleError(
-                    f"Status event received but order not in expected state {status}"
-                )
 
+        # Wait for the event
+        try:
+            await asyncio.wait_for(self._status_events[status].wait(), timeout=timeout)
         except TimeoutError:
+            # After timeout, check the status one last time via API
+            order = await self.order_manager.get_order_by_id(self.order_id)
+            if order and order.status == status:
+                return order
             raise TimeoutError(
                 f"Order {self.order_id} did not reach status {status} within {timeout} seconds"
             ) from None
+
+        # After event is received
+        if self._error and status != self._current_status:
+            raise self._error
+
+        order = await self.order_manager.get_order_by_id(self.order_id)
+        if order and order.status == status:
+            return order
+        else:
+            # This can happen if event fires but API state is not yet consistent,
+            # or if another status update arrived quickly.
+            raise OrderLifecycleError(
+                f"Status event received but order not in expected state {status}. Current state: {order.status if order else 'not found'}"
+            )
 
     async def modify_or_cancel(
         self, new_price: float | None = None, new_size: int | None = None
@@ -429,10 +440,9 @@ class OrderChainBuilder:
         self,
         offset: float | None = None,
         price: float | None = None,
-        limit: bool = True,
     ) -> "OrderChainBuilder":
         """Add a take profit to the order chain."""
-        self.take_profit = {"offset": offset, "price": price, "limit": limit}
+        self.take_profit = {"offset": offset, "price": price}
         return self
 
     def with_trail_stop(
@@ -519,9 +529,33 @@ class OrderChainBuilder:
             )
 
             # Add trailing stop if configured
-            if self.trail_stop and result.success and result.entry_order_id:
-                # TODO: Implement trailing stop order
-                logger.warning("Trailing stop orders not yet implemented")
+            if self.trail_stop and result.success and result.stop_order_id:
+                logger.info(
+                    f"Replacing stop order {result.stop_order_id} with trailing stop."
+                )
+                try:
+                    await self.order_manager.cancel_order(result.stop_order_id)
+                    trail_offset = self.trail_stop["offset"]
+                    stop_side = 1 if self.side == 0 else 0  # Opposite of entry
+
+                    trail_response = await self.order_manager.place_trailing_stop_order(
+                        contract_id=contract_id,
+                        side=stop_side,
+                        size=self.size,
+                        trail_price=trail_offset,
+                    )
+                    if trail_response.success:
+                        logger.info(
+                            f"Trailing stop order placed: {trail_response.orderId}"
+                        )
+                        # Note: The BracketOrderResponse does not have a field for the trailing stop ID.
+                        # The original stop_order_id will remain in the response.
+                    else:
+                        logger.error(
+                            f"Failed to place trailing stop: {trail_response.errorMessage}"
+                        )
+                except Exception as e:
+                    logger.error(f"Error replacing stop with trailing stop: {e}")
 
             return result
 
@@ -571,6 +605,9 @@ class OrderLifecycleError(Exception):
 
 
 # Convenience function for creating order trackers
+@deprecated(
+    "Use TradingSuite.track_order() instead. This function will be removed in v4.0.0."
+)
 def track_order(
     trading_suite: "TradingSuite",
     order: Union[Order, OrderPlaceResponse, int] | None = None,
@@ -593,6 +630,12 @@ def track_order(
             filled = await tracker.wait_for_fill()
         ```
     """
+    warnings.warn(
+        "track_order() is deprecated, use TradingSuite.track_order() instead. "
+        "This function will be removed in v4.0.0",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     tracker = OrderTracker(trading_suite)
     if order:
         if isinstance(order, Order | OrderPlaceResponse):

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.9 - Stable Production Release
+## Project Status: v3.1.13 - Stable Production Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -162,6 +162,18 @@ uv run python -m build       # Alternative build command
 - Async event handlers with priority support
 - Built-in event types for all trading events
 
+### Available TradingSuite Features
+
+The `Features` enum defines optional components that can be enabled:
+
+- `ORDERBOOK = "orderbook"` - Level 2 market depth and analysis
+- `RISK_MANAGER = "risk_manager"` - Position sizing and risk management
+- `TRADE_JOURNAL = "trade_journal"` - Trade logging (future)
+- `PERFORMANCE_ANALYTICS = "performance_analytics"` - Advanced metrics (future)
+- `AUTO_RECONNECT = "auto_reconnect"` - Automatic reconnection (future)
+
+**Note**: OrderManager and PositionManager are always included by default.
+
 ### Architecture Patterns
 
 **Async Factory Functions**: Use async `create_*` functions for component initialization:
@@ -288,7 +300,20 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.12 - Latest Release
+### v3.1.13 - Latest Release
+- **Fixed**: Event system data structure mismatches causing order fill detection failures
+  - Bracket orders now properly detect fills without 60-second timeouts
+  - Event handlers handle both `order_id` and nested `order` object structures
+  - ManagedTrade correctly listens to ORDER_FILLED instead of ORDER_MODIFIED
+- **Fixed**: Type annotations for SignalR hub connections
+  - Created HubConnection type alias for proper IDE support
+  - market_connection and user_connection now have proper types instead of Any
+- **Improved**: Real-time connection stability with circuit breaker pattern
+- **Improved**: Data storage robustness with thread-safety and performance optimizations
+- **Enhanced**: Test coverage increased from 30% to 93% for client module
+- **Fixed**: Multiple asyncio deprecation warnings
+
+### v3.1.12
 - **Enhanced**: Significantly improved `01_events_with_on.py` real-time data example
   - Added CSV export functionality with interactive prompts
   - Plotly-based candlestick chart generation
@@ -375,7 +400,7 @@ async def main():
     suite = await TradingSuite.create(
         "MNQ",
         timeframes=["1min", "5min"],
-        features=["orderbook", "risk_manager"],
+        features=["orderbook", "risk_manager"],  # Optional features
         initial_days=5
     )
     

@@ -68,6 +68,29 @@ class TestBracketOrderMixin:
             "BAR": {"entry_orders": [], "stop_orders": [], "target_orders": []}
         }
         mixin.stats = {"bracket_orders": 0}
+        # Mock the methods that are called from bracket_orders
+        mixin._wait_for_order_fill = AsyncMock(return_value=True)
+        mixin._link_oco_orders = AsyncMock()
+
+        # Create a side effect that updates position_orders
+        async def mock_track_order(contract_id, order_id, order_type, account_id=None):
+            if contract_id not in mixin.position_orders:
+                mixin.position_orders[contract_id] = {
+                    "entry_orders": [],
+                    "stop_orders": [],
+                    "target_orders": [],
+                }
+            if order_type == "entry":
+                mixin.position_orders[contract_id]["entry_orders"].append(order_id)
+            elif order_type == "stop":
+                mixin.position_orders[contract_id]["stop_orders"].append(order_id)
+            elif order_type == "target":
+                mixin.position_orders[contract_id]["target_orders"].append(order_id)
+
+        mixin.track_order_for_position = AsyncMock(side_effect=mock_track_order)
+        mixin.close_position = AsyncMock()
+        mixin.cancel_order = AsyncMock()
+        mixin.oco_groups = {}
 
         # Entry type = limit
         resp = await mixin.place_bracket_order(

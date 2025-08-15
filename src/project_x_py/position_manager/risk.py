@@ -160,7 +160,7 @@ class RiskManagementMixin:
         )
 
         # Generate risk warnings/recommendations
-        _risk_warnings = self._generate_risk_warnings(
+        _risk_warnings = self._generate_risk_warnings(  # type: ignore[attr-defined]
             positions, portfolio_risk, largest_position_risk
         )
 
@@ -360,7 +360,7 @@ class RiskManagementMixin:
             )
 
             # Generate sizing warnings
-            sizing_warnings = self._generate_sizing_warnings(
+            sizing_warnings = self._generate_sizing_warnings(  # type: ignore[attr-defined]
                 risk_percentage, suggested_size
             )
 

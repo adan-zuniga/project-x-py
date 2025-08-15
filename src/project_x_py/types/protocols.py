@@ -95,6 +95,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 import httpx
 import polars as pl
 
+from project_x_py.types.base import HubConnection
 from project_x_py.types.response_types import (
     PerformanceStatsResponse,
     PortfolioMetricsResponse,
@@ -228,6 +229,7 @@ class OrderManagerProtocol(Protocol):
     order_status_cache: dict[str, int]
     position_orders: dict[str, dict[str, list[int]]]
     order_to_position: dict[int, str]
+    oco_groups: dict[int, int]  # order_id -> other_order_id for OCO pairs
 
     # Methods that mixins need
     async def place_order(
@@ -335,6 +337,19 @@ class OrderManagerProtocol(Protocol):
 
     async def _setup_realtime_callbacks(self) -> None: ...
 
+    # Methods used by bracket orders
+    async def _wait_for_order_fill(
+        self, order_id: int, timeout_seconds: int = 30
+    ) -> bool: ...
+    def _link_oco_orders(self, order1_id: int, order2_id: int) -> None: ...
+    async def close_position(
+        self,
+        contract_id: str,
+        method: str = "market",
+        limit_price: float | None = None,
+        account_id: int | None = None,
+    ) -> "OrderPlaceResponse | None": ...
+
 
 class PositionManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from PositionManager."""
@@ -380,15 +395,6 @@ class PositionManagerProtocol(Protocol):
     async def get_position(
         self, contract_id: str, account_id: int | None = None
     ) -> "Position | None": ...
-    def _generate_risk_warnings(
-        self,
-        positions: list["Position"],
-        portfolio_risk: float,
-        largest_position_risk: float,
-    ) -> list[str]: ...
-    def _generate_sizing_warnings(
-        self, risk_percentage: float, size: int
-    ) -> list[str]: ...
     async def refresh_positions(self, account_id: int | None = None) -> int: ...
     async def close_position_direct(
         self, contract_id: str, account_id: int | None = None
@@ -406,9 +412,7 @@ class PositionManagerProtocol(Protocol):
         self,
         account_id: int | None = None,
     ) -> "PortfolioMetricsResponse": ...
-    async def get_risk_metrics(
-        self, account_id: int | None = None
-    ) -> "RiskAnalysisResponse": ...
+    async def get_risk_metrics(self) -> "RiskAnalysisResponse": ...
     def get_position_statistics(
         self,
     ) -> "PositionManagerStats": ...
@@ -432,7 +436,7 @@ class RealtimeDataManagerProtocol(Protocol):
 
     # Data storage
     data: dict[str, pl.DataFrame]
-    current_tick_data: list[dict[str, Any]]
+    current_tick_data: Any  # Can be list or deque
     last_bar_times: dict[str, datetime.datetime]
 
     # Synchronization
@@ -464,7 +468,7 @@ class RealtimeDataManagerProtocol(Protocol):
     async def _process_tick_data(self, tick: dict[str, Any]) -> None: ...
     async def _update_timeframe_data(
         self, tf_key: str, timestamp: datetime.datetime, price: float, volume: int
-    ) -> None: ...
+    ) -> dict[str, Any] | None: ...
     def _calculate_bar_time(
         self, timestamp: datetime.datetime, interval: int, unit: int
     ) -> datetime.datetime: ...
@@ -490,7 +494,7 @@ class RealtimeDataManagerProtocol(Protocol):
         event_type: str,
         callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None] | None],
     ) -> None: ...
-    def get_memory_stats(self) -> dict[str, Any]: ...
+    def get_memory_stats(self) -> Any: ...  # Returns RealtimeDataManagerStats
     def get_realtime_validation_status(self) -> dict[str, Any]: ...
     async def cleanup(self) -> None: ...
 
@@ -511,8 +515,8 @@ class ProjectXRealtimeClientProtocol(Protocol):
     base_market_url: str
 
     # Connection objects
-    user_connection: Any | None
-    market_connection: Any | None
+    user_connection: HubConnection | None
+    market_connection: HubConnection | None
 
     # Connection state
     user_connected: bool
@@ -529,9 +533,11 @@ class ProjectXRealtimeClientProtocol(Protocol):
     # Logging
     logger: Any
 
-    # Async locks
+    # Async locks and events
     _callback_lock: asyncio.Lock
     _connection_lock: asyncio.Lock
+    user_hub_ready: asyncio.Event
+    market_hub_ready: asyncio.Event
 
     # Event loop
     _loop: asyncio.AbstractEventLoop | None

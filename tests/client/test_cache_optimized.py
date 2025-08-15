@@ -21,7 +21,7 @@ class TestOptimizedCache:
 
     @pytest.mark.asyncio
     async def test_msgpack_serialization(self, mock_project_x):
-        """Test that DataFrames are serialized with msgpack."""
+        """Test that DataFrames are serialized with Arrow IPC format."""
         client = mock_project_x
 
         # Create test data
@@ -38,7 +38,6 @@ class TestOptimizedCache:
 
         # Check that data is stored in optimized cache (not compatibility cache)
         assert "test_key" in client._opt_market_data_cache
-        assert "test_key" in client._opt_market_data_cache_time
 
         # Retrieve and verify data integrity
         cached_data = client.get_cached_market_data("test_key")
@@ -140,7 +139,7 @@ class TestOptimizedCache:
 
         # Verify values
         assert stats["compression_enabled"] is True
-        assert stats["serialization"] == "msgpack"
+        assert stats["serialization"] == "arrow-ipc"
         assert stats["compression"] == "lz4"
         assert stats["instrument_cache_size"] == 1
         assert stats["market_data_cache_size"] == 1

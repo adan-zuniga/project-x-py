@@ -112,10 +112,21 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
+from project_x_py.event_bus import EventType
+
 if TYPE_CHECKING:
     from project_x_py.types import RealtimeDataManagerProtocol
 
 logger = logging.getLogger(__name__)
+
+
+_EVENT_TYPE_MAPPING = {
+    "new_bar": EventType.NEW_BAR,
+    "data_update": EventType.DATA_UPDATE,
+    "quote_update": EventType.QUOTE_UPDATE,
+    "trade_tick": EventType.TRADE_TICK,
+    "market_trade": EventType.TRADE_TICK,
+}
 
 
 class CallbackMixin:
@@ -206,19 +217,8 @@ class CallbackMixin:
             - Exceptions in callbacks are caught and logged, preventing them from
               affecting the data manager's operation
         """
-        # Map old event types to EventType enum
-        from project_x_py.event_bus import EventType
-
-        event_mapping = {
-            "new_bar": EventType.NEW_BAR,
-            "data_update": EventType.DATA_UPDATE,
-            "quote_update": EventType.QUOTE_UPDATE,
-            "trade_tick": EventType.TRADE_TICK,
-            "market_trade": EventType.TRADE_TICK,
-        }
-
-        if event_type in event_mapping:
-            await self.event_bus.on(event_mapping[event_type], callback)
+        if event_type in _EVENT_TYPE_MAPPING:
+            await self.event_bus.on(_EVENT_TYPE_MAPPING[event_type], callback)
         else:
             self.logger.warning(f"Unknown event type: {event_type}")
 
@@ -232,20 +232,9 @@ class CallbackMixin:
             event_type: Type of event to trigger
             data: Data to pass to callbacks
         """
-        from project_x_py.event_bus import EventType
-
-        # Map event types to EventType enum
-        event_mapping = {
-            "new_bar": EventType.NEW_BAR,
-            "data_update": EventType.DATA_UPDATE,
-            "quote_update": EventType.QUOTE_UPDATE,
-            "trade_tick": EventType.TRADE_TICK,
-            "market_trade": EventType.TRADE_TICK,
-        }
-
-        if event_type in event_mapping:
+        if event_type in _EVENT_TYPE_MAPPING:
             await self.event_bus.emit(
-                event_mapping[event_type], data, source="RealtimeDataManager"
+                _EVENT_TYPE_MAPPING[event_type], data, source="RealtimeDataManager"
             )
         else:
             self.logger.warning(f"Unknown event type: {event_type}")

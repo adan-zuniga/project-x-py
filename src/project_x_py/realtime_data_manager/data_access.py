@@ -107,7 +107,8 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 if TYPE_CHECKING:
-    pass
+    from pytz import BaseTzInfo
+
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,7 @@ class DataAccessMixin:
         data: dict[str, pl.DataFrame]
         current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         tick_size: float
+        timezone: "BaseTzInfo"
 
     async def get_data(
         self,
@@ -528,7 +530,7 @@ class DataAccessMixin:
         if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
             # Assume it's in the data's timezone
             # self.timezone is a pytz timezone object, we need its zone string
-            tz_str = "America/Chicago"
+            tz_str = str(self.timezone)
             timestamp = timestamp.replace(tzinfo=ZoneInfo(tz_str))
 
         # Filter bars

@@ -117,14 +117,12 @@ class TestCache:
         # Wait for expiry
         time.sleep(0.2)
 
-        # Force cleanup
-        await client._cleanup_cache()
-
-        # Cache should be empty
-        assert len(client._opt_instrument_cache) == 0
-        assert len(client._opt_instrument_cache_time) == 0
-        assert len(client._opt_market_data_cache) == 0
-        assert len(client._opt_market_data_cache_time) == 0
+        # TTLCache automatically expires items - no manual cleanup needed
+        # Check that items have expired
+        assert client.get_cached_instrument("MGC") is None
+        assert client.get_cached_instrument("MNQ") is None
+        assert client.get_cached_market_data("key1") is None
+        assert client.get_cached_market_data("key2") is None
 
     @pytest.mark.asyncio
     async def test_clear_all_caches(self, mock_project_x, mock_instrument):
@@ -145,9 +143,7 @@ class TestCache:
 
         # Cache should be empty
         assert len(client._opt_instrument_cache) == 0
-        assert len(client._opt_instrument_cache_time) == 0
         assert len(client._opt_market_data_cache) == 0
-        assert len(client._opt_market_data_cache_time) == 0
 
     @pytest.mark.asyncio
     async def test_cache_hit_tracking(self, mock_project_x, mock_instrument):

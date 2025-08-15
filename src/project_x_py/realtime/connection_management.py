@@ -269,7 +269,11 @@ class ConnectionManagementMixin:
                 await self.setup_connections()
 
             # Store the event loop for cross-thread task scheduling
-            self._loop = asyncio.get_event_loop()
+            try:
+                self._loop = asyncio.get_running_loop()
+            except RuntimeError:
+                logger.error("No running event loop found.")
+                return False
 
             logger.debug(LogMessages.WS_CONNECT)
 
@@ -293,8 +297,22 @@ class ConnectionManagementMixin:
                     )
                     return False
 
-                # Wait for connections to establish and stabilize
-                await asyncio.sleep(2.0)  # Increased wait time for connection stability
+                # Wait for connections to establish
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(
+                            self.user_hub_ready.wait(), self.market_hub_ready.wait()
+                        ),
+                        timeout=10.0,
+                    )
+                except TimeoutError:
+                    logger.error(
+                        LogMessages.WS_ERROR,
+                        extra={
+                            "error": "Connection attempt timed out after 10 seconds."
+                        },
+                    )
+                    return False
 
                 if self.user_connected and self.market_connected:
                     self.stats["connected_time"] = datetime.now()
@@ -325,7 +343,7 @@ class ConnectionManagementMixin:
             This is an internal method that bridges sync SignalR with async code.
         """
         # SignalR connections are synchronous, so we run them in executor
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, connection.start)
         logger.debug(LogMessages.WS_CONNECTED, extra={"hub": name})
 
@@ -365,13 +383,12 @@ class ConnectionManagementMixin:
             logger.debug(LogMessages.WS_DISCONNECT)
 
             async with self._connection_lock:
+                loop = asyncio.get_running_loop()
                 if self.user_connection:
-                    loop = asyncio.get_event_loop()
                     await loop.run_in_executor(None, self.user_connection.stop)
                     self.user_connected = False
 
                 if self.market_connection:
-                    loop = asyncio.get_event_loop()
                     await loop.run_in_executor(None, self.market_connection.stop)
                     self.market_connected = False
 
@@ -390,6 +407,7 @@ class ConnectionManagementMixin:
             - Logs connection success
         """
         self.user_connected = True
+        self.user_hub_ready.set()
         self.logger.info("✅ User hub connected")
 
     def _on_user_hub_close(self: "ProjectXRealtimeClientProtocol") -> None:
@@ -407,6 +425,7 @@ class ConnectionManagementMixin:
             Automatic reconnection will attempt based on configuration.
         """
         self.user_connected = False
+        self.user_hub_ready.clear()
         self.logger.warning("❌ User hub disconnected")
 
     def _on_market_hub_open(self: "ProjectXRealtimeClientProtocol") -> None:
@@ -421,6 +440,7 @@ class ConnectionManagementMixin:
             - Logs connection success
         """
         self.market_connected = True
+        self.market_hub_ready.set()
         self.logger.info("✅ Market hub connected")
 
     def _on_market_hub_close(self: "ProjectXRealtimeClientProtocol") -> None:
@@ -438,6 +458,7 @@ class ConnectionManagementMixin:
             Automatic reconnection will attempt based on configuration.
         """
         self.market_connected = False
+        self.market_hub_ready.clear()
         self.logger.warning("❌ Market hub disconnected")
 
     def _on_connection_error(

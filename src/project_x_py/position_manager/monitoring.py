@@ -67,16 +67,27 @@ class PositionMonitoringMixin:
 
     # Type hints for mypy - these attributes are provided by the main class
     if TYPE_CHECKING:
+        from project_x_py.client import ProjectXBase
+        from project_x_py.types.protocols import RealtimeDataManagerProtocol
+
         position_lock: Lock
         logger: logging.Logger
         stats: dict[str, Any]
         _realtime_enabled: bool
+        project_x: "ProjectXBase"
+        data_manager: "RealtimeDataManagerProtocol | None"
 
         # Methods from other mixins/main class
         async def _trigger_callbacks(
             self, event_type: str, data: dict[str, Any]
         ) -> None: ...
         async def refresh_positions(self, account_id: int | None = None) -> bool: ...
+        async def calculate_position_pnl(
+            self,
+            position: Position,
+            current_price: float | None = None,
+            point_value: float | None = None,
+        ) -> Any: ...
 
     def __init__(self) -> None:
         """Initialize monitoring attributes."""
@@ -171,16 +182,50 @@ class PositionMonitoringMixin:
             separately. Currently only size change detection is implemented.
         """
         alert = self.position_alerts.get(contract_id)
-        if not alert or alert["triggered"]:
+        if not alert or alert.get("triggered"):
             return
 
-        # Note: P&L-based alerts require current market prices
-        # For now, only check position size changes
         alert_triggered = False
         alert_message = ""
 
+        # P&L-based alerts
+        if self.data_manager and (
+            alert.get("max_loss") is not None or alert.get("max_gain") is not None
+        ):
+            try:
+                current_price = await self.data_manager.get_current_price()
+                if current_price is not None:
+                    instrument = await self.project_x.get_instrument(contract_id)
+                    point_value = getattr(instrument, "contractMultiplier", 1.0)
+
+                    pnl_data = await self.calculate_position_pnl(
+                        current_position, current_price, point_value
+                    )
+                    pnl = pnl_data["unrealized_pnl"]
+
+                    if alert.get("max_loss") is not None and pnl <= alert["max_loss"]:
+                        alert_triggered = True
+                        alert_message = f"Position {contract_id} breached max loss of {alert['max_loss']}. Current P&L: {pnl:.2f}"
+
+                    if (
+                        not alert_triggered
+                        and alert.get("max_gain") is not None
+                        and pnl >= alert["max_gain"]
+                    ):
+                        alert_triggered = True
+                        alert_message = f"Position {contract_id} reached max gain of {alert['max_gain']}. Current P&L: {pnl:.2f}"
+
+            except Exception as e:
+                self.logger.warning(
+                    f"Could not check P&L alert for {contract_id} due to error: {e}"
+                )
+
         # Check for position size changes as a basic alert
-        if old_position and current_position.size != old_position.size:
+        if (
+            not alert_triggered
+            and old_position
+            and current_position.size != old_position.size
+        ):
             size_change = current_position.size - old_position.size
             alert_triggered = True
             alert_message = (

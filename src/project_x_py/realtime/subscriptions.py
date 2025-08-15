@@ -138,6 +138,15 @@ class SubscriptionsMixin:
                 )
                 return False
 
+            try:
+                await asyncio.wait_for(self.user_hub_ready.wait(), timeout=5.0)
+            except TimeoutError:
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "User hub not ready for subscriptions after 5s"},
+                )
+                return False
+
             logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"channel": "user_updates", "account_id": self.account_id},
@@ -149,30 +158,8 @@ class SubscriptionsMixin:
                 )
                 return False
 
-            # Wait for transport to be ready
-            max_wait = 5.0  # Maximum 5 seconds
-            wait_interval = 0.1
-            waited = 0.0
-
-            while waited < max_wait:
-                if (
-                    hasattr(self.user_connection, "transport")
-                    and self.user_connection.transport
-                    and hasattr(self.user_connection.transport, "is_running")
-                    and self.user_connection.transport.is_running()
-                ):
-                    break
-                await asyncio.sleep(wait_interval)
-                waited += wait_interval
-            else:
-                logger.error(
-                    LogMessages.WS_ERROR,
-                    extra={"error": "User hub transport not ready after waiting"},
-                )
-                return False
-
             # ProjectX Gateway expects Subscribe method with account ID
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             # Subscribe to account updates
             await loop.run_in_executor(
@@ -279,6 +266,15 @@ class SubscriptionsMixin:
                 )
                 return False
 
+            try:
+                await asyncio.wait_for(self.market_hub_ready.wait(), timeout=5.0)
+            except TimeoutError:
+                logger.error(
+                    LogMessages.WS_ERROR,
+                    extra={"error": "Market hub not ready for subscriptions after 5s"},
+                )
+                return False
+
             logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"channel": "market_data", "count": len(contract_ids)},
@@ -290,39 +286,13 @@ class SubscriptionsMixin:
                     self._subscribed_contracts.append(contract_id)
 
             # Subscribe using ProjectX Gateway methods (same as sync client)
-            loop = asyncio.get_event_loop()
-
-            # Add a small delay to ensure the connection is fully established
-            await asyncio.sleep(0.5)
+            loop = asyncio.get_running_loop()
 
             for contract_id in contract_ids:
-                # Subscribe to quotes
                 if self.market_connection is None:
                     logger.error(
                         LogMessages.WS_ERROR,
                         extra={"error": "Market connection not available"},
-                    )
-                    return False
-
-                # Wait for transport to be ready
-                max_wait = 5.0  # Maximum 5 seconds
-                wait_interval = 0.1
-                waited = 0.0
-
-                while waited < max_wait:
-                    if (
-                        hasattr(self.market_connection, "transport")
-                        and self.market_connection.transport
-                        and hasattr(self.market_connection.transport, "is_running")
-                        and self.market_connection.transport.is_running()
-                    ):
-                        break
-                    await asyncio.sleep(wait_interval)
-                    waited += wait_interval
-                else:
-                    logger.error(
-                        LogMessages.WS_ERROR,
-                        extra={"error": "Market hub transport not ready after waiting"},
                     )
                     return False
 
@@ -333,29 +303,12 @@ class SubscriptionsMixin:
                         "SubscribeContractQuotes",
                         [contract_id],
                     )
-                except Exception as e:
-                    logger.error(
-                        LogMessages.WS_ERROR,
-                        extra={"error": f"Failed to subscribe to quotes: {e!s}"},
-                    )
-                    return False
-                # Subscribe to trades
-                try:
                     await loop.run_in_executor(
                         None,
                         self.market_connection.send,
                         "SubscribeContractTrades",
                         [contract_id],
                     )
-                except Exception as e:
-                    logger.error(
-                        LogMessages.WS_ERROR,
-                        extra={"error": f"Failed to subscribe to trades: {e!s}"},
-                    )
-                    return False
-
-                # Subscribe to market depth
-                try:
                     await loop.run_in_executor(
                         None,
                         self.market_connection.send,
@@ -365,7 +318,7 @@ class SubscriptionsMixin:
                 except Exception as e:
                     logger.error(
                         LogMessages.WS_ERROR,
-                        extra={"error": f"Failed to subscribe to market depth: {e!s}"},
+                        extra={"error": f"Failed to subscribe to {contract_id}: {e!s}"},
                     )
                     return False
 
@@ -426,41 +379,27 @@ class SubscriptionsMixin:
             logger.debug(
                 LogMessages.DATA_UNSUBSCRIBE, extra={"channel": "user_updates"}
             )
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
+            account_id_arg = [int(self.account_id)]
 
             # Unsubscribe from account updates
             await loop.run_in_executor(
-                None,
-                self.user_connection.send,
-                "UnsubscribeAccounts",
-                self.account_id,
+                None, self.user_connection.send, "UnsubscribeAccounts", account_id_arg
             )
 
             # Unsubscribe from order updates
-
             await loop.run_in_executor(
-                None,
-                self.user_connection.send,
-                "UnsubscribeOrders",
-                [self.account_id],
+                None, self.user_connection.send, "UnsubscribeOrders", account_id_arg
             )
 
             # Unsubscribe from position updates
-
             await loop.run_in_executor(
-                None,
-                self.user_connection.send,
-                "UnsubscribePositions",
-                self.account_id,
+                None, self.user_connection.send, "UnsubscribePositions", account_id_arg
             )
 
             # Unsubscribe from trade updates
-
             await loop.run_in_executor(
-                None,
-                self.user_connection.send,
-                "UnsubscribeTrades",
-                self.account_id,
+                None, self.user_connection.send, "UnsubscribeTrades", account_id_arg
             )
 
             logger.debug(
@@ -532,7 +471,7 @@ class SubscriptionsMixin:
                     self._subscribed_contracts.remove(contract_id)
 
             # ProjectX Gateway expects Unsubscribe method
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             if self.market_connection is None:
                 logger.error(
                     LogMessages.WS_ERROR,
@@ -545,7 +484,7 @@ class SubscriptionsMixin:
                 None,
                 self.market_connection.send,
                 "UnsubscribeContractQuotes",
-                [contract_ids],
+                contract_ids,
             )
 
             # Unsubscribe from trades
@@ -553,7 +492,7 @@ class SubscriptionsMixin:
                 None,
                 self.market_connection.send,
                 "UnsubscribeContractTrades",
-                [contract_ids],
+                contract_ids,
             )
 
             # Unsubscribe from market depth
@@ -561,7 +500,7 @@ class SubscriptionsMixin:
                 None,
                 self.market_connection.send,
                 "UnsubscribeContractMarketDepth",
-                [contract_ids],
+                contract_ids,
             )
 
             logger.debug(

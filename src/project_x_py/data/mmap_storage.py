@@ -5,14 +5,19 @@ This module provides memory-mapped file storage for large datasets,
 allowing efficient access to data without loading everything into RAM.
 """
 
+import logging
 import mmap
 import pickle
+import tempfile
+import threading
 from io import BufferedRandom, BufferedReader
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import polars as pl
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryMappedStorage:
@@ -41,13 +46,8 @@ class MemoryMappedStorage:
         self.mmap: mmap.mmap | None = None
         self._metadata: dict[str, Any] = {}
         self._file_size = 1024 * 1024 * 10  # Start with 10MB
-
-        # Create file if it doesn't exist (unless read-only)
-        if not self.filename.exists() and "+" in mode:
-            self.filename.parent.mkdir(parents=True, exist_ok=True)
-            # Pre-allocate file with initial size
-            with open(self.filename, "wb") as f:
-                f.write(b"\x00" * self._file_size)
+        self._data_file_size = 0
+        self._lock = threading.RLock()
 
     def __enter__(self) -> "MemoryMappedStorage":
         """Context manager entry."""
@@ -60,13 +60,26 @@ class MemoryMappedStorage:
 
     def open(self) -> None:
         """Open the memory-mapped file."""
-        if self.fp is None:
-            self.fp = open(self.filename, self.mode)  # type: ignore  # noqa: SIM115
+        with self._lock:
+            if self.fp is not None:
+                return
 
-        if self.fp is not None:
+            # Create file if it doesn't exist (unless read-only)
+            if not self.filename.exists() and ("+" in self.mode or "w" in self.mode):
+                self.filename.parent.mkdir(parents=True, exist_ok=True)
+                # Pre-allocate file with initial size
+                with open(self.filename, "wb") as f:
+                    f.write(b"\x00" * self._file_size)
+
+            self.fp = open(self.filename, self.mode)  # type: ignore # noqa: SIM115
+
+            if self.fp is None:
+                raise ValueError("File pointer is None")
+
             # Get file size
             self.fp.seek(0, 2)  # Seek to end
             size = self.fp.tell()
+            self._data_file_size = size
 
             if size == 0 and ("+" in self.mode or "w" in self.mode):
                 # Initialize empty file with default size
@@ -74,43 +87,47 @@ class MemoryMappedStorage:
                 self.fp.flush()
                 self.fp.seek(0)
                 size = self._file_size
+                self._data_file_size = size
 
             if size > 0:
                 # Use ACCESS_READ for read-only mode
-                if "r" in self.mode and "+" not in self.mode:
-                    self.mmap = mmap.mmap(self.fp.fileno(), 0, access=mmap.ACCESS_READ)
-                else:
-                    self.mmap = mmap.mmap(self.fp.fileno(), 0)
+                access = (
+                    mmap.ACCESS_READ
+                    if "r" in self.mode and "+" not in self.mode
+                    else mmap.ACCESS_DEFAULT
+                )
+                if self.fp:
+                    self.mmap = mmap.mmap(self.fp.fileno(), 0, access=access)
 
     def close(self) -> None:
         """Close the memory-mapped file."""
-        if self.mmap:
-            self.mmap.close()
-            self.mmap = None
-        if self.fp:
-            self.fp.close()
-            self.fp = None
+        with self._lock:
+            if self.mmap:
+                self.mmap.close()
+                self.mmap = None
+            if self.fp:
+                self.fp.close()
+                self.fp = None
 
     def _resize_file(self, new_size: int) -> None:
         """Resize the file and recreate mmap (for macOS compatibility)."""
-        # Close existing mmap
+        # This method should be called within a lock
         if self.mmap:
             self.mmap.close()
 
         if self.fp is None:
             raise ValueError("File pointer is None")
 
-        # Resize the file
-        self.fp.seek(0, 2)  # Go to end
-        current_size = self.fp.tell()
+        self.fp.truncate(new_size)
+        self.fp.flush()
 
-        if new_size > current_size:
-            # Extend the file
-            self.fp.write(b"\\x00" * (new_size - current_size))
-            self.fp.flush()
-
-        # Recreate mmap with new size
-        self.mmap = mmap.mmap(self.fp.fileno(), 0)
+        access = (
+            mmap.ACCESS_READ
+            if "r" in self.mode and "+" not in self.mode
+            else mmap.ACCESS_DEFAULT
+        )
+        self.mmap = mmap.mmap(self.fp.fileno(), 0, access=access)
+        self._data_file_size = new_size
 
     def write_array(self, data: np.ndarray, offset: int = 0) -> int:
         """
@@ -123,36 +140,36 @@ class MemoryMappedStorage:
         Returns:
             Number of bytes written
         """
-        if not self.mmap:
-            self.open()
+        with self._lock:
+            if not self.mmap:
+                self.open()
 
-        # Serialize array metadata
-        metadata = {"dtype": str(data.dtype), "shape": data.shape, "offset": offset}
+            if not self.mmap:
+                raise OSError("Memory map not available")
 
-        # Convert to bytes
-        data_bytes = data.tobytes()
-        metadata_bytes = pickle.dumps(metadata)
+            # Serialize array metadata
+            metadata = {"dtype": str(data.dtype), "shape": data.shape, "offset": offset}
 
-        # Write metadata size (4 bytes), metadata, then data
-        size_bytes = len(metadata_bytes).to_bytes(4, "little")
+            # Convert to bytes
+            data_bytes = data.tobytes()
+            metadata_bytes = pickle.dumps(metadata)
 
-        # Check if we need more space
-        total_size = offset + 4 + len(metadata_bytes) + len(data_bytes)
-        if self.mmap and total_size > len(self.mmap):
-            # On macOS, we can't resize mmap, so we need to recreate it
-            self._resize_file(total_size)
-        elif not self.mmap:
-            self.open()
-            if self.mmap and total_size > len(self.mmap):
+            # Write metadata size (4 bytes), metadata, then data
+            size_bytes = len(metadata_bytes).to_bytes(4, "little")
+
+            # Check if we need more space
+            total_size = offset + 4 + len(metadata_bytes) + len(data_bytes)
+            if total_size > self._data_file_size:
+                # On macOS, we can't resize mmap, so we need to recreate it
                 self._resize_file(total_size)
 
-        # Write to mmap
-        if self.mmap:
+            # Write to mmap
             self.mmap[offset : offset + 4] = size_bytes
             self.mmap[offset + 4 : offset + 4 + len(metadata_bytes)] = metadata_bytes
             self.mmap[offset + 4 + len(metadata_bytes) : total_size] = data_bytes
             self.mmap.flush()
-        return total_size - offset
+
+            return total_size - offset
 
     def read_array(self, offset: int = 0) -> np.ndarray | None:
         """
@@ -164,37 +181,65 @@ class MemoryMappedStorage:
         Returns:
             NumPy array or None if not found
         """
-        if not self.mmap:
-            self.open()
+        with self._lock:
+            if not self.mmap:
+                self.open()
 
-        if not self.mmap:
-            return None
+            if not self.mmap:
+                return None
 
-        try:
-            # Read metadata size
-            size_bytes = self.mmap[offset : offset + 4]
-            metadata_size = int.from_bytes(size_bytes, "little")
+            try:
+                # Read metadata size
+                size_bytes = self.mmap[offset : offset + 4]
+                metadata_size = int.from_bytes(size_bytes, "little")
 
-            # Read metadata
-            metadata_bytes = self.mmap[offset + 4 : offset + 4 + metadata_size]
-            metadata = pickle.loads(metadata_bytes)
+                # Read metadata
+                metadata_bytes = self.mmap[offset + 4 : offset + 4 + metadata_size]
+                metadata = pickle.loads(metadata_bytes)
 
-            # Calculate data size
-            dtype = np.dtype(metadata["dtype"])
-            shape = metadata["shape"]
-            data_size = dtype.itemsize * np.prod(shape)
+                # Calculate data size
+                dtype = np.dtype(metadata["dtype"])
+                shape = metadata["shape"]
+                data_size = dtype.itemsize * np.prod(shape)
 
-            # Read data
-            data_start = offset + 4 + metadata_size
-            data_bytes = self.mmap[data_start : data_start + data_size]
+                # Read data
+                data_start = offset + 4 + metadata_size
+                data_bytes = self.mmap[data_start : data_start + data_size]
 
-            # Convert to array
-            array = np.frombuffer(data_bytes, dtype=dtype).reshape(shape)
-            return array.copy()  # Return copy to avoid mmap issues
+                # Convert to array
+                array = np.frombuffer(data_bytes, dtype=dtype).reshape(shape)
+                return array.copy()  # Return copy to avoid mmap issues
 
-        except Exception as e:
-            print(f"Error reading array: {e}")
-            return None
+            except Exception:
+                logger.exception("Error reading array at offset %d", offset)
+                return None
+
+    def _load_metadata(self) -> None:
+        # should be called within a lock
+        if not self._metadata:
+            metadata_file = self.filename.with_suffix(".meta")
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, "rb") as f:
+                        self._metadata = pickle.load(f)
+                except (pickle.UnpicklingError, EOFError):
+                    logger.exception(
+                        "Could not load metadata from %s, file might be corrupt.",
+                        metadata_file,
+                    )
+                    self._metadata = {}
+
+    def _save_metadata(self) -> None:
+        # should be called within a lock
+        metadata_file = self.filename.with_suffix(".meta")
+        # Safe save: write to temp file then rename
+        with tempfile.NamedTemporaryFile(
+            "wb", delete=False, dir=metadata_file.parent
+        ) as tmp_f:
+            pickle.dump(self._metadata, tmp_f)
+            tmp_path = Path(tmp_f.name)
+
+        tmp_path.rename(metadata_file)
 
     def write_dataframe(self, df: pl.DataFrame, key: str = "default") -> bool:
         """
@@ -207,48 +252,48 @@ class MemoryMappedStorage:
         Returns:
             Success status
         """
-        try:
-            # Load existing metadata if present
-            metadata_file = self.filename.with_suffix(".meta")
-            if metadata_file.exists():
-                with open(metadata_file, "rb") as f:
-                    self._metadata = pickle.load(f)
+        with self._lock:
+            try:
+                if not self.mmap:
+                    self.open()
 
-            # Calculate starting offset (after existing data)
-            offset = 0
-            for existing_key, existing_data in self._metadata.items():
-                if existing_key != key and "columns" in existing_data:
-                    for col_info in existing_data["columns"].values():
-                        offset = max(offset, col_info["offset"] + col_info["size"])
+                # Load existing metadata if present
+                self._load_metadata()
 
-            # Convert DataFrame to dict format
-            data: dict[str, Any] = {
-                "schema": {name: str(dtype) for name, dtype in df.schema.items()},
-                "columns": {},
-                "shape": df.shape,
-                "key": key,
-            }
+                # Calculate starting offset (after existing data)
+                offset = self._data_file_size
 
-            # Store each column as NumPy array
-            for col_name in df.columns:
-                col_data = df[col_name].to_numpy()
-                bytes_written = self.write_array(col_data, offset)
-                data["columns"][col_name] = {"offset": offset, "size": bytes_written}
-                offset += bytes_written
+                # Convert DataFrame to dict format
+                data: dict[str, Any] = {
+                    "schema": {name: str(dtype) for name, dtype in df.schema.items()},
+                    "columns": {},
+                    "shape": df.shape,
+                    "key": key,
+                }
 
-            # Store metadata
-            self._metadata[key] = data
+                # Store each column as NumPy array
+                col_offset = offset
+                for col_name in df.columns:
+                    col_data = df[col_name].to_numpy()
+                    bytes_written = self.write_array(col_data, col_offset)
+                    data["columns"][col_name] = {
+                        "offset": col_offset,
+                        "size": bytes_written,
+                    }
+                    col_offset += bytes_written
 
-            # Write metadata to a separate file
-            metadata_file = self.filename.with_suffix(".meta")
-            with open(metadata_file, "wb") as f:
-                pickle.dump(self._metadata, f)
+                # Store metadata
+                self._metadata[key] = data
+                self._save_metadata()
 
-            return True
+                # Update data file size tracker
+                self._data_file_size = col_offset
 
-        except Exception as e:
-            print(f"Error writing DataFrame: {e}")
-            return False
+                return True
+
+            except Exception:
+                logger.exception("Error writing DataFrame with key '%s'", key)
+                return False
 
     def read_dataframe(self, key: str = "default") -> pl.DataFrame | None:
         """
@@ -260,32 +305,29 @@ class MemoryMappedStorage:
         Returns:
             Polars DataFrame or None if not found
         """
-        try:
-            # Load metadata if not already loaded
-            if not self._metadata:
-                metadata_file = self.filename.with_suffix(".meta")
-                if metadata_file.exists():
-                    with open(metadata_file, "rb") as f:
-                        self._metadata = pickle.load(f)
+        with self._lock:
+            try:
+                # Load metadata if not already loaded
+                self._load_metadata()
 
-            if key not in self._metadata:
+                if key not in self._metadata:
+                    return None
+
+                metadata = self._metadata[key]
+
+                # Read each column
+                columns = {}
+                for col_name, col_info in metadata["columns"].items():
+                    array = self.read_array(col_info["offset"])
+                    if array is not None:
+                        columns[col_name] = array
+
+                # Reconstruct DataFrame
+                return pl.DataFrame(columns)
+
+            except Exception:
+                logger.exception("Error reading DataFrame with key '%s'", key)
                 return None
-
-            metadata = self._metadata[key]
-
-            # Read each column
-            columns = {}
-            for col_name, col_info in metadata["columns"].items():
-                array = self.read_array(col_info["offset"])
-                if array is not None:
-                    columns[col_name] = array
-
-            # Reconstruct DataFrame
-            return pl.DataFrame(columns)
-
-        except Exception as e:
-            print(f"Error reading DataFrame: {e}")
-            return None
 
     def get_info(self) -> dict[str, Any]:
         """
@@ -294,17 +336,21 @@ class MemoryMappedStorage:
         Returns:
             Dictionary with storage information
         """
-        info = {
-            "filename": str(self.filename),
-            "exists": self.filename.exists(),
-            "size_mb": 0,
-            "keys": list(self._metadata.keys()) if self._metadata else [],
-        }
+        with self._lock:
+            # Load metadata if not already loaded
+            self._load_metadata()
 
-        if self.filename.exists():
-            info["size_mb"] = self.filename.stat().st_size / (1024 * 1024)
+            info = {
+                "filename": str(self.filename),
+                "exists": self.filename.exists(),
+                "size_mb": 0,
+                "keys": list(self._metadata.keys()),
+            }
 
-        return info
+            if self.filename.exists():
+                info["size_mb"] = self.filename.stat().st_size / (1024 * 1024)
+
+            return info
 
 
 class TimeSeriesStorage(MemoryMappedStorage):
@@ -327,9 +373,15 @@ class TimeSeriesStorage(MemoryMappedStorage):
         """
         super().__init__(filename, "r+b")
         self.columns = columns
-        self.dtype = dtype
+        self.dtype = np.dtype(dtype)
+        self.row_size = (len(self.columns) + 1) * self.dtype.itemsize
         self.current_size = 0
-        self.chunk_size = 10000  # Records per chunk
+
+        # Determine current size from existing file
+        if self.filename.exists():
+            self.open()  # open() is idempotent and thread-safe
+            if self._data_file_size > 0 and self.row_size > 0:
+                self.current_size = self._data_file_size // self.row_size
 
     def append_data(self, timestamp: float, values: dict[str, float]) -> bool:
         """
@@ -342,42 +394,53 @@ class TimeSeriesStorage(MemoryMappedStorage):
         Returns:
             Success status
         """
-        try:
-            if not self.mmap:
-                self.open()
+        with self._lock:
+            try:
+                if not self.mmap:
+                    self.open()
 
-            # Create row array
-            row: np.ndarray = np.zeros(len(self.columns) + 1, dtype=self.dtype)
-            row[0] = timestamp
+                if not self.mmap:
+                    raise OSError("Memory map not available")
 
-            for i, col in enumerate(self.columns):
-                if col in values:
-                    row[i + 1] = values[col]
+                # Create row array
+                row: np.ndarray = np.zeros(len(self.columns) + 1, dtype=self.dtype)
+                row[0] = timestamp
 
-            # Calculate offset
-            offset = self.current_size * row.nbytes
+                for i, col in enumerate(self.columns):
+                    if col in values:
+                        row[i + 1] = values[col]
 
-            # Check if we need more space
-            if self.mmap and offset + row.nbytes > len(self.mmap):
-                new_size = max(offset + row.nbytes, len(self.mmap) * 2)
-                self._resize_file(new_size)
-            elif not self.mmap:
-                self.open()
-                if self.mmap and offset + row.nbytes > len(self.mmap):
-                    new_size = max(offset + row.nbytes, len(self.mmap) * 2)
+                # Calculate offset
+                offset = self.current_size * self.row_size
+
+                # Check if we need more space
+                if offset + self.row_size > self._data_file_size:
+                    new_size = max(offset + self.row_size, self._data_file_size * 2)
                     self._resize_file(new_size)
 
-            # Write row directly to mmap
-            if self.mmap:
-                self.mmap[offset : offset + row.nbytes] = row.tobytes()
-                self.mmap.flush()
-            self.current_size += 1
+                # Write row directly to mmap
+                if self.mmap:
+                    self.mmap[offset : offset + self.row_size] = row.tobytes()
+                    self.mmap.flush()
+                self.current_size += 1
 
-            return True
+                return True
 
-        except Exception as e:
-            print(f"Error appending data: {e}")
-            return False
+            except Exception:
+                logger.exception("Error appending data")
+                return False
+
+    def _get_row(self, index: int) -> np.ndarray | None:
+        """Reads a single row by index."""
+        if not self.mmap or index < 0 or index >= self.current_size:
+            return None
+
+        offset = index * self.row_size
+        if offset + self.row_size > len(self.mmap):
+            return None
+
+        row_bytes = self.mmap[offset : offset + self.row_size]
+        return np.frombuffer(row_bytes, dtype=self.dtype, count=len(self.columns) + 1)
 
     def read_window(self, start_time: float, end_time: float) -> pl.DataFrame | None:
         """
@@ -390,42 +453,55 @@ class TimeSeriesStorage(MemoryMappedStorage):
         Returns:
             DataFrame with data in the window
         """
-        try:
-            # Read all data directly from mmap (don't use read_array which expects pickle)
-            if not self.mmap:
-                self.open()
+        with self._lock:
+            try:
+                if not self.mmap:
+                    self.open()
 
-            if not self.mmap:
+                if not self.mmap or self.current_size == 0:
+                    return None
+
+                # Binary search to find the first row >= start_time
+                low, high = 0, self.current_size - 1
+                start_index = self.current_size
+
+                while low <= high:
+                    mid = (low + high) // 2
+                    row = self._get_row(mid)
+                    if row is not None and row[0] >= start_time:
+                        start_index = mid
+                        high = mid - 1
+                    elif row is not None:
+                        low = mid + 1
+                    else:  # Should not happen in this loop
+                        break
+
+                if start_index >= self.current_size:
+                    return None  # No data in the window
+
+                # Read data sequentially from start_index
+                all_data = []
+                for i in range(start_index, self.current_size):
+                    row = self._get_row(i)
+                    if row is not None:
+                        if row[0] > end_time:
+                            break
+                        all_data.append(row)
+
+                if not all_data:
+                    return None
+
+                # Convert to DataFrame
+                data_array = np.vstack(all_data)
+                df_dict = {"timestamp": data_array[:, 0]}
+
+                for i, col in enumerate(self.columns):
+                    df_dict[col] = data_array[:, i + 1]
+
+                return pl.DataFrame(df_dict)
+
+            except Exception:
+                logger.exception(
+                    "Error reading window from %f to %f", start_time, end_time
+                )
                 return None
-
-            all_data = []
-            row_size = (len(self.columns) + 1) * np.dtype(self.dtype).itemsize
-
-            for i in range(self.current_size):
-                offset = i * row_size
-
-                # Read raw bytes and convert to array
-                if self.mmap and offset + row_size <= len(self.mmap):
-                    row_bytes = self.mmap[offset : offset + row_size]
-                    row: np.ndarray = np.frombuffer(
-                        row_bytes, dtype=self.dtype, count=len(self.columns) + 1
-                    )
-
-                if row is not None and start_time <= row[0] <= end_time:
-                    all_data.append(row)
-
-            if not all_data:
-                return None
-
-            # Convert to DataFrame
-            data_array = np.vstack(all_data)
-            df_dict = {"timestamp": data_array[:, 0]}
-
-            for i, col in enumerate(self.columns):
-                df_dict[col] = data_array[:, i + 1]
-
-            return pl.DataFrame(df_dict)
-
-        except Exception as e:
-            print(f"Error reading window: {e}")
-            return None

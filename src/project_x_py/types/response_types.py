@@ -93,13 +93,8 @@ class PerformanceStatsResponse(TypedDict):
     cache_hits: int
     cache_misses: int
     cache_hit_ratio: float
-    avg_response_time_ms: float
     total_requests: int
-    failed_requests: int
-    success_rate: float
     active_connections: int
-    memory_usage_mb: float
-    uptime_seconds: int
 
 
 # Risk and Analytics Response Types

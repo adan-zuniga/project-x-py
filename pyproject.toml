@@ -1,6 +1,6 @@
 [project]
 name = "project-x-py"
-version = "3.1.12"
+version = "3.1.13"
 description = "High-performance Python SDK for futures trading with real-time WebSocket data, technical indicators, order management, and market depth analysis"
 readme = "README.md"
 license = { text = "MIT" }
@@ -47,6 +47,7 @@ dependencies = [
     "lz4>=4.4.4",
     "cachetools>=6.1.0",
     "plotly>=6.3.0",
+    "deprecated>=1.2.18",
 ]
 
 [project.optional-dependencies]
@@ -296,6 +297,7 @@ dev = [
     "types-pytz>=2025.2.0.20250516",
     "types-pyyaml>=6.0.12.20250516",
     "psutil>=7.0.0",
+    "pyjwt>=2.10.1",
 ]
 test = [
     "pytest>=8.4.1",

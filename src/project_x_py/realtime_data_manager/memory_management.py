@@ -166,7 +166,7 @@ class MemoryManagementMixin:
                     # Keep only the most recent bars (sliding window)
                     if initial_count > self.max_bars_per_timeframe:
                         self.data[tf_key] = self.data[tf_key].tail(
-                            self.max_bars_per_timeframe // 2
+                            self.max_bars_per_timeframe
                         )
 
                     total_bars_after += len(self.data[tf_key])

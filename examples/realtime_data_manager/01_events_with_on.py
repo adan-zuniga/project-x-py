@@ -239,7 +239,7 @@ async def main():
             return
 
         try:
-            last_bars = await suite.data.get_data(timeframe=TIMEFRAME, bars=5)
+            last_bars = await suite.data.get_data(timeframe=TIMEFRAME, bars=6)
         except Exception as e:
             print(f"Error getting data: {e}")
             return

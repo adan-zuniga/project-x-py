@@ -80,9 +80,16 @@ from project_x_py.position_manager.analytics import PositionAnalyticsMixin
 from project_x_py.position_manager.monitoring import PositionMonitoringMixin
 from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
-from project_x_py.position_manager.risk import RiskManagementMixin
+
+# from project_x_py.position_manager.risk import RiskManagementMixin # DEPRECATED
 from project_x_py.position_manager.tracking import PositionTrackingMixin
+from project_x_py.risk_manager import RiskManager
 from project_x_py.types.config_types import PositionManagerConfig
+from project_x_py.types.protocols import RealtimeDataManagerProtocol
+from project_x_py.types.response_types import (
+    PositionSizingResponse,
+    RiskAnalysisResponse,
+)
 from project_x_py.utils import (
     LogMessages,
     ProjectXLogger,
@@ -98,7 +105,7 @@ if TYPE_CHECKING:
 class PositionManager(
     PositionTrackingMixin,
     PositionAnalyticsMixin,
-    RiskManagementMixin,
+    # RiskManagementMixin,
     PositionMonitoringMixin,
     PositionOperationsMixin,
     PositionReportingMixin,
@@ -170,6 +177,8 @@ class PositionManager(
         self,
         project_x_client: "ProjectXBase",
         event_bus: Any,
+        risk_manager: Optional["RiskManager"] = None,
+        data_manager: Optional["RealtimeDataManagerProtocol"] = None,
         config: PositionManagerConfig | None = None,
     ):
         """
@@ -183,6 +192,9 @@ class PositionManager(
                 used for all API operations. Must be properly authenticated before use.
             event_bus: EventBus instance for unified event handling. Required for all
                 event emissions including position updates, P&L changes, and risk alerts.
+            risk_manager: Optional risk manager instance. If provided, enables advanced
+                risk management features and position sizing calculations.
+            data_manager: Optional data manager for market data and P&L alerts.
             config: Optional configuration for position management behavior. If not provided,
                 default values will be used for all configuration options.
 
@@ -216,6 +228,8 @@ class PositionManager(
 
         self.project_x = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
+        self.risk_manager = risk_manager
+        self.data_manager = data_manager
         self.logger = ProjectXLogger.get_logger(__name__)
 
         # Store configuration with defaults
@@ -237,10 +251,14 @@ class PositionManager(
         self.stats = {
             "open_positions": 0,
             "closed_positions": 0,
+            "winning_positions": 0,
+            "losing_positions": 0,
             "total_positions": 0,
             "total_pnl": 0.0,
             "realized_pnl": 0.0,
             "unrealized_pnl": 0.0,
+            "gross_profit": 0.0,
+            "gross_loss": 0.0,
             "best_position_pnl": 0.0,
             "worst_position_pnl": 0.0,
             "avg_position_size": 0.0,
@@ -564,6 +582,41 @@ class PositionManager(
         """
         position = await self.get_position(contract_id, account_id)
         return position is not None and position.size != 0
+
+    # ================================================================================
+    # RISK MANAGEMENT DELEGATION
+    # ================================================================================
+
+    async def get_risk_metrics(self) -> "RiskAnalysisResponse":
+        """Delegates risk metrics calculation to the main RiskManager."""
+        if self.risk_manager:
+            return await self.risk_manager.get_risk_metrics()
+        else:
+            raise ValueError(
+                "Risk manager not configured. Enable 'risk_manager' feature in TradingSuite."
+            )
+
+    async def calculate_position_size(
+        self,
+        contract_id: str,
+        risk_amount: float,
+        entry_price: float,
+        stop_price: float,
+        account_balance: float | None = None,
+    ) -> "PositionSizingResponse":
+        """Delegates position sizing to the main RiskManager."""
+        instrument = await self.project_x.get_instrument(contract_id)
+        if self.risk_manager:
+            return await self.risk_manager.calculate_position_size(
+                entry_price=entry_price,
+                stop_loss=stop_price,
+                risk_amount=risk_amount,
+                instrument=instrument,
+            )
+        else:
+            raise ValueError(
+                "Risk manager not configured. Enable 'risk_manager' feature in TradingSuite."
+            )
 
     async def cleanup(self) -> None:
         """

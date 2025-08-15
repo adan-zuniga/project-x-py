@@ -12,11 +12,11 @@ async def on_new_bar(suite: TradingSuite):
     print("=" * 80)
 
     if last_bars is not None and not last_bars.is_empty():
-        print("Last 5 bars (oldest to newest):")
+        print("Last 6 bars (oldest to newest):")
         print("-" * 80)
 
         # Get the last 5 bars and iterate through them
-        for row in last_bars.tail(5).iter_rows(named=True):
+        for row in last_bars.tail(6).iter_rows(named=True):
             timestamp = row["timestamp"]
             open_price = row["open"]
             high = row["high"]

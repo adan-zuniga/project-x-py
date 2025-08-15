@@ -38,7 +38,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from types import TracebackType
-from typing import Any
+from typing import Any, cast
 
 import orjson
 import yaml
@@ -60,6 +60,7 @@ from project_x_py.types.config_types import (
     OrderManagerConfig,
     PositionManagerConfig,
 )
+from project_x_py.types.protocols import ProjectXClientProtocol
 from project_x_py.types.stats_types import ComponentStats, TradingSuiteStats
 from project_x_py.utils import ProjectXLogger
 
@@ -87,6 +88,11 @@ class TradingSuiteConfig:
         initial_days: int = 5,
         auto_connect: bool = True,
         timezone: str = "America/Chicago",
+        order_manager_config: OrderManagerConfig | None = None,
+        position_manager_config: PositionManagerConfig | None = None,
+        data_manager_config: DataManagerConfig | None = None,
+        orderbook_config: OrderbookConfig | None = None,
+        risk_config: RiskConfig | None = None,
     ):
         self.instrument = instrument
         self.timeframes = timeframes or ["5min"]
@@ -94,9 +100,21 @@ class TradingSuiteConfig:
         self.initial_days = initial_days
         self.auto_connect = auto_connect
         self.timezone = timezone
+        self.order_manager_config = order_manager_config
+        self.position_manager_config = position_manager_config
+        self.data_manager_config = data_manager_config
+        self.orderbook_config = orderbook_config
+        self.risk_config = risk_config
 
     def get_order_manager_config(self) -> OrderManagerConfig:
-        """Get configuration for OrderManager."""
+        """
+        Get configuration for OrderManager.
+
+        Returns:
+            OrderManagerConfig: The configuration for the OrderManager.
+        """
+        if self.order_manager_config:
+            return self.order_manager_config
         return {
             "enable_bracket_orders": Features.RISK_MANAGER in self.features,
             "enable_trailing_stops": True,
@@ -105,7 +123,14 @@ class TradingSuiteConfig:
         }
 
     def get_position_manager_config(self) -> PositionManagerConfig:
-        """Get configuration for PositionManager."""
+        """
+        Get configuration for PositionManager.
+
+        Returns:
+            PositionManagerConfig: The configuration for the PositionManager.
+        """
+        if self.position_manager_config:
+            return self.position_manager_config
         return {
             "enable_risk_monitoring": Features.RISK_MANAGER in self.features,
             "enable_correlation_analysis": Features.PERFORMANCE_ANALYTICS
@@ -114,7 +139,14 @@ class TradingSuiteConfig:
         }
 
     def get_data_manager_config(self) -> DataManagerConfig:
-        """Get configuration for RealtimeDataManager."""
+        """
+        Get configuration for RealtimeDataManager.
+
+        Returns:
+            DataManagerConfig: The configuration for the RealtimeDataManager.
+        """
+        if self.data_manager_config:
+            return self.data_manager_config
         return {
             "max_bars_per_timeframe": 1000,
             "enable_tick_data": True,
@@ -124,7 +156,14 @@ class TradingSuiteConfig:
         }
 
     def get_orderbook_config(self) -> OrderbookConfig:
-        """Get configuration for OrderBook."""
+        """
+        Get configuration for OrderBook.
+
+        Returns:
+            OrderbookConfig: The configuration for the OrderBook.
+        """
+        if self.orderbook_config:
+            return self.orderbook_config
         return {
             "max_depth_levels": 100,
             "max_trade_history": 1000,
@@ -133,7 +172,14 @@ class TradingSuiteConfig:
         }
 
     def get_risk_config(self) -> RiskConfig:
-        """Get configuration for RiskManager."""
+        """
+        Get configuration for RiskManager.
+
+        Returns:
+            RiskConfig: The configuration for the RiskManager.
+        """
+        if self.risk_config:
+            return self.risk_config
         return RiskConfig(
             max_risk_per_trade=0.01,  # 1% per trade
             max_daily_loss=0.03,  # 3% daily loss
@@ -201,9 +247,6 @@ class TradingSuite:
         self.orders = OrderManager(
             client, config=config.get_order_manager_config(), event_bus=self.events
         )
-        self.positions = PositionManager(
-            client, config=config.get_position_manager_config(), event_bus=self.events
-        )
 
         # Optional components
         self.orderbook: OrderBook | None = None
@@ -211,15 +254,25 @@ class TradingSuite:
         self.journal = None  # TODO: Future enhancement
         self.analytics = None  # TODO: Future enhancement
 
-        # Initialize risk manager if enabled
+        # Create PositionManager first
+        self.positions = PositionManager(
+            client,
+            event_bus=self.events,
+            risk_manager=None,  # Will be set later
+            data_manager=self.data,
+            config=config.get_position_manager_config(),
+        )
+
+        # Initialize risk manager if enabled and inject dependencies
         if Features.RISK_MANAGER in config.features:
             self.risk_manager = RiskManager(
-                project_x=client,
+                project_x=cast(ProjectXClientProtocol, client),
                 order_manager=self.orders,
-                position_manager=self.positions,
                 event_bus=self.events,
+                position_manager=self.positions,
                 config=config.get_risk_config(),
             )
+            self.positions.risk_manager = self.risk_manager
 
         # State tracking
         self._connected = False
@@ -414,6 +467,9 @@ class TradingSuite:
             logger.info("Connecting to real-time feeds...")
             await self.realtime.connect()
             await self.realtime.subscribe_user_updates()
+
+            # Initialize order manager with realtime client for order tracking
+            await self.orders.initialize(realtime_client=self.realtime)
 
             # Initialize position manager with order manager for cleanup
             await self.positions.initialize(
@@ -776,33 +832,42 @@ class TradingSuite:
         # Build component stats
         components: dict[str, ComponentStats] = {}
         if self.orders:
+            last_activity_obj = self.orders.stats.get("last_order_time")
             components["order_manager"] = ComponentStats(
                 name="OrderManager",
                 status="connected" if self.orders else "disconnected",
                 uptime_seconds=uptime_seconds,
-                last_activity=None,
-                error_count=0,
-                memory_usage_mb=0.0,
+                last_activity=last_activity_obj.isoformat()
+                if last_activity_obj
+                else None,
+                error_count=0,  # TODO: Implement error tracking in OrderManager
+                memory_usage_mb=0.0,  # TODO: Implement memory tracking in OrderManager
             )
 
         if self.positions:
+            last_activity_obj = self.positions.stats.get("last_position_update")
             components["position_manager"] = ComponentStats(
                 name="PositionManager",
                 status="connected" if self.positions else "disconnected",
                 uptime_seconds=uptime_seconds,
-                last_activity=None,
-                error_count=0,
-                memory_usage_mb=0.0,
+                last_activity=last_activity_obj.isoformat()
+                if last_activity_obj
+                else None,
+                error_count=0,  # TODO: Implement error tracking in PositionManager
+                memory_usage_mb=0.0,  # TODO: Implement memory tracking in PositionManager
             )
 
         if self.data:
+            last_activity_obj = self.data.memory_stats.get("last_update")
             components["data_manager"] = ComponentStats(
                 name="RealtimeDataManager",
                 status="connected" if self.data else "disconnected",
                 uptime_seconds=uptime_seconds,
-                last_activity=None,
-                error_count=0,
-                memory_usage_mb=0.0,
+                last_activity=last_activity_obj.isoformat()
+                if last_activity_obj
+                else None,
+                error_count=self.data.memory_stats.get("data_validation_errors", 0),
+                memory_usage_mb=self.data.memory_stats.get("memory_usage_mb", 0.0),
             )
 
         if self.orderbook:
@@ -810,9 +875,11 @@ class TradingSuite:
                 name="OrderBook",
                 status="connected" if self.orderbook else "disconnected",
                 uptime_seconds=uptime_seconds,
-                last_activity=None,
-                error_count=0,
-                memory_usage_mb=0.0,
+                last_activity=self.orderbook.last_orderbook_update.isoformat()
+                if self.orderbook.last_orderbook_update
+                else None,
+                error_count=0,  # TODO: Implement error tracking in OrderBook
+                memory_usage_mb=0.0,  # TODO: Implement memory tracking in OrderBook
             )
 
         if self.risk_manager:
@@ -820,9 +887,9 @@ class TradingSuite:
                 name="RiskManager",
                 status="active" if self.risk_manager else "inactive",
                 uptime_seconds=uptime_seconds,
-                last_activity=None,
-                error_count=0,
-                memory_usage_mb=0.0,
+                last_activity=None,  # TODO: Implement activity tracking in RiskManager
+                error_count=0,  # TODO: Implement error tracking in RiskManager
+                memory_usage_mb=0.0,  # TODO: Implement memory tracking in RiskManager
             )
 
         return {

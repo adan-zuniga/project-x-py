@@ -540,12 +540,12 @@ class TestMarketData:
                 assert "timestamp" in bars.columns
                 assert "open" in bars.columns
 
-                # Should use time-based cache key
-                start_utc = pytz.UTC.localize(start)
-                end_utc = pytz.UTC.localize(end)
-                cache_key = (
-                    f"MGC_{start_utc.isoformat()}_{end_utc.isoformat()}_15_2_True"
-                )
+                # Should use time-based cache key with market timezone
+                # Client uses America/Chicago by default
+                market_tz = pytz.timezone("America/Chicago")
+                start_tz = market_tz.localize(start)
+                end_tz = market_tz.localize(end)
+                cache_key = f"MGC_{start_tz.isoformat()}_{end_tz.isoformat()}_15_2_True"
                 assert cache_key in client._opt_market_data_cache
 
     @pytest.mark.asyncio
@@ -677,12 +677,8 @@ class TestMarketData:
                 assert not bars.is_empty()
                 assert "timestamp" in bars.columns
 
-                # Cache key should use UTC times
-                start_utc = start.astimezone(pytz.UTC)
-                end_utc = end.astimezone(pytz.UTC)
-                cache_key = (
-                    f"MGC_{start_utc.isoformat()}_{end_utc.isoformat()}_30_2_True"
-                )
+                # Cache key should use the same timezone as provided (Chicago)
+                cache_key = f"MGC_{start.isoformat()}_{end.isoformat()}_30_2_True"
                 assert cache_key in client._opt_market_data_cache
 
     @pytest.mark.asyncio
@@ -729,10 +725,12 @@ class TestMarketData:
                 )
 
                 # Verify that the cache key uses the time range, not days
-                start_utc = pytz.UTC.localize(start)
-                end_utc = pytz.UTC.localize(end)
+                # Client uses America/Chicago by default
+                market_tz = pytz.timezone("America/Chicago")
+                start_tz = market_tz.localize(start)
+                end_tz = market_tz.localize(end)
                 time_based_key = (
-                    f"MGC_{start_utc.isoformat()}_{end_utc.isoformat()}_15_2_True"
+                    f"MGC_{start_tz.isoformat()}_{end_tz.isoformat()}_15_2_True"
                 )
                 days_based_key = "MGC_100_15_2_True"
 

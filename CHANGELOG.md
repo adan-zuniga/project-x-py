@@ -14,6 +14,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.1.13] - 2025-08-15
+
+### Fixed
+- **🎯 Event System Data Structure Mismatches**: Fixed critical order fill detection issues
+  - Bracket orders now properly detect fills without timing out
+  - Event handlers now correctly handle both `order_id` and nested `order` object structures
+  - Added backward compatibility for different event payload formats
+  - ManagedTrade now listens to correct events (ORDER_FILLED vs ORDER_MODIFIED)
+
+- **📝 Type Annotations for SignalR Connections**: Improved IDE support and type safety
+  - Created HubConnection type alias for BaseHubConnection
+  - Fixed market_connection and user_connection from Any to proper types
+  - IDEs now recognize connection methods (send, on, start, stop)
+  - Updated ProjectXRealtimeClientProtocol to match implementation
+
+- **🔧 Real-time Connection Improvements**: Enhanced WebSocket stability
+  - Added circuit breaker pattern to BatchedWebSocketHandler
+  - Improved subscription handling with proper event waiting
+  - Fixed asyncio deprecation warnings (get_event_loop → get_running_loop)
+  - Better error handling and recovery mechanisms
+
+### Improved
+- **📊 Data Storage Robustness**: Major improvements to mmap_storage module
+  - Fixed critical bug causing data overwrite on initialization
+  - Implemented binary search for read_window (significant performance boost)
+  - Added thread-safe operations with RLock
+  - Fixed file corruption bug in _resize_file
+  - Replaced print statements with proper logging
+
+- **🧪 Test Coverage**: Dramatically improved client module testing
+  - Client module coverage increased from 30% to 93%
+  - Added 70+ comprehensive test cases across all client components
+  - Fixed bug in _select_best_contract method
+  - Full test coverage for base.py (100%) and trading.py (98%)
+
+- **🏗️ Order and Position Management**: Enhanced tracking and stability
+  - Improved order tracking with better event handling
+  - More robust position manager logic
+  - Better error recovery in order chains
+  - Enhanced TradingSuite configuration options
+
+### Documentation
+- Updated CHANGELOG.md with comprehensive v3.1.13 changes
+- Updated CLAUDE.md Recent Changes section
+- Added detailed commit messages for all fixes
+
 ## [3.1.12] - 2025-08-15
 
 ### Added

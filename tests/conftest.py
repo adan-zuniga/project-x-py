@@ -226,6 +226,7 @@ def mock_httpx_client():
     mock_client = AsyncMock()
     mock_client.request = AsyncMock()
     mock_client.aclose = AsyncMock()
+    mock_client.is_closed = False  # Add is_closed attribute
     return mock_client
 
 

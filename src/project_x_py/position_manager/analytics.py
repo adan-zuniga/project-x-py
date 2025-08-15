@@ -302,17 +302,6 @@ class PositionAnalyticsMixin:
                 total_value += value
                 pnl_values.append(pnl)
 
-        # Calculate win/loss metrics directly from PnL values
-        winning_pnls = [pnl for pnl in pnl_values if pnl > 0]
-        losing_pnls = [pnl for pnl in pnl_values if pnl < 0]
-
-        win_rate = len(winning_pnls) / len(positions) if positions else 0.0
-        avg_win = sum(winning_pnls) / len(winning_pnls) if winning_pnls else 0.0
-        avg_loss = sum(losing_pnls) / len(losing_pnls) if losing_pnls else 0.0
-        largest_win = max(winning_pnls, default=0.0)
-        largest_loss = min(losing_pnls, default=0.0)
-
-        profit_factor = abs(avg_win / avg_loss) if avg_loss < 0 else 0.0
         total_return = (total_pnl / total_value * 100) if total_value > 0 else 0.0
 
         from datetime import datetime
@@ -320,7 +309,7 @@ class PositionAnalyticsMixin:
         return {
             "total_value": total_value,
             "total_pnl": total_pnl,
-            "realized_pnl": 0.0,  # Would need historical trade data
+            "realized_pnl": 0.0,  # This is calculated and stored in stats now
             "unrealized_pnl": total_pnl,  # All P&L is unrealized in this context
             "daily_pnl": 0.0,  # Would need daily data
             "weekly_pnl": 0.0,  # Would need weekly data
@@ -328,18 +317,18 @@ class PositionAnalyticsMixin:
             "ytd_pnl": 0.0,  # Would need year-to-date data
             "total_return": total_return,
             "annualized_return": 0.0,  # Would need time-weighted returns
-            "sharpe_ratio": 0.0,  # Would need return volatility data
-            "sortino_ratio": 0.0,  # Would need downside deviation data
+            "sharpe_ratio": 0.0,  # Historical metric, should be in reporting
+            "sortino_ratio": 0.0,  # Historical metric, should be in reporting
             "max_drawdown": 0.0,  # Would need historical high-water marks
-            "win_rate": win_rate,
-            "profit_factor": profit_factor,
-            "avg_win": avg_win,
-            "avg_loss": avg_loss,
+            "win_rate": 0.0,  # Historical metric, should be in reporting
+            "profit_factor": 0.0,  # Historical metric, should be in reporting
+            "avg_win": 0.0,  # Historical metric, should be in reporting
+            "avg_loss": 0.0,  # Historical metric, should be in reporting
             "total_trades": len(positions),
-            "winning_trades": len(winning_pnls),
-            "losing_trades": len(losing_pnls),
-            "largest_win": largest_win,
-            "largest_loss": largest_loss,
+            "winning_trades": 0,  # Historical metric
+            "losing_trades": 0,  # Historical metric
+            "largest_win": 0.0,  # Historical metric
+            "largest_loss": 0.0,  # Historical metric
             "avg_trade_duration_minutes": 0.0,  # Would need position entry times
             "last_updated": datetime.now().isoformat(),
         }

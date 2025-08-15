@@ -56,7 +56,6 @@ See Also:
 
 import datetime
 import re
-import time
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -130,18 +129,29 @@ class MarketDataMixin:
             # If so, extract the base symbol for searching
             search_symbol = symbol
             is_contract_id = False
-            if symbol.startswith("CON.") and symbol.count(".") >= 3:
-                is_contract_id = True
-                # Extract base symbol from contract ID
-                # CON.F.US.MNQ.U25 -> MNQ
-                parts = symbol.split(".")
-                if len(parts) >= 4:
-                    search_symbol = parts[3]
-                    # Remove any month/year suffix (e.g., U25 -> base symbol)
-                    futures_pattern = re.compile(r"^(.+?)([FGHJKMNQUVXZ]\d{1,2})$")
-                    match = futures_pattern.match(search_symbol)
-                    if match:
-                        search_symbol = match.group(1)
+            if symbol.startswith("CON."):
+                # Regex to capture the symbol part of a contract ID, e.g., "MNQ.U25" from "CON.F.US.MNQ.U25"
+                # This is more robust than splitting by '.' and relying on indices.
+                contract_pattern = re.compile(
+                    r"^CON\.[A-Z]\.[A-Z]{2}\.(?P<symbol_details>.+)$"
+                )
+                match = contract_pattern.match(symbol)
+                if match:
+                    is_contract_id = True
+                    symbol_details = match.group("symbol_details")
+                    # The symbol can be in parts (e.g., "MNQ.U25") or joined (e.g., "MNQU25")
+                    # We only want the base symbol, e.g., "MNQ"
+                    base_symbol_part = symbol_details.split(".")[0]
+
+                    # Remove any futures month/year suffix from the base symbol part
+                    futures_pattern = re.compile(
+                        r"^(?P<base>.+?)(?P<expiry>[FGHJKMNQUVXZ]\d{1,2})$"
+                    )
+                    futures_match = futures_pattern.match(base_symbol_part)
+                    if futures_match:
+                        search_symbol = futures_match.group("base")
+                    else:
+                        search_symbol = base_symbol_part
 
             # Search for instrument
             payload = {"searchText": search_symbol, "live": live}
@@ -187,10 +197,6 @@ class MarketDataMixin:
             self.cache_instrument(symbol, instrument)
             logger.debug(LogMessages.CACHE_UPDATE, extra={"symbol": symbol})
 
-            # Periodic cache cleanup
-            if time.time() - self.last_cache_cleanup > 3600:  # Every hour
-                await self._cleanup_cache()
-
             return instrument
 
     def _select_best_contract(
@@ -233,7 +239,7 @@ class MarketDataMixin:
 
         # First try exact match
         for inst in instruments:
-            if inst.get("symbol", "").upper() == search_upper:
+            if inst.get("name", "").upper() == search_upper:
                 return inst
 
         # For futures, try to find the front month
@@ -242,8 +248,8 @@ class MarketDataMixin:
         base_symbols: dict[str, list[dict[str, Any]]] = {}
 
         for inst in instruments:
-            symbol = inst.get("symbol", "").upper()
-            match = futures_pattern.match(symbol)
+            name = inst.get("name", "").upper()
+            match = futures_pattern.match(name)
             if match:
                 base = match.group(1)
                 if base not in base_symbols:
@@ -258,9 +264,9 @@ class MarketDataMixin:
                 break
 
         if matching_base and base_symbols[matching_base]:
-            # Sort by symbol to get front month (alphabetical = chronological for futures)
+            # Sort by name to get front month (alphabetical = chronological for futures)
             sorted_contracts = sorted(
-                base_symbols[matching_base], key=lambda x: x.get("symbol", "")
+                base_symbols[matching_base], key=lambda x: x.get("name", "")
             )
             return sorted_contracts[0]
 
@@ -523,9 +529,5 @@ class MarketDataMixin:
 
         # Cache the result
         self.cache_market_data(cache_key, data)
-
-        # Cleanup cache periodically
-        if time.time() - self.last_cache_cleanup > 3600:
-            await self._cleanup_cache()
 
         return data
