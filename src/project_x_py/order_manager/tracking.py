@@ -188,6 +188,7 @@ class OrderTrackingMixin:
                         order_obj = Order(**actual_order_data)
                         event_payload = {
                             "order": order_obj,
+                            "order_id": order_id,  # Add order_id for compatibility
                             "old_status": old_status,
                             "new_status": new_status,
                         }
@@ -398,17 +399,31 @@ class OrderTrackingMixin:
             nonlocal is_filled
             # Extract data from Event object
             event_data = event.data if hasattr(event, "data") else event
-            if isinstance(event_data, dict) and event_data.get("order_id") == order_id:
-                is_filled = True
-                fill_event.set()
+            if isinstance(event_data, dict):
+                # Check both direct order_id and order.id from Order object
+                event_order_id = event_data.get("order_id")
+                if not event_order_id and "order" in event_data:
+                    order_obj = event_data.get("order")
+                    if hasattr(order_obj, "id"):
+                        event_order_id = order_obj.id
+                if event_order_id == order_id:
+                    is_filled = True
+                    fill_event.set()
 
         async def terminal_handler(event: Any) -> None:
             nonlocal is_filled
             # Extract data from Event object
             event_data = event.data if hasattr(event, "data") else event
-            if isinstance(event_data, dict) and event_data.get("order_id") == order_id:
-                is_filled = False
-                fill_event.set()
+            if isinstance(event_data, dict):
+                # Check both direct order_id and order.id from Order object
+                event_order_id = event_data.get("order_id")
+                if not event_order_id and "order" in event_data:
+                    order_obj = event_data.get("order")
+                    if hasattr(order_obj, "id"):
+                        event_order_id = order_obj.id
+                if event_order_id == order_id:
+                    is_filled = False
+                    fill_event.set()
 
         from project_x_py.event_bus import EventType
 

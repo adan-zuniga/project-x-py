@@ -633,19 +633,39 @@ class ManagedTrade:
         fill_event = asyncio.Event()
         filled_successfully = False
 
-        async def order_update_handler(event_data: dict[str, Any]) -> None:
+        async def order_fill_handler(event: Any) -> None:
             nonlocal filled_successfully
-            # The event data for order_update is the Order object itself
-            updated_order: Order = event_data.get("data", {})
-            if updated_order and updated_order.id == order.id:
-                if updated_order.is_filled:
+            # Extract data from Event object
+            event_data = event.data if hasattr(event, "data") else event
+            if isinstance(event_data, dict):
+                # Check both direct order_id and order.id from Order object
+                event_order_id = event_data.get("order_id")
+                if not event_order_id and "order" in event_data:
+                    order_obj = event_data.get("order")
+                    if hasattr(order_obj, "id"):
+                        event_order_id = order_obj.id
+                if event_order_id == order.id:
                     filled_successfully = True
                     fill_event.set()
-                elif updated_order.is_terminal:
+
+        async def order_terminal_handler(event: Any) -> None:
+            nonlocal filled_successfully
+            # Extract data from Event object
+            event_data = event.data if hasattr(event, "data") else event
+            if isinstance(event_data, dict):
+                # Check both direct order_id and order.id from Order object
+                event_order_id = event_data.get("order_id")
+                if not event_order_id and "order" in event_data:
+                    order_obj = event_data.get("order")
+                    if hasattr(order_obj, "id"):
+                        event_order_id = order_obj.id
+                if event_order_id == order.id:
                     filled_successfully = False
                     fill_event.set()
 
-        await self.event_bus.on(EventType.ORDER_MODIFIED, order_update_handler)
+        await self.event_bus.on(EventType.ORDER_FILLED, order_fill_handler)
+        await self.event_bus.on(EventType.ORDER_CANCELLED, order_terminal_handler)
+        await self.event_bus.on(EventType.ORDER_REJECTED, order_terminal_handler)
 
         try:
             await asyncio.wait_for(fill_event.wait(), timeout=timeout_seconds)
@@ -653,15 +673,16 @@ class ManagedTrade:
             logger.warning(f"Timeout waiting for order {order.id} to fill via event.")
             filled_successfully = False
         finally:
-            # Important: Clean up the event handler to prevent memory leaks
-            # Assuming a `remove_callback` method exists on the event bus
+            # Important: Clean up the event handlers to prevent memory leaks
             if hasattr(self.event_bus, "remove_callback"):
                 await self.event_bus.remove_callback(
-                    EventType.ORDER_MODIFIED, order_update_handler
+                    EventType.ORDER_FILLED, order_fill_handler
                 )
-            elif hasattr(self.event_bus, "remove_listener"):
-                await self.event_bus.remove_listener(
-                    EventType.ORDER_MODIFIED, order_update_handler
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_CANCELLED, order_terminal_handler
+                )
+                await self.event_bus.remove_callback(
+                    EventType.ORDER_REJECTED, order_terminal_handler
                 )
 
         return filled_successfully
