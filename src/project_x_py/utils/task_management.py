@@ -10,7 +10,7 @@ Date: 2025-01-17
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from weakref import WeakSet
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class TaskManagerMixin:
         self._cleanup_in_progress = False
 
     def _create_task(
-        self, coro: Any, name: Optional[str] = None, persistent: bool = False
+        self, coro: Any, name: str | None = None, persistent: bool = False
     ) -> "Task[Any]":
         """
         Create and track an async task.
@@ -136,7 +136,7 @@ class TaskManagerMixin:
                     asyncio.gather(*pending_tasks, return_exceptions=True),
                     timeout=timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     f"{len([t for t in pending_tasks if not t.done()])} tasks "
                     f"did not complete within {timeout}s timeout"
@@ -212,7 +212,7 @@ class AsyncContextManager(TaskManagerMixin):
 
 
 def create_fire_and_forget_task(
-    coro: Any, name: Optional[str] = None, error_handler: Optional[callable] = None
+    coro: Any, name: str | None = None, error_handler: callable | None = None
 ) -> "Task[Any]":
     """
     Create a fire-and-forget task with optional error handling.

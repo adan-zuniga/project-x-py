@@ -52,7 +52,7 @@ See Also:
 """
 
 import time
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import httpx
 

@@ -113,7 +113,7 @@ See Also:
 """
 
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Union
 
 __all__ = [
     "Account",

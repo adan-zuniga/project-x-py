@@ -10,7 +10,7 @@ import time
 import traceback
 from collections import deque
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 
 class StatsTrackingMixin:
@@ -30,14 +30,14 @@ class StatsTrackingMixin:
         """
         self._error_count = 0
         self._error_history: deque[dict[str, Any]] = deque(maxlen=max_errors)
-        self._last_activity: Optional[datetime] = None
+        self._last_activity: datetime | None = None
         self._start_time = time.time()
 
     def _track_error(
         self,
         error: Exception,
-        context: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None,
+        context: str | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """
         Track an error occurrence.
@@ -95,11 +95,11 @@ class StatsTrackingMixin:
                 size += sys.getsizeof(attr)
 
                 # For collections, also count items
-                if isinstance(attr, (list, dict, set, deque)):
+                if isinstance(attr, list | dict | set | deque):
                     try:
                         for item in attr.values() if isinstance(attr, dict) else attr:
                             size += sys.getsizeof(item)
-                    except:
+                    except (AttributeError, TypeError):
                         pass  # Skip if iteration fails
 
         # Convert to MB

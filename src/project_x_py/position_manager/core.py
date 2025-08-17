@@ -80,8 +80,6 @@ from project_x_py.position_manager.analytics import PositionAnalyticsMixin
 from project_x_py.position_manager.monitoring import PositionMonitoringMixin
 from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
-
-# from project_x_py.position_manager.risk import RiskManagementMixin # DEPRECATED
 from project_x_py.position_manager.tracking import PositionTrackingMixin
 from project_x_py.risk_manager import RiskManager
 from project_x_py.types.config_types import PositionManagerConfig

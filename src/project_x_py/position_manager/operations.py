@@ -172,8 +172,6 @@ class PositionOperationsMixin:
 
                     # Synchronize orders - cancel related orders when position is closed
                     # Note: Order synchronization methods will be added to AsyncOrderManager
-                    # if self._order_sync_enabled and self.order_manager:
-                    #     await self.order_manager.on_position_closed(contract_id)
 
                     self.stats["closed_positions"] += 1
                 else:
@@ -300,10 +298,6 @@ class PositionOperationsMixin:
 
                     # Synchronize orders - update order sizes after partial close
                     # Note: Order synchronization methods will be added to AsyncOrderManager
-                    # if self._order_sync_enabled and self.order_manager:
-                    #     await self.order_manager.sync_orders_with_position(
-                    #         contract_id, account_id
-                    #     )
 
                     self.stats["positions_partially_closed"] += 1
                 else:

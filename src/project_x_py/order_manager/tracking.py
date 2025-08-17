@@ -336,7 +336,6 @@ class OrderTrackingMixin:
         This method is provided for backward compatibility only and will be removed in v4.0.
         """
         # Deprecation warning handled by decorator
-        pass
 
     async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
         """

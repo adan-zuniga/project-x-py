@@ -78,20 +78,8 @@ Example Usage:
         await suite.disconnect()
 
 
-    # V3.1: Low-level direct usage (advanced users only)
-    # from project_x_py import ProjectX
-    # from project_x_py.realtime import ProjectXRealtimeClient
-    #
-    # async def low_level_example():
-    #     async with ProjectX.from_env() as client:
-    #         await client.authenticate()
-    #         # Create real-time client directly
-    #         realtime = ProjectXRealtimeClient(
-    #             jwt_token=client.session_token,
-    #             account_id=str(client.account_info.id),
-    #         )
-    #         await realtime.connect()
-    #         await realtime.subscribe_market_data(["MNQ", "ES"])
+    # V3.1: Low-level direct usage is available for advanced users
+    # See documentation for direct ProjectXRealtimeClient usage
 
     asyncio.run(main())
     ```
