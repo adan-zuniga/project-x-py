@@ -73,22 +73,37 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.realtime.batched_handler import OptimizedRealtimeHandler
+from project_x_py.utils.task_management import TaskManagerMixin
 
 if TYPE_CHECKING:
-    from project_x_py.types import ProjectXRealtimeClientProtocol
+    import logging
 
 
-class EventHandlingMixin:
+class EventHandlingMixin(TaskManagerMixin):
     """Mixin for event handling and callback management with optional batching."""
+
+    # Type hints for attributes expected from main class
+    if TYPE_CHECKING:
+        _loop: asyncio.AbstractEventLoop | None
+        _callback_lock: asyncio.Lock
+        callbacks: dict[str, list[Callable[..., Any]]]
+        logger: logging.Logger
+        stats: dict[str, Any]
+
+        async def disconnect(self) -> None: ...
+        async def _trigger_callbacks(
+            self, event_type: str, data: dict[str, Any]
+        ) -> None: ...
 
     def __init__(self) -> None:
         """Initialize event handling with batching support."""
         super().__init__()
+        self._init_task_manager()  # Initialize task management
         self._batched_handler: OptimizedRealtimeHandler | None = None
         self._use_batching = False
 
     async def add_callback(
-        self: "ProjectXRealtimeClientProtocol",
+        self,
         event_type: str,
         callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None] | None],
     ) -> None:
@@ -155,7 +170,7 @@ class EventHandlingMixin:
             self.logger.debug(f"Registered callback for {event_type}")
 
     async def remove_callback(
-        self: "ProjectXRealtimeClientProtocol",
+        self,
         event_type: str,
         callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None] | None],
     ) -> None:
@@ -196,9 +211,7 @@ class EventHandlingMixin:
                 self.callbacks[event_type].remove(callback)
                 self.logger.debug(f"Removed callback for {event_type}")
 
-    async def _trigger_callbacks(
-        self: "ProjectXRealtimeClientProtocol", event_type: str, data: dict[str, Any]
-    ) -> None:
+    async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
         """
         Trigger all callbacks for a specific event type asynchronously.
 
@@ -231,9 +244,7 @@ class EventHandlingMixin:
                 self.logger.error(f"Error in {event_type} callback: {e}")
 
     # Event forwarding methods (cross-thread safe)
-    def _forward_account_update(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_account_update(self, *args: Any) -> None:
         """
         Forward account update to registered callbacks.
 
@@ -249,9 +260,7 @@ class EventHandlingMixin:
         """
         self._schedule_async_task("account_update", args)
 
-    def _forward_position_update(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_position_update(self, *args: Any) -> None:
         """
         Forward position update to registered callbacks.
 
@@ -267,9 +276,7 @@ class EventHandlingMixin:
         """
         self._schedule_async_task("position_update", args)
 
-    def _forward_order_update(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_order_update(self, *args: Any) -> None:
         """
         Forward order update to registered callbacks.
 
@@ -284,9 +291,7 @@ class EventHandlingMixin:
         """
         self._schedule_async_task("order_update", args)
 
-    def _forward_trade_execution(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_trade_execution(self, *args: Any) -> None:
         """
         Forward trade execution to registered callbacks.
 
@@ -301,17 +306,17 @@ class EventHandlingMixin:
         """
         self._schedule_async_task("trade_execution", args)
 
-    def enable_batching(self: "ProjectXRealtimeClientProtocol") -> None:
+    def enable_batching(self) -> None:
         """Enable message batching for improved throughput with high-frequency data."""
         if not self._batched_handler:
             self._batched_handler = OptimizedRealtimeHandler(self)
         self._use_batching = True
 
-    def disable_batching(self: "ProjectXRealtimeClientProtocol") -> None:
+    def disable_batching(self) -> None:
         """Disable message batching and use direct processing."""
         self._use_batching = False
 
-    async def stop_batching(self: "ProjectXRealtimeClientProtocol") -> None:
+    async def stop_batching(self) -> None:
         """Stop batching and flush any pending messages."""
         if self._batched_handler:
             await self._batched_handler.stop()
@@ -319,7 +324,7 @@ class EventHandlingMixin:
         self._use_batching = False
 
     def get_batching_stats(
-        self: "ProjectXRealtimeClientProtocol",
+        self,
     ) -> dict[str, Any] | None:
         """Get performance statistics from the batch handler."""
         if self._batched_handler:
@@ -327,9 +332,7 @@ class EventHandlingMixin:
             return stats
         return None
 
-    def _forward_quote_update(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_quote_update(self, *args: Any) -> None:
         """
         Forward quote update to registered callbacks.
 
@@ -344,15 +347,15 @@ class EventHandlingMixin:
         """
         if self._use_batching and self._batched_handler and args:
             # Use batched processing for high-frequency quotes
-            task = asyncio.create_task(self._batched_handler.handle_quote(args[0]))
-            # Fire and forget - we don't need to await the task
-            task.add_done_callback(lambda t: None)
+            self._create_task(
+                self._batched_handler.handle_quote(args[0]),
+                name="handle_quote",
+                persistent=False,
+            )
         else:
             self._schedule_async_task("quote_update", args)
 
-    def _forward_market_trade(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_market_trade(self, *args: Any) -> None:
         """
         Forward market trade to registered callbacks.
 
@@ -367,15 +370,15 @@ class EventHandlingMixin:
         """
         if self._use_batching and self._batched_handler and args:
             # Use batched processing for trades
-            task = asyncio.create_task(self._batched_handler.handle_trade(args[0]))
-            # Fire and forget - we don't need to await the task
-            task.add_done_callback(lambda t: None)
+            self._create_task(
+                self._batched_handler.handle_trade(args[0]),
+                name="handle_trade",
+                persistent=False,
+            )
         else:
             self._schedule_async_task("market_trade", args)
 
-    def _forward_market_depth(
-        self: "ProjectXRealtimeClientProtocol", *args: Any
-    ) -> None:
+    def _forward_market_depth(self, *args: Any) -> None:
         """
         Forward market depth to registered callbacks.
 
@@ -390,15 +393,15 @@ class EventHandlingMixin:
         """
         if self._use_batching and self._batched_handler and args:
             # Use batched processing for depth updates
-            task = asyncio.create_task(self._batched_handler.handle_depth(args[0]))
-            # Fire and forget - we don't need to await the task
-            task.add_done_callback(lambda t: None)
+            self._create_task(
+                self._batched_handler.handle_depth(args[0]),
+                name="handle_depth",
+                persistent=False,
+            )
         else:
             self._schedule_async_task("market_depth", args)
 
-    def _schedule_async_task(
-        self: "ProjectXRealtimeClientProtocol", event_type: str, data: Any
-    ) -> None:
+    def _schedule_async_task(self, event_type: str, data: Any) -> None:
         """
         Schedule async task in the main event loop from any thread.
 
@@ -434,16 +437,16 @@ class EventHandlingMixin:
         else:
             # Fallback - try to create task in current loop context
             try:
-                task = asyncio.create_task(self._forward_event_async(event_type, data))
-                # Fire and forget - we don't need to await the task
-                task.add_done_callback(lambda t: None)
+                self._create_task(
+                    self._forward_event_async(event_type, data),
+                    name=f"forward_{event_type}",
+                    persistent=False,
+                )
             except RuntimeError:
                 # No event loop available, log and continue
                 self.logger.error(f"No event loop available for {event_type} event")
 
-    async def _forward_event_async(
-        self: "ProjectXRealtimeClientProtocol", event_type: str, args: Any
-    ) -> None:
+    async def _forward_event_async(self, event_type: str, args: Any) -> None:
         """
         Forward event to registered callbacks asynchronously.
 
@@ -528,7 +531,7 @@ class EventHandlingMixin:
             self.logger.error(f"Error processing {event_type} event: {e}")
             self.logger.debug(f"Args received: {args}")
 
-    async def cleanup(self: "ProjectXRealtimeClientProtocol") -> None:
+    async def cleanup(self) -> None:
         """
         Clean up resources when shutting down.
 
@@ -566,6 +569,7 @@ class EventHandlingMixin:
             - Does not affect the JWT token or account ID
         """
         await self.disconnect()
+        await self._cleanup_tasks()  # Clean up all managed tasks
         async with self._callback_lock:
             self.callbacks.clear()
         self.logger.info("✅ AsyncProjectXRealtimeClient cleanup completed")

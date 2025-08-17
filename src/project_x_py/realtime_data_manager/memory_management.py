@@ -93,8 +93,9 @@ import gc
 import logging
 import time
 from collections import deque
-from contextlib import suppress
 from typing import TYPE_CHECKING, Any
+
+from project_x_py.utils.task_management import TaskManagerMixin
 
 if TYPE_CHECKING:
     from project_x_py.types.stats_types import RealtimeDataManagerStats
@@ -107,7 +108,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class MemoryManagementMixin:
+class MemoryManagementMixin(TaskManagerMixin):
     """Mixin for memory management and optimization."""
 
     # Type hints for mypy - these attributes are provided by the main class
@@ -132,6 +133,7 @@ class MemoryManagementMixin:
     def __init__(self) -> None:
         """Initialize memory management attributes."""
         super().__init__()
+        self._init_task_manager()  # Initialize task management
         self._cleanup_task: asyncio.Task[None] | None = None
 
     async def _cleanup_old_data(self) -> None:
@@ -280,13 +282,12 @@ class MemoryManagementMixin:
 
     async def stop_cleanup_task(self) -> None:
         """Stop the background cleanup task."""
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._cleanup_task
-            self._cleanup_task = None
+        await self._cleanup_tasks()  # Use centralized cleanup
+        self._cleanup_task = None
 
     def start_cleanup_task(self) -> None:
         """Start the background cleanup task."""
         if not self._cleanup_task:
-            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+            self._cleanup_task = self._create_task(
+                self._periodic_cleanup(), name="periodic_cleanup", persistent=True
+            )

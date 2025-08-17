@@ -1,6 +1,9 @@
 """
 Order lifecycle tracking and management for ProjectX SDK v3.0.0.
 
+DEPRECATED: This module is deprecated as of v3.1.14 and will be removed in v4.0.0.
+            Use TradingSuite.track_order() and TradingSuite.order_chain() instead.
+
 Author: SDK v3.0.0
 Date: 2025-08-04
 
@@ -69,9 +72,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@deprecated(
+    "OrderTracker is deprecated. Use TradingSuite.track_order() instead. "
+    "Will be removed in v4.0.0"
+)
 class OrderTracker:
     """
     Context manager for comprehensive order lifecycle tracking.
+
+    DEPRECATED: Use TradingSuite.track_order() instead. Will be removed in v4.0.0.
 
     Provides automatic order state management with async waiting capabilities,
     eliminating the need for manual order status polling and complex state
@@ -361,9 +370,15 @@ class OrderTracker:
         )  # FILLED, CANCELLED, EXPIRED, REJECTED
 
 
+@deprecated(
+    "OrderChainBuilder is deprecated. Use TradingSuite.order_chain() instead. "
+    "Will be removed in v4.0.0"
+)
 class OrderChainBuilder:
     """
     Fluent API for building complex order chains.
+
+    DEPRECATED: Use TradingSuite.order_chain() instead. Will be removed in v4.0.0.
 
     Allows creating multi-part orders (entry + stops + targets) with a
     clean, chainable syntax that's easy to read and maintain.

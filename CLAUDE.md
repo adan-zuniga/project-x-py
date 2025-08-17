@@ -244,6 +244,121 @@ Optional configuration:
 - `PROJECTX_TIMEOUT_SECONDS`: Request timeout
 - `PROJECTX_RETRY_ATTEMPTS`: Retry attempts
 
+## MCP Server Integration
+
+Several MCP (Model Context Protocol) servers are available to enhance development workflow:
+
+### Essential Development MCPs
+
+#### Memory Bank (`mcp__aakarsh-sasi-memory-bank-mcp`)
+Tracks development progress and maintains context across sessions:
+```python
+# Track feature implementation progress
+await mcp__aakarsh_sasi_memory_bank_mcp__track_progress(
+    action="Implemented bracket order system",
+    description="Added OCO and bracket order support with automatic stop/target placement"
+)
+
+# Log architectural decisions
+await mcp__aakarsh_sasi_memory_bank_mcp__log_decision(
+    title="Event System Architecture",
+    context="Need unified event handling across components",
+    decision="Implement EventBus with async handlers and priority support",
+    alternatives=["Direct callbacks", "Observer pattern", "Pub/sub with Redis"],
+    consequences=["Better decoupling", "Easier testing", "Slight performance overhead"]
+)
+
+# Switch development modes
+await mcp__aakarsh_sasi_memory_bank_mcp__switch_mode("debug")  # architect, code, debug, test
+```
+
+#### Knowledge Graph (`mcp__itseasy-21-mcp-knowledge-graph`)
+Maps component relationships and data flow:
+```python
+# Map trading system relationships
+await mcp__itseasy_21_mcp_knowledge_graph__create_entities(
+    entities=[
+        {"name": "TradingSuite", "entityType": "Core", 
+         "observations": ["Central orchestrator", "Manages all components"]},
+        {"name": "OrderManager", "entityType": "Manager",
+         "observations": ["Handles order lifecycle", "Supports bracket orders"]}
+    ]
+)
+
+await mcp__itseasy_21_mcp_knowledge_graph__create_relations(
+    relations=[
+        {"from": "TradingSuite", "to": "OrderManager", "relationType": "manages"},
+        {"from": "OrderManager", "to": "ProjectXClient", "relationType": "uses"}
+    ]
+)
+```
+
+#### Clear Thought Reasoning (`mcp__waldzellai-clear-thought`)
+For complex problem-solving and architecture decisions:
+```python
+# Analyze performance bottlenecks
+await mcp__waldzellai_clear_thought__clear_thought(
+    operation="debugging_approach",
+    prompt="WebSocket connection dropping under high message volume",
+    context="Real-time data manager processing 1000+ ticks/second"
+)
+
+# Plan refactoring strategy
+await mcp__waldzellai_clear_thought__clear_thought(
+    operation="systems_thinking",
+    prompt="Refactor monolithic client into modular mixins",
+    context="Need better separation of concerns without breaking existing API"
+)
+```
+
+### Documentation & Research MCPs
+
+#### Project Documentation (`mcp__project-x-py_Docs`)
+Quick access to project-specific documentation:
+```python
+# Search project documentation
+await mcp__project_x_py_Docs__search_project_x_py_documentation(
+    query="bracket order implementation"
+)
+
+# Search codebase
+await mcp__project_x_py_Docs__search_project_x_py_code(
+    query="async def place_bracket_order"
+)
+```
+
+#### External Research (`mcp__tavily-mcp`)
+Research trading APIs and async patterns:
+```python
+# Search for solutions
+await mcp__tavily_mcp__tavily_search(
+    query="python asyncio websocket reconnection pattern futures trading",
+    max_results=5,
+    search_depth="advanced"
+)
+
+# Extract documentation
+await mcp__tavily_mcp__tavily_extract(
+    urls=["https://docs.python.org/3/library/asyncio-task.html"],
+    format="markdown"
+)
+```
+
+### Best Practices for MCP Usage
+
+1. **Memory Bank**: Update after completing significant features or making architectural decisions
+2. **Knowledge Graph**: Maintain when adding new components or changing relationships
+3. **Clear Thought**: Use for complex debugging, performance analysis, or architecture planning
+4. **Documentation MCPs**: Reference before implementing new features to understand existing patterns
+
+### When to Use Each MCP
+
+- **Starting a new feature**: Check Memory Bank for context, use Clear Thought for planning
+- **Debugging complex issues**: Clear Thought for analysis, Knowledge Graph for understanding relationships
+- **Making architectural decisions**: Log with Memory Bank, analyze with Clear Thought
+- **Understanding existing code**: Project Docs for internal code, Tavily for external research
+- **Tracking progress**: Memory Bank for TODO tracking and progress updates
+
 ## Performance Optimizations
 
 ### Connection Pooling & Caching (client.py)
