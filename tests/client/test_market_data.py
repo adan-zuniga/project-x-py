@@ -206,29 +206,29 @@ class TestMarketData:
                 with pytest.raises(ProjectXInstrumentError):
                     client._select_best_contract([], "MGC")
 
-                # Test with exact match
+                # Test with exact match (uses 'name' field, not 'symbol')
                 contracts = [
-                    {"symbol": "ES", "name": "E-mini S&P 500"},
-                    {"symbol": "MGC", "name": "Micro Gold"},
-                    {"symbol": "MNQ", "name": "Micro Nasdaq"},
+                    {"symbol": "ES", "name": "ES"},
+                    {"symbol": "MGC", "name": "MGC"},
+                    {"symbol": "MNQ", "name": "MNQ"},
                 ]
 
                 result = client._select_best_contract(contracts, "MGC")
-                assert result["symbol"] == "MGC"
+                assert result["name"] == "MGC"
 
                 # Test with futures contracts
                 futures_contracts = [
-                    {"symbol": "MGC", "name": "Micro Gold Front Month"},
-                    {"symbol": "MGCM23", "name": "Micro Gold June 2023"},
-                    {"symbol": "MGCZ23", "name": "Micro Gold December 2023"},
+                    {"symbol": "MGC", "name": "MGC"},
+                    {"symbol": "MGCM23", "name": "MGCM23"},
+                    {"symbol": "MGCZ23", "name": "MGCZ23"},
                 ]
 
                 result = client._select_best_contract(futures_contracts, "MGC")
-                assert result["symbol"] == "MGC"
+                assert result["name"] == "MGC"
 
                 # When no exact match, should pick first one
                 result = client._select_best_contract(contracts, "unknown")
-                assert result["symbol"] == "ES"
+                assert result["name"] == "ES"
 
     @pytest.mark.asyncio
     async def test_get_bars(
