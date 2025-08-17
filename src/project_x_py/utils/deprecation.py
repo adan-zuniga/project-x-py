@@ -11,7 +11,7 @@ ensuring proper warnings, documentation, and migration paths for users.
 import functools
 import warnings
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from deprecated import deprecated as _deprecated_decorator
 
@@ -72,7 +72,10 @@ def deprecated(
         # Use the deprecated package for IDE support
         if removal_version:
             func = _deprecated_decorator(
-                reason=full_message, version=version, action="always", category=category
+                reason=full_message,
+                version=version or "",
+                action="always",
+                category=category,
             )(func)
 
         @functools.wraps(func)
@@ -87,13 +90,15 @@ def deprecated(
             func.__doc__ = f"**DEPRECATED**: {full_message}"
 
         # Store deprecation metadata
-        wrapper.__deprecated__ = True
-        wrapper.__deprecated_reason__ = reason
-        wrapper.__deprecated_version__ = version
-        wrapper.__deprecated_removal__ = removal_version
-        wrapper.__deprecated_replacement__ = replacement
+        # We use setattr here to add custom attributes to the function object
+        # This avoids type checking issues while preserving the metadata
+        setattr(wrapper, "__deprecated__", True)  # noqa: B010
+        setattr(wrapper, "__deprecated_reason__", reason)  # noqa: B010
+        setattr(wrapper, "__deprecated_version__", version)  # noqa: B010
+        setattr(wrapper, "__deprecated_removal__", removal_version)  # noqa: B010
+        setattr(wrapper, "__deprecated_replacement__", replacement)  # noqa: B010
 
-        return wrapper  # type: ignore
+        return cast(F, wrapper)
 
     return decorator
 
@@ -150,7 +155,7 @@ def deprecated_parameter(
                 warnings.warn(full_message, DeprecationWarning, stacklevel=2)
             return func(*args, **kwargs)
 
-        return wrapper  # type: ignore
+        return cast(F, wrapper)
 
     return decorator
 
@@ -218,12 +223,12 @@ def deprecated_class(
         else:
             cls.__doc__ = f"**DEPRECATED**: {full_message}"
 
-        # Add deprecation metadata
-        cls.__deprecated__ = True  # type: ignore
-        cls.__deprecated_reason__ = reason  # type: ignore
-        cls.__deprecated_version__ = version  # type: ignore
-        cls.__deprecated_removal__ = removal_version  # type: ignore
-        cls.__deprecated_replacement__ = replacement  # type: ignore
+        # Add deprecation metadata using setattr to avoid type issues
+        setattr(cls, "__deprecated__", True)  # noqa: B010
+        setattr(cls, "__deprecated_reason__", reason)  # noqa: B010
+        setattr(cls, "__deprecated_version__", version)  # noqa: B010
+        setattr(cls, "__deprecated_removal__", removal_version)  # noqa: B010
+        setattr(cls, "__deprecated_replacement__", replacement)  # noqa: B010
 
         return cls
 
