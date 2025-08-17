@@ -64,6 +64,62 @@ The standardized deprecation utilities provide:
 - Metadata tracking for deprecation management
 - Support for functions, methods, classes, and parameters
 
+## Development Documentation with Obsidian
+
+### Important: Use Obsidian for Development Plans and Progress Tracking
+
+**ALWAYS use Obsidian MCP integration for**:
+- Multi-session development plans
+- Testing procedures and results
+- Architecture decisions and design documents
+- Feature planning and roadmaps
+- Bug investigation notes
+- Performance optimization tracking
+- Release planning and checklists
+
+**DO NOT create project files for**:
+- Personal development notes (use Obsidian instead)
+- Temporary planning documents
+- Testing logs and results
+- Work-in-progress documentation
+- Meeting notes or discussions
+
+### Obsidian Structure for ProjectX Development
+
+When using Obsidian for this project, use the following structure:
+```
+Development/
+  ProjectX SDK/
+    Feature Planning/
+      [Feature Name].md
+    Testing Plans/
+      [Version] Release Testing.md
+    Architecture Decisions/
+      [Decision Topic].md
+    Bug Investigations/
+      [Issue Number] - [Description].md
+    Performance/
+      [Optimization Area].md
+```
+
+### Example Obsidian Usage
+
+```python
+# When creating multi-session plans:
+await mcp__mcp_obsidian__obsidian_append_content(
+    filepath="Development/ProjectX SDK/Feature Planning/WebSocket Improvements.md",
+    content="# WebSocket Connection Improvements Plan\n..."
+)
+
+# When documenting test results:
+await mcp__mcp_obsidian__obsidian_append_content(
+    filepath="Development/ProjectX SDK/Testing Plans/v3.3.0 Release Testing.md",
+    content="## Test Results\n..."
+)
+```
+
+This keeps the project repository clean and focused on production code while maintaining comprehensive development documentation in Obsidian.
+
 ## Development Commands
 
 ### Package Management (UV)
