@@ -527,7 +527,13 @@ class RealtimeDataManager(
                 LogMessages.DATA_FETCH,
                 extra={"phase": "initialization", "instrument": self.instrument},
             )
-
+            if self.project_x is None:
+                raise ProjectXError(
+                    format_error_message(
+                        ErrorMessages.INTERNAL_ERROR,
+                        reason="ProjectX client not initialized",
+                    )
+                )
             # Get the contract ID for the instrument
             instrument_info: Instrument | None = await self.project_x.get_instrument(
                 self.instrument
@@ -558,6 +564,13 @@ class RealtimeDataManager(
             # Load initial data for all timeframes
             async with self.data_lock:
                 for tf_key, tf_config in self.timeframes.items():
+                    if self.project_x is None:
+                        raise ProjectXError(
+                            format_error_message(
+                                ErrorMessages.INTERNAL_ERROR,
+                                reason="ProjectX client not initialized",
+                            )
+                        )
                     bars = await self.project_x.get_bars(
                         self.instrument,  # Use base symbol, not contract ID
                         interval=tf_config["interval"],

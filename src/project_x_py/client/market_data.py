@@ -56,7 +56,7 @@ See Also:
 
 import datetime
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import polars as pl
 import pytz
@@ -73,20 +73,50 @@ from project_x_py.utils import (
     validate_response,
 )
 
-if TYPE_CHECKING:
-    from project_x_py.types import ProjectXClientProtocol
-
 logger = ProjectXLogger.get_logger(__name__)
 
 
 class MarketDataMixin:
     """Mixin class providing market data functionality."""
 
+    # These attributes are provided by the base class
+    logger: Any
+    config: Any  # ProjectXConfig
+
+    async def _ensure_authenticated(self) -> None:
+        """Provided by AuthenticationMixin."""
+
+    async def _make_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        retry_count: int = 0,
+    ) -> Any:
+        """Provided by HttpMixin."""
+        _ = (method, endpoint, data, params, headers, retry_count)
+
+    def get_cached_instrument(self, symbol: str) -> Any:
+        """Provided by CacheMixin."""
+        _ = symbol
+
+    def cache_instrument(self, symbol: str, instrument: Any) -> None:
+        """Provided by CacheMixin."""
+        _ = (symbol, instrument)
+
+    def get_cached_market_data(self, cache_key: str) -> Any:
+        """Provided by CacheMixin."""
+        _ = cache_key
+
+    def cache_market_data(self, cache_key: str, data: Any) -> None:
+        """Provided by CacheMixin."""
+        _ = (cache_key, data)
+
     @handle_errors("get instrument")
     @validate_response(required_fields=["success", "contracts"])
-    async def get_instrument(
-        self: "ProjectXClientProtocol", symbol: str, live: bool = False
-    ) -> Instrument:
+    async def get_instrument(self, symbol: str, live: bool = False) -> Instrument:
         """
         Get detailed instrument information with caching.
 
@@ -200,7 +230,7 @@ class MarketDataMixin:
             return instrument
 
     def _select_best_contract(
-        self: "ProjectXClientProtocol",
+        self,
         instruments: list[dict[str, Any]],
         search_symbol: str,
     ) -> dict[str, Any]:
@@ -276,7 +306,7 @@ class MarketDataMixin:
     @handle_errors("search instruments")
     @validate_response(required_fields=["success", "contracts"])
     async def search_instruments(
-        self: "ProjectXClientProtocol", query: str, live: bool = False
+        self, query: str, live: bool = False
     ) -> list[Instrument]:
         """
         Search for instruments by symbol or name.
@@ -312,10 +342,16 @@ class MarketDataMixin:
                 "POST", "/Contract/search", data=payload
             )
 
-            if not response or not response.get("success", False):
+            if (
+                not response
+                or not isinstance(response, dict)
+                or not response.get("success", False)
+            ):
                 return []
 
-            contracts_data = response.get("contracts", [])
+            contracts_data = (
+                response.get("contracts", []) if isinstance(response, dict) else []
+            )
             instruments = [Instrument(**contract) for contract in contracts_data]
 
             logger.debug(
@@ -327,7 +363,7 @@ class MarketDataMixin:
 
     @handle_errors("get bars")
     async def get_bars(
-        self: "ProjectXClientProtocol",
+        self,
         symbol: str,
         days: int = 8,
         interval: int = 5,

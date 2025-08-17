@@ -52,7 +52,7 @@ See Also:
 """
 
 import time
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 import httpx
 
@@ -77,9 +77,6 @@ from project_x_py.utils import (
     retry_on_network_error,
 )
 
-if TYPE_CHECKING:
-    from project_x_py.types import ProjectXClientProtocol
-
 T = TypeVar("T")
 
 logger = ProjectXLogger.get_logger(__name__)
@@ -88,13 +85,25 @@ logger = ProjectXLogger.get_logger(__name__)
 class HttpMixin:
     """Mixin class providing HTTP client functionality."""
 
+    # These attributes are provided by the base class or other mixins
+    config: Any  # ProjectXConfig
+    base_url: str
+    headers: dict[str, str]
+    session_token: str
+    rate_limiter: Any  # RateLimiter
+    cache_hit_count: int
+    api_call_count: int
+
+    async def _refresh_authentication(self) -> None:
+        """Provided by AuthenticationMixin."""
+
     def __init__(self) -> None:
         """Initialize HTTP client attributes."""
         super().__init__()
         self._client: httpx.AsyncClient | None = None
         self.api_call_count = 0
 
-    async def _create_client(self: "ProjectXClientProtocol") -> httpx.AsyncClient:
+    async def _create_client(self) -> httpx.AsyncClient:
         """
         Create an optimized httpx async client with connection pooling and retries.
 
@@ -138,7 +147,7 @@ class HttpMixin:
 
         return client
 
-    async def _ensure_client(self: "ProjectXClientProtocol") -> httpx.AsyncClient:
+    async def _ensure_client(self) -> httpx.AsyncClient:
         """
         Ensure HTTP client is initialized and ready for API requests.
 
@@ -160,7 +169,7 @@ class HttpMixin:
     @handle_rate_limit()
     @retry_on_network_error(max_attempts=3)
     async def _make_request(
-        self: "ProjectXClientProtocol",
+        self,
         method: str,
         endpoint: str,
         data: dict[str, Any] | None = None,
@@ -309,7 +318,7 @@ class HttpMixin:
 
     @handle_errors("get health status")
     async def get_health_status(
-        self: "ProjectXClientProtocol",
+        self,
     ) -> PerformanceStatsResponse:
         """
         Get client statistics and performance metrics.

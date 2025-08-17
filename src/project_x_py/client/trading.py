@@ -67,7 +67,7 @@ See Also:
 import datetime
 import logging
 from datetime import timedelta
-from typing import TYPE_CHECKING
+from typing import Any
 
 import pytz
 
@@ -75,14 +75,29 @@ from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Position, Trade
 from project_x_py.utils.deprecation import deprecated
 
-if TYPE_CHECKING:
-    from project_x_py.types import ProjectXClientProtocol
-
 logger = logging.getLogger(__name__)
 
 
 class TradingMixin:
     """Mixin class providing trading functionality."""
+
+    # These attributes are provided by the base class
+    account_info: Any  # Account object
+
+    async def _ensure_authenticated(self) -> None:
+        """Provided by AuthenticationMixin."""
+
+    async def _make_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        retry_count: int = 0,
+    ) -> Any:
+        """Provided by HttpMixin."""
+        _ = (method, endpoint, data, params, headers, retry_count)
 
     @deprecated(
         reason="Method renamed for API consistency",
@@ -90,7 +105,7 @@ class TradingMixin:
         removal_version="4.0.0",
         replacement="search_open_positions()",
     )
-    async def get_positions(self: "ProjectXClientProtocol") -> list[Position]:
+    async def get_positions(self) -> list[Position]:
         """
         DEPRECATED: Get all open positions for the authenticated account.
 
@@ -108,7 +123,7 @@ class TradingMixin:
         return await self.search_open_positions()
 
     async def search_open_positions(
-        self: "ProjectXClientProtocol", account_id: int | None = None
+        self, account_id: int | None = None
     ) -> list[Position]:
         """
         Search for open positions for the currently authenticated account.
@@ -170,7 +185,7 @@ class TradingMixin:
         return [Position(**pos) for pos in positions_data]
 
     async def search_trades(
-        self: "ProjectXClientProtocol",
+        self,
         start_date: datetime.datetime | None = None,
         end_date: datetime.datetime | None = None,
         contract_id: str | None = None,
