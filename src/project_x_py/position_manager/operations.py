@@ -149,7 +149,7 @@ class PositionOperationsMixin:
         ):
             response = await self.project_x._make_request("POST", url, data=payload)
 
-            if response:
+            if response and isinstance(response, dict):
                 success = response.get("success", False)
 
                 if success:
@@ -157,7 +157,9 @@ class PositionOperationsMixin:
                         LogMessages.POSITION_CLOSED,
                         extra={
                             "contract_id": contract_id,
-                            "order_id": response.get("orderId"),
+                            "order_id": response.get("orderId")
+                            if isinstance(response, dict)
+                            else None,
                         },
                     )
                     # Remove from tracked positions if present
@@ -175,7 +177,11 @@ class PositionOperationsMixin:
 
                     self.stats["closed_positions"] += 1
                 else:
-                    error_msg = response.get("errorMessage", "Unknown error")
+                    error_msg = (
+                        response.get("errorMessage", "Unknown error")
+                        if isinstance(response, dict)
+                        else "Unknown error"
+                    )
                     logger.error(
                         LogMessages.POSITION_ERROR,
                         extra={"operation": "close_position", "error": error_msg},
@@ -280,7 +286,7 @@ class PositionOperationsMixin:
 
             response = await self.project_x._make_request("POST", url, data=payload)
 
-            if response:
+            if response and isinstance(response, dict):
                 success = response.get("success", False)
 
                 if success:
@@ -290,7 +296,9 @@ class PositionOperationsMixin:
                             "contract_id": contract_id,
                             "partial": True,
                             "size": close_size,
-                            "order_id": response.get("orderId"),
+                            "order_id": response.get("orderId")
+                            if isinstance(response, dict)
+                            else None,
                         },
                     )
                     # Trigger position refresh to get updated sizes
@@ -301,7 +309,11 @@ class PositionOperationsMixin:
 
                     self.stats["positions_partially_closed"] += 1
                 else:
-                    error_msg = response.get("errorMessage", "Unknown error")
+                    error_msg = (
+                        response.get("errorMessage", "Unknown error")
+                        if isinstance(response, dict)
+                        else "Unknown error"
+                    )
                     logger.error(
                         LogMessages.POSITION_ERROR,
                         extra={"operation": "partial_close", "error": error_msg},

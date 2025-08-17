@@ -354,7 +354,7 @@ class OrderManagerProtocol(Protocol):
 class PositionManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from PositionManager."""
 
-    project_x: "ProjectXBase"
+    project_x: "ProjectXClientProtocol"
     logger: Any
     event_bus: Any  # EventBus instance
     position_lock: asyncio.Lock
