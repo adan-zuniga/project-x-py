@@ -55,6 +55,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.models import Position
+from project_x_py.types.response_types import PositionAnalysisResponse
 
 if TYPE_CHECKING:
     from asyncio import Lock
@@ -87,7 +88,7 @@ class PositionMonitoringMixin:
             position: Position,
             current_price: float | None = None,
             point_value: float | None = None,
-        ) -> Any: ...
+        ) -> PositionAnalysisResponse: ...
 
     def __init__(self) -> None:
         """Initialize monitoring attributes."""
