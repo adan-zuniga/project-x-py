@@ -57,14 +57,12 @@ See Also:
 
 import asyncio
 import logging
-import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Union
 
-from typing_extensions import deprecated
-
 from project_x_py.event_bus import EventType
 from project_x_py.models import BracketOrderResponse, Order, OrderPlaceResponse
+from project_x_py.utils.deprecation import deprecated, deprecated_class
 
 if TYPE_CHECKING:
     from project_x_py.trading_suite import TradingSuite
@@ -72,9 +70,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@deprecated(
-    "OrderTracker is deprecated. Use TradingSuite.track_order() instead. "
-    "Will be removed in v4.0.0"
+@deprecated_class(
+    reason="Use TradingSuite.track_order() for integrated order tracking",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite.track_order()",
 )
 class OrderTracker:
     """
@@ -370,9 +370,11 @@ class OrderTracker:
         )  # FILLED, CANCELLED, EXPIRED, REJECTED
 
 
-@deprecated(
-    "OrderChainBuilder is deprecated. Use TradingSuite.order_chain() instead. "
-    "Will be removed in v4.0.0"
+@deprecated_class(
+    reason="Use TradingSuite.order_chain() for integrated order chain building",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite.order_chain()",
 )
 class OrderChainBuilder:
     """
@@ -621,7 +623,10 @@ class OrderLifecycleError(Exception):
 
 # Convenience function for creating order trackers
 @deprecated(
-    "Use TradingSuite.track_order() instead. This function will be removed in v4.0.0."
+    reason="Use TradingSuite.track_order() for integrated tracking",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite.track_order()",
 )
 def track_order(
     trading_suite: "TradingSuite",
@@ -645,12 +650,7 @@ def track_order(
             filled = await tracker.wait_for_fill()
         ```
     """
-    warnings.warn(
-        "track_order() is deprecated, use TradingSuite.track_order() instead. "
-        "This function will be removed in v4.0.0",
-        DeprecationWarning,
-        stacklevel=2,
-    )
+    # Deprecation warning handled by decorator
     tracker = OrderTracker(trading_suite)
     if order:
         if isinstance(order, Order | OrderPlaceResponse):

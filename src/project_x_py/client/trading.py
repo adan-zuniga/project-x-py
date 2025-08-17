@@ -66,15 +66,14 @@ See Also:
 
 import datetime
 import logging
-import warnings
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pytz
-from deprecated import deprecated  # type: ignore
 
 from project_x_py.exceptions import ProjectXError
 from project_x_py.models import Position, Trade
+from project_x_py.utils.deprecation import deprecated
 
 if TYPE_CHECKING:
     from project_x_py.types import ProjectXClientProtocol
@@ -85,8 +84,11 @@ logger = logging.getLogger(__name__)
 class TradingMixin:
     """Mixin class providing trading functionality."""
 
-    @deprecated(  # type: ignore[misc]
-        "Use search_open_positions() instead. This method will be removed in v4.0.0."
+    @deprecated(
+        reason="Method renamed for API consistency",
+        version="3.0.0",
+        removal_version="4.0.0",
+        replacement="search_open_positions()",
     )
     async def get_positions(self: "ProjectXClientProtocol") -> list[Position]:
         """
@@ -102,12 +104,7 @@ class TradingMixin:
         Returns:
             A list of Position objects representing current holdings.
         """
-        warnings.warn(
-            "get_positions() is deprecated, use search_open_positions() instead. "
-            "This method will be removed in v4.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        # Deprecation warning handled by decorator
         return await self.search_open_positions()
 
     async def search_open_positions(

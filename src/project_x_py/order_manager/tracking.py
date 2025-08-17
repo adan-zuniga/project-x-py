@@ -54,6 +54,8 @@ from collections import defaultdict
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from project_x_py.utils.deprecation import deprecated
+
 if TYPE_CHECKING:
     from project_x_py.types import OrderManagerProtocol
 
@@ -317,6 +319,12 @@ class OrderTrackingMixin:
         async with self.order_lock:
             return self.tracked_orders.get(order_id)
 
+    @deprecated(
+        reason="Use TradingSuite.on() with EventType enum for event handling",
+        version="3.1.0",
+        removal_version="4.0.0",
+        replacement="TradingSuite.on(EventType.ORDER_FILLED, callback)",
+    )
     def add_callback(
         self,
         event_type: str,
@@ -327,9 +335,8 @@ class OrderTrackingMixin:
 
         This method is provided for backward compatibility only and will be removed in v4.0.
         """
-        logger.warning(
-            "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
-        )
+        # Deprecation warning handled by decorator
+        pass
 
     async def _trigger_callbacks(self, event_type: str, data: Any) -> None:
         """
