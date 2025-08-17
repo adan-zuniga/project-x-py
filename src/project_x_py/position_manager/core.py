@@ -95,6 +95,7 @@ from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
 )
+from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
@@ -109,6 +110,7 @@ class PositionManager(
     PositionMonitoringMixin,
     PositionOperationsMixin,
     PositionReportingMixin,
+    StatsTrackingMixin,
 ):
     """
     Async comprehensive position management system for ProjectX trading operations.
@@ -225,6 +227,7 @@ class PositionManager(
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
         PositionMonitoringMixin.__init__(self)
+        StatsTrackingMixin._init_stats_tracking(self)
 
         self.project_x = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events

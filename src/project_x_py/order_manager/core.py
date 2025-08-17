@@ -74,6 +74,7 @@ from project_x_py.utils import (
     handle_errors,
     validate_response,
 )
+from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 from .bracket_orders import BracketOrderMixin
 from .order_types import OrderTypesMixin
@@ -89,7 +90,11 @@ logger = ProjectXLogger.get_logger(__name__)
 
 
 class OrderManager(
-    OrderTrackingMixin, OrderTypesMixin, BracketOrderMixin, PositionOrderMixin
+    OrderTrackingMixin,
+    OrderTypesMixin,
+    BracketOrderMixin,
+    PositionOrderMixin,
+    StatsTrackingMixin,
 ):
     """
     Async comprehensive order management system for ProjectX trading operations.
@@ -163,6 +168,7 @@ class OrderManager(
         """
         # Initialize mixins
         OrderTrackingMixin.__init__(self)
+        StatsTrackingMixin._init_stats_tracking(self)
 
         self.project_x = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
@@ -441,7 +447,11 @@ class OrderManager(
 
                 if not response.get("success", False):
                     error_msg = response.get("errorMessage", ErrorMessages.ORDER_FAILED)
-                    raise ProjectXOrderError(error_msg)
+                    error = ProjectXOrderError(error_msg)
+                    self._track_error(
+                        error, "place_order", {"contract_id": contract_id, "side": side}
+                    )
+                    raise error
 
                 result = OrderPlaceResponse(**response)
 
@@ -451,6 +461,7 @@ class OrderManager(
                 self.stats["total_volume"] += size
                 if size > self.stats["largest_order"]:
                     self.stats["largest_order"] = size
+                self._update_activity()
 
                 self.logger.info(
                     LogMessages.ORDER_PLACED,

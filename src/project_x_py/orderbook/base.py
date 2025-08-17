@@ -91,11 +91,12 @@ from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
 )
+from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 logger = ProjectXLogger.get_logger(__name__)
 
 
-class OrderBookBase:
+class OrderBookBase(StatsTrackingMixin):
     """
     Base class for async orderbook with core functionality.
 
@@ -159,6 +160,7 @@ class OrderBookBase:
         self.event_bus = event_bus  # Store the event bus for emitting events
         self.timezone = pytz.timezone(timezone_str)
         self.logger = ProjectXLogger.get_logger(__name__)
+        StatsTrackingMixin._init_stats_tracking(self)
 
         # Store configuration with defaults
         self.config = config or {}
