@@ -7,7 +7,7 @@ This is a Python SDK/client library for the ProjectX Trading Platform Gateway AP
 
 **Note**: Focus on toolkit development, not on creating trading strategies.
 
-## Project Status: v3.1.1 - Stable Production Release
+## Project Status: v3.2.0 - Enhanced Type Safety Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -32,26 +32,61 @@ Example approach:
 - ❌ DON'T: Remove deprecated features without proper notice period
 
 ### Deprecation Process
-1. Mark as deprecated with `warnings.warn()` and `@deprecated` decorator
-2. Document replacement in deprecation message
+1. Use the standardized `@deprecated` decorator from `project_x_py.utils.deprecation`
+2. Provide clear reason, version info, and replacement path
 3. Keep deprecated feature for at least 2 minor versions
 4. Remove only in major version releases (4.0.0, 5.0.0, etc.)
 
 Example:
 ```python
-import warnings
-from typing import deprecated
+from project_x_py.utils.deprecation import deprecated, deprecated_class
 
-@deprecated("Use new_method() instead. Will be removed in v4.0.0")
+# For functions/methods
+@deprecated(
+    reason="Method renamed for clarity",
+    version="3.1.14",  # When deprecated
+    removal_version="4.0.0",  # When it will be removed
+    replacement="new_method()"  # What to use instead
+)
 def old_method(self):
-    warnings.warn(
-        "old_method() is deprecated, use new_method() instead. "
-        "Will be removed in v4.0.0",
-        DeprecationWarning,
-        stacklevel=2
-    )
     return self.new_method()
+
+# For classes
+@deprecated_class(
+    reason="Integrated into TradingSuite",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite"
+)
+class OldManager:
+    pass
 ```
+
+The standardized deprecation utilities provide:
+- Consistent warning messages across the SDK
+- Automatic docstring updates with deprecation info
+- IDE support through the `deprecated` package
+- Metadata tracking for deprecation management
+- Support for functions, methods, classes, and parameters
+
+## Development Documentation
+
+### Important: Keep Project Clean
+
+**DO NOT create project files for**:
+- Personal development notes
+- Temporary planning documents
+- Testing logs and results
+- Work-in-progress documentation
+- Meeting notes or discussions
+
+**Instead, use**:
+- External documentation tools
+- GitHub Issues for bug tracking
+- GitHub Discussions for architecture decisions
+- Pull Request descriptions for implementation details
+
+This keeps the project repository clean and focused on production code.
 
 ## Tool Usage Guidelines
 As Grok CLI, you have access to tools like view_file, create_file, str_replace_editor, bash, search, and todo lists. Use them efficiently for tasks.
