@@ -354,7 +354,7 @@ class OrderManagerProtocol(Protocol):
 class PositionManagerProtocol(Protocol):
     """Protocol defining the interface that mixins expect from PositionManager."""
 
-    project_x: "ProjectXClientProtocol"
+    project_x: "ProjectXBase"
     logger: Any
     event_bus: Any  # EventBus instance
     position_lock: asyncio.Lock
@@ -425,7 +425,7 @@ class RealtimeDataManagerProtocol(Protocol):
 
     # Core attributes
     instrument: str
-    project_x: "ProjectXBase"
+    project_x: "ProjectXBase | None"
     realtime_client: "ProjectXRealtimeClient"
     event_bus: Any  # EventBus instance
     logger: Any

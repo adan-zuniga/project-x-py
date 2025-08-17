@@ -60,7 +60,7 @@ from project_x_py.types.response_types import PositionAnalysisResponse
 if TYPE_CHECKING:
     from asyncio import Lock
 
-    from project_x_py.types.protocols import ProjectXClientProtocol
+    from project_x_py.client.base import ProjectXBase
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class PositionMonitoringMixin:
         logger: logging.Logger
         stats: dict[str, Any]
         _realtime_enabled: bool
-        project_x: "ProjectXClientProtocol"
+        project_x: "ProjectXBase"
         data_manager: "RealtimeDataManagerProtocol | None"
 
         # Methods from other mixins/main class

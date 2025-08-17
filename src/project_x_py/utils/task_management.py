@@ -10,6 +10,7 @@ Date: 2025-01-17
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from weakref import WeakSet
 
@@ -47,7 +48,7 @@ class TaskManagerMixin:
         """Initialize task management attributes."""
         self._managed_tasks: WeakSet[Task[Any]] = WeakSet()
         self._persistent_tasks: set[Task[Any]] = set()  # Tasks that should not be GC'd
-        self._task_errors: list[Exception] = []
+        self._task_errors: list[BaseException] = []
         self._cleanup_in_progress = False
 
     def _create_task(
@@ -212,7 +213,9 @@ class AsyncContextManager(TaskManagerMixin):
 
 
 def create_fire_and_forget_task(
-    coro: Any, name: str | None = None, error_handler: callable | None = None
+    coro: Any,
+    name: str | None = None,
+    error_handler: Callable[[BaseException], None] | None = None,
 ) -> "Task[Any]":
     """
     Create a fire-and-forget task with optional error handling.

@@ -74,6 +74,7 @@ import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
+from project_x_py.client.base import ProjectXBase
 from project_x_py.models import Position
 from project_x_py.position_manager.analytics import PositionAnalyticsMixin
 from project_x_py.position_manager.monitoring import PositionMonitoringMixin
@@ -82,10 +83,7 @@ from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
 from project_x_py.risk_manager import RiskManager
 from project_x_py.types.config_types import PositionManagerConfig
-from project_x_py.types.protocols import (
-    ProjectXClientProtocol,
-    RealtimeDataManagerProtocol,
-)
+from project_x_py.types.protocols import RealtimeDataManagerProtocol
 from project_x_py.types.response_types import (
     PositionSizingResponse,
     RiskAnalysisResponse,
@@ -176,7 +174,7 @@ class PositionManager(
 
     def __init__(
         self,
-        project_x_client: "ProjectXClientProtocol",
+        project_x_client: "ProjectXBase",
         event_bus: Any,
         risk_manager: Optional["RiskManager"] = None,
         data_manager: Optional["RealtimeDataManagerProtocol"] = None,
@@ -228,7 +226,7 @@ class PositionManager(
         PositionMonitoringMixin.__init__(self)
         StatsTrackingMixin._init_stats_tracking(self)
 
-        self.project_x: ProjectXClientProtocol = project_x_client
+        self.project_x: ProjectXBase = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
         self.risk_manager = risk_manager
         self.data_manager = data_manager
