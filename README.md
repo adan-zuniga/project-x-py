@@ -21,9 +21,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.1.13 - Stable Production Release
+## 🚀 v3.2.0 - Major Type System Improvements
 
-**Latest Version**: v3.1.13 - Fixed critical event system issues affecting bracket order fill detection and improved real-time connection stability. See [CHANGELOG.md](CHANGELOG.md) for full release history.
+**Latest Version**: v3.2.0 - Comprehensive type system overhaul with improved type safety, standardized deprecation handling, and enhanced error tracking. See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
 ### 📦 Production Stability Guarantee
 
@@ -79,6 +79,9 @@ suite = await TradingSuite.create(\"MNQ\")
 - **Performance Optimized**: Connection pooling, intelligent caching, memory management
 - **Pattern Recognition**: Fair Value Gaps, Order Blocks, and Waddah Attar Explosion indicators
 - **Enterprise Error Handling**: Production-ready error handling with decorators and structured logging
+- **Comprehensive Type Safety**: Full TypedDict and Protocol definitions for IDE support and static analysis
+- **Statistics Tracking**: Built-in error tracking and memory monitoring across all components
+- **Standardized Deprecation**: Consistent deprecation handling with clear migration paths
 - **Comprehensive Testing**: High test coverage with async-safe testing patterns
 
 ## 📦 Installation

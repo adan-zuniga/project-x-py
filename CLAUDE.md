@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.13 - Stable Production Release
+## Project Status: v3.2.0 - Enhanced Type Safety Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -431,7 +431,16 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.13 - Latest Release
+### v3.2.0 - Latest Release (2025-08-17)
+- **Added**: Comprehensive type system overhaul with TypedDict and Protocol definitions
+- **Added**: StatsTrackingMixin for error and memory tracking across all managers
+- **Added**: Standardized deprecation system with @deprecated decorators
+- **Fixed**: Type hierarchy issues between ProjectXBase and ProjectXClientProtocol
+- **Fixed**: Response type handling for dict|list union types
+- **Improved**: Test coverage with 47 new tests for type system
+- **Improved**: Reduced type errors from 100+ to just 13 edge cases
+
+### v3.1.13
 - **Fixed**: Event system data structure mismatches causing order fill detection failures
   - Bracket orders now properly detect fills without 60-second timeouts
   - Event handlers handle both `order_id` and nested `order` object structures
