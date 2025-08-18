@@ -142,6 +142,7 @@ from project_x_py.utils import (
     format_error_message,
     handle_errors,
 )
+from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
@@ -165,6 +166,7 @@ class RealtimeDataManager(
     CallbackMixin,
     DataAccessMixin,
     ValidationMixin,
+    EnhancedStatsTrackingMixin,
 ):
     """
     Async optimized real-time OHLCV data manager for efficient multi-timeframe trading data.
@@ -362,6 +364,9 @@ class RealtimeDataManager(
 
         # Initialize all mixins (they may need the above attributes)
         super().__init__()
+
+        # Initialize enhanced stats tracking
+        self._init_enhanced_stats()
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone

@@ -71,6 +71,7 @@ See Also:
 """
 
 import asyncio
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -93,7 +94,7 @@ from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
 )
-from project_x_py.utils.stats_tracking import StatsTrackingMixin
+from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
 
 if TYPE_CHECKING:
     from project_x_py.order_manager import OrderManager
@@ -107,7 +108,7 @@ class PositionManager(
     PositionMonitoringMixin,
     PositionOperationsMixin,
     PositionReportingMixin,
-    StatsTrackingMixin,
+    EnhancedStatsTrackingMixin,
 ):
     """
     Async comprehensive position management system for ProjectX trading operations.
@@ -224,7 +225,8 @@ class PositionManager(
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
         PositionMonitoringMixin.__init__(self)
-        StatsTrackingMixin._init_stats_tracking(self)
+        # Initialize enhanced stats tracking
+        self._init_enhanced_stats()
 
         self.project_x: ProjectXBase = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
@@ -435,9 +437,14 @@ class PositionManager(
             In real-time mode, tracked positions are also updated via WebSocket,
             but this method always fetches fresh data from the API.
         """
+        start_time = time.time()
         self.logger.info(LogMessages.POSITION_SEARCH, extra={"account_id": account_id})
 
         positions = await self.project_x.search_open_positions(account_id=account_id)
+
+        # Track the operation timing
+        duration_ms = (time.time() - start_time) * 1000
+        await self.track_operation("get_all_positions", duration_ms, success=True)
 
         # Update tracked positions
         async with self.position_lock:
@@ -492,19 +499,39 @@ class PositionManager(
             - Real-time mode: O(1) cache lookup, falls back to API if miss
             - Polling mode: Always makes API call via get_all_positions()
         """
+        start_time = time.time()
+
         # Try cached data first if real-time enabled
         if self._realtime_enabled:
             async with self.position_lock:
                 cached_position = self.tracked_positions.get(contract_id)
                 if cached_position:
+                    duration_ms = (time.time() - start_time) * 1000
+                    await self.track_operation(
+                        "get_position",
+                        duration_ms,
+                        success=True,
+                        metadata={"cache_hit": True},
+                    )
                     return cached_position
 
         # Fallback to API search
         positions = await self.get_all_positions(account_id=account_id)
         for position in positions:
             if position.contractId == contract_id:
+                duration_ms = (time.time() - start_time) * 1000
+                await self.track_operation(
+                    "get_position",
+                    duration_ms,
+                    success=True,
+                    metadata={"cache_hit": False},
+                )
                 return position
 
+        duration_ms = (time.time() - start_time) * 1000
+        await self.track_operation(
+            "get_position", duration_ms, success=False, metadata={"reason": "not_found"}
+        )
         return None
 
     @handle_errors("refresh positions", reraise=False, default_return=False)

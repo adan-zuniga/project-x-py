@@ -390,14 +390,18 @@ class StatisticsAggregator:
 
         # Get error stats
         if hasattr(ob, "get_error_stats"):
-            error_stats = await ob.get_error_stats()
+            error_stats = ob.get_error_stats()
+            if asyncio.iscoroutine(error_stats):
+                error_stats = await error_stats
             error_count = error_stats.get("total_errors", 0)
         else:
             error_count = 0
 
         # Get memory usage
         if hasattr(ob, "get_memory_stats"):
-            memory_stats = await ob.get_memory_stats()
+            memory_stats = ob.get_memory_stats()
+            if asyncio.iscoroutine(memory_stats):
+                memory_stats = await memory_stats
             memory_mb = memory_stats.get("current_memory_mb", 0.0)
         elif hasattr(ob, "get_memory_usage_mb"):
             memory_mb = ob.get_memory_usage_mb()

@@ -298,6 +298,15 @@ class DataProcessingMixin:
             price = tick["price"]
             volume = tick.get("volume", 0)
 
+            # Track tick processing if enhanced stats available
+            if hasattr(self, "track_operation"):
+                await self.track_operation(
+                    "process_tick",
+                    0.1,  # Placeholder timing, actual timing tracked elsewhere
+                    success=True,
+                    metadata={"price": price, "volume": volume},
+                )
+
             # Collect events to trigger after releasing the lock
             events_to_trigger = []
 

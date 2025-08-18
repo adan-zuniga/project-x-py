@@ -418,5 +418,107 @@ async def test_stats_under_load():
     assert 0.85 <= metrics["network_stats"]["success_rate"] <= 0.95
 
 
+@pytest.mark.asyncio
+async def test_position_manager_stats_integration():
+    """Test that PositionManager properly tracks statistics with EnhancedStatsTrackingMixin."""
+    from project_x_py.models import Position
+    from project_x_py.position_manager import PositionManager
+
+    # Create mock dependencies
+    mock_client = AsyncMock()
+    mock_event_bus = AsyncMock()
+
+    # Setup mock response for search_open_positions
+    mock_positions = [
+        Position(
+            id=1,
+            accountId=123,
+            contractId="MNQ",
+            type=1,  # LONG
+            size=2,
+            averagePrice=15000.0,
+            creationTimestamp="2025-01-01T12:00:00Z",
+        ),
+        Position(
+            id=2,
+            accountId=123,
+            contractId="ES",
+            type=2,  # SHORT
+            size=1,
+            averagePrice=4500.0,
+            creationTimestamp="2025-01-01T12:00:00Z",
+        ),
+    ]
+    mock_client.search_open_positions = AsyncMock(return_value=mock_positions)
+
+    # Create PositionManager
+    position_manager = PositionManager(
+        project_x_client=mock_client,
+        event_bus=mock_event_bus,
+    )
+
+    # Perform operations to generate stats
+    await position_manager.get_all_positions()
+    await position_manager.get_position("MNQ")
+    await position_manager.get_position("ES")
+    await position_manager.get_position("NQ")  # Not found
+
+    # Verify stats are being tracked
+    metrics = await position_manager.get_performance_metrics()
+    assert "operation_stats" in metrics
+
+    # Check that operations were tracked
+    assert "get_all_positions" in metrics["operation_stats"]
+    assert "get_position" in metrics["operation_stats"]
+
+    # Verify operation counts
+    get_position_stats = metrics["operation_stats"]["get_position"]
+    assert get_position_stats["count"] == 3  # Called 3 times
+    # Check timing stats exist
+    assert "avg_ms" in get_position_stats
+    assert "p50_ms" in get_position_stats
+    assert "p95_ms" in get_position_stats
+    assert get_position_stats["avg_ms"] > 0  # Should have timing data
+
+
+@pytest.mark.asyncio
+async def test_realtime_data_manager_stats_integration():
+    """Test that RealtimeDataManager properly tracks statistics with EnhancedStatsTrackingMixin."""
+    from project_x_py.realtime_data_manager import RealtimeDataManager
+
+    # Create mock dependencies
+    mock_client = AsyncMock()
+    mock_realtime_client = AsyncMock()
+    mock_event_bus = AsyncMock()
+
+    # Create RealtimeDataManager
+    data_manager = RealtimeDataManager(
+        instrument="MNQ",
+        project_x=mock_client,
+        realtime_client=mock_realtime_client,
+        event_bus=mock_event_bus,
+        timeframes=["1min", "5min"],
+    )
+
+    # Verify enhanced stats are initialized
+    assert hasattr(data_manager, "_error_count")
+    assert hasattr(data_manager, "_operation_timings")
+
+    # Track some operations
+    await data_manager.track_operation("process_tick", 0.5, success=True)
+    await data_manager.track_operation("process_tick", 0.3, success=True)
+    await data_manager.track_operation("process_tick", 0.8, success=False)
+
+    # Get performance metrics
+    metrics = await data_manager.get_performance_metrics()
+    assert "operation_stats" in metrics
+    assert "process_tick" in metrics["operation_stats"]
+
+    tick_stats = metrics["operation_stats"]["process_tick"]
+    assert tick_stats["count"] == 3
+    assert "avg_ms" in tick_stats
+    assert tick_stats["avg_ms"] > 0  # Should have timing data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
