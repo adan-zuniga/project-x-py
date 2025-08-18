@@ -22,6 +22,7 @@ from project_x_py.types.protocols import (
     ProjectXClientProtocol,
     RealtimeDataManagerProtocol,
 )
+from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 from .config import RiskConfig
 
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RiskManager:
+class RiskManager(StatsTrackingMixin):
     """Comprehensive risk management system for trading.
 
     Handles position sizing, risk validation, stop-loss management,
@@ -67,6 +68,7 @@ class RiskManager:
         self.event_bus = event_bus
         self.config = config or RiskConfig()
         self.data_manager = data_manager
+        StatsTrackingMixin._init_stats_tracking(self)
 
         # Track daily losses and trades
         self._daily_loss = Decimal("0")

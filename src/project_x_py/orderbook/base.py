@@ -91,11 +91,13 @@ from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
 )
+from project_x_py.utils.deprecation import deprecated
+from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 logger = ProjectXLogger.get_logger(__name__)
 
 
-class OrderBookBase:
+class OrderBookBase(StatsTrackingMixin):
     """
     Base class for async orderbook with core functionality.
 
@@ -159,6 +161,7 @@ class OrderBookBase:
         self.event_bus = event_bus  # Store the event bus for emitting events
         self.timezone = pytz.timezone(timezone_str)
         self.logger = ProjectXLogger.get_logger(__name__)
+        StatsTrackingMixin._init_stats_tracking(self)
 
         # Store configuration with defaults
         self.config = config or {}
@@ -661,6 +664,12 @@ class OrderBookBase:
         async with self.orderbook_lock:
             return self.order_type_stats.copy()
 
+    @deprecated(
+        reason="Use TradingSuite.on() with EventType enum for event handling",
+        version="3.1.0",
+        removal_version="4.0.0",
+        replacement="TradingSuite.on(EventType.MARKET_DEPTH_UPDATE, callback)",
+    )
     @handle_errors("add callback", reraise=False)
     async def add_callback(self, event_type: str, callback: CallbackType) -> None:
         """
@@ -705,21 +714,23 @@ class OrderBookBase:
             >>> # Events automatically flow through EventBus
         """
         async with self._callback_lock:
-            logger.warning(
-                "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
-            )
+            # Deprecation warning handled by decorator
             logger.debug(
                 LogMessages.CALLBACK_REGISTERED,
                 extra={"event_type": event_type, "component": "orderbook"},
             )
 
+    @deprecated(
+        reason="Use TradingSuite.off() with EventType enum for event handling",
+        version="3.1.0",
+        removal_version="4.0.0",
+        replacement="TradingSuite.off(EventType.MARKET_DEPTH_UPDATE, callback)",
+    )
     @handle_errors("remove callback", reraise=False)
     async def remove_callback(self, event_type: str, callback: CallbackType) -> None:
         """Remove a registered callback."""
         async with self._callback_lock:
-            logger.warning(
-                "remove_callback is deprecated. Use TradingSuite.off() with EventType enum instead."
-            )
+            # Deprecation warning handled by decorator
             logger.debug(
                 LogMessages.CALLBACK_REMOVED,
                 extra={"event_type": event_type, "component": "orderbook"},

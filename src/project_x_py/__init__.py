@@ -95,7 +95,7 @@ from typing import Any
 
 from project_x_py.client.base import ProjectXBase
 
-__version__ = "3.1.13"
+__version__ = "3.2.0"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
@@ -170,10 +170,13 @@ from project_x_py.order_templates import (
     ScalpingTemplate,
     get_template,
 )
+
+# Deprecated: These are re-exported for backward compatibility only
+# Use TradingSuite.track_order() and TradingSuite.order_chain() instead
 from project_x_py.order_tracker import (
-    OrderChainBuilder,
+    OrderChainBuilder,  # Deprecated: Use TradingSuite.order_chain()
     OrderLifecycleError,
-    OrderTracker,
+    OrderTracker,  # Deprecated: Use TradingSuite.track_order()
 )
 from project_x_py.orderbook import (
     OrderBook,

@@ -251,8 +251,12 @@ class TradingSuite:
         # Optional components
         self.orderbook: OrderBook | None = None
         self.risk_manager: RiskManager | None = None
-        self.journal = None  # TODO: Future enhancement
-        self.analytics = None  # TODO: Future enhancement
+        # Future enhancements - not currently implemented
+        # These attributes are placeholders for future feature development
+        # To enable these features, implement the corresponding classes
+        # and integrate them into the TradingSuite initialization flow
+        self.journal = None  # Trade journal for recording and analyzing trades
+        self.analytics = None  # Performance analytics for strategy evaluation
 
         # Create PositionManager first
         self.positions = PositionManager(
@@ -840,8 +844,12 @@ class TradingSuite:
                 last_activity=last_activity_obj.isoformat()
                 if last_activity_obj
                 else None,
-                error_count=0,  # TODO: Implement error tracking in OrderManager
-                memory_usage_mb=0.0,  # TODO: Implement memory tracking in OrderManager
+                error_count=self.orders.get_error_stats()["total_errors"]
+                if hasattr(self.orders, "get_error_stats")
+                else 0,
+                memory_usage_mb=self.orders.get_memory_usage_mb()
+                if hasattr(self.orders, "get_memory_usage_mb")
+                else 0.0,
             )
 
         if self.positions:
@@ -853,8 +861,12 @@ class TradingSuite:
                 last_activity=last_activity_obj.isoformat()
                 if last_activity_obj
                 else None,
-                error_count=0,  # TODO: Implement error tracking in PositionManager
-                memory_usage_mb=0.0,  # TODO: Implement memory tracking in PositionManager
+                error_count=self.positions.get_error_stats()["total_errors"]
+                if hasattr(self.positions, "get_error_stats")
+                else 0,
+                memory_usage_mb=self.positions.get_memory_usage_mb()
+                if hasattr(self.positions, "get_memory_usage_mb")
+                else 0.0,
             )
 
         if self.data:
@@ -878,8 +890,12 @@ class TradingSuite:
                 last_activity=self.orderbook.last_orderbook_update.isoformat()
                 if self.orderbook.last_orderbook_update
                 else None,
-                error_count=0,  # TODO: Implement error tracking in OrderBook
-                memory_usage_mb=0.0,  # TODO: Implement memory tracking in OrderBook
+                error_count=self.orderbook.get_error_stats()["total_errors"]
+                if hasattr(self.orderbook, "get_error_stats")
+                else 0,
+                memory_usage_mb=self.orderbook.get_memory_usage_mb()
+                if hasattr(self.orderbook, "get_memory_usage_mb")
+                else 0.0,
             )
 
         if self.risk_manager:
@@ -887,9 +903,15 @@ class TradingSuite:
                 name="RiskManager",
                 status="active" if self.risk_manager else "inactive",
                 uptime_seconds=uptime_seconds,
-                last_activity=None,  # TODO: Implement activity tracking in RiskManager
-                error_count=0,  # TODO: Implement error tracking in RiskManager
-                memory_usage_mb=0.0,  # TODO: Implement memory tracking in RiskManager
+                last_activity=self.risk_manager.get_activity_stats()["last_activity"]
+                if hasattr(self.risk_manager, "get_activity_stats")
+                else None,
+                error_count=self.risk_manager.get_error_stats()["total_errors"]
+                if hasattr(self.risk_manager, "get_error_stats")
+                else 0,
+                memory_usage_mb=self.risk_manager.get_memory_usage_mb()
+                if hasattr(self.risk_manager, "get_memory_usage_mb")
+                else 0.0,
             )
 
         return {

@@ -1,6 +1,9 @@
 """
 Order lifecycle tracking and management for ProjectX SDK v3.0.0.
 
+DEPRECATED: This module is deprecated as of v3.1.14 and will be removed in v4.0.0.
+            Use TradingSuite.track_order() and TradingSuite.order_chain() instead.
+
 Author: SDK v3.0.0
 Date: 2025-08-04
 
@@ -54,14 +57,12 @@ See Also:
 
 import asyncio
 import logging
-import warnings
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Union
 
-from typing_extensions import deprecated
-
 from project_x_py.event_bus import EventType
 from project_x_py.models import BracketOrderResponse, Order, OrderPlaceResponse
+from project_x_py.utils.deprecation import deprecated, deprecated_class
 
 if TYPE_CHECKING:
     from project_x_py.trading_suite import TradingSuite
@@ -69,9 +70,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@deprecated_class(
+    reason="Use TradingSuite.track_order() for integrated order tracking",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite.track_order()",
+)
 class OrderTracker:
     """
     Context manager for comprehensive order lifecycle tracking.
+
+    DEPRECATED: Use TradingSuite.track_order() instead. Will be removed in v4.0.0.
 
     Provides automatic order state management with async waiting capabilities,
     eliminating the need for manual order status polling and complex state
@@ -361,9 +370,17 @@ class OrderTracker:
         )  # FILLED, CANCELLED, EXPIRED, REJECTED
 
 
+@deprecated_class(
+    reason="Use TradingSuite.order_chain() for integrated order chain building",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite.order_chain()",
+)
 class OrderChainBuilder:
     """
     Fluent API for building complex order chains.
+
+    DEPRECATED: Use TradingSuite.order_chain() instead. Will be removed in v4.0.0.
 
     Allows creating multi-part orders (entry + stops + targets) with a
     clean, chainable syntax that's easy to read and maintain.
@@ -606,7 +623,10 @@ class OrderLifecycleError(Exception):
 
 # Convenience function for creating order trackers
 @deprecated(
-    "Use TradingSuite.track_order() instead. This function will be removed in v4.0.0."
+    reason="Use TradingSuite.track_order() for integrated tracking",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite.track_order()",
 )
 def track_order(
     trading_suite: "TradingSuite",
@@ -630,12 +650,7 @@ def track_order(
             filled = await tracker.wait_for_fill()
         ```
     """
-    warnings.warn(
-        "track_order() is deprecated, use TradingSuite.track_order() instead. "
-        "This function will be removed in v4.0.0",
-        DeprecationWarning,
-        stacklevel=2,
-    )
+    # Deprecation warning handled by decorator
     tracker = OrderTracker(trading_suite)
     if order:
         if isinstance(order, Order | OrderPlaceResponse):

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Status: v3.1.13 - Stable Production Release
+## Project Status: v3.2.0 - Enhanced Type Safety Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -27,26 +27,98 @@ Example approach:
 - ❌ DON'T: Remove deprecated features without proper notice period
 
 ### Deprecation Process
-1. Mark as deprecated with `warnings.warn()` and `@deprecated` decorator
-2. Document replacement in deprecation message
+1. Use the standardized `@deprecated` decorator from `project_x_py.utils.deprecation`
+2. Provide clear reason, version info, and replacement path
 3. Keep deprecated feature for at least 2 minor versions
 4. Remove only in major version releases (4.0.0, 5.0.0, etc.)
 
 Example:
 ```python
-import warnings
-from typing import deprecated
+from project_x_py.utils.deprecation import deprecated, deprecated_class
 
-@deprecated("Use new_method() instead. Will be removed in v4.0.0")
+# For functions/methods
+@deprecated(
+    reason="Method renamed for clarity",
+    version="3.1.14",  # When deprecated
+    removal_version="4.0.0",  # When it will be removed
+    replacement="new_method()"  # What to use instead
+)
 def old_method(self):
-    warnings.warn(
-        "old_method() is deprecated, use new_method() instead. "
-        "Will be removed in v4.0.0",
-        DeprecationWarning,
-        stacklevel=2
-    )
     return self.new_method()
+
+# For classes
+@deprecated_class(
+    reason="Integrated into TradingSuite",
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="TradingSuite"
+)
+class OldManager:
+    pass
 ```
+
+The standardized deprecation utilities provide:
+- Consistent warning messages across the SDK
+- Automatic docstring updates with deprecation info
+- IDE support through the `deprecated` package
+- Metadata tracking for deprecation management
+- Support for functions, methods, classes, and parameters
+
+## Development Documentation with Obsidian
+
+### Important: Use Obsidian for Development Plans and Progress Tracking
+
+**ALWAYS use Obsidian MCP integration for**:
+- Multi-session development plans
+- Testing procedures and results
+- Architecture decisions and design documents
+- Feature planning and roadmaps
+- Bug investigation notes
+- Performance optimization tracking
+- Release planning and checklists
+
+**DO NOT create project files for**:
+- Personal development notes (use Obsidian instead)
+- Temporary planning documents
+- Testing logs and results
+- Work-in-progress documentation
+- Meeting notes or discussions
+
+### Obsidian Structure for ProjectX Development
+
+When using Obsidian for this project, use the following structure:
+```
+Development/
+  ProjectX SDK/
+    Feature Planning/
+      [Feature Name].md
+    Testing Plans/
+      [Version] Release Testing.md
+    Architecture Decisions/
+      [Decision Topic].md
+    Bug Investigations/
+      [Issue Number] - [Description].md
+    Performance/
+      [Optimization Area].md
+```
+
+### Example Obsidian Usage
+
+```python
+# When creating multi-session plans:
+await mcp__mcp_obsidian__obsidian_append_content(
+    filepath="Development/ProjectX SDK/Feature Planning/WebSocket Improvements.md",
+    content="# WebSocket Connection Improvements Plan\n..."
+)
+
+# When documenting test results:
+await mcp__mcp_obsidian__obsidian_append_content(
+    filepath="Development/ProjectX SDK/Testing Plans/v3.3.0 Release Testing.md",
+    content="## Test Results\n..."
+)
+```
+
+This keeps the project repository clean and focused on production code while maintaining comprehensive development documentation in Obsidian.
 
 ## Development Commands
 
@@ -244,6 +316,121 @@ Optional configuration:
 - `PROJECTX_TIMEOUT_SECONDS`: Request timeout
 - `PROJECTX_RETRY_ATTEMPTS`: Retry attempts
 
+## MCP Server Integration
+
+Several MCP (Model Context Protocol) servers are available to enhance development workflow:
+
+### Essential Development MCPs
+
+#### Memory Bank (`mcp__aakarsh-sasi-memory-bank-mcp`)
+Tracks development progress and maintains context across sessions:
+```python
+# Track feature implementation progress
+await mcp__aakarsh_sasi_memory_bank_mcp__track_progress(
+    action="Implemented bracket order system",
+    description="Added OCO and bracket order support with automatic stop/target placement"
+)
+
+# Log architectural decisions
+await mcp__aakarsh_sasi_memory_bank_mcp__log_decision(
+    title="Event System Architecture",
+    context="Need unified event handling across components",
+    decision="Implement EventBus with async handlers and priority support",
+    alternatives=["Direct callbacks", "Observer pattern", "Pub/sub with Redis"],
+    consequences=["Better decoupling", "Easier testing", "Slight performance overhead"]
+)
+
+# Switch development modes
+await mcp__aakarsh_sasi_memory_bank_mcp__switch_mode("debug")  # architect, code, debug, test
+```
+
+#### Knowledge Graph (`mcp__itseasy-21-mcp-knowledge-graph`)
+Maps component relationships and data flow:
+```python
+# Map trading system relationships
+await mcp__itseasy_21_mcp_knowledge_graph__create_entities(
+    entities=[
+        {"name": "TradingSuite", "entityType": "Core", 
+         "observations": ["Central orchestrator", "Manages all components"]},
+        {"name": "OrderManager", "entityType": "Manager",
+         "observations": ["Handles order lifecycle", "Supports bracket orders"]}
+    ]
+)
+
+await mcp__itseasy_21_mcp_knowledge_graph__create_relations(
+    relations=[
+        {"from": "TradingSuite", "to": "OrderManager", "relationType": "manages"},
+        {"from": "OrderManager", "to": "ProjectXClient", "relationType": "uses"}
+    ]
+)
+```
+
+#### Clear Thought Reasoning (`mcp__waldzellai-clear-thought`)
+For complex problem-solving and architecture decisions:
+```python
+# Analyze performance bottlenecks
+await mcp__waldzellai_clear_thought__clear_thought(
+    operation="debugging_approach",
+    prompt="WebSocket connection dropping under high message volume",
+    context="Real-time data manager processing 1000+ ticks/second"
+)
+
+# Plan refactoring strategy
+await mcp__waldzellai_clear_thought__clear_thought(
+    operation="systems_thinking",
+    prompt="Refactor monolithic client into modular mixins",
+    context="Need better separation of concerns without breaking existing API"
+)
+```
+
+### Documentation & Research MCPs
+
+#### Project Documentation (`mcp__project-x-py_Docs`)
+Quick access to project-specific documentation:
+```python
+# Search project documentation
+await mcp__project_x_py_Docs__search_project_x_py_documentation(
+    query="bracket order implementation"
+)
+
+# Search codebase
+await mcp__project_x_py_Docs__search_project_x_py_code(
+    query="async def place_bracket_order"
+)
+```
+
+#### External Research (`mcp__tavily-mcp`)
+Research trading APIs and async patterns:
+```python
+# Search for solutions
+await mcp__tavily_mcp__tavily_search(
+    query="python asyncio websocket reconnection pattern futures trading",
+    max_results=5,
+    search_depth="advanced"
+)
+
+# Extract documentation
+await mcp__tavily_mcp__tavily_extract(
+    urls=["https://docs.python.org/3/library/asyncio-task.html"],
+    format="markdown"
+)
+```
+
+### Best Practices for MCP Usage
+
+1. **Memory Bank**: Update after completing significant features or making architectural decisions
+2. **Knowledge Graph**: Maintain when adding new components or changing relationships
+3. **Clear Thought**: Use for complex debugging, performance analysis, or architecture planning
+4. **Documentation MCPs**: Reference before implementing new features to understand existing patterns
+
+### When to Use Each MCP
+
+- **Starting a new feature**: Check Memory Bank for context, use Clear Thought for planning
+- **Debugging complex issues**: Clear Thought for analysis, Knowledge Graph for understanding relationships
+- **Making architectural decisions**: Log with Memory Bank, analyze with Clear Thought
+- **Understanding existing code**: Project Docs for internal code, Tavily for external research
+- **Tracking progress**: Memory Bank for TODO tracking and progress updates
+
 ## Performance Optimizations
 
 ### Connection Pooling & Caching (client.py)
@@ -300,7 +487,16 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.1.13 - Latest Release
+### v3.2.0 - Latest Release (2025-08-17)
+- **Added**: Comprehensive type system overhaul with TypedDict and Protocol definitions
+- **Added**: StatsTrackingMixin for error and memory tracking across all managers
+- **Added**: Standardized deprecation system with @deprecated decorators
+- **Fixed**: Type hierarchy issues between ProjectXBase and ProjectXClientProtocol
+- **Fixed**: Response type handling for dict|list union types
+- **Improved**: Test coverage with 47 new tests for type system
+- **Improved**: Reduced type errors from 100+ to just 13 edge cases
+
+### v3.1.13
 - **Fixed**: Event system data structure mismatches causing order fill detection failures
   - Bracket orders now properly detect fills without 60-second timeouts
   - Event handlers handle both `order_id` and nested `order` object structures

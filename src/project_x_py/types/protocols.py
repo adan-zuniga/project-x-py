@@ -425,7 +425,7 @@ class RealtimeDataManagerProtocol(Protocol):
 
     # Core attributes
     instrument: str
-    project_x: "ProjectXBase"
+    project_x: "ProjectXBase | None"
     realtime_client: "ProjectXRealtimeClient"
     event_bus: Any  # EventBus instance
     logger: Any

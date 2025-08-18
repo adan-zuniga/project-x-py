@@ -80,8 +80,6 @@ from project_x_py.position_manager.analytics import PositionAnalyticsMixin
 from project_x_py.position_manager.monitoring import PositionMonitoringMixin
 from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
-
-# from project_x_py.position_manager.risk import RiskManagementMixin # DEPRECATED
 from project_x_py.position_manager.tracking import PositionTrackingMixin
 from project_x_py.risk_manager import RiskManager
 from project_x_py.types.config_types import PositionManagerConfig
@@ -95,9 +93,9 @@ from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
 )
+from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 if TYPE_CHECKING:
-    from project_x_py.client import ProjectXBase
     from project_x_py.order_manager import OrderManager
     from project_x_py.realtime import ProjectXRealtimeClient
 
@@ -109,6 +107,7 @@ class PositionManager(
     PositionMonitoringMixin,
     PositionOperationsMixin,
     PositionReportingMixin,
+    StatsTrackingMixin,
 ):
     """
     Async comprehensive position management system for ProjectX trading operations.
@@ -225,8 +224,9 @@ class PositionManager(
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
         PositionMonitoringMixin.__init__(self)
+        StatsTrackingMixin._init_stats_tracking(self)
 
-        self.project_x = project_x_client
+        self.project_x: ProjectXBase = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
         self.risk_manager = risk_manager
         self.data_manager = data_manager

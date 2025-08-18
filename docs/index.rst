@@ -20,7 +20,7 @@ project-x-py Documentation
 **project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
 .. note::
-   **Version 3.1.11**: High-performance production suite with 2-5x performance improvements. Features memory-mapped overflow storage, orjson integration, WebSocket message batching, and advanced caching with compression. Complete async architecture with unified TradingSuite interface. Latest update includes ManagedTrade automatic market price fetching for risk-managed trades.
+   **Version 3.2.0**: Major type system improvements with comprehensive TypedDict and Protocol definitions for better IDE support and type safety. Features new StatsTrackingMixin for error and memory tracking, standardized deprecation system, and dramatically improved type checking (reduced errors from 100+ to 13). Includes 47 new tests for complete type system coverage. Fully backward compatible with v3.1.x.
 
 .. note::
    **Stable Production Release**: Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.

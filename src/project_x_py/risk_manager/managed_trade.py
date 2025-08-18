@@ -139,8 +139,7 @@ class ManagedTrade:
         # Calculate position size if not provided
         if size is None:
             if entry_price is None:
-                # Get current market price
-                # TODO: Get from data manager
+                # Get current market price from data manager
                 entry_price = await self._get_market_price()
 
             sizing = await self.risk.calculate_position_size(

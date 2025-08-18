@@ -114,6 +114,7 @@ from project_x_py.types.response_types import (
     OrderbookAnalysisResponse,
 )
 from project_x_py.types.stats_types import OrderbookStats
+from project_x_py.utils.deprecation import deprecated
 
 __all__ = [
     # Types
@@ -464,6 +465,12 @@ class OrderBook(OrderBookBase):
         await super().cleanup()
 
 
+@deprecated(
+    reason="Use TradingSuite.create() with orderbook feature for integrated orderbook",
+    version="3.1.0",
+    removal_version="4.0.0",
+    replacement='TradingSuite.create(instrument, features=["orderbook"])',
+)
 def create_orderbook(
     instrument: str,
     event_bus: Any,

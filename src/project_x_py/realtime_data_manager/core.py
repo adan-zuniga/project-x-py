@@ -259,7 +259,7 @@ class RealtimeDataManager(
     def __init__(
         self,
         instrument: str,
-        project_x: "ProjectXBase",
+        project_x: "ProjectXBase | None",
         realtime_client: "ProjectXRealtimeClient",
         event_bus: Any | None = None,
         timeframes: list[str] | None = None,
@@ -338,7 +338,7 @@ class RealtimeDataManager(
 
         # Set basic attributes needed by mixins
         self.instrument: str = instrument
-        self.project_x: ProjectXBase = project_x
+        self.project_x: ProjectXBase | None = project_x
         self.realtime_client: ProjectXRealtimeClient = realtime_client
         # EventBus is optional in tests; fallback to a simple dummy if None
         self.event_bus = event_bus if event_bus is not None else _DummyEventBus()
@@ -527,7 +527,13 @@ class RealtimeDataManager(
                 LogMessages.DATA_FETCH,
                 extra={"phase": "initialization", "instrument": self.instrument},
             )
-
+            if self.project_x is None:
+                raise ProjectXError(
+                    format_error_message(
+                        ErrorMessages.INTERNAL_ERROR,
+                        reason="ProjectX client not initialized",
+                    )
+                )
             # Get the contract ID for the instrument
             instrument_info: Instrument | None = await self.project_x.get_instrument(
                 self.instrument
@@ -558,6 +564,13 @@ class RealtimeDataManager(
             # Load initial data for all timeframes
             async with self.data_lock:
                 for tf_key, tf_config in self.timeframes.items():
+                    if self.project_x is None:
+                        raise ProjectXError(
+                            format_error_message(
+                                ErrorMessages.INTERNAL_ERROR,
+                                reason="ProjectX client not initialized",
+                            )
+                        )
                     bars = await self.project_x.get_bars(
                         self.instrument,  # Use base symbol, not contract ID
                         interval=tf_config["interval"],

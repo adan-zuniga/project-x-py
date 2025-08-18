@@ -67,6 +67,7 @@ from typing import TYPE_CHECKING, Any
 
 from project_x_py.models import Position
 from project_x_py.types.trading import PositionType
+from project_x_py.utils.deprecation import deprecated
 
 if TYPE_CHECKING:
     from asyncio import Lock
@@ -489,6 +490,12 @@ class PositionTrackingMixin:
 
         # Legacy callbacks have been removed - use EventBus
 
+    @deprecated(
+        reason="Use TradingSuite.on() with EventType enum for event handling",
+        version="3.1.0",
+        removal_version="4.0.0",
+        replacement="TradingSuite.on(EventType.POSITION_UPDATED, callback)",
+    )
     async def add_callback(
         self,
         event_type: str,

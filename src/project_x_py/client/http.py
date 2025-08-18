@@ -52,7 +52,7 @@ See Also:
 """
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import httpx
 
@@ -80,11 +80,22 @@ from project_x_py.utils import (
 if TYPE_CHECKING:
     from project_x_py.types import ProjectXClientProtocol
 
+T = TypeVar("T")
+
 logger = ProjectXLogger.get_logger(__name__)
 
 
 class HttpMixin:
     """Mixin class providing HTTP client functionality."""
+
+    # These attributes are provided by the base class or other mixins
+    config: Any  # ProjectXConfig
+    base_url: str
+    headers: dict[str, str]
+    session_token: str
+    rate_limiter: Any  # RateLimiter
+    cache_hit_count: int
+    api_call_count: int
 
     def __init__(self) -> None:
         """Initialize HTTP client attributes."""
@@ -165,7 +176,7 @@ class HttpMixin:
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
         retry_count: int = 0,
-    ) -> Any:
+    ) -> dict[str, Any] | list[Any]:
         """
         Make an async HTTP request with error handling and retry logic.
 
@@ -243,7 +254,8 @@ class HttpMixin:
                 if response.status_code == 204:
                     return {}
                 try:
-                    return response.json()
+                    result: dict[str, Any] | list[Any] = response.json()
+                    return result
                 except Exception as e:
                     # JSON parsing failed
                     raise ProjectXDataError(
@@ -259,7 +271,7 @@ class HttpMixin:
                 if endpoint != "/Auth/loginKey" and retry_count == 0:
                     # Try to refresh authentication
                     await self._refresh_authentication()
-                    return await self._make_request(
+                    retry_result: dict[str, Any] | list[Any] = await self._make_request(
                         method=method,
                         endpoint=endpoint,
                         data=data,
@@ -267,6 +279,7 @@ class HttpMixin:
                         headers=headers,
                         retry_count=retry_count + 1,
                     )
+                    return retry_result
                 raise ProjectXAuthenticationError(ErrorMessages.AUTH_FAILED)
 
             # Handle client errors
@@ -299,6 +312,9 @@ class HttpMixin:
                         message=response.text[:200],  # Limit message length
                     )
                 )
+
+            # Should never reach here, but required for type checking
+            raise ProjectXError(f"Unexpected response status: {response.status_code}")
 
     @handle_errors("get health status")
     async def get_health_status(

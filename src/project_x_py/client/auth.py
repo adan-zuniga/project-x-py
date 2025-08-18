@@ -79,6 +79,12 @@ logger = ProjectXLogger.get_logger(__name__)
 class AuthenticationMixin:
     """Mixin class providing authentication functionality."""
 
+    # These attributes are provided by the base class
+    username: str
+    api_key: str
+    account_name: str | None
+    headers: dict[str, str]
+
     def __init__(self) -> None:
         """Initialize authentication attributes."""
         super().__init__()
@@ -191,7 +197,11 @@ class AuthenticationMixin:
         accounts_response = await self._make_request(
             "POST", "/Account/search", data=payload
         )
-        if not accounts_response or not accounts_response.get("success", False):
+        if (
+            not accounts_response
+            or not isinstance(accounts_response, dict)
+            or not accounts_response.get("success", False)
+        ):
             raise ProjectXAuthenticationError(ErrorMessages.API_REQUEST_FAILED)
 
         accounts_data = accounts_response.get("accounts", [])
@@ -282,7 +292,11 @@ class AuthenticationMixin:
         payload = {"onlyActiveAccounts": True}
         response = await self._make_request("POST", "/Account/search", data=payload)
 
-        if not response or not response.get("success", False):
+        if (
+            not response
+            or not isinstance(response, dict)
+            or not response.get("success", False)
+        ):
             return []
 
         accounts_data = response.get("accounts", [])
