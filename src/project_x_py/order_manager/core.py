@@ -57,6 +57,7 @@ See Also:
 """
 
 import asyncio
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -66,6 +67,7 @@ from project_x_py.types.config_types import OrderManagerConfig
 from project_x_py.types.stats_types import OrderManagerStats
 from project_x_py.types.trading import OrderStatus
 from project_x_py.utils import (
+    EnhancedStatsTrackingMixin,
     ErrorMessages,
     LogContext,
     LogMessages,
@@ -74,7 +76,6 @@ from project_x_py.utils import (
     handle_errors,
     validate_response,
 )
-from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 from .bracket_orders import BracketOrderMixin
 from .order_types import OrderTypesMixin
@@ -94,7 +95,7 @@ class OrderManager(
     OrderTypesMixin,
     BracketOrderMixin,
     PositionOrderMixin,
-    StatsTrackingMixin,
+    EnhancedStatsTrackingMixin,
 ):
     """
     Async comprehensive order management system for ProjectX trading operations.
@@ -168,7 +169,13 @@ class OrderManager(
         """
         # Initialize mixins
         OrderTrackingMixin.__init__(self)
-        StatsTrackingMixin._init_stats_tracking(self)
+        EnhancedStatsTrackingMixin._init_enhanced_stats(
+            self,
+            max_errors=100,
+            max_timings=1000,
+            retention_hours=24,
+            enable_profiling=False,
+        )
 
         self.project_x = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
@@ -440,20 +447,33 @@ class OrderManager(
                 if custom_tag:
                     payload["customTag"] = custom_tag
 
-                # Place the order
+                # Place the order with timing
+                start_time = time.time()
                 response = await self.project_x._make_request(
                     "POST", "/Order/place", data=payload
                 )
+                duration_ms = (time.time() - start_time) * 1000
 
                 if not response.get("success", False):
                     error_msg = response.get("errorMessage", ErrorMessages.ORDER_FAILED)
                     error = ProjectXOrderError(error_msg)
-                    self._track_error(
+                    await self.track_error(
                         error, "place_order", {"contract_id": contract_id, "side": side}
+                    )
+                    await self.track_operation(
+                        "place_order", duration_ms, success=False
                     )
                     raise error
 
                 result = OrderPlaceResponse(**response)
+
+                # Track successful operation
+                await self.track_operation(
+                    "place_order",
+                    duration_ms,
+                    success=True,
+                    metadata={"size": size, "order_type": order_type},
+                )
 
                 # Update statistics
                 self.stats["orders_placed"] += 1
@@ -844,6 +864,10 @@ class OrderManager(
         Returns:
             Dict with complete statistics
         """
+        # Get enhanced performance metrics
+        perf_metrics = await self.get_performance_metrics()
+        error_stats = await self.get_error_stats()
+
         async with self.order_lock:
             # Use internal order tracking
             _tracked_orders_count = len(self.tracked_orders)
@@ -882,30 +906,46 @@ class OrderManager(
                 else 0.0
             )
 
-            avg_fill_time_ms = (
-                sum(self.stats["fill_times_ms"]) / len(self.stats["fill_times_ms"])
-                if self.stats["fill_times_ms"]
-                else 0.0
-            )
+            # Use enhanced metrics if available, fallback to legacy
+            if perf_metrics and "api_stats" in perf_metrics:
+                api_stats = perf_metrics["api_stats"]
+                avg_order_response_time_ms = api_stats.get("avg_response_time_ms", 0.0)
+            else:
+                avg_order_response_time_ms = (
+                    sum(self.stats["order_response_times_ms"])
+                    / len(self.stats["order_response_times_ms"])
+                    if self.stats["order_response_times_ms"]
+                    else 0.0
+                )
 
-            avg_order_response_time_ms = (
-                sum(self.stats["order_response_times_ms"])
-                / len(self.stats["order_response_times_ms"])
-                if self.stats["order_response_times_ms"]
-                else 0.0
-            )
+            # Use operation-specific timings if available
+            if perf_metrics and "operation_stats" in perf_metrics:
+                op_stats = perf_metrics["operation_stats"]
+                place_order_stats = op_stats.get("place_order", {})
+                avg_fill_time_ms = place_order_stats.get("avg_ms", 0.0)
+                fastest_fill_ms = place_order_stats.get("min_ms", 0.0)
+                slowest_fill_ms = place_order_stats.get("max_ms", 0.0)
+            else:
+                avg_fill_time_ms = (
+                    sum(self.stats["fill_times_ms"]) / len(self.stats["fill_times_ms"])
+                    if self.stats["fill_times_ms"]
+                    else 0.0
+                )
+                fastest_fill_ms = (
+                    min(self.stats["fill_times_ms"])
+                    if self.stats["fill_times_ms"]
+                    else 0.0
+                )
+                slowest_fill_ms = (
+                    max(self.stats["fill_times_ms"])
+                    if self.stats["fill_times_ms"]
+                    else 0.0
+                )
 
             avg_order_size = (
                 self.stats["total_volume"] / self.stats["orders_placed"]
                 if self.stats["orders_placed"] > 0
                 else 0.0
-            )
-
-            fastest_fill_ms = (
-                min(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
-            )
-            slowest_fill_ms = (
-                max(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
             )
 
             return {
