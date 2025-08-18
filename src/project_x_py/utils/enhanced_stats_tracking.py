@@ -211,11 +211,24 @@ class EnhancedStatsTrackingMixin:
             duplicate_points: Number of duplicate points
         """
         async with self._stats_lock:
-            # Type-safe integer updates
-            current_total = int(self._data_quality.get("total_data_points", 0))
-            current_invalid = int(self._data_quality.get("invalid_data_points", 0))
-            current_missing = int(self._data_quality.get("missing_data_points", 0))
-            current_duplicate = int(self._data_quality.get("duplicate_data_points", 0))
+            # Type-safe integer updates with validation
+            def safe_int(value: Any, default: int = 0) -> int:
+                """Safely convert value to int with validation."""
+                if value is None:
+                    return default
+                if isinstance(value, (int, float)):
+                    return int(value)
+                if isinstance(value, str) and value.isdigit():
+                    return int(value)
+                logger.warning(f"Invalid numeric value for data quality: {value}")
+                return default
+
+            current_total = safe_int(self._data_quality.get("total_data_points", 0))
+            current_invalid = safe_int(self._data_quality.get("invalid_data_points", 0))
+            current_missing = safe_int(self._data_quality.get("missing_data_points", 0))
+            current_duplicate = safe_int(
+                self._data_quality.get("duplicate_data_points", 0)
+            )
 
             self._data_quality["total_data_points"] = current_total + total_points
             self._data_quality["invalid_data_points"] = current_invalid + invalid_points
@@ -324,8 +337,19 @@ class EnhancedStatsTrackingMixin:
             Dictionary with data quality metrics
         """
         async with self._stats_lock:
-            total = int(self._data_quality.get("total_data_points", 0))
-            invalid = int(self._data_quality.get("invalid_data_points", 0))
+            # Safe integer conversion with validation
+            def safe_int(value: Any, default: int = 0) -> int:
+                """Safely convert value to int with validation."""
+                if value is None:
+                    return default
+                if isinstance(value, (int, float)):
+                    return int(value)
+                if isinstance(value, str) and value.isdigit():
+                    return int(value)
+                return default
+
+            total = safe_int(self._data_quality.get("total_data_points", 0))
+            invalid = safe_int(self._data_quality.get("invalid_data_points", 0))
 
             quality_score = ((total - invalid) / total * 100) if total > 0 else 100.0
 
