@@ -548,45 +548,59 @@ class StatisticsAggregator:
         Returns:
             Statistics with cross-component metrics added
         """
-        # Calculate total memory usage across all components
-        total_memory = sum(
-            comp.get("memory_usage_mb", 0)
-            for comp in stats.get("components", {}).values()
-        )
-        stats["memory_usage_mb"] = total_memory
+        try:
+            # Calculate total memory usage across all components
+            total_memory = sum(
+                comp.get("memory_usage_mb", 0)
+                for comp in stats.get("components", {}).values()
+            )
+            stats["memory_usage_mb"] = max(0, total_memory)  # Ensure non-negative
 
-        # Calculate total error count
-        total_errors = sum(
-            comp.get("error_count", 0) for comp in stats.get("components", {}).values()
-        )
-        stats["total_errors"] = total_errors
+            # Calculate total error count
+            total_errors = sum(
+                comp.get("error_count", 0)
+                for comp in stats.get("components", {}).values()
+            )
+            stats["total_errors"] = max(0, total_errors)  # Ensure non-negative
 
-        # Calculate overall health score (0-100)
-        health_score = 100.0
+            # Calculate overall health score (0-100) with bounds checking
+            health_score = 100.0
 
-        # Deduct for errors
-        if total_errors > 0:
-            health_score -= min(20, total_errors * 2)
+            # Deduct for errors (max 20 points)
+            if total_errors > 0:
+                health_score -= min(20, total_errors * 2)
 
-        # Deduct for disconnected components
-        disconnected = sum(
-            1
-            for comp in stats.get("components", {}).values()
-            if comp.get("status") != "connected" and comp.get("status") != "active"
-        )
-        if disconnected > 0:
-            health_score -= disconnected * 10
+            # Deduct for disconnected components (max 30 points)
+            disconnected = sum(
+                1
+                for comp in stats.get("components", {}).values()
+                if comp.get("status") != "connected" and comp.get("status") != "active"
+            )
+            if disconnected > 0:
+                health_score -= min(30, disconnected * 10)
 
-        # Deduct for high memory usage (>500MB total)
-        if total_memory > 500:
-            health_score -= min(20, (total_memory - 500) / 50)
+            # Deduct for high memory usage (>500MB total, max 20 points)
+            if total_memory > 500:
+                memory_penalty = min(20, (total_memory - 500) / 50)
+                health_score -= memory_penalty
 
-        # Deduct for poor cache performance
-        cache_hit_rate = stats.get("cache_hit_rate", 0)
-        if cache_hit_rate < 0.5:
-            health_score -= (0.5 - cache_hit_rate) * 20
+            # Deduct for poor cache performance (max 10 points)
+            cache_hit_rate = stats.get("cache_hit_rate", 0)
+            # Ensure cache_hit_rate is between 0 and 1
+            cache_hit_rate = max(0.0, min(1.0, cache_hit_rate))
+            if cache_hit_rate < 0.5:
+                cache_penalty = min(10, (0.5 - cache_hit_rate) * 20)
+                health_score -= cache_penalty
 
-        stats["health_score"] = max(0, health_score)
+            # Ensure health score is within bounds [0, 100]
+            stats["health_score"] = max(0.0, min(100.0, health_score))
+
+        except Exception as e:
+            logger.error(f"Error calculating cross-component metrics: {e}")
+            # Set safe defaults on error
+            stats["health_score"] = 0.0
+            stats["total_errors"] = stats.get("total_errors", 0)
+            stats["memory_usage_mb"] = stats.get("memory_usage_mb", 0.0)
 
         return stats
 

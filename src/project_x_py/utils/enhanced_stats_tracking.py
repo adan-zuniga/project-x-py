@@ -460,9 +460,10 @@ class EnhancedStatsTrackingMixin:
             Memory usage in MB
         """
         size = 0
+        max_items_to_sample = 100  # Sample limit for large collections
 
-        # Check common attributes
-        attrs_to_check = [
+        # Priority attributes to always check
+        priority_attrs = [
             "_error_history",
             "_error_types",
             "_api_timings",
@@ -471,7 +472,10 @@ class EnhancedStatsTrackingMixin:
             "_network_stats",
             "_data_quality",
             "_component_stats",
-            # Component-specific attributes
+        ]
+
+        # Component-specific attributes (check only if they exist)
+        component_attrs = [
             "tracked_orders",
             "order_status_cache",
             "position_orders",
@@ -486,18 +490,51 @@ class EnhancedStatsTrackingMixin:
             "_position_history",
         ]
 
-        for attr_name in attrs_to_check:
+        # Check priority attributes fully
+        for attr_name in priority_attrs:
             if hasattr(self, attr_name):
                 attr = getattr(self, attr_name)
                 size += sys.getsizeof(attr)
 
-                # For collections, also count items
+                # For small collections, count all items
                 if isinstance(attr, list | dict | set | deque):
                     try:
-                        for item in attr.values() if isinstance(attr, dict) else attr:
-                            size += sys.getsizeof(item)
+                        items = attr.values() if isinstance(attr, dict) else attr
+                        item_count = len(items) if hasattr(items, "__len__") else 0
+
+                        if item_count <= max_items_to_sample:
+                            # Count all items for small collections
+                            for item in items:
+                                size += sys.getsizeof(item)
+                        else:
+                            # Sample for large collections
+                            sample_size = 0
+                            for i, item in enumerate(items):
+                                if i >= max_items_to_sample:
+                                    break
+                                sample_size += sys.getsizeof(item)
+                            # Estimate total size based on sample
+                            avg_item_size = sample_size / max_items_to_sample
+                            size += int(avg_item_size * item_count)
                     except (AttributeError, TypeError):
                         pass
+
+        # For component-specific attributes, use sampling for performance
+        for attr_name in component_attrs:
+            if hasattr(self, attr_name):
+                attr = getattr(self, attr_name)
+                size += sys.getsizeof(attr)
+
+                # Only sample large component collections
+                if isinstance(attr, dict) and len(attr) > max_items_to_sample:
+                    # Sample a subset
+                    sample_size = 0
+                    for i, (k, v) in enumerate(attr.items()):
+                        if i >= 10:  # Small sample for component attrs
+                            break
+                        sample_size += sys.getsizeof(k) + sys.getsizeof(v)
+                    # Rough estimate
+                    size += (sample_size // 10) * len(attr)
 
         return size / (1024 * 1024)
 
