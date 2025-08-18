@@ -19,7 +19,7 @@ Key Features:
 import asyncio
 import time
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, cast
 
 from project_x_py.types.stats_types import (
     ComponentStats,
@@ -84,8 +84,9 @@ class StatisticsAggregator:
             # Check cache if enabled
             if self._enable_caching and not force_refresh:
                 cached = self._get_cached("aggregate_stats")
-                if cached is not None:
-                    return cached
+                if cached is not None and isinstance(cached, dict):
+                    # Cast to correct type for mypy
+                    return cast(TradingSuiteStats, cached)
 
             # Collect stats from all components
             stats = await self._collect_all_stats()
@@ -154,7 +155,8 @@ class StatisticsAggregator:
         # Get realtime connection stats
         realtime_stats = await self._get_realtime_stats()
 
-        return {
+        # Build the complete stats dictionary
+        stats: TradingSuiteStats = {
             "suite_id": getattr(suite, "suite_id", "unknown"),
             "instrument": suite.instrument_id or suite._symbol if suite else "unknown",
             "created_at": getattr(suite, "_created_at", datetime.now()).isoformat(),
@@ -162,13 +164,27 @@ class StatisticsAggregator:
             "status": "active" if suite and suite.is_connected else "disconnected",
             "connected": suite.is_connected if suite else False,
             "components": components,
-            **client_stats,
-            **realtime_stats,
+            # Client stats
+            "total_api_calls": client_stats["total_api_calls"],
+            "successful_api_calls": client_stats["successful_api_calls"],
+            "failed_api_calls": client_stats["failed_api_calls"],
+            "avg_response_time_ms": client_stats["avg_response_time_ms"],
+            "cache_hit_rate": client_stats["cache_hit_rate"],
+            "memory_usage_mb": client_stats["memory_usage_mb"],
+            # Realtime stats
+            "realtime_connected": realtime_stats["realtime_connected"],
+            "user_hub_connected": realtime_stats["user_hub_connected"],
+            "market_hub_connected": realtime_stats["market_hub_connected"],
+            "active_subscriptions": realtime_stats["active_subscriptions"],
+            "message_queue_size": realtime_stats["message_queue_size"],
+            # Features
             "features_enabled": [f.value for f in suite.config.features]
             if suite
             else [],
             "timeframes": suite.config.timeframes if suite else [],
         }
+
+        return stats
 
     async def _get_order_manager_stats(self, uptime_seconds: int) -> ComponentStats:
         """Get OrderManager statistics."""
@@ -176,42 +192,63 @@ class StatisticsAggregator:
         if not om:
             return self._get_empty_component_stats("OrderManager", uptime_seconds)
 
-        # Get enhanced stats if available
-        if hasattr(om, "get_performance_metrics"):
-            perf_metrics = await om.get_performance_metrics()
-        else:
+        try:
+            # Get enhanced stats if available
             perf_metrics = {}
+            if hasattr(om, "get_performance_metrics"):
+                try:
+                    perf_metrics = await om.get_performance_metrics()
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get OrderManager performance metrics: {e}"
+                    )
 
-        # Get error stats
-        if hasattr(om, "get_error_stats"):
-            error_stats = await om.get_error_stats()
-            error_count = error_stats.get("total_errors", 0)
-        else:
+            # Get error stats
             error_count = 0
+            if hasattr(om, "get_error_stats"):
+                try:
+                    error_stats = await om.get_error_stats()
+                    error_count = error_stats.get("total_errors", 0)
+                except Exception as e:
+                    logger.warning(f"Failed to get OrderManager error stats: {e}")
 
-        # Get memory usage
-        if hasattr(om, "get_memory_stats"):
-            memory_stats = await om.get_memory_stats()
-            memory_mb = memory_stats.get("current_memory_mb", 0.0)
-        elif hasattr(om, "get_memory_usage_mb"):
-            memory_mb = om.get_memory_usage_mb()
-        else:
+            # Get memory usage
             memory_mb = 0.0
+            if hasattr(om, "get_memory_stats"):
+                try:
+                    memory_stats = await om.get_memory_stats()
+                    memory_mb = memory_stats.get("current_memory_mb", 0.0)
+                except Exception as e:
+                    logger.warning(f"Failed to get OrderManager memory stats: {e}")
+            elif hasattr(om, "get_memory_usage_mb"):
+                try:
+                    memory_mb = om.get_memory_usage_mb()
+                except Exception as e:
+                    logger.warning(f"Failed to get OrderManager memory usage: {e}")
 
-        # Get last activity
-        last_activity_obj = (
-            om.stats.get("last_order_time") if hasattr(om, "stats") else None
-        )
+            # Get last activity
+            last_activity_obj = None
+            try:
+                last_activity_obj = (
+                    om.stats.get("last_order_time") if hasattr(om, "stats") else None
+                )
+            except Exception as e:
+                logger.warning(f"Failed to get OrderManager last activity: {e}")
 
-        return ComponentStats(
-            name="OrderManager",
-            status="connected",
-            uptime_seconds=uptime_seconds,
-            last_activity=last_activity_obj.isoformat() if last_activity_obj else None,
-            error_count=error_count,
-            memory_usage_mb=memory_mb,
-            performance_metrics=perf_metrics,
-        )
+            return {
+                "name": "OrderManager",
+                "status": "connected",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": last_activity_obj.isoformat()
+                if last_activity_obj
+                else None,
+                "error_count": error_count,
+                "memory_usage_mb": memory_mb,
+                "performance_metrics": perf_metrics,
+            }
+        except Exception as e:
+            logger.error(f"Critical error in OrderManager stats collection: {e}")
+            return self._get_empty_component_stats("OrderManager", uptime_seconds)
 
     async def _get_position_manager_stats(self, uptime_seconds: int) -> ComponentStats:
         """Get PositionManager statistics."""
@@ -219,42 +256,65 @@ class StatisticsAggregator:
         if not pm:
             return self._get_empty_component_stats("PositionManager", uptime_seconds)
 
-        # Get enhanced stats if available
-        if hasattr(pm, "get_performance_metrics"):
-            perf_metrics = await pm.get_performance_metrics()
-        else:
+        try:
+            # Get enhanced stats if available
             perf_metrics = {}
+            if hasattr(pm, "get_performance_metrics"):
+                try:
+                    perf_metrics = await pm.get_performance_metrics()
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get PositionManager performance metrics: {e}"
+                    )
 
-        # Get error stats
-        if hasattr(pm, "get_error_stats"):
-            error_stats = await pm.get_error_stats()
-            error_count = error_stats.get("total_errors", 0)
-        else:
+            # Get error stats
             error_count = 0
+            if hasattr(pm, "get_error_stats"):
+                try:
+                    error_stats = await pm.get_error_stats()
+                    error_count = error_stats.get("total_errors", 0)
+                except Exception as e:
+                    logger.warning(f"Failed to get PositionManager error stats: {e}")
 
-        # Get memory usage
-        if hasattr(pm, "get_memory_stats"):
-            memory_stats = await pm.get_memory_stats()
-            memory_mb = memory_stats.get("current_memory_mb", 0.0)
-        elif hasattr(pm, "get_memory_usage_mb"):
-            memory_mb = pm.get_memory_usage_mb()
-        else:
+            # Get memory usage
             memory_mb = 0.0
+            if hasattr(pm, "get_memory_stats"):
+                try:
+                    memory_stats = await pm.get_memory_stats()
+                    memory_mb = memory_stats.get("current_memory_mb", 0.0)
+                except Exception as e:
+                    logger.warning(f"Failed to get PositionManager memory stats: {e}")
+            elif hasattr(pm, "get_memory_usage_mb"):
+                try:
+                    memory_mb = pm.get_memory_usage_mb()
+                except Exception as e:
+                    logger.warning(f"Failed to get PositionManager memory usage: {e}")
 
-        # Get last activity
-        last_activity_obj = (
-            pm.stats.get("last_position_update") if hasattr(pm, "stats") else None
-        )
+            # Get last activity
+            last_activity_obj = None
+            try:
+                last_activity_obj = (
+                    pm.stats.get("last_position_update")
+                    if hasattr(pm, "stats")
+                    else None
+                )
+            except Exception as e:
+                logger.warning(f"Failed to get PositionManager last activity: {e}")
 
-        return ComponentStats(
-            name="PositionManager",
-            status="connected",
-            uptime_seconds=uptime_seconds,
-            last_activity=last_activity_obj.isoformat() if last_activity_obj else None,
-            error_count=error_count,
-            memory_usage_mb=memory_mb,
-            performance_metrics=perf_metrics,
-        )
+            return {
+                "name": "PositionManager",
+                "status": "connected",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": last_activity_obj.isoformat()
+                if last_activity_obj
+                else None,
+                "error_count": error_count,
+                "memory_usage_mb": memory_mb,
+                "performance_metrics": perf_metrics,
+            }
+        except Exception as e:
+            logger.error(f"Critical error in PositionManager stats collection: {e}")
+            return self._get_empty_component_stats("PositionManager", uptime_seconds)
 
     async def _get_data_manager_stats(self, uptime_seconds: int) -> ComponentStats:
         """Get RealtimeDataManager statistics."""
@@ -264,36 +324,57 @@ class StatisticsAggregator:
                 "RealtimeDataManager", uptime_seconds
             )
 
-        # Get memory stats which include performance metrics
-        if hasattr(dm, "get_memory_stats"):
-            memory_stats = dm.get_memory_stats()
-            memory_mb = memory_stats.get("memory_usage_mb", 0.0)
-            error_count = memory_stats.get("data_validation_errors", 0)
-            last_activity_obj = memory_stats.get("last_update")
-
-            # Extract performance metrics
-            perf_metrics = {
-                "ticks_processed": memory_stats.get("ticks_processed", 0),
-                "quotes_processed": memory_stats.get("quotes_processed", 0),
-                "trades_processed": memory_stats.get("trades_processed", 0),
-                "total_bars": memory_stats.get("total_bars", 0),
-                "websocket_messages": memory_stats.get("websocket_messages", 0),
-            }
-        else:
+        try:
+            # Get memory stats which include performance metrics
             memory_mb = 0.0
             error_count = 0
             last_activity_obj = None
             perf_metrics = {}
 
-        return ComponentStats(
-            name="RealtimeDataManager",
-            status="connected" if dm.is_running else "disconnected",
-            uptime_seconds=uptime_seconds,
-            last_activity=last_activity_obj.isoformat() if last_activity_obj else None,
-            error_count=error_count,
-            memory_usage_mb=memory_mb,
-            performance_metrics=perf_metrics,
-        )
+            if hasattr(dm, "get_memory_stats"):
+                try:
+                    memory_stats = dm.get_memory_stats()
+                    memory_mb = memory_stats.get("memory_usage_mb", 0.0)
+                    error_count = memory_stats.get("data_validation_errors", 0)
+                    last_activity_obj = memory_stats.get("last_update")
+
+                    # Extract performance metrics
+                    perf_metrics = {
+                        "ticks_processed": memory_stats.get("ticks_processed", 0),
+                        "quotes_processed": memory_stats.get("quotes_processed", 0),
+                        "trades_processed": memory_stats.get("trades_processed", 0),
+                        "total_bars": memory_stats.get("total_bars", 0),
+                        "websocket_messages": memory_stats.get("websocket_messages", 0),
+                    }
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get RealtimeDataManager memory stats: {e}"
+                    )
+
+            # Check running status safely
+            status = "disconnected"
+            try:
+                if hasattr(dm, "is_running"):
+                    status = "connected" if dm.is_running else "disconnected"
+            except Exception as e:
+                logger.warning(f"Failed to get RealtimeDataManager status: {e}")
+
+            return {
+                "name": "RealtimeDataManager",
+                "status": status,
+                "uptime_seconds": uptime_seconds,
+                "last_activity": last_activity_obj.isoformat()
+                if last_activity_obj
+                else None,
+                "error_count": error_count,
+                "memory_usage_mb": memory_mb,
+                "performance_metrics": perf_metrics,
+            }
+        except Exception as e:
+            logger.error(f"Critical error in RealtimeDataManager stats collection: {e}")
+            return self._get_empty_component_stats(
+                "RealtimeDataManager", uptime_seconds
+            )
 
     async def _get_orderbook_stats(self, uptime_seconds: int) -> ComponentStats:
         """Get OrderBook statistics."""
@@ -328,15 +409,17 @@ class StatisticsAggregator:
             ob.last_orderbook_update if hasattr(ob, "last_orderbook_update") else None
         )
 
-        return ComponentStats(
-            name="OrderBook",
-            status="connected",
-            uptime_seconds=uptime_seconds,
-            last_activity=last_activity_obj.isoformat() if last_activity_obj else None,
-            error_count=error_count,
-            memory_usage_mb=memory_mb,
-            performance_metrics=perf_metrics,
-        )
+        return {
+            "name": "OrderBook",
+            "status": "connected",
+            "uptime_seconds": uptime_seconds,
+            "last_activity": last_activity_obj.isoformat()
+            if last_activity_obj
+            else None,
+            "error_count": error_count,
+            "memory_usage_mb": memory_mb,
+            "performance_metrics": perf_metrics,
+        }
 
     async def _get_risk_manager_stats(self, uptime_seconds: int) -> ComponentStats:
         """Get RiskManager statistics."""
@@ -373,15 +456,15 @@ class StatisticsAggregator:
         else:
             last_activity = None
 
-        return ComponentStats(
-            name="RiskManager",
-            status="active",
-            uptime_seconds=uptime_seconds,
-            last_activity=last_activity,
-            error_count=error_count,
-            memory_usage_mb=memory_mb,
-            performance_metrics=perf_metrics,
-        )
+        return {
+            "name": "RiskManager",
+            "status": "active",
+            "uptime_seconds": uptime_seconds,
+            "last_activity": last_activity,
+            "error_count": error_count,
+            "memory_usage_mb": memory_mb,
+            "performance_metrics": perf_metrics,
+        }
 
     async def _get_client_stats(self) -> dict[str, Any]:
         """Get ProjectX client statistics."""
@@ -414,14 +497,20 @@ class StatisticsAggregator:
         cache_hits = getattr(client, "cache_hit_count", 0)
         total_requests = api_calls + cache_hits
 
+        # Safe division for cache hit rate
+        cache_hit_rate = 0.0
+        if total_requests > 0:
+            try:
+                cache_hit_rate = min(1.0, cache_hits / total_requests)
+            except (ZeroDivisionError, ValueError):
+                cache_hit_rate = 0.0
+
         return {
             "total_api_calls": api_calls,
             "successful_api_calls": api_calls,  # Assume successful if we have the count
             "failed_api_calls": 0,
             "avg_response_time_ms": 0.0,
-            "cache_hit_rate": (cache_hits / total_requests)
-            if total_requests > 0
-            else 0.0,
+            "cache_hit_rate": cache_hit_rate,
             "memory_usage_mb": 0.0,
         }
 
@@ -560,12 +649,12 @@ class StatisticsAggregator:
         self, name: str, uptime_seconds: int
     ) -> ComponentStats:
         """Get empty component statistics."""
-        return ComponentStats(
-            name=name,
-            status="disconnected",
-            uptime_seconds=uptime_seconds,
-            last_activity=None,
-            error_count=0,
-            memory_usage_mb=0.0,
-            performance_metrics={},
-        )
+        return {
+            "name": name,
+            "status": "disconnected",
+            "uptime_seconds": uptime_seconds,
+            "last_activity": None,
+            "error_count": 0,
+            "memory_usage_mb": 0.0,
+            "performance_metrics": {},
+        }

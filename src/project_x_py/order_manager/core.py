@@ -454,6 +454,17 @@ class OrderManager(
                 )
                 duration_ms = (time.time() - start_time) * 1000
 
+                # Response should be a dict for order placement
+                if not isinstance(response, dict):
+                    error = ProjectXOrderError("Invalid response format")
+                    await self.track_error(
+                        error, "place_order", {"contract_id": contract_id, "side": side}
+                    )
+                    await self.track_operation(
+                        "place_order", duration_ms, success=False
+                    )
+                    raise error
+
                 if not response.get("success", False):
                     error_msg = response.get("errorMessage", ErrorMessages.ORDER_FAILED)
                     error = ProjectXOrderError(error_msg)
@@ -465,7 +476,12 @@ class OrderManager(
                     )
                     raise error
 
-                result = OrderPlaceResponse(**response)
+                result = OrderPlaceResponse(
+                    orderId=response.get("orderId", 0),
+                    success=response.get("success", False),
+                    errorCode=response.get("errorCode", ""),
+                    errorMessage=response.get("errorMessage", ""),
+                )
 
                 # Track successful operation
                 await self.track_operation(
@@ -481,7 +497,9 @@ class OrderManager(
                 self.stats["total_volume"] += size
                 if size > self.stats["largest_order"]:
                     self.stats["largest_order"] = size
-                self._update_activity()
+                self._last_activity = (
+                    datetime.now()
+                )  # Update activity timestamp directly
 
                 self.logger.info(
                     LogMessages.ORDER_PLACED,
@@ -543,6 +561,10 @@ class OrderManager(
         response = await self.project_x._make_request(
             "POST", "/Order/searchOpen", data=params
         )
+
+        # Response should be a dict for order search
+        if not isinstance(response, dict):
+            raise ProjectXOrderError("Invalid response format")
 
         if not response.get("success", False):
             error_msg = response.get("errorMessage", ErrorMessages.ORDER_SEARCH_FAILED)
@@ -665,6 +687,10 @@ class OrderManager(
                 "POST", "/Order/cancel", data=payload
             )
 
+            # Response should be a dict
+            if not isinstance(response, dict):
+                raise ProjectXOrderError("Invalid response format")
+
             success = response.get("success", False) if response else False
 
             if success:
@@ -762,6 +788,10 @@ class OrderManager(
             response = await self.project_x._make_request(
                 "POST", "/Order/modify", data=payload
             )
+
+            # Response should be a dict
+            if not isinstance(response, dict):
+                raise ProjectXOrderError("Invalid response format")
 
             if response and response.get("success", False):
                 # Update statistics
@@ -866,7 +896,7 @@ class OrderManager(
         """
         # Get enhanced performance metrics
         perf_metrics = await self.get_performance_metrics()
-        error_stats = await self.get_error_stats()
+        # error_stats = await self.get_error_stats()  # Available if needed
 
         async with self.order_lock:
             # Use internal order tracking

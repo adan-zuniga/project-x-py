@@ -126,7 +126,9 @@ class PositionOperationsMixin:
             - No price control - executes at current market price
             - For partial closes, use partially_close_position()
         """
-        await self.project_x._ensure_authenticated()
+        # Ensure authenticated (using public method, not private _ensure_authenticated)
+        if not self.project_x.account_info:
+            await self.project_x.authenticate()
 
         if account_id is None:
             if not self.project_x.account_info:
@@ -250,7 +252,9 @@ class PositionOperationsMixin:
             - Remaining position continues with same average price
             - Close size must not exceed current position size
         """
-        await self.project_x._ensure_authenticated()
+        # Ensure authenticated (using public method, not private _ensure_authenticated)
+        if not self.project_x.account_info:
+            await self.project_x.authenticate()
 
         if account_id is None:
             if not self.project_x.account_info:

@@ -25,7 +25,7 @@ import time
 import traceback
 from collections import deque
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional
+from typing import Any
 
 from project_x_py.utils.logging_config import ProjectXLogger
 
@@ -87,7 +87,7 @@ class EnhancedStatsTrackingMixin:
         }
 
         # Data quality metrics
-        self._data_quality = {
+        self._data_quality: dict[str, Any] = {
             "total_data_points": 0,
             "invalid_data_points": 0,
             "missing_data_points": 0,
@@ -211,10 +211,18 @@ class EnhancedStatsTrackingMixin:
             duplicate_points: Number of duplicate points
         """
         async with self._stats_lock:
-            self._data_quality["total_data_points"] += total_points
-            self._data_quality["invalid_data_points"] += invalid_points
-            self._data_quality["missing_data_points"] += missing_points
-            self._data_quality["duplicate_data_points"] += duplicate_points
+            # Type-safe integer updates
+            current_total = int(self._data_quality.get("total_data_points", 0))
+            current_invalid = int(self._data_quality.get("invalid_data_points", 0))
+            current_missing = int(self._data_quality.get("missing_data_points", 0))
+            current_duplicate = int(self._data_quality.get("duplicate_data_points", 0))
+
+            self._data_quality["total_data_points"] = current_total + total_points
+            self._data_quality["invalid_data_points"] = current_invalid + invalid_points
+            self._data_quality["missing_data_points"] = current_missing + missing_points
+            self._data_quality["duplicate_data_points"] = (
+                current_duplicate + duplicate_points
+            )
             self._data_quality["last_validation"] = datetime.now()
 
     async def get_performance_metrics(self) -> dict[str, Any]:
@@ -316,8 +324,8 @@ class EnhancedStatsTrackingMixin:
             Dictionary with data quality metrics
         """
         async with self._stats_lock:
-            total = self._data_quality["total_data_points"]
-            invalid = self._data_quality["invalid_data_points"]
+            total = int(self._data_quality.get("total_data_points", 0))
+            invalid = int(self._data_quality.get("invalid_data_points", 0))
 
             quality_score = ((total - invalid) / total * 100) if total > 0 else 100.0
 
@@ -424,11 +432,14 @@ class EnhancedStatsTrackingMixin:
 
             # Clean up data gaps
             if "data_gaps" in self._data_quality:
-                self._data_quality["data_gaps"] = [
-                    gap
-                    for gap in self._data_quality["data_gaps"]
-                    if gap.get("timestamp", datetime.min) >= cutoff_time
-                ]
+                gaps = self._data_quality.get("data_gaps", [])
+                if isinstance(gaps, list):
+                    self._data_quality["data_gaps"] = [
+                        gap
+                        for gap in gaps
+                        if isinstance(gap, dict)
+                        and gap.get("timestamp", datetime.min) >= cutoff_time
+                    ]
 
             logger.debug(f"Cleaned up stats older than {cutoff_time}")
 
@@ -481,7 +492,7 @@ class EnhancedStatsTrackingMixin:
                 size += sys.getsizeof(attr)
 
                 # For collections, also count items
-                if isinstance(attr, (list, dict, set, deque)):
+                if isinstance(attr, list | dict | set | deque):
                     try:
                         for item in attr.values() if isinstance(attr, dict) else attr:
                             size += sys.getsizeof(item)
@@ -525,6 +536,7 @@ class EnhancedStatsTrackingMixin:
         """
         if isinstance(data, dict):
             sanitized = {}
+            # Extended list of sensitive keys for trading data
             sensitive_keys = {
                 "password",
                 "token",
@@ -532,17 +544,73 @@ class EnhancedStatsTrackingMixin:
                 "secret",
                 "auth",
                 "credential",
+                "account_id",
+                "accountid",
+                "account_name",
+                "accountname",
+                "balance",
+                "equity",
+                "pnl",
+                "profit",
+                "loss",
+                "position_size",
+                "positionsize",
+                "order_size",
+                "ordersize",
+                "api_key",
+                "apikey",
+                "session",
+                "cookie",
+                "username",
+                "email",
+                "phone",
+                "ssn",
+                "tax_id",
+                "bank",
+                "routing",
             }
 
             for key, value in data.items():
-                if any(sensitive in key.lower() for sensitive in sensitive_keys):
-                    sanitized[key] = "***REDACTED***"
+                key_lower = key.lower()
+                # Check if key contains any sensitive patterns
+                if any(sensitive in key_lower for sensitive in sensitive_keys):
+                    # Special handling for certain fields to show partial info
+                    if (
+                        "account" in key_lower
+                        and isinstance(value, str)
+                        and len(value) > 4
+                    ):
+                        # Show last 4 chars of account ID/name
+                        sanitized[key] = f"***{value[-4:]}"
+                    elif any(
+                        x in key_lower
+                        for x in ["pnl", "profit", "loss", "balance", "equity"]
+                    ):
+                        # Show if positive/negative but not actual value
+                        if isinstance(value, int | float):
+                            sanitized[key] = (
+                                "positive"
+                                if value > 0
+                                else "negative"
+                                if value < 0
+                                else "zero"
+                            )
+                        else:
+                            sanitized[key] = "***REDACTED***"
+                    else:
+                        sanitized[key] = "***REDACTED***"
                 else:
                     sanitized[key] = self._sanitize_for_export(value)
 
             return sanitized
-        elif isinstance(data, (list, tuple)):
+        elif isinstance(data, list | tuple):
             return [self._sanitize_for_export(item) for item in data]
+        elif isinstance(data, str):
+            # Check for patterns that look like sensitive data
+            if len(data) > 20 and any(c in data for c in ["=", "Bearer", "Basic"]):
+                # Might be a token or auth header
+                return "***REDACTED***"
+            return data
         else:
             return data
 
@@ -562,7 +630,7 @@ class EnhancedStatsTrackingMixin:
         # Performance metrics
         if "performance" in stats:
             perf = stats["performance"]
-            if "api_stats" in perf and perf["api_stats"]:
+            if perf.get("api_stats"):
                 lines.append(
                     f"# HELP {component}_api_response_time_ms API response time in milliseconds"
                 )

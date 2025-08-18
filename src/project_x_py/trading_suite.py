@@ -61,7 +61,7 @@ from project_x_py.types.config_types import (
     PositionManagerConfig,
 )
 from project_x_py.types.protocols import ProjectXClientProtocol
-from project_x_py.types.stats_types import ComponentStats, TradingSuiteStats
+from project_x_py.types.stats_types import TradingSuiteStats
 from project_x_py.utils import ProjectXLogger, StatisticsAggregator
 
 logger = ProjectXLogger.get_logger(__name__)

@@ -641,7 +641,7 @@ class ManagedTrade:
                 event_order_id = event_data.get("order_id")
                 if not event_order_id and "order" in event_data:
                     order_obj = event_data.get("order")
-                    if hasattr(order_obj, "id"):
+                    if order_obj and hasattr(order_obj, "id"):
                         event_order_id = order_obj.id
                 if event_order_id == order.id:
                     filled_successfully = True
@@ -656,7 +656,7 @@ class ManagedTrade:
                 event_order_id = event_data.get("order_id")
                 if not event_order_id and "order" in event_data:
                     order_obj = event_data.get("order")
-                    if hasattr(order_obj, "id"):
+                    if order_obj and hasattr(order_obj, "id"):
                         event_order_id = order_obj.id
                 if event_order_id == order.id:
                     filled_successfully = False

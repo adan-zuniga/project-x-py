@@ -76,6 +76,7 @@ class ComponentStats(TypedDict):
     last_activity: str | None
     error_count: int
     memory_usage_mb: float
+    performance_metrics: NotRequired[dict[str, Any]]  # Optional performance data
 
 
 class TradingSuiteStats(TypedDict):
@@ -111,6 +112,10 @@ class TradingSuiteStats(TypedDict):
     # Feature flags
     features_enabled: list[str]
     timeframes: list[str]
+
+    # Calculated cross-component metrics
+    total_errors: NotRequired[int]  # Total error count across all components
+    health_score: NotRequired[float]  # Overall health score (0-100)
 
 
 # Component-Specific Statistics Types
