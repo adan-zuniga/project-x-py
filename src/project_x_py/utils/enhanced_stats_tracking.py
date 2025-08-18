@@ -500,7 +500,7 @@ class EnhancedStatsTrackingMixin:
                     size += sys.getsizeof(attr)
 
                     # For small collections, count all items
-                    if isinstance(attr, (list, dict, set, deque)):
+                    if isinstance(attr, list | dict | set | deque):
                         try:
                             items = attr.values() if isinstance(attr, dict) else attr
                             item_count = len(items) if hasattr(items, "__len__") else 0
@@ -627,7 +627,7 @@ class EnhancedStatsTrackingMixin:
                         for x in ["pnl", "profit", "loss", "balance", "equity"]
                     ):
                         # Show if positive/negative but not actual value
-                        if isinstance(value, (int, float)):
+                        if isinstance(value, int | float):
                             sanitized[key] = (
                                 "positive"
                                 if value > 0
@@ -643,7 +643,7 @@ class EnhancedStatsTrackingMixin:
                     sanitized[key] = self._sanitize_for_export(value)
 
             return sanitized
-        elif isinstance(data, (list, tuple)):
+        elif isinstance(data, list | tuple):
             return [self._sanitize_for_export(item) for item in data]
         elif isinstance(data, str):
             # Check for patterns that look like sensitive data
