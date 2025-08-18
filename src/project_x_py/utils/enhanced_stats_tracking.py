@@ -335,9 +335,9 @@ class EnhancedStatsTrackingMixin:
                 "invalid_rate": (invalid / total) if total > 0 else 0.0,
             }
 
-    async def get_memory_stats(self) -> dict[str, Any]:
+    async def get_enhanced_memory_stats(self) -> dict[str, Any]:
         """
-        Get memory usage statistics with automatic sampling.
+        Get enhanced memory usage statistics with automatic sampling.
 
         Returns:
             Dictionary with memory statistics
@@ -400,7 +400,7 @@ class EnhancedStatsTrackingMixin:
                 "performance": await self.get_performance_metrics(),
                 "errors": await self.get_error_stats(),
                 "data_quality": await self.get_data_quality_stats(),
-                "memory": await self.get_memory_stats(),
+                "memory": await self.get_enhanced_memory_stats(),
                 "component_specific": self._sanitize_for_export(self._component_stats),
             }
 

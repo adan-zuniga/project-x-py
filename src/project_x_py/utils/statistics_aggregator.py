@@ -214,9 +214,9 @@ class StatisticsAggregator:
 
             # Get memory usage
             memory_mb = 0.0
-            if hasattr(om, "get_memory_stats"):
+            if hasattr(om, "get_enhanced_memory_stats"):
                 try:
-                    memory_stats = await om.get_memory_stats()
+                    memory_stats = await om.get_enhanced_memory_stats()
                     memory_mb = memory_stats.get("current_memory_mb", 0.0)
                 except Exception as e:
                     logger.warning(f"Failed to get OrderManager memory stats: {e}")
@@ -278,9 +278,9 @@ class StatisticsAggregator:
 
             # Get memory usage
             memory_mb = 0.0
-            if hasattr(pm, "get_memory_stats"):
+            if hasattr(pm, "get_enhanced_memory_stats"):
                 try:
-                    memory_stats = await pm.get_memory_stats()
+                    memory_stats = await pm.get_enhanced_memory_stats()
                     memory_mb = memory_stats.get("current_memory_mb", 0.0)
                 except Exception as e:
                     logger.warning(f"Failed to get PositionManager memory stats: {e}")
@@ -445,8 +445,8 @@ class StatisticsAggregator:
             error_count = 0
 
         # Get memory usage
-        if hasattr(rm, "get_memory_stats"):
-            memory_stats = await rm.get_memory_stats()
+        if hasattr(rm, "get_enhanced_memory_stats"):
+            memory_stats = await rm.get_enhanced_memory_stats()
             memory_mb = memory_stats.get("current_memory_mb", 0.0)
         elif hasattr(rm, "get_memory_usage_mb"):
             memory_mb = rm.get_memory_usage_mb()
