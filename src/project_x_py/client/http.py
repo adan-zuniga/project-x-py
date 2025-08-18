@@ -280,6 +280,9 @@ class HttpMixin:
                         retry_count=retry_count + 1,
                     )
                     return retry_result
+                logger.error(
+                    f"Authentication failed for {endpoint}, status: {response.status_code}, response: {response.text[:200]}"
+                )
                 raise ProjectXAuthenticationError(ErrorMessages.AUTH_FAILED)
 
             # Handle client errors
@@ -293,6 +296,15 @@ class HttpMixin:
                         error_msg = error_data["error"]
                 except Exception:
                     error_msg = response.text
+
+                # Log authentication endpoint errors for debugging
+                if endpoint == "/Auth/loginKey":
+                    logger.error(
+                        f"Auth endpoint error - Status: {response.status_code}, Message: {error_msg}"
+                    )
+                    return (
+                        None  # Return None for auth failures to match expected behavior
+                    )
 
                 if response.status_code == 404:
                     raise ProjectXDataError(

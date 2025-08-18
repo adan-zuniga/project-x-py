@@ -179,6 +179,7 @@ class AuthenticationMixin:
         response = await self._make_request("POST", "/Auth/loginKey", data=auth_data)
 
         if not response:
+            logger.error(f"Empty response from auth endpoint")
             raise ProjectXAuthenticationError(ErrorMessages.AUTH_FAILED)
 
         self.session_token = response["token"]
