@@ -216,7 +216,7 @@ class EnhancedStatsTrackingMixin:
                 """Safely convert value to int with validation."""
                 if value is None:
                     return default
-                if isinstance(value, (int, float)):
+                if isinstance(value, int | float):
                     return int(value)
                 if isinstance(value, str) and value.isdigit():
                     return int(value)
@@ -342,7 +342,7 @@ class EnhancedStatsTrackingMixin:
                 """Safely convert value to int with validation."""
                 if value is None:
                     return default
-                if isinstance(value, (int, float)):
+                if isinstance(value, int | float):
                     return int(value)
                 if isinstance(value, str) and value.isdigit():
                     return int(value)
