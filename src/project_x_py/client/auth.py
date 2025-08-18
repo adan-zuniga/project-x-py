@@ -54,7 +54,7 @@ See Also:
 import base64
 import datetime
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING
 
 import orjson
 import pytz
@@ -70,6 +70,9 @@ from project_x_py.utils import (
     validate_response,
 )
 
+if TYPE_CHECKING:
+    from project_x_py.types import ProjectXClientProtocol
+
 logger = ProjectXLogger.get_logger(__name__)
 
 
@@ -82,18 +85,6 @@ class AuthenticationMixin:
     account_name: str | None
     headers: dict[str, str]
 
-    async def _make_request(
-        self,
-        method: str,
-        endpoint: str,
-        data: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-        headers: dict[str, str] | None = None,
-        retry_count: int = 0,
-    ) -> Any:
-        """Provided by HttpMixin."""
-        _ = (method, endpoint, data, params, headers, retry_count)
-
     def __init__(self) -> None:
         """Initialize authentication attributes."""
         super().__init__()
@@ -102,7 +93,7 @@ class AuthenticationMixin:
         self._authenticated = False
         self.account_info: Account | None = None
 
-    async def _refresh_authentication(self) -> None:
+    async def _refresh_authentication(self: "ProjectXClientProtocol") -> None:
         """
         Refresh authentication if token is expired or about to expire.
 
@@ -118,7 +109,7 @@ class AuthenticationMixin:
         if self._should_refresh_token():
             await self.authenticate()
 
-    def _should_refresh_token(self) -> bool:
+    def _should_refresh_token(self: "ProjectXClientProtocol") -> bool:
         """
         Check if the authentication token should be refreshed.
 
@@ -140,7 +131,7 @@ class AuthenticationMixin:
         return datetime.datetime.now(pytz.UTC) >= (self.token_expiry - buffer_time)
 
     @handle_errors("authenticate")
-    async def authenticate(self) -> None:
+    async def authenticate(self: "ProjectXClientProtocol") -> None:
         """
         Authenticate with ProjectX API and select account.
 
@@ -179,7 +170,6 @@ class AuthenticationMixin:
         response = await self._make_request("POST", "/Auth/loginKey", data=auth_data)
 
         if not response:
-            logger.error(f"Empty response from auth endpoint")
             raise ProjectXAuthenticationError(ErrorMessages.AUTH_FAILED)
 
         self.session_token = response["token"]
@@ -252,7 +242,7 @@ class AuthenticationMixin:
             },
         )
 
-    async def _ensure_authenticated(self) -> None:
+    async def _ensure_authenticated(self: "ProjectXClientProtocol") -> None:
         """
         Ensure client is authenticated before making API calls.
 
@@ -277,7 +267,7 @@ class AuthenticationMixin:
 
     @handle_errors("list accounts")
     @validate_response(required_fields=["success", "accounts"])
-    async def list_accounts(self) -> list[Account]:
+    async def list_accounts(self: "ProjectXClientProtocol") -> list[Account]:
         """
         List all accounts available to the authenticated user.
 
