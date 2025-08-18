@@ -349,7 +349,7 @@ class EnhancedStatsTrackingMixin:
                 self._last_memory_check = current_time
 
                 # Calculate current memory usage
-                memory_mb = self._calculate_memory_usage()
+                memory_mb = await self._calculate_memory_usage()
 
                 # Store snapshot
                 self._memory_snapshots.append(
@@ -364,7 +364,7 @@ class EnhancedStatsTrackingMixin:
                 )
 
             # Get latest stats
-            current_memory = self._calculate_memory_usage()
+            current_memory = await self._calculate_memory_usage()
             memory_trend = []
             if len(self._memory_snapshots) >= 2:
                 memory_trend = [
@@ -452,72 +452,75 @@ class EnhancedStatsTrackingMixin:
             self._last_cleanup = current_time
             await self.cleanup_old_stats()
 
-    def _calculate_memory_usage(self) -> float:
+    async def _calculate_memory_usage(self) -> float:
         """
         Calculate current memory usage of this component.
+
+        Thread-safe memory calculation with async lock protection.
 
         Returns:
             Memory usage in MB
         """
-        size = 0
-        max_items_to_sample = 100  # Sample limit for large collections
+        async with self._stats_lock:
+            size = 0
+            max_items_to_sample = 100  # Sample limit for large collections
 
-        # Priority attributes to always check
-        priority_attrs = [
-            "_error_history",
-            "_error_types",
-            "_api_timings",
-            "_operation_timings",
-            "_memory_snapshots",
-            "_network_stats",
-            "_data_quality",
-            "_component_stats",
-        ]
+            # Priority attributes to always check
+            priority_attrs = [
+                "_error_history",
+                "_error_types",
+                "_api_timings",
+                "_operation_timings",
+                "_memory_snapshots",
+                "_network_stats",
+                "_data_quality",
+                "_component_stats",
+            ]
 
-        # Component-specific attributes (check only if they exist)
-        component_attrs = [
-            "tracked_orders",
-            "order_status_cache",
-            "position_orders",
-            "_orders",
-            "_positions",
-            "_trades",
-            "_bars",
-            "_ticks",
-            "stats",
-            "_data",
-            "_order_history",
-            "_position_history",
-        ]
+            # Component-specific attributes (check only if they exist)
+            component_attrs = [
+                "tracked_orders",
+                "order_status_cache",
+                "position_orders",
+                "_orders",
+                "_positions",
+                "_trades",
+                "_bars",
+                "_ticks",
+                "stats",
+                "_data",
+                "_order_history",
+                "_position_history",
+            ]
 
-        # Check priority attributes fully
-        for attr_name in priority_attrs:
-            if hasattr(self, attr_name):
-                attr = getattr(self, attr_name)
-                size += sys.getsizeof(attr)
+            # Check priority attributes fully
+            for attr_name in priority_attrs:
+                if hasattr(self, attr_name):
+                    attr = getattr(self, attr_name)
+                    size += sys.getsizeof(attr)
 
-                # For small collections, count all items
-                if isinstance(attr, list | dict | set | deque):
-                    try:
-                        items = attr.values() if isinstance(attr, dict) else attr
-                        item_count = len(items) if hasattr(items, "__len__") else 0
+                    # For small collections, count all items
+                    if isinstance(attr, (list, dict, set, deque)):
+                        try:
+                            items = attr.values() if isinstance(attr, dict) else attr
+                            item_count = len(items) if hasattr(items, "__len__") else 0
 
-                        if item_count <= max_items_to_sample:
-                            # Count all items for small collections
-                            for item in items:
-                                size += sys.getsizeof(item)
-                        else:
-                            # Sample for large collections
-                            sample_size = 0
-                            for i, item in enumerate(items):
-                                if i >= max_items_to_sample:
-                                    break
-                                sample_size += sys.getsizeof(item)
-                            # Estimate total size based on sample
-                            avg_item_size = sample_size / max_items_to_sample
-                            size += int(avg_item_size * item_count)
-                    except (AttributeError, TypeError):
-                        pass
+                            if item_count <= max_items_to_sample:
+                                # Count all items for small collections
+                                for item in items:
+                                    size += sys.getsizeof(item)
+                            else:
+                                # Sample for large collections
+                                sample_size = 0
+                                for i, item in enumerate(items):
+                                    if i >= max_items_to_sample:
+                                        break
+                                    sample_size += sys.getsizeof(item)
+                                # Estimate total size based on sample
+                                avg_item_size = sample_size / max_items_to_sample
+                                size += int(avg_item_size * item_count)
+                        except (AttributeError, TypeError):
+                            pass
 
         # For component-specific attributes, use sampling for performance
         for attr_name in component_attrs:
@@ -555,10 +558,10 @@ class EnhancedStatsTrackingMixin:
             return 0.0
 
         sorted_data = sorted(data)
-        index = int(len(sorted_data) * percentile / 100)
-        if index >= len(sorted_data):
-            index = len(sorted_data) - 1
-
+        # Proper percentile calculation with bounds checking
+        index = max(
+            0, min(len(sorted_data) - 1, int((len(sorted_data) - 1) * percentile / 100))
+        )
         return sorted_data[index]
 
     def _sanitize_for_export(self, data: Any) -> Any:
@@ -624,7 +627,7 @@ class EnhancedStatsTrackingMixin:
                         for x in ["pnl", "profit", "loss", "balance", "equity"]
                     ):
                         # Show if positive/negative but not actual value
-                        if isinstance(value, int | float):
+                        if isinstance(value, (int, float)):
                             sanitized[key] = (
                                 "positive"
                                 if value > 0
@@ -640,7 +643,7 @@ class EnhancedStatsTrackingMixin:
                     sanitized[key] = self._sanitize_for_export(value)
 
             return sanitized
-        elif isinstance(data, list | tuple):
+        elif isinstance(data, (list, tuple)):
             return [self._sanitize_for_export(item) for item in data]
         elif isinstance(data, str):
             # Check for patterns that look like sensitive data
