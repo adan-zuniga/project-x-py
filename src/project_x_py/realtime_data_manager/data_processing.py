@@ -290,6 +290,9 @@ class DataProcessingMixin:
         Args:
             tick: Dictionary containing tick data (timestamp, price, volume, etc.)
         """
+        import time
+
+        start_time = time.time()
         try:
             if not self.is_running:
                 return
@@ -297,15 +300,6 @@ class DataProcessingMixin:
             timestamp = tick["timestamp"]
             price = tick["price"]
             volume = tick.get("volume", 0)
-
-            # Track tick processing if enhanced stats available
-            if hasattr(self, "track_operation"):
-                await self.track_operation(
-                    "process_tick",
-                    0.1,  # Placeholder timing, actual timing tracked elsewhere
-                    success=True,
-                    metadata={"price": price, "volume": volume},
-                )
 
             # Collect events to trigger after releasing the lock
             events_to_trigger = []
@@ -338,8 +332,27 @@ class DataProcessingMixin:
             self.memory_stats["ticks_processed"] += 1
             await self._cleanup_old_data()
 
+            # Track operation timing if enhanced stats available
+            if hasattr(self, "track_operation"):
+                duration_ms = (time.time() - start_time) * 1000
+                await self.track_operation(  # pyright: ignore[reportAttributeAccessIssue]
+                    "process_tick",
+                    duration_ms,
+                    success=True,
+                    metadata={"price": price, "volume": volume},
+                )
+
         except Exception as e:
             self.logger.error(f"Error processing tick data: {e}")
+            # Track failed operation if enhanced stats available
+            if hasattr(self, "track_operation"):
+                duration_ms = (time.time() - start_time) * 1000
+                await self.track_operation(  # pyright: ignore[reportAttributeAccessIssue]
+                    "process_tick",
+                    duration_ms,
+                    success=False,
+                    metadata={"error": str(e)},
+                )
 
     async def _update_timeframe_data(
         self,
