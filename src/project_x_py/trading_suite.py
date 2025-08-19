@@ -61,8 +61,8 @@ from project_x_py.types.config_types import (
     PositionManagerConfig,
 )
 from project_x_py.types.protocols import ProjectXClientProtocol
-from project_x_py.types.stats_types import ComponentStats, TradingSuiteStats
-from project_x_py.utils import ProjectXLogger
+from project_x_py.types.stats_types import TradingSuiteStats
+from project_x_py.utils import ProjectXLogger, StatisticsAggregator
 
 logger = ProjectXLogger.get_logger(__name__)
 
@@ -233,6 +233,15 @@ class TradingSuite:
         # Initialize unified event bus
         self.events = EventBus()
 
+        # Initialize statistics aggregator
+        self._stats_aggregator = StatisticsAggregator(
+            cache_ttl_seconds=5,
+            enable_caching=True,
+        )
+        self._stats_aggregator.trading_suite = self
+        self._stats_aggregator.client = client
+        self._stats_aggregator.realtime_client = realtime_client
+
         # Initialize core components with typed configs and event bus
         self.data = RealtimeDataManager(
             instrument=config.instrument,
@@ -247,6 +256,10 @@ class TradingSuite:
         self.orders = OrderManager(
             client, config=config.get_order_manager_config(), event_bus=self.events
         )
+
+        # Set aggregator references
+        self._stats_aggregator.order_manager = self.orders
+        self._stats_aggregator.data_manager = self.data
 
         # Optional components
         self.orderbook: OrderBook | None = None
@@ -267,6 +280,9 @@ class TradingSuite:
             config=config.get_position_manager_config(),
         )
 
+        # Set aggregator reference
+        self._stats_aggregator.position_manager = self.positions
+
         # Initialize risk manager if enabled and inject dependencies
         if Features.RISK_MANAGER in config.features:
             self.risk_manager = RiskManager(
@@ -277,6 +293,7 @@ class TradingSuite:
                 config=config.get_risk_config(),
             )
             self.positions.risk_manager = self.risk_manager
+            self._stats_aggregator.risk_manager = self.risk_manager
 
         # State tracking
         self._connected = False
@@ -513,6 +530,7 @@ class TradingSuite:
                     subscribe_to_depth=True,
                     subscribe_to_quotes=True,
                 )
+                self._stats_aggregator.orderbook = self.orderbook
 
             self._connected = True
             self._initialized = True
@@ -817,128 +835,41 @@ class TradingSuite:
         """
         return await self.events.wait_for(event, timeout)
 
-    def get_stats(self) -> TradingSuiteStats:
+    async def get_stats(self) -> TradingSuiteStats:
         """
-        Get comprehensive statistics from all components.
+        Get comprehensive statistics from all components using the aggregator.
+
+        Returns:
+            Structured statistics from all active components with accurate metrics
+        """
+        return await self._stats_aggregator.aggregate_stats()
+
+    def get_stats_sync(self) -> TradingSuiteStats:
+        """
+        Synchronous wrapper for get_stats for backward compatibility.
+
+        Note: This is a deprecated method that will be removed in v4.0.0.
+        Use the async get_stats() method instead.
 
         Returns:
             Structured statistics from all active components
         """
-        from datetime import datetime
+        import asyncio
+        import warnings
 
-        # Calculate uptime
-        uptime_seconds = (
-            int((datetime.now() - self._created_at).total_seconds())
-            if hasattr(self, "_created_at")
-            else 0
+        warnings.warn(
+            "get_stats_sync() is deprecated and will be removed in v4.0.0. "
+            "Use the async get_stats() method instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
 
-        # Build component stats
-        components: dict[str, ComponentStats] = {}
-        if self.orders:
-            last_activity_obj = self.orders.stats.get("last_order_time")
-            components["order_manager"] = ComponentStats(
-                name="OrderManager",
-                status="connected" if self.orders else "disconnected",
-                uptime_seconds=uptime_seconds,
-                last_activity=last_activity_obj.isoformat()
-                if last_activity_obj
-                else None,
-                error_count=self.orders.get_error_stats()["total_errors"]
-                if hasattr(self.orders, "get_error_stats")
-                else 0,
-                memory_usage_mb=self.orders.get_memory_usage_mb()
-                if hasattr(self.orders, "get_memory_usage_mb")
-                else 0.0,
-            )
+        # Try to get or create event loop
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
-        if self.positions:
-            last_activity_obj = self.positions.stats.get("last_position_update")
-            components["position_manager"] = ComponentStats(
-                name="PositionManager",
-                status="connected" if self.positions else "disconnected",
-                uptime_seconds=uptime_seconds,
-                last_activity=last_activity_obj.isoformat()
-                if last_activity_obj
-                else None,
-                error_count=self.positions.get_error_stats()["total_errors"]
-                if hasattr(self.positions, "get_error_stats")
-                else 0,
-                memory_usage_mb=self.positions.get_memory_usage_mb()
-                if hasattr(self.positions, "get_memory_usage_mb")
-                else 0.0,
-            )
-
-        if self.data:
-            last_activity_obj = self.data.memory_stats.get("last_update")
-            components["data_manager"] = ComponentStats(
-                name="RealtimeDataManager",
-                status="connected" if self.data else "disconnected",
-                uptime_seconds=uptime_seconds,
-                last_activity=last_activity_obj.isoformat()
-                if last_activity_obj
-                else None,
-                error_count=self.data.memory_stats.get("data_validation_errors", 0),
-                memory_usage_mb=self.data.memory_stats.get("memory_usage_mb", 0.0),
-            )
-
-        if self.orderbook:
-            components["orderbook"] = ComponentStats(
-                name="OrderBook",
-                status="connected" if self.orderbook else "disconnected",
-                uptime_seconds=uptime_seconds,
-                last_activity=self.orderbook.last_orderbook_update.isoformat()
-                if self.orderbook.last_orderbook_update
-                else None,
-                error_count=self.orderbook.get_error_stats()["total_errors"]
-                if hasattr(self.orderbook, "get_error_stats")
-                else 0,
-                memory_usage_mb=self.orderbook.get_memory_usage_mb()
-                if hasattr(self.orderbook, "get_memory_usage_mb")
-                else 0.0,
-            )
-
-        if self.risk_manager:
-            components["risk_manager"] = ComponentStats(
-                name="RiskManager",
-                status="active" if self.risk_manager else "inactive",
-                uptime_seconds=uptime_seconds,
-                last_activity=self.risk_manager.get_activity_stats()["last_activity"]
-                if hasattr(self.risk_manager, "get_activity_stats")
-                else None,
-                error_count=self.risk_manager.get_error_stats()["total_errors"]
-                if hasattr(self.risk_manager, "get_error_stats")
-                else 0,
-                memory_usage_mb=self.risk_manager.get_memory_usage_mb()
-                if hasattr(self.risk_manager, "get_memory_usage_mb")
-                else 0.0,
-            )
-
-        return {
-            "suite_id": getattr(self, "suite_id", "unknown"),
-            "instrument": self.instrument_id or self._symbol,
-            "created_at": getattr(self, "_created_at", datetime.now()).isoformat(),
-            "uptime_seconds": uptime_seconds,
-            "status": "active" if self.is_connected else "disconnected",
-            "connected": self.is_connected,
-            "components": components,
-            "realtime_connected": self.realtime.is_connected()
-            if self.realtime
-            else False,
-            "user_hub_connected": getattr(self.realtime, "user_connected", False)
-            if self.realtime
-            else False,
-            "market_hub_connected": getattr(self.realtime, "market_connected", False)
-            if self.realtime
-            else False,
-            "total_api_calls": 0,
-            "successful_api_calls": 0,
-            "failed_api_calls": 0,
-            "avg_response_time_ms": 0.0,
-            "cache_hit_rate": 0.0,
-            "memory_usage_mb": 0.0,
-            "active_subscriptions": 0,
-            "message_queue_size": 0,
-            "features_enabled": [f.value for f in self.config.features],
-            "timeframes": self.config.timeframes,
-        }
+        # Run the async method
+        return loop.run_until_complete(self.get_stats())

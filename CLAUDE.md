@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL: Testing and Running Examples
+
+**ALWAYS use `./test.sh` to run tests and examples.** The environment variables are not set globally, but test.sh handles this automatically. 
+
+```bash
+# CORRECT - Always use test.sh:
+./test.sh examples/01_basic_client_connection.py
+./test.sh examples/21_statistics_usage.py  
+./test.sh /tmp/test_script.py
+
+# WRONG - Never use these directly:
+uv run python examples/01_basic_client_connection.py
+PROJECT_X_API_KEY="..." PROJECT_X_USERNAME="..." uv run python script.py
+```
+
+The test.sh script properly configures all required environment variables. DO NOT attempt to set PROJECT_X_API_KEY or PROJECT_X_USERNAME manually.
+
 ## Project Status: v3.2.0 - Enhanced Type Safety Release
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.

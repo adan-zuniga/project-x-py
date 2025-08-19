@@ -57,6 +57,7 @@ See Also:
 """
 
 import asyncio
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -66,6 +67,7 @@ from project_x_py.types.config_types import OrderManagerConfig
 from project_x_py.types.stats_types import OrderManagerStats
 from project_x_py.types.trading import OrderStatus
 from project_x_py.utils import (
+    EnhancedStatsTrackingMixin,
     ErrorMessages,
     LogContext,
     LogMessages,
@@ -74,7 +76,6 @@ from project_x_py.utils import (
     handle_errors,
     validate_response,
 )
-from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 from .bracket_orders import BracketOrderMixin
 from .order_types import OrderTypesMixin
@@ -94,7 +95,7 @@ class OrderManager(
     OrderTypesMixin,
     BracketOrderMixin,
     PositionOrderMixin,
-    StatsTrackingMixin,
+    EnhancedStatsTrackingMixin,
 ):
     """
     Async comprehensive order management system for ProjectX trading operations.
@@ -168,7 +169,13 @@ class OrderManager(
         """
         # Initialize mixins
         OrderTrackingMixin.__init__(self)
-        StatsTrackingMixin._init_stats_tracking(self)
+        EnhancedStatsTrackingMixin._init_enhanced_stats(
+            self,
+            max_errors=100,
+            max_timings=1000,
+            retention_hours=24,
+            enable_profiling=False,
+        )
 
         self.project_x = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
@@ -405,63 +412,92 @@ class OrderManager(
                 },
             )
 
+            # Align all prices to tick size to prevent "Invalid price" errors
+            aligned_limit_price = await align_price_to_tick_size(
+                limit_price, contract_id, self.project_x
+            )
+            aligned_stop_price = await align_price_to_tick_size(
+                stop_price, contract_id, self.project_x
+            )
+            aligned_trail_price = await align_price_to_tick_size(
+                trail_price, contract_id, self.project_x
+            )
+
+            # Use account_info if no account_id provided
+            if account_id is None:
+                if not self.project_x.account_info:
+                    raise ProjectXOrderError(ErrorMessages.ORDER_NO_ACCOUNT)
+                account_id = self.project_x.account_info.id
+
+            # Build order request payload
+            payload = {
+                "accountId": account_id,
+                "contractId": contract_id,
+                "type": order_type,
+                "side": side,
+                "size": size,
+                "limitPrice": aligned_limit_price,
+                "stopPrice": aligned_stop_price,
+                "trailPrice": aligned_trail_price,
+                "linkedOrderId": linked_order_id,
+            }
+
+            # Only include customTag if it's provided and not None/empty
+            if custom_tag:
+                payload["customTag"] = custom_tag
+
+            # Place the order with timing
+            start_time = time.time()
+            response = await self.project_x._make_request(
+                "POST", "/Order/place", data=payload
+            )
+            duration_ms = (time.time() - start_time) * 1000
+
+            # Response should be a dict for order placement
+            if not isinstance(response, dict):
+                error = ProjectXOrderError("Invalid response format")
+                # Track error without holding locks
+                await self.track_error(
+                    error, "place_order", {"contract_id": contract_id, "side": side}
+                )
+                await self.track_operation("place_order", duration_ms, success=False)
+                raise error
+
+            if not response.get("success", False):
+                error_msg = response.get("errorMessage", ErrorMessages.ORDER_FAILED)
+                error = ProjectXOrderError(error_msg)
+                # Track error without holding locks
+                await self.track_error(
+                    error, "place_order", {"contract_id": contract_id, "side": side}
+                )
+                await self.track_operation("place_order", duration_ms, success=False)
+                raise error
+
+            result = OrderPlaceResponse(
+                orderId=response.get("orderId", 0),
+                success=response.get("success", False),
+                errorCode=response.get("errorCode", ""),
+                errorMessage=response.get("errorMessage", ""),
+            )
+
+            # Track successful operation without holding locks
+            await self.track_operation(
+                "place_order",
+                duration_ms,
+                success=True,
+                metadata={"size": size, "order_type": order_type},
+            )
+
+            # Update statistics with order_lock
             async with self.order_lock:
-                # Align all prices to tick size to prevent "Invalid price" errors
-                aligned_limit_price = await align_price_to_tick_size(
-                    limit_price, contract_id, self.project_x
-                )
-                aligned_stop_price = await align_price_to_tick_size(
-                    stop_price, contract_id, self.project_x
-                )
-                aligned_trail_price = await align_price_to_tick_size(
-                    trail_price, contract_id, self.project_x
-                )
-
-                # Use account_info if no account_id provided
-                if account_id is None:
-                    if not self.project_x.account_info:
-                        raise ProjectXOrderError(ErrorMessages.ORDER_NO_ACCOUNT)
-                    account_id = self.project_x.account_info.id
-
-                # Build order request payload
-                payload = {
-                    "accountId": account_id,
-                    "contractId": contract_id,
-                    "type": order_type,
-                    "side": side,
-                    "size": size,
-                    "limitPrice": aligned_limit_price,
-                    "stopPrice": aligned_stop_price,
-                    "trailPrice": aligned_trail_price,
-                    "linkedOrderId": linked_order_id,
-                }
-
-                # Only include customTag if it's provided and not None/empty
-                if custom_tag:
-                    payload["customTag"] = custom_tag
-
-                # Place the order
-                response = await self.project_x._make_request(
-                    "POST", "/Order/place", data=payload
-                )
-
-                if not response.get("success", False):
-                    error_msg = response.get("errorMessage", ErrorMessages.ORDER_FAILED)
-                    error = ProjectXOrderError(error_msg)
-                    self._track_error(
-                        error, "place_order", {"contract_id": contract_id, "side": side}
-                    )
-                    raise error
-
-                result = OrderPlaceResponse(**response)
-
-                # Update statistics
                 self.stats["orders_placed"] += 1
                 self.stats["last_order_time"] = datetime.now()
                 self.stats["total_volume"] += size
                 if size > self.stats["largest_order"]:
                     self.stats["largest_order"] = size
-                self._update_activity()
+                self._last_activity = (
+                    datetime.now()
+                )  # Update activity timestamp directly
 
                 self.logger.info(
                     LogMessages.ORDER_PLACED,
@@ -523,6 +559,10 @@ class OrderManager(
         response = await self.project_x._make_request(
             "POST", "/Order/searchOpen", data=params
         )
+
+        # Response should be a dict for order search
+        if not isinstance(response, dict):
+            raise ProjectXOrderError("Invalid response format")
 
         if not response.get("success", False):
             error_msg = response.get("errorMessage", ErrorMessages.ORDER_SEARCH_FAILED)
@@ -645,6 +685,10 @@ class OrderManager(
                 "POST", "/Order/cancel", data=payload
             )
 
+            # Response should be a dict
+            if not isinstance(response, dict):
+                raise ProjectXOrderError("Invalid response format")
+
             success = response.get("success", False) if response else False
 
             if success:
@@ -743,6 +787,10 @@ class OrderManager(
                 "POST", "/Order/modify", data=payload
             )
 
+            # Response should be a dict
+            if not isinstance(response, dict):
+                raise ProjectXOrderError("Invalid response format")
+
             if response and response.get("success", False):
                 # Update statistics
                 async with self.order_lock:
@@ -834,7 +882,7 @@ class OrderManager(
 
             return results
 
-    async def get_order_statistics(self) -> OrderManagerStats:
+    def get_order_statistics(self) -> OrderManagerStats:
         """
         Get comprehensive order management statistics and system health information.
 
@@ -844,101 +892,104 @@ class OrderManager(
         Returns:
             Dict with complete statistics
         """
-        async with self.order_lock:
-            # Use internal order tracking
-            _tracked_orders_count = len(self.tracked_orders)
+        # Note: This is now synchronous but thread-safe
+        # We make quick copies to minimize time accessing shared data
 
-            # Count position-order relationships
-            total_position_orders = 0
-            position_summary = {}
-            for contract_id, orders in self.position_orders.items():
-                entry_count = len(orders["entry_orders"])
-                stop_count = len(orders["stop_orders"])
-                target_count = len(orders["target_orders"])
-                total_count = entry_count + stop_count + target_count
+        # Make a copy of stats to work with
+        stats_copy = dict(self.stats)
 
-                if total_count > 0:
-                    total_position_orders += total_count
-                    position_summary[contract_id] = {
-                        "entry": entry_count,
-                        "stop": stop_count,
-                        "target": target_count,
-                        "total": total_count,
-                    }
+        # Use internal order tracking
+        _tracked_orders_count = len(self.tracked_orders)
 
-            # Callbacks now handled through EventBus
-            _callback_counts: dict[str, int] = {}
+        # Count position-order relationships
+        total_position_orders = 0
+        position_summary = {}
+        for contract_id, orders in self.position_orders.items():
+            entry_count = len(orders["entry_orders"])
+            stop_count = len(orders["stop_orders"])
+            target_count = len(orders["target_orders"])
+            total_count = entry_count + stop_count + target_count
 
-            # Calculate performance metrics
-            fill_rate = (
-                self.stats["orders_filled"] / self.stats["orders_placed"]
-                if self.stats["orders_placed"] > 0
-                else 0.0
-            )
+            if total_count > 0:
+                total_position_orders += total_count
+                position_summary[contract_id] = {
+                    "entry": entry_count,
+                    "stop": stop_count,
+                    "target": target_count,
+                    "total": total_count,
+                }
 
-            rejection_rate = (
-                self.stats["orders_rejected"] / self.stats["orders_placed"]
-                if self.stats["orders_placed"] > 0
-                else 0.0
-            )
+        # Now calculate metrics
+        # Calculate performance metrics
+        fill_rate = (
+            stats_copy["orders_filled"] / stats_copy["orders_placed"]
+            if stats_copy["orders_placed"] > 0
+            else 0.0
+        )
 
-            avg_fill_time_ms = (
-                sum(self.stats["fill_times_ms"]) / len(self.stats["fill_times_ms"])
-                if self.stats["fill_times_ms"]
-                else 0.0
-            )
+        rejection_rate = (
+            stats_copy["orders_rejected"] / stats_copy["orders_placed"]
+            if stats_copy["orders_placed"] > 0
+            else 0.0
+        )
 
-            avg_order_response_time_ms = (
-                sum(self.stats["order_response_times_ms"])
-                / len(self.stats["order_response_times_ms"])
-                if self.stats["order_response_times_ms"]
-                else 0.0
-            )
+        # Calculate basic timing metrics
+        avg_order_response_time_ms = (
+            sum(stats_copy["order_response_times_ms"])
+            / len(stats_copy["order_response_times_ms"])
+            if stats_copy["order_response_times_ms"]
+            else 0.0
+        )
 
-            avg_order_size = (
-                self.stats["total_volume"] / self.stats["orders_placed"]
-                if self.stats["orders_placed"] > 0
-                else 0.0
-            )
+        avg_fill_time_ms = (
+            sum(stats_copy["fill_times_ms"]) / len(stats_copy["fill_times_ms"])
+            if stats_copy["fill_times_ms"]
+            else 0.0
+        )
+        fastest_fill_ms = (
+            min(stats_copy["fill_times_ms"]) if stats_copy["fill_times_ms"] else 0.0
+        )
+        slowest_fill_ms = (
+            max(stats_copy["fill_times_ms"]) if stats_copy["fill_times_ms"] else 0.0
+        )
 
-            fastest_fill_ms = (
-                min(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
-            )
-            slowest_fill_ms = (
-                max(self.stats["fill_times_ms"]) if self.stats["fill_times_ms"] else 0.0
-            )
+        avg_order_size = (
+            stats_copy["total_volume"] / stats_copy["orders_placed"]
+            if stats_copy["orders_placed"] > 0
+            else 0.0
+        )
 
-            return {
-                "orders_placed": self.stats["orders_placed"],
-                "orders_filled": self.stats["orders_filled"],
-                "orders_cancelled": self.stats["orders_cancelled"],
-                "orders_rejected": self.stats["orders_rejected"],
-                "orders_modified": self.stats["orders_modified"],
-                # Performance metrics
-                "fill_rate": fill_rate,
-                "avg_fill_time_ms": avg_fill_time_ms,
-                "rejection_rate": rejection_rate,
-                # Order types
-                "market_orders": self.stats["market_orders"],
-                "limit_orders": self.stats["limit_orders"],
-                "stop_orders": self.stats["stop_orders"],
-                "bracket_orders": self.stats["bracket_orders"],
-                # Timing statistics
-                "last_order_time": self.stats["last_order_time"].isoformat()
-                if self.stats["last_order_time"]
-                else None,
-                "avg_order_response_time_ms": avg_order_response_time_ms,
-                "fastest_fill_ms": fastest_fill_ms,
-                "slowest_fill_ms": slowest_fill_ms,
-                # Volume and value
-                "total_volume": self.stats["total_volume"],
-                "total_value": self.stats["total_value"],
-                "avg_order_size": avg_order_size,
-                "largest_order": self.stats["largest_order"],
-                # Risk metrics
-                "risk_violations": self.stats["risk_violations"],
-                "order_validation_failures": self.stats["order_validation_failures"],
-            }
+        return {
+            "orders_placed": stats_copy["orders_placed"],
+            "orders_filled": stats_copy["orders_filled"],
+            "orders_cancelled": stats_copy["orders_cancelled"],
+            "orders_rejected": stats_copy["orders_rejected"],
+            "orders_modified": stats_copy["orders_modified"],
+            # Performance metrics
+            "fill_rate": fill_rate,
+            "avg_fill_time_ms": avg_fill_time_ms,
+            "rejection_rate": rejection_rate,
+            # Order types
+            "market_orders": stats_copy["market_orders"],
+            "limit_orders": stats_copy["limit_orders"],
+            "stop_orders": stats_copy["stop_orders"],
+            "bracket_orders": stats_copy["bracket_orders"],
+            # Timing statistics
+            "last_order_time": stats_copy["last_order_time"].isoformat()
+            if stats_copy["last_order_time"]
+            else None,
+            "avg_order_response_time_ms": avg_order_response_time_ms,
+            "fastest_fill_ms": fastest_fill_ms,
+            "slowest_fill_ms": slowest_fill_ms,
+            # Volume and value
+            "total_volume": stats_copy["total_volume"],
+            "total_value": stats_copy["total_value"],
+            "avg_order_size": avg_order_size,
+            "largest_order": stats_copy["largest_order"],
+            # Risk metrics
+            "risk_violations": stats_copy["risk_violations"],
+            "order_validation_failures": stats_copy["order_validation_failures"],
+        }
 
     async def cleanup(self) -> None:
         """Clean up resources and connections."""

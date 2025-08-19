@@ -22,7 +22,7 @@ from project_x_py.types.protocols import (
     ProjectXClientProtocol,
     RealtimeDataManagerProtocol,
 )
-from project_x_py.utils.stats_tracking import StatsTrackingMixin
+from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
 
 from .config import RiskConfig
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RiskManager(StatsTrackingMixin):
+class RiskManager(EnhancedStatsTrackingMixin):
     """Comprehensive risk management system for trading.
 
     Handles position sizing, risk validation, stop-loss management,
@@ -68,7 +68,13 @@ class RiskManager(StatsTrackingMixin):
         self.event_bus = event_bus
         self.config = config or RiskConfig()
         self.data_manager = data_manager
-        StatsTrackingMixin._init_stats_tracking(self)
+        # Initialize enhanced stats tracking
+        self._init_enhanced_stats(
+            max_errors=100,
+            max_timings=1000,
+            retention_hours=24,
+            enable_profiling=False,
+        )
 
         # Track daily losses and trades
         self._daily_loss = Decimal("0")
@@ -112,6 +118,9 @@ class RiskManager(StatsTrackingMixin):
         Returns:
             PositionSizingResponse with calculated size and risk metrics
         """
+        import time
+
+        start_time = time.time()
         try:
             # Get account info
             account = await self._get_account_info()
@@ -160,7 +169,7 @@ class RiskManager(StatsTrackingMixin):
             if instrument:
                 tick_size = float(instrument.tickSize)
 
-            return PositionSizingResponse(
+            result = PositionSizingResponse(
                 position_size=position_size,
                 risk_amount=actual_risk,
                 risk_percent=actual_risk_percent,
@@ -175,8 +184,22 @@ class RiskManager(StatsTrackingMixin):
                 sizing_method="kelly" if use_kelly else "fixed_risk",
             )
 
+            # Track successful operation
+            duration_ms = (time.time() - start_time) * 1000
+            await self.track_operation(
+                "calculate_position_size", duration_ms, success=True
+            )
+
+            return result
+
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
+            # Track failed operation
+            duration_ms = (time.time() - start_time) * 1000
+            await self.track_operation(
+                "calculate_position_size", duration_ms, success=False
+            )
+            await self.track_error(e, "calculate_position_size")
             raise
 
     async def validate_trade(
@@ -193,6 +216,9 @@ class RiskManager(StatsTrackingMixin):
         Returns:
             RiskValidationResponse with validation result and reasons
         """
+        import time
+
+        start_time = time.time()
         try:
             reasons = []
             warnings = []
@@ -269,7 +295,7 @@ class RiskManager(StatsTrackingMixin):
                     f"Multiple correlated positions ({correlated_count} positions)"
                 )
 
-            return RiskValidationResponse(
+            result = RiskValidationResponse(
                 is_valid=is_valid,
                 reasons=reasons,
                 warnings=warnings,
@@ -280,8 +306,18 @@ class RiskManager(StatsTrackingMixin):
                 portfolio_risk=total_risk,
             )
 
+            # Track successful operation
+            duration_ms = (time.time() - start_time) * 1000
+            await self.track_operation("validate_trade", duration_ms, success=True)
+
+            return result
+
         except Exception as e:
             logger.error(f"Error validating trade: {e}")
+            # Track failed operation
+            duration_ms = (time.time() - start_time) * 1000
+            await self.track_operation("validate_trade", duration_ms, success=False)
+            await self.track_error(e, "validate_trade")
             return RiskValidationResponse(
                 is_valid=False,
                 reasons=[f"Validation error: {e!s}"],

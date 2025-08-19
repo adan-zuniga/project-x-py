@@ -443,14 +443,14 @@ class OrderBook(OrderBookBase):
         return await self.profile.get_spread_analysis(window_minutes)
 
     # Delegate memory methods
-    async def get_memory_stats(self) -> OrderbookStats:
+    def get_memory_stats(self) -> OrderbookStats:
         """
         Get comprehensive memory usage statistics.
 
         Delegates to MemoryManager.get_memory_stats().
         See MemoryManager.get_memory_stats() for complete documentation.
         """
-        return await self.memory_manager.get_memory_stats()
+        return self.memory_manager.get_memory_stats()
 
     async def cleanup(self) -> None:
         """Clean up resources and disconnect from real-time feeds."""
