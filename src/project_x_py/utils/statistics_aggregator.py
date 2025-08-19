@@ -193,30 +193,30 @@ class StatisticsAggregator:
             return self._get_empty_component_stats("OrderManager", uptime_seconds)
 
         try:
-            # Get enhanced stats if available
+            # Get enhanced stats if available (now synchronous)
             perf_metrics = {}
             if hasattr(om, "get_performance_metrics"):
                 try:
-                    perf_metrics = await om.get_performance_metrics()
+                    perf_metrics = om.get_performance_metrics()
                 except Exception as e:
                     logger.warning(
                         f"Failed to get OrderManager performance metrics: {e}"
                     )
 
-            # Get error stats
+            # Get error stats (now synchronous)
             error_count = 0
             if hasattr(om, "get_error_stats"):
                 try:
-                    error_stats = await om.get_error_stats()
+                    error_stats = om.get_error_stats()
                     error_count = error_stats.get("total_errors", 0)
                 except Exception as e:
                     logger.warning(f"Failed to get OrderManager error stats: {e}")
 
-            # Get memory usage
+            # Get memory usage (now synchronous)
             memory_mb = 0.0
             if hasattr(om, "get_enhanced_memory_stats"):
                 try:
-                    memory_stats = await om.get_enhanced_memory_stats()
+                    memory_stats = om.get_enhanced_memory_stats()
                     memory_mb = memory_stats.get("current_memory_mb", 0.0)
                 except Exception as e:
                     logger.warning(f"Failed to get OrderManager memory stats: {e}")
@@ -257,30 +257,30 @@ class StatisticsAggregator:
             return self._get_empty_component_stats("PositionManager", uptime_seconds)
 
         try:
-            # Get enhanced stats if available
+            # Get enhanced stats if available (now synchronous)
             perf_metrics = {}
             if hasattr(pm, "get_performance_metrics"):
                 try:
-                    perf_metrics = await pm.get_performance_metrics()
+                    perf_metrics = pm.get_performance_metrics()
                 except Exception as e:
                     logger.warning(
                         f"Failed to get PositionManager performance metrics: {e}"
                     )
 
-            # Get error stats
+            # Get error stats (now synchronous)
             error_count = 0
             if hasattr(pm, "get_error_stats"):
                 try:
-                    error_stats = await pm.get_error_stats()
+                    error_stats = pm.get_error_stats()
                     error_count = error_stats.get("total_errors", 0)
                 except Exception as e:
                     logger.warning(f"Failed to get PositionManager error stats: {e}")
 
-            # Get memory usage
+            # Get memory usage (now synchronous)
             memory_mb = 0.0
             if hasattr(pm, "get_enhanced_memory_stats"):
                 try:
-                    memory_stats = await pm.get_enhanced_memory_stats()
+                    memory_stats = pm.get_enhanced_memory_stats()
                     memory_mb = memory_stats.get("current_memory_mb", 0.0)
                 except Exception as e:
                     logger.warning(f"Failed to get PositionManager memory stats: {e}")
@@ -382,27 +382,23 @@ class StatisticsAggregator:
         if not ob:
             return self._get_empty_component_stats("OrderBook", uptime_seconds)
 
-        # Get enhanced stats if available
+        # Get enhanced stats if available (now synchronous)
         if hasattr(ob, "get_performance_metrics"):
-            perf_metrics = await ob.get_performance_metrics()
+            perf_metrics = ob.get_performance_metrics()
         else:
             perf_metrics = {}
 
-        # Get error stats
+        # Get error stats (now synchronous)
         if hasattr(ob, "get_error_stats"):
             error_stats = ob.get_error_stats()
-            if asyncio.iscoroutine(error_stats):
-                error_stats = await error_stats
             error_count = error_stats.get("total_errors", 0)
         else:
             error_count = 0
 
-        # Get memory usage
+        # Get memory usage (now synchronous)
         if hasattr(ob, "get_memory_stats"):
             memory_stats = ob.get_memory_stats()
-            if asyncio.iscoroutine(memory_stats):
-                memory_stats = await memory_stats
-            memory_mb = memory_stats.get("current_memory_mb", 0.0)
+            memory_mb = memory_stats.get("memory_usage_mb", 0.0)
         elif hasattr(ob, "get_memory_usage_mb"):
             memory_mb = ob.get_memory_usage_mb()
         else:
@@ -431,44 +427,61 @@ class StatisticsAggregator:
         if not rm:
             return self._get_empty_component_stats("RiskManager", uptime_seconds)
 
-        # Get enhanced stats if available
-        if hasattr(rm, "get_performance_metrics"):
-            perf_metrics = await rm.get_performance_metrics()
-        else:
+        try:
+            # Get enhanced stats if available (now synchronous)
             perf_metrics = {}
+            if hasattr(rm, "get_performance_metrics"):
+                try:
+                    perf_metrics = rm.get_performance_metrics()
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to get RiskManager performance metrics: {e}"
+                    )
 
-        # Get error stats
-        if hasattr(rm, "get_error_stats"):
-            error_stats = await rm.get_error_stats()
-            error_count = error_stats.get("total_errors", 0)
-        else:
+            # Get error stats (now synchronous)
             error_count = 0
+            if hasattr(rm, "get_error_stats"):
+                try:
+                    error_stats = rm.get_error_stats()
+                    error_count = error_stats.get("total_errors", 0)
+                except Exception as e:
+                    logger.warning(f"Failed to get RiskManager error stats: {e}")
 
-        # Get memory usage
-        if hasattr(rm, "get_enhanced_memory_stats"):
-            memory_stats = await rm.get_enhanced_memory_stats()
-            memory_mb = memory_stats.get("current_memory_mb", 0.0)
-        elif hasattr(rm, "get_memory_usage_mb"):
-            memory_mb = rm.get_memory_usage_mb()
-        else:
+            # Get memory usage (now synchronous)
             memory_mb = 0.0
+            if hasattr(rm, "get_enhanced_memory_stats"):
+                try:
+                    memory_stats = rm.get_enhanced_memory_stats()
+                    memory_mb = memory_stats.get("current_memory_mb", 0.0)
+                except Exception as e:
+                    logger.warning(f"Failed to get RiskManager memory stats: {e}")
+            elif hasattr(rm, "get_memory_usage_mb"):
+                try:
+                    memory_mb = rm.get_memory_usage_mb()
+                except Exception as e:
+                    logger.warning(f"Failed to get RiskManager memory usage: {e}")
 
-        # Get last activity
-        if hasattr(rm, "get_activity_stats"):
-            activity_stats = await rm.get_activity_stats()
-            last_activity = activity_stats.get("last_activity")
-        else:
+            # Get last activity
             last_activity = None
+            if hasattr(rm, "get_activity_stats"):
+                try:
+                    activity_stats = await rm.get_activity_stats()
+                    last_activity = activity_stats.get("last_activity")
+                except Exception as e:
+                    logger.warning(f"Failed to get RiskManager activity stats: {e}")
 
-        return {
-            "name": "RiskManager",
-            "status": "active",
-            "uptime_seconds": uptime_seconds,
-            "last_activity": last_activity,
-            "error_count": error_count,
-            "memory_usage_mb": memory_mb,
-            "performance_metrics": perf_metrics,
-        }
+            return {
+                "name": "RiskManager",
+                "status": "active",
+                "uptime_seconds": uptime_seconds,
+                "last_activity": last_activity,
+                "error_count": error_count,
+                "memory_usage_mb": memory_mb,
+                "performance_metrics": perf_metrics,
+            }
+        except Exception as e:
+            logger.error(f"Critical error in RiskManager stats collection: {e}")
+            return self._get_empty_component_stats("RiskManager", uptime_seconds)
 
     async def _get_client_stats(self) -> dict[str, Any]:
         """Get ProjectX client statistics."""

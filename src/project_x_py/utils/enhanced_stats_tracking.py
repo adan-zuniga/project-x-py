@@ -102,7 +102,16 @@ class EnhancedStatsTrackingMixin:
         self._cleanup_interval = 300  # 5 minutes
         self._last_cleanup = time.time()
 
-        # Async lock for thread safety
+        # Fine-grained locks for different stat categories
+        # This prevents deadlocks by allowing concurrent access to different stat types
+        self._error_lock = asyncio.Lock()  # For error tracking
+        self._timing_lock = asyncio.Lock()  # For performance timings
+        self._network_lock = asyncio.Lock()  # For network stats
+        self._data_quality_lock = asyncio.Lock()  # For data quality metrics
+        self._memory_lock = asyncio.Lock()  # For memory snapshots
+        self._component_lock = asyncio.Lock()  # For component-specific stats
+
+        # Legacy lock for backward compatibility (will be phased out)
         self._stats_lock = asyncio.Lock()
 
         # Component-specific stats (to be overridden by each component)
@@ -129,31 +138,37 @@ class EnhancedStatsTrackingMixin:
             success: Whether operation succeeded
             metadata: Optional metadata about the operation
         """
-        async with self._stats_lock:
+        # Use timing lock for operation timings
+        async with self._timing_lock:
             # Update operation timings
             if operation not in self._operation_timings:
                 self._operation_timings[operation] = deque(maxlen=self._max_timings)
             self._operation_timings[operation].append(duration_ms)
 
-            # Update network stats if applicable
-            if metadata and "bytes_sent" in metadata:
-                self._network_stats["total_bytes_sent"] += metadata["bytes_sent"]
-            if metadata and "bytes_received" in metadata:
-                self._network_stats["total_bytes_received"] += metadata[
-                    "bytes_received"
-                ]
+            # Update activity timestamp
+            self._last_activity = datetime.now()
 
-            # Update request counts
+        # Use network lock for network stats
+        if metadata and ("bytes_sent" in metadata or "bytes_received" in metadata):
+            async with self._network_lock:
+                if "bytes_sent" in metadata:
+                    self._network_stats["total_bytes_sent"] += metadata["bytes_sent"]
+                if "bytes_received" in metadata:
+                    self._network_stats["total_bytes_received"] += metadata[
+                        "bytes_received"
+                    ]
+
+        # Update request counts with network lock
+        async with self._network_lock:
             self._network_stats["total_requests"] += 1
             if success:
                 self._network_stats["successful_requests"] += 1
             else:
                 self._network_stats["failed_requests"] += 1
 
-            # Update activity timestamp
-            self._last_activity = datetime.now()
-
-            # Trigger cleanup if needed
+        # Trigger cleanup if needed (no lock needed for time check)
+        current_time = time.time()
+        if current_time - self._last_cleanup > self._cleanup_interval:
             await self._cleanup_old_stats_if_needed()
 
     async def track_error(
@@ -170,15 +185,15 @@ class EnhancedStatsTrackingMixin:
             context: Context about where/why the error occurred
             details: Additional error details
         """
-        async with self._stats_lock:
+        # Sanitize details outside of lock to minimize lock time
+        sanitized_details = self._sanitize_for_export(details) if details else None
+        error_type = type(error).__name__
+
+        async with self._error_lock:
             self._error_count += 1
 
             # Update error type counts
-            error_type = type(error).__name__
             self._error_types[error_type] = self._error_types.get(error_type, 0) + 1
-
-            # Sanitize details to remove PII
-            sanitized_details = self._sanitize_for_export(details) if details else None
 
             # Store error in history
             self._error_history.append(
@@ -210,7 +225,7 @@ class EnhancedStatsTrackingMixin:
             missing_points: Number of missing points
             duplicate_points: Number of duplicate points
         """
-        async with self._stats_lock:
+        async with self._data_quality_lock:
             # Type-safe integer updates with validation
             def safe_int(value: Any, default: int = 0) -> int:
                 """Safely convert value to int with validation."""
@@ -238,176 +253,206 @@ class EnhancedStatsTrackingMixin:
             )
             self._data_quality["last_validation"] = datetime.now()
 
-    async def get_performance_metrics(self) -> dict[str, Any]:
+    def get_performance_metrics(self) -> dict[str, Any]:
         """
         Get detailed performance metrics.
 
         Returns:
             Dictionary with performance statistics
         """
-        async with self._stats_lock:
-            # Calculate averages for each operation
-            operation_stats = {}
-            for op_name, timings in self._operation_timings.items():
-                if timings:
-                    operation_stats[op_name] = {
-                        "count": len(timings),
-                        "avg_ms": sum(timings) / len(timings),
-                        "min_ms": min(timings),
-                        "max_ms": max(timings),
-                        "p50_ms": self._calculate_percentile(timings, 50),
-                        "p95_ms": self._calculate_percentile(timings, 95),
-                        "p99_ms": self._calculate_percentile(timings, 99),
-                    }
+        # Note: This is now synchronous but thread-safe
+        # We make quick copies to minimize time under locks
 
-            # Calculate overall API timing stats
-            api_stats = {}
-            if self._api_timings:
-                api_stats = {
-                    "avg_response_time_ms": sum(self._api_timings)
-                    / len(self._api_timings),
-                    "min_response_time_ms": min(self._api_timings),
-                    "max_response_time_ms": max(self._api_timings),
-                    "p50_response_time_ms": self._calculate_percentile(
-                        self._api_timings, 50
-                    ),
-                    "p95_response_time_ms": self._calculate_percentile(
-                        self._api_timings, 95
-                    ),
+        # Make copies of timing data
+        operation_timings_copy = {
+            op_name: list(timings)
+            for op_name, timings in self._operation_timings.items()
+        }
+        api_timings_copy = list(self._api_timings)
+        last_activity_copy = self._last_activity
+
+        # Copy network stats
+        network_stats_copy = dict(self._network_stats)
+
+        # Now calculate metrics without holding any locks
+        operation_stats = {}
+        for op_name, timings in operation_timings_copy.items():
+            if timings:
+                operation_stats[op_name] = {
+                    "count": len(timings),
+                    "avg_ms": sum(timings) / len(timings),
+                    "min_ms": min(timings),
+                    "max_ms": max(timings),
+                    "p50_ms": self._calculate_percentile(timings, 50),
+                    "p95_ms": self._calculate_percentile(timings, 95),
+                    "p99_ms": self._calculate_percentile(timings, 99),
                 }
 
-            # Calculate network metrics
-            success_rate = (
-                self._network_stats["successful_requests"]
-                / self._network_stats["total_requests"]
-                if self._network_stats["total_requests"] > 0
-                else 0.0
-            )
-
-            return {
-                "operation_stats": operation_stats,
-                "api_stats": api_stats,
-                "network_stats": {
-                    **self._network_stats,
-                    "success_rate": success_rate,
-                },
-                "uptime_seconds": time.time() - self._start_time,
-                "last_activity": self._last_activity.isoformat()
-                if self._last_activity
-                else None,
+        # Calculate overall API timing stats
+        api_stats = {}
+        if api_timings_copy:
+            api_stats = {
+                "avg_response_time_ms": sum(api_timings_copy) / len(api_timings_copy),
+                "min_response_time_ms": min(api_timings_copy),
+                "max_response_time_ms": max(api_timings_copy),
+                "p50_response_time_ms": self._calculate_percentile(
+                    api_timings_copy, 50
+                ),
+                "p95_response_time_ms": self._calculate_percentile(
+                    api_timings_copy, 95
+                ),
             }
 
-    async def get_error_stats(self) -> dict[str, Any]:
+        # Calculate network metrics
+        success_rate = (
+            network_stats_copy["successful_requests"]
+            / network_stats_copy["total_requests"]
+            if network_stats_copy["total_requests"] > 0
+            else 0.0
+        )
+
+        return {
+            "operation_stats": operation_stats,
+            "api_stats": api_stats,
+            "network_stats": {
+                **network_stats_copy,
+                "success_rate": success_rate,
+            },
+            "uptime_seconds": time.time() - self._start_time,
+            "last_activity": last_activity_copy.isoformat()
+            if last_activity_copy
+            else None,
+        }
+
+    def get_error_stats(self) -> dict[str, Any]:
         """
         Get enhanced error statistics.
 
         Returns:
             Dictionary with error statistics
         """
-        async with self._stats_lock:
-            recent_errors = list(self._error_history)[-10:]  # Last 10 errors
+        # Note: This is now synchronous but thread-safe
+        # We make quick copies to minimize time accessing shared data
 
-            # Calculate error rate over time windows
-            now = datetime.now()
-            errors_last_hour = sum(
-                1
-                for e in self._error_history
-                if (now - e["timestamp"]).total_seconds() < 3600
-            )
-            errors_last_day = sum(
-                1
-                for e in self._error_history
-                if (now - e["timestamp"]).total_seconds() < 86400
-            )
+        error_count_copy = self._error_count
+        error_history_copy = list(self._error_history)
+        error_types_copy = dict(self._error_types)
 
-            return {
-                "total_errors": self._error_count,
-                "errors_last_hour": errors_last_hour,
-                "errors_last_day": errors_last_day,
-                "error_types": dict(self._error_types),
-                "recent_errors": recent_errors,
-                "last_error": recent_errors[-1] if recent_errors else None,
-            }
+        # Now calculate metrics without holding lock
+        recent_errors = error_history_copy[-10:]  # Last 10 errors
 
-    async def get_data_quality_stats(self) -> dict[str, Any]:
+        # Calculate error rate over time windows
+        now = datetime.now()
+        errors_last_hour = sum(
+            1
+            for e in error_history_copy
+            if (now - e["timestamp"]).total_seconds() < 3600
+        )
+        errors_last_day = sum(
+            1
+            for e in error_history_copy
+            if (now - e["timestamp"]).total_seconds() < 86400
+        )
+
+        return {
+            "total_errors": error_count_copy,
+            "errors_last_hour": errors_last_hour,
+            "errors_last_day": errors_last_day,
+            "error_types": error_types_copy,
+            "recent_errors": recent_errors,
+            "last_error": recent_errors[-1] if recent_errors else None,
+        }
+
+    def get_data_quality_stats(self) -> dict[str, Any]:
         """
         Get data quality statistics.
 
         Returns:
             Dictionary with data quality metrics
         """
-        async with self._stats_lock:
-            # Safe integer conversion with validation
-            def safe_int(value: Any, default: int = 0) -> int:
-                """Safely convert value to int with validation."""
-                if value is None:
-                    return default
-                if isinstance(value, int | float):
-                    return int(value)
-                if isinstance(value, str) and value.isdigit():
-                    return int(value)
+        # Note: This is now synchronous but thread-safe
+        # We make quick copies to minimize time accessing shared data
+
+        data_quality_copy = dict(self._data_quality)
+
+        # Now calculate metrics without holding lock
+        # Safe integer conversion with validation
+        def safe_int(value: Any, default: int = 0) -> int:
+            """Safely convert value to int with validation."""
+            if value is None:
                 return default
+            if isinstance(value, int | float):
+                return int(value)
+            if isinstance(value, str) and value.isdigit():
+                return int(value)
+            return default
 
-            total = safe_int(self._data_quality.get("total_data_points", 0))
-            invalid = safe_int(self._data_quality.get("invalid_data_points", 0))
+        total = safe_int(data_quality_copy.get("total_data_points", 0))
+        invalid = safe_int(data_quality_copy.get("invalid_data_points", 0))
 
-            quality_score = ((total - invalid) / total * 100) if total > 0 else 100.0
+        quality_score = ((total - invalid) / total * 100) if total > 0 else 100.0
 
-            return {
-                **self._data_quality,
-                "quality_score": quality_score,
-                "invalid_rate": (invalid / total) if total > 0 else 0.0,
-            }
+        return {
+            **data_quality_copy,
+            "quality_score": quality_score,
+            "invalid_rate": (invalid / total) if total > 0 else 0.0,
+        }
 
-    async def get_enhanced_memory_stats(self) -> dict[str, Any]:
+    def get_enhanced_memory_stats(self) -> dict[str, Any]:
         """
         Get enhanced memory usage statistics with automatic sampling.
 
         Returns:
             Dictionary with memory statistics
         """
-        async with self._stats_lock:
-            # Sample memory if enough time has passed
-            current_time = time.time()
-            if current_time - self._last_memory_check > 60:  # Sample every minute
-                self._last_memory_check = current_time
+        # Sample memory if enough time has passed
+        current_time = time.time()
+        should_sample = current_time - self._last_memory_check > 60
 
-                # Calculate current memory usage
-                memory_mb = await self._calculate_memory_usage()
+        if should_sample:
+            # Calculate current memory usage
+            memory_mb = self._calculate_memory_usage()
 
-                # Store snapshot
-                self._memory_snapshots.append(
-                    {
-                        "timestamp": datetime.now(),
-                        "memory_mb": memory_mb,
-                        "error_count": self._error_count,
-                        "operation_count": sum(
-                            len(t) for t in self._operation_timings.values()
-                        ),
-                    }
-                )
+            # Get error count for snapshot
+            error_count = self._error_count
 
-            # Get latest stats
-            current_memory = await self._calculate_memory_usage()
-            memory_trend = []
-            if len(self._memory_snapshots) >= 2:
-                memory_trend = [
-                    s["memory_mb"] for s in list(self._memory_snapshots)[-10:]
-                ]
+            # Get operation count for snapshot
+            operation_count = sum(len(t) for t in self._operation_timings.values())
 
-            return {
-                "current_memory_mb": current_memory,
-                "memory_trend": memory_trend,
-                "peak_memory_mb": max(s["memory_mb"] for s in self._memory_snapshots)
-                if self._memory_snapshots
-                else current_memory,
-                "avg_memory_mb": sum(s["memory_mb"] for s in self._memory_snapshots)
-                / len(self._memory_snapshots)
-                if self._memory_snapshots
-                else current_memory,
-            }
+            # Store snapshot
+            self._last_memory_check = current_time
+            self._memory_snapshots.append(
+                {
+                    "timestamp": datetime.now(),
+                    "memory_mb": memory_mb,
+                    "error_count": error_count,
+                    "operation_count": operation_count,
+                }
+            )
 
-    async def export_stats(self, format: str = "json") -> dict[str, Any] | str:
+        # Get latest stats and copy snapshots
+        current_memory = self._calculate_memory_usage()
+
+        snapshots_copy = list(self._memory_snapshots)
+
+        # Calculate trends without lock
+        memory_trend = []
+        if len(snapshots_copy) >= 2:
+            memory_trend = [s["memory_mb"] for s in snapshots_copy[-10:]]
+
+        return {
+            "current_memory_mb": current_memory,
+            "memory_trend": memory_trend,
+            "peak_memory_mb": max(s["memory_mb"] for s in snapshots_copy)
+            if snapshots_copy
+            else current_memory,
+            "avg_memory_mb": sum(s["memory_mb"] for s in snapshots_copy)
+            / len(snapshots_copy)
+            if snapshots_copy
+            else current_memory,
+        }
+
+    def export_stats(self, format: str = "json") -> dict[str, Any] | str:
         """
         Export statistics in specified format.
 
@@ -417,44 +462,54 @@ class EnhancedStatsTrackingMixin:
         Returns:
             Exported statistics
         """
-        async with self._stats_lock:
-            stats = {
-                "timestamp": datetime.now().isoformat(),
-                "component": self.__class__.__name__,
-                "performance": await self.get_performance_metrics(),
-                "errors": await self.get_error_stats(),
-                "data_quality": await self.get_data_quality_stats(),
-                "memory": await self.get_enhanced_memory_stats(),
-                "component_specific": self._sanitize_for_export(self._component_stats),
-            }
+        # Get all stats (now all synchronous)
+        performance = self.get_performance_metrics()
+        errors = self.get_error_stats()
+        data_quality = self.get_data_quality_stats()
+        memory = self.get_enhanced_memory_stats()
 
-            if format == "prometheus":
-                return self._format_prometheus(stats)
+        # Get component stats
+        component_stats_copy = dict(self._component_stats)
 
-            return stats
+        stats = {
+            "timestamp": datetime.now().isoformat(),
+            "component": self.__class__.__name__,
+            "performance": performance,
+            "errors": errors,
+            "data_quality": data_quality,
+            "memory": memory,
+            "component_specific": self._sanitize_for_export(component_stats_copy),
+        }
+
+        if format == "prometheus":
+            return self._format_prometheus(stats)
+
+        return stats
 
     async def cleanup_old_stats(self) -> None:
         """
         Clean up statistics older than retention period.
         """
-        async with self._stats_lock:
-            cutoff_time = datetime.now() - timedelta(hours=self._retention_hours)
+        cutoff_time = datetime.now() - timedelta(hours=self._retention_hours)
 
-            # Clean up error history
+        # Clean up error history with error lock
+        async with self._error_lock:
             while (
                 self._error_history
                 and self._error_history[0]["timestamp"] < cutoff_time
             ):
                 self._error_history.popleft()
 
-            # Clean up memory snapshots
+        # Clean up memory snapshots with memory lock
+        async with self._memory_lock:
             while (
                 self._memory_snapshots
                 and self._memory_snapshots[0]["timestamp"] < cutoff_time
             ):
                 self._memory_snapshots.popleft()
 
-            # Clean up data gaps
+        # Clean up data gaps with data quality lock
+        async with self._data_quality_lock:
             if "data_gaps" in self._data_quality:
                 gaps = self._data_quality.get("data_gaps", [])
                 if isinstance(gaps, list):
@@ -465,7 +520,7 @@ class EnhancedStatsTrackingMixin:
                         and gap.get("timestamp", datetime.min) >= cutoff_time
                     ]
 
-            logger.debug(f"Cleaned up stats older than {cutoff_time}")
+        logger.debug(f"Cleaned up stats older than {cutoff_time}")
 
     async def _cleanup_old_stats_if_needed(self) -> None:
         """
@@ -476,77 +531,76 @@ class EnhancedStatsTrackingMixin:
             self._last_cleanup = current_time
             await self.cleanup_old_stats()
 
-    async def _calculate_memory_usage(self) -> float:
+    def _calculate_memory_usage(self) -> float:
         """
         Calculate current memory usage of this component.
 
-        Thread-safe memory calculation with async lock protection.
+        Thread-safe memory calculation.
 
         Returns:
             Memory usage in MB
         """
-        async with self._stats_lock:
-            size = 0
-            max_items_to_sample = 100  # Sample limit for large collections
+        size = 0
+        max_items_to_sample = 100  # Sample limit for large collections
 
-            # Priority attributes to always check
-            priority_attrs = [
-                "_error_history",
-                "_error_types",
-                "_api_timings",
-                "_operation_timings",
-                "_memory_snapshots",
-                "_network_stats",
-                "_data_quality",
-                "_component_stats",
-            ]
+        # Priority attributes to check
+        priority_attrs = [
+            "_error_history",
+            "_error_types",
+            "_api_timings",
+            "_operation_timings",
+            "_memory_snapshots",
+            "_network_stats",
+            "_data_quality",
+            "_component_stats",
+        ]
 
-            # Component-specific attributes (check only if they exist)
-            component_attrs = [
-                "tracked_orders",
-                "order_status_cache",
-                "position_orders",
-                "_orders",
-                "_positions",
-                "_trades",
-                "_bars",
-                "_ticks",
-                "stats",
-                "_data",
-                "_order_history",
-                "_position_history",
-            ]
+        # Calculate size for each attribute (synchronous access)
+        for attr_name in priority_attrs:
+            if hasattr(self, attr_name):
+                attr = getattr(self, attr_name)
+                size += sys.getsizeof(attr)
 
-            # Check priority attributes fully
-            for attr_name in priority_attrs:
-                if hasattr(self, attr_name):
-                    attr = getattr(self, attr_name)
-                    size += sys.getsizeof(attr)
+                # For small collections, count all items
+                if isinstance(attr, list | dict | set | deque):
+                    try:
+                        items = attr.values() if isinstance(attr, dict) else attr
+                        item_count = len(items) if hasattr(items, "__len__") else 0
 
-                    # For small collections, count all items
-                    if isinstance(attr, list | dict | set | deque):
-                        try:
-                            items = attr.values() if isinstance(attr, dict) else attr
-                            item_count = len(items) if hasattr(items, "__len__") else 0
-
-                            if item_count <= max_items_to_sample:
-                                # Count all items for small collections
-                                for item in items:
-                                    size += sys.getsizeof(item)
-                            else:
-                                # Sample for large collections
-                                sample_size = 0
-                                for i, item in enumerate(items):
-                                    if i >= max_items_to_sample:
-                                        break
-                                    sample_size += sys.getsizeof(item)
-                                # Estimate total size based on sample
+                        if item_count <= max_items_to_sample:
+                            # Count all items for small collections
+                            for item in items:
+                                size += sys.getsizeof(item)
+                        else:
+                            # Sample for large collections
+                            sample_size = 0
+                            for i, item in enumerate(items):
+                                if i >= max_items_to_sample:
+                                    break
+                                sample_size += sys.getsizeof(item)
+                            # Estimate total size based on sample
+                            if max_items_to_sample > 0:
                                 avg_item_size = sample_size / max_items_to_sample
                                 size += int(avg_item_size * item_count)
-                        except (AttributeError, TypeError):
-                            pass
+                    except (AttributeError, TypeError):
+                        pass
 
-        # For component-specific attributes, use sampling for performance
+        # Component-specific attributes (check without locks as they're component-owned)
+        component_attrs = [
+            "tracked_orders",
+            "order_status_cache",
+            "position_orders",
+            "_orders",
+            "_positions",
+            "_trades",
+            "_bars",
+            "_ticks",
+            "stats",
+            "_data",
+            "_order_history",
+            "_position_history",
+        ]
+
         for attr_name in component_attrs:
             if hasattr(self, attr_name):
                 attr = getattr(self, attr_name)
@@ -561,7 +615,8 @@ class EnhancedStatsTrackingMixin:
                             break
                         sample_size += sys.getsizeof(k) + sys.getsizeof(v)
                     # Rough estimate
-                    size += (sample_size // 10) * len(attr)
+                    if 10 > 0:
+                        size += (sample_size // 10) * len(attr)
 
         return size / (1024 * 1024)
 

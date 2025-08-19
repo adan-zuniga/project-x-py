@@ -327,7 +327,7 @@ class MemoryManager:
         # Delta history - deque handles its own cleanup with maxlen
         # No manual cleanup needed for deque with maxlen
 
-    async def get_memory_stats(self) -> OrderbookStats:
+    def get_memory_stats(self) -> OrderbookStats:
         """
         Get comprehensive memory usage statistics.
 
@@ -337,7 +337,7 @@ class MemoryManager:
         debugging memory issues, and validating that the cleanup strategies are working
         as expected.
 
-        The method is thread-safe and acquires the orderbook lock during execution.
+        Note: This is a synchronous method that computes stats immediately.
 
         Returns:
             Dict containing comprehensive memory statistics including:
@@ -369,85 +369,85 @@ class MemoryManager:
             >>> print(f"Items cleaned: {stats['trades_cleaned'] + stats['depth_cleaned'] + "
             ...       f"stats['history_cleaned']}")
         """
-        async with self.orderbook.orderbook_lock:
-            # Calculate current depth statistics
-            bid_depth = self.orderbook.orderbook_bids.height
-            ask_depth = self.orderbook.orderbook_asks.height
+        # Note: This method is synchronous and doesn't acquire locks
+        # It provides a snapshot of current stats without blocking
 
-            # Calculate trade statistics
-            trades_count = self.memory_stats.get("total_trades", 0)
-            total_volume = self.memory_stats.get("total_volume", 0)
-            avg_trade_size = total_volume / trades_count if trades_count > 0 else 0.0
+        # Calculate current depth statistics
+        bid_depth = self.orderbook.orderbook_bids.height
+        ask_depth = self.orderbook.orderbook_asks.height
 
-            # Calculate memory usage (rough estimate)
-            memory_usage_mb = (
-                (bid_depth + ask_depth) * 0.0001  # Depth data
-                + self.orderbook.recent_trades.height * 0.0001  # Trade data
-                + len(self.orderbook.price_level_history) * 0.0001  # History data
+        # Calculate trade statistics
+        trades_count = self.memory_stats.get("total_trades", 0)
+        total_volume = self.memory_stats.get("total_volume", 0)
+        avg_trade_size = total_volume / trades_count if trades_count > 0 else 0.0
+
+        # Calculate memory usage (rough estimate)
+        memory_usage_mb = (
+            (bid_depth + ask_depth) * 0.0001  # Depth data
+            + self.orderbook.recent_trades.height * 0.0001  # Trade data
+            + len(self.orderbook.price_level_history) * 0.0001  # History data
+        )
+
+        # Calculate spread from current best prices
+        best_bid = (
+            float(self.orderbook.best_bid_history[-1]["price"])
+            if self.orderbook.best_bid_history
+            else 0.0
+        )
+        best_ask = (
+            float(self.orderbook.best_ask_history[-1]["price"])
+            if self.orderbook.best_ask_history
+            else 0.0
+        )
+        current_spread = best_ask - best_bid if best_bid > 0 and best_ask > 0 else 0.0
+
+        # Calculate spread volatility from history
+        spreads = [
+            float(ask["price"]) - float(bid["price"])
+            for bid, ask in zip(
+                self.orderbook.best_bid_history,
+                self.orderbook.best_ask_history,
+                strict=False,
             )
+            if float(bid["price"]) > 0 and float(ask["price"]) > 0
+        ]
+        spread_volatility = 0.0
+        if len(spreads) > 1:
+            avg_spread = sum(spreads) / len(spreads)
+            spread_volatility = (
+                sum((s - avg_spread) ** 2 for s in spreads) / len(spreads)
+            ) ** 0.5
 
-            # Calculate spread from current best prices
-            best_bid = (
-                float(self.orderbook.best_bid_history[-1]["price"])
-                if self.orderbook.best_bid_history
-                else 0.0
-            )
-            best_ask = (
-                float(self.orderbook.best_ask_history[-1]["price"])
-                if self.orderbook.best_ask_history
-                else 0.0
-            )
-            current_spread = (
-                best_ask - best_bid if best_bid > 0 and best_ask > 0 else 0.0
-            )
-
-            # Calculate spread volatility from history
-            spreads = [
-                float(ask["price"]) - float(bid["price"])
-                for bid, ask in zip(
-                    self.orderbook.best_bid_history,
-                    self.orderbook.best_ask_history,
-                    strict=False,
-                )
-                if float(bid["price"]) > 0 and float(ask["price"]) > 0
-            ]
-            spread_volatility = 0.0
-            if len(spreads) > 1:
-                avg_spread = sum(spreads) / len(spreads)
-                spread_volatility = (
-                    sum((s - avg_spread) ** 2 for s in spreads) / len(spreads)
-                ) ** 0.5
-
-            return {
-                # Depth statistics
-                "avg_bid_depth": bid_depth,
-                "avg_ask_depth": ask_depth,
-                "max_bid_depth": self.memory_stats.get("max_bid_depth", bid_depth),
-                "max_ask_depth": self.memory_stats.get("max_ask_depth", ask_depth),
-                # Trade statistics
-                "trades_processed": trades_count,
-                "avg_trade_size": avg_trade_size,
-                "largest_trade": self.memory_stats.get("largest_trade", 0),
-                "total_volume": total_volume,
-                # Market microstructure
-                "avg_spread": current_spread,
-                "spread_volatility": spread_volatility,
-                "price_levels": bid_depth + ask_depth,
-                "order_clustering": 0.0,  # Would need more complex calculation
-                # Pattern detection
-                "icebergs_detected": self.memory_stats.get("icebergs_detected", 0),
-                "spoofing_alerts": self.memory_stats.get("spoofing_alerts", 0),
-                "unusual_patterns": self.memory_stats.get("unusual_patterns", 0),
-                # Performance metrics
-                "update_frequency_per_second": self.memory_stats.get(
-                    "update_frequency", 0.0
-                ),
-                "processing_latency_ms": self.memory_stats.get(
-                    "processing_latency_ms", 0.0
-                ),
-                "memory_usage_mb": memory_usage_mb,
-                # Data quality
-                "data_gaps": self.memory_stats.get("data_gaps", 0),
-                "invalid_updates": self.memory_stats.get("invalid_updates", 0),
-                "duplicate_updates": self.memory_stats.get("duplicate_updates", 0),
-            }
+        return {
+            # Depth statistics
+            "avg_bid_depth": bid_depth,
+            "avg_ask_depth": ask_depth,
+            "max_bid_depth": self.memory_stats.get("max_bid_depth", bid_depth),
+            "max_ask_depth": self.memory_stats.get("max_ask_depth", ask_depth),
+            # Trade statistics
+            "trades_processed": trades_count,
+            "avg_trade_size": avg_trade_size,
+            "largest_trade": self.memory_stats.get("largest_trade", 0),
+            "total_volume": total_volume,
+            # Market microstructure
+            "avg_spread": current_spread,
+            "spread_volatility": spread_volatility,
+            "price_levels": bid_depth + ask_depth,
+            "order_clustering": 0.0,  # Would need more complex calculation
+            # Pattern detection
+            "icebergs_detected": self.memory_stats.get("icebergs_detected", 0),
+            "spoofing_alerts": self.memory_stats.get("spoofing_alerts", 0),
+            "unusual_patterns": self.memory_stats.get("unusual_patterns", 0),
+            # Performance metrics
+            "update_frequency_per_second": self.memory_stats.get(
+                "update_frequency", 0.0
+            ),
+            "processing_latency_ms": self.memory_stats.get(
+                "processing_latency_ms", 0.0
+            ),
+            "memory_usage_mb": memory_usage_mb,
+            # Data quality
+            "data_gaps": self.memory_stats.get("data_gaps", 0),
+            "invalid_updates": self.memory_stats.get("invalid_updates", 0),
+            "duplicate_updates": self.memory_stats.get("duplicate_updates", 0),
+        }
