@@ -19,7 +19,7 @@ PROJECT_X_API_KEY="..." PROJECT_X_USERNAME="..." uv run python script.py
 
 The test.sh script properly configures all required environment variables. DO NOT attempt to set PROJECT_X_API_KEY or PROJECT_X_USERNAME manually.
 
-## Project Status: v3.2.0 - Enhanced Type Safety Release
+## Project Status: v3.2.1 - Statistics and Analytics Overhaul
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -504,7 +504,16 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.2.0 - Latest Release (2025-08-17)
+### v3.2.1 - Latest Release (2025-08-19)
+- **Added**: Complete statistics and analytics system with health monitoring and performance tracking
+- **Added**: Fine-grained locking system to prevent deadlocks (replaced single `_stats_lock` with category-specific locks)
+- **Added**: Consistent synchronous statistics API across all components for thread-safe access
+- **Fixed**: Critical deadlock when OrderManager and StatisticsAggregator accessed locks in opposite order
+- **Fixed**: API consistency issues - all `get_memory_stats()` methods now synchronous
+- **Enhanced**: StatisticsAggregator with 5-second TTL caching and cross-component metrics
+- **Enhanced**: Health scoring algorithm (0-100) with intelligent system monitoring
+
+### v3.2.0 - Previous Release (2025-08-17)
 - **Added**: Comprehensive type system overhaul with TypedDict and Protocol definitions
 - **Added**: StatsTrackingMixin for error and memory tracking across all managers
 - **Added**: Standardized deprecation system with @deprecated decorators

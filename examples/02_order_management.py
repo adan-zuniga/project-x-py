@@ -473,7 +473,7 @@ async def main() -> bool:
             print("📊 ORDER STATISTICS")
             print("=" * 50)
 
-            stats = await order_manager.get_order_statistics()
+            stats = order_manager.get_order_statistics()
             print("Order Manager Statistics:")
             print(f"   Orders Placed: {stats.get('orders_placed', 0)}")
             print(f"   Orders Cancelled: {stats.get('orders_cancelled', 0)}")

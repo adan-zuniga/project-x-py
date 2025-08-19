@@ -164,8 +164,8 @@ async def main() -> None:
     print(f"Default R:R ratio: 1:{config.default_risk_reward_ratio}")
 
     # Show stats
-    stats = suite.get_stats()
-    rm_stats = stats["components"].get("risk_manager")
+    stats = await suite.get_stats()
+    rm_stats = stats["components"].get("risk_manager") if stats["components"] else None
     rm_status = rm_stats["status"] if rm_stats else "N/A"
     print(f"\n✓ Risk manager active: {rm_status}")
 

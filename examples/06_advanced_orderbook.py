@@ -23,12 +23,12 @@ Date: 2025-08-08
 
 import asyncio
 import sys
-from datetime import datetime
 
 from project_x_py import TradingSuite, setup_logging
+from project_x_py.orderbook import OrderBook
 
 
-async def demonstrate_market_microstructure(orderbook):
+async def demonstrate_market_microstructure(orderbook: OrderBook):
     """Demonstrate market microstructure analysis."""
     print("\n" + "=" * 60)
     print("🔬 MARKET MICROSTRUCTURE ANALYSIS")
@@ -55,7 +55,7 @@ async def demonstrate_market_microstructure(orderbook):
         # Trade intensity
         if "trade_intensity" in metrics:
             ti = metrics["trade_intensity"]
-            print(f"\n⚡ Trade Intensity:")
+            print("\n⚡ Trade Intensity:")
             print(f"   Trades/Minute: {ti.get('trades_per_minute', 0):.1f}")
             print(f"   Volume/Minute: {ti.get('volume_per_minute', 0):,.0f}")
             print(f"   Avg Trade Size: {ti.get('avg_trade_size', 0):.1f}")
@@ -63,14 +63,14 @@ async def demonstrate_market_microstructure(orderbook):
         # Price concentration
         if "price_concentration" in metrics:
             pc = metrics["price_concentration"]
-            print(f"\n🎯 Price Concentration:")
+            print("\n🎯 Price Concentration:")
             print(f"   Bid Concentration: {pc.get('bid_concentration', 0):.3f}")
             print(f"   Ask Concentration: {pc.get('ask_concentration', 0):.3f}")
     else:
         print("   No microstructure data available")
 
 
-async def demonstrate_iceberg_detection(orderbook):
+async def demonstrate_iceberg_detection(orderbook: OrderBook):
     """Demonstrate iceberg order detection with proper parameters."""
     print("\n" + "=" * 60)
     print("🧊 ICEBERG ORDER DETECTION")
@@ -108,7 +108,7 @@ async def demonstrate_iceberg_detection(orderbook):
     print(f"   Time Window: {icebergs.get('analysis_window_minutes', 'N/A')} minutes")
 
 
-async def demonstrate_order_clustering(orderbook):
+async def demonstrate_order_clustering(orderbook: OrderBook):
     """Demonstrate order clustering detection."""
     print("\n" + "=" * 60)
     print("🎯 ORDER CLUSTERING ANALYSIS")
@@ -135,7 +135,7 @@ async def demonstrate_order_clustering(orderbook):
         print("\n   No significant order clusters detected")
 
 
-async def demonstrate_volume_profile(orderbook):
+async def demonstrate_volume_profile(orderbook: OrderBook):
     """Demonstrate volume profile analysis."""
     print("\n" + "=" * 60)
     print("📊 VOLUME PROFILE ANALYSIS")
@@ -144,7 +144,7 @@ async def demonstrate_volume_profile(orderbook):
     profile = await orderbook.get_volume_profile(time_window_minutes=30, price_bins=10)
 
     if profile and profile.get("poc"):
-        print(f"\n✅ Volume Profile (30-minute window):")
+        print("\n✅ Volume Profile (30-minute window):")
         print(f"   Point of Control (POC): ${profile['poc']:,.2f}")
         print(f"   Value Area High: ${profile.get('value_area_high', 0):,.2f}")
         print(f"   Value Area Low: ${profile.get('value_area_low', 0):,.2f}")
@@ -157,7 +157,7 @@ async def demonstrate_volume_profile(orderbook):
             if bins and vols:
                 print("\n   Top Volume Levels:")
                 sorted_levels = sorted(
-                    zip(bins, vols), key=lambda x: x[1], reverse=True
+                    zip(bins, vols, strict=False), key=lambda x: x[1], reverse=True
                 )
                 for price, vol in sorted_levels[:3]:
                     if vol > 0:
@@ -172,7 +172,7 @@ async def demonstrate_volume_profile(orderbook):
         print("   Note: Volume profile requires trade history")
 
 
-async def demonstrate_support_resistance(orderbook):
+async def demonstrate_support_resistance(orderbook: OrderBook):
     """Demonstrate support and resistance level detection."""
     print("\n" + "=" * 60)
     print("📈 SUPPORT & RESISTANCE LEVELS")
@@ -218,7 +218,7 @@ async def demonstrate_support_resistance(orderbook):
         print("\n   No significant support/resistance levels detected")
 
 
-async def demonstrate_liquidity_analysis(orderbook):
+async def demonstrate_liquidity_analysis(orderbook: OrderBook):
     """Demonstrate liquidity analysis with proper parameters."""
     print("\n" + "=" * 60)
     print("💧 LIQUIDITY ANALYSIS")
@@ -233,16 +233,27 @@ async def demonstrate_liquidity_analysis(orderbook):
         bid_liquidity = bids["volume"].sum()
         ask_liquidity = asks["volume"].sum()
 
-        print(f"\n📊 Current Liquidity (20 levels):")
+        print("\n📊 Current Liquidity (20 levels):")
         print(f"   Bid Liquidity: {bid_liquidity:,} contracts")
         print(f"   Ask Liquidity: {ask_liquidity:,} contracts")
         print(f"   Total Liquidity: {bid_liquidity + ask_liquidity:,} contracts")
 
         # Find significant levels (volume > average)
-        avg_bid_vol = bids["volume"].mean() if not bids.is_empty() else 0
-        avg_ask_vol = asks["volume"].mean() if not asks.is_empty() else 0
+        bid_mean = bids["volume"].mean() if not bids.is_empty() else None
+        ask_mean = asks["volume"].mean() if not asks.is_empty() else None
 
-        print(f"\n🎯 Significant Levels (above average):")
+        avg_bid_vol = (
+            float(bid_mean)
+            if bid_mean is not None and isinstance(bid_mean, int | float)
+            else 0.0
+        )
+        avg_ask_vol = (
+            float(ask_mean)
+            if ask_mean is not None and isinstance(ask_mean, int | float)
+            else 0.0
+        )
+
+        print("\n🎯 Significant Levels (above average):")
         print(f"   Average Bid Size: {avg_bid_vol:.1f}")
         print(f"   Average Ask Size: {avg_ask_vol:.1f}")
 
@@ -270,12 +281,12 @@ async def demonstrate_liquidity_analysis(orderbook):
         sig_asks = liquidity.get("ask_levels", [])
 
         if sig_bids or sig_asks:
-            print(f"\n💎 Premium Liquidity Levels:")
+            print("\n💎 Premium Liquidity Levels:")
             print(f"   Significant Bid Levels: {len(sig_bids)}")
             print(f"   Significant Ask Levels: {len(sig_asks)}")
 
 
-async def demonstrate_spread_analysis(orderbook):
+async def demonstrate_spread_analysis(orderbook: OrderBook):
     """Demonstrate spread analysis over time."""
     print("\n" + "=" * 60)
     print("📏 SPREAD ANALYSIS")
@@ -284,7 +295,7 @@ async def demonstrate_spread_analysis(orderbook):
     spread_analysis = await orderbook.get_spread_analysis(window_minutes=15)
 
     if spread_analysis:
-        print(f"\n✅ Spread Analysis (15-minute window):")
+        print("\n✅ Spread Analysis (15-minute window):")
         print(f"   Current Spread: ${spread_analysis.get('current_spread', 0):.2f}")
         print(f"   Average Spread: ${spread_analysis.get('avg_spread', 0):.2f}")
         print(f"   Min Spread: ${spread_analysis.get('min_spread', 0):.2f}")
@@ -296,9 +307,10 @@ async def demonstrate_spread_analysis(orderbook):
         # Spread distribution
         if "spread_distribution" in spread_analysis:
             dist = spread_analysis["spread_distribution"]
-            print("\n   Spread Distribution:")
-            for spread_val, pct in dist.items():
-                print(f"   ${spread_val}: {pct:.1f}%")
+            if isinstance(dist, dict) and dist:
+                print("\n   Spread Distribution:")
+                for spread_val, pct in dist.items():  # type: ignore[misc]
+                    print(f"   ${spread_val}: {pct:.1f}%")
     else:
         print("\n   Insufficient data for spread analysis")
 
@@ -313,7 +325,7 @@ async def demonstrate_cumulative_delta(orderbook):
     delta = await orderbook.get_cumulative_delta(time_window_minutes=10)
 
     if delta:
-        print(f"\n✅ Delta Analysis (10-minute window):")
+        print("\n✅ Delta Analysis (10-minute window):")
         print(f"   Buy Volume: {delta.get('buy_volume', 0):,}")
         print(f"   Sell Volume: {delta.get('sell_volume', 0):,}")
         print(f"   Cumulative Delta: {delta.get('cumulative_delta', 0):+,}")
@@ -345,7 +357,7 @@ async def demonstrate_cumulative_delta(orderbook):
         print("\n   Insufficient trade data for delta analysis")
 
 
-async def demonstrate_market_depth_impact(orderbook):
+async def demonstrate_market_depth_impact(orderbook: OrderBook):
     """Demonstrate market impact estimation."""
     print("\n" + "=" * 60)
     print("💥 MARKET DEPTH & IMPACT ANALYSIS")
@@ -375,7 +387,7 @@ async def demonstrate_market_depth_impact(orderbook):
             print("   Insufficient depth data")
 
 
-async def demonstrate_comprehensive_stats(orderbook):
+async def demonstrate_comprehensive_stats(orderbook: OrderBook):
     """Demonstrate comprehensive orderbook statistics."""
     print("\n" + "=" * 60)
     print("📈 COMPREHENSIVE STATISTICS")
@@ -387,29 +399,29 @@ async def demonstrate_comprehensive_stats(orderbook):
         print("\n✅ Orderbook Statistics:")
 
         # Depth stats
-        print(f"\n📊 Depth Statistics:")
+        print("\n📊 Depth Statistics:")
         print(f"   Bid Levels: {stats.get('bid_depth', 0)}")
         print(f"   Ask Levels: {stats.get('ask_depth', 0)}")
         print(f"   Total Bid Volume: {stats.get('total_bid_size', 0):,}")
         print(f"   Total Ask Volume: {stats.get('total_ask_size', 0):,}")
 
         # Trade stats
-        print(f"\n📉 Trade Statistics:")
+        print("\n📉 Trade Statistics:")
         print(f"   Total Trades: {stats.get('total_trades', 0):,}")
         print(f"   Buy Trades: {stats.get('buy_trades', 0):,}")
         print(f"   Sell Trades: {stats.get('sell_trades', 0):,}")
         print(f"   Avg Trade Size: {stats.get('avg_trade_size', 0):.1f}")
 
         # Price stats
-        print(f"\n💰 Price Statistics:")
+        print("\n💰 Price Statistics:")
         print(f"   VWAP: ${stats.get('vwap', 0):,.2f}")
         print(f"   Current Mid: ${stats.get('mid_price', 0):,.2f}")
         print(f"   Session High: ${stats.get('session_high', 0):,.2f}")
         print(f"   Session Low: ${stats.get('session_low', 0):,.2f}")
 
         # Performance
-        memory = await orderbook.get_memory_stats()
-        print(f"\n⚡ Performance:")
+        memory = orderbook.get_memory_stats()
+        print("\n⚡ Performance:")
         print(f"   Updates Processed: {stats.get('level2_update_count', 0):,}")
         print(f"   Memory Cleanups: {memory.get('memory_cleanups', 0)}")
         print(f"   Total Volume: {memory.get('total_volume', 0):,}")
@@ -432,14 +444,18 @@ async def main():
         )
 
         print("✅ Suite initialized successfully!")
-        print(f"   Account: {suite.client.account_info.name}")
-        print(f"   Tracking: {suite.orderbook.instrument}")
+        if suite.client.account_info:
+            print(f"   Account: {suite.client.account_info.name}")
+        if suite.orderbook:
+            print(f"   Tracking: {suite.orderbook.instrument}")
 
         # Wait for initial data
         print("\n⏳ Collecting market data for 10 seconds...")
         await asyncio.sleep(10)
 
-        orderbook = suite.orderbook
+        orderbook: OrderBook | None = suite.orderbook
+        if not orderbook:
+            raise ValueError("Orderbook not found")
 
         # Run all demonstrations
         await demonstrate_market_microstructure(orderbook)
