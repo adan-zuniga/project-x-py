@@ -432,8 +432,10 @@ async def main():
         )
 
         print("✅ Suite initialized successfully!")
-        print(f"   Account: {suite.client.account_info.name}")
-        print(f"   Tracking: {suite.orderbook.instrument}")
+        if suite.client.account_info:
+            print(f"   Account: {suite.client.account_info.name}")
+        if suite.orderbook:
+            print(f"   Tracking: {suite.orderbook.instrument}")
 
         # Wait for initial data
         print("\n⏳ Collecting market data for 10 seconds...")

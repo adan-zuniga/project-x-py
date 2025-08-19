@@ -21,9 +21,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.2.0 - Major Type System Improvements
+## 🚀 v3.2.1 - Statistics and Analytics Overhaul
 
-**Latest Version**: v3.2.0 - Comprehensive type system overhaul with improved type safety, standardized deprecation handling, and enhanced error tracking. See [CHANGELOG.md](CHANGELOG.md) for full release history.
+**Latest Version**: v3.2.1 - Complete statistics and analytics system with health monitoring, fine-grained locking fixes, and consistent synchronous API. See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
 ### 📦 Production Stability Guarantee
 
@@ -80,7 +80,8 @@ suite = await TradingSuite.create(\"MNQ\")
 - **Pattern Recognition**: Fair Value Gaps, Order Blocks, and Waddah Attar Explosion indicators
 - **Enterprise Error Handling**: Production-ready error handling with decorators and structured logging
 - **Comprehensive Type Safety**: Full TypedDict and Protocol definitions for IDE support and static analysis
-- **Statistics Tracking**: Built-in error tracking and memory monitoring across all components
+- **Advanced Statistics & Analytics**: Real-time health monitoring, performance tracking, and system-wide analytics with 0-100 health scoring
+- **Fine-grained Locking**: Deadlock-free statistics collection with proper lock hierarchy
 - **Standardized Deprecation**: Consistent deprecation handling with clear migration paths
 - **Comprehensive Testing**: High test coverage with async-safe testing patterns
 
@@ -126,6 +127,12 @@ async def main():
     positions = await suite.positions.get_all_positions()
     for position in positions:
         print(f\"Position: {position.size} @ ${position.averagePrice}\")
+    
+    # New v3.2.1: Get comprehensive statistics (synchronous API)
+    stats = await suite.get_stats()
+    print(f\"System Health: {stats['health_score']:.1f}/100\")
+    print(f\"Total API Calls: {stats['total_api_calls']}\")
+    print(f\"Memory Usage: {stats['memory_usage_mb']:.1f} MB\")
     
     await suite.disconnect()
 
@@ -354,6 +361,46 @@ async with suite.managed_trade(max_risk_percent=0.01) as trade:
 ```
 
 **Note:** RiskManager requires the `"risk_manager"` feature flag and automatically integrates with PositionManager for comprehensive risk tracking.
+
+### Statistics & Analytics (NEW in v3.2.1)
+
+Comprehensive system monitoring and performance analytics:
+
+```python
+# Get comprehensive system statistics
+stats = await suite.get_stats()
+
+# Health scoring (0-100)
+print(f"System Health: {stats['health_score']:.1f}/100")
+
+# Performance metrics
+print(f"API Calls: {stats['total_api_calls']}")
+print(f"Success Rate: {stats['successful_api_calls'] / stats['total_api_calls']:.1%}")
+print(f"Memory Usage: {stats['memory_usage_mb']:.1f} MB")
+
+# Component-specific statistics (all synchronous for consistency)
+order_stats = suite.orders.get_order_statistics()
+print(f"Fill Rate: {order_stats['fill_rate']:.1%}")
+print(f"Average Fill Time: {order_stats['avg_fill_time_ms']:.0f}ms")
+
+position_stats = suite.positions.get_performance_metrics()
+print(f"Win Rate: {position_stats.get('win_rate', 0):.1%}")
+
+# Real-time health monitoring
+if stats['health_score'] < 70:
+    print("⚠️ System health degraded - check components")
+    for name, component in stats['components'].items():
+        if component['error_count'] > 0:
+            print(f"  {name}: {component['error_count']} errors")
+```
+
+**Key Features:**
+- **Health Scoring**: 0-100 system health score based on errors, connectivity, and performance
+- **Component Analytics**: Individual statistics from OrderManager, PositionManager, DataManager, etc.
+- **Memory Tracking**: Real-time memory usage monitoring with trend analysis
+- **Error Analytics**: Comprehensive error tracking with history and classification
+- **Performance Metrics**: Response times, success rates, and throughput measurements
+- **Consistent API**: All statistics methods are synchronous for thread-safe access
 
 ### Technical Indicators
 

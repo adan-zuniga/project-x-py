@@ -7,7 +7,7 @@ This is a Python SDK/client library for the ProjectX Trading Platform Gateway AP
 
 **Note**: Focus on toolkit development, not on creating trading strategies.
 
-## Project Status: v3.2.0 - Enhanced Type Safety Release
+## Project Status: v3.2.1 - Statistics and Analytics Overhaul
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
