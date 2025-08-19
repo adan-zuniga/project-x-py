@@ -165,7 +165,7 @@ async def main() -> None:
 
     # Show stats
     stats = await suite.get_stats()
-    rm_stats = stats["components"].get("risk_manager")
+    rm_stats = stats["components"].get("risk_manager") if stats["components"] else None
     rm_status = rm_stats["status"] if rm_stats else "N/A"
     print(f"\n✓ Risk manager active: {rm_status}")
 
