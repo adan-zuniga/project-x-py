@@ -1,0 +1,65 @@
+{
+    "mcpServers": {
+        "upstash-context-7-mcp": {
+          "type": "http",
+          "url": "https://server.smithery.ai/@upstash/context7-mcp/mcp"
+        },
+        "aakarsh-sasi-memory-bank-mcp": {
+          "type": "http",
+          "url": "https://server.smithery.ai/@aakarsh-sasi/memory-bank-mcp/mcp"
+        },
+        "itseasy-21-mcp-knowledge-graph": {
+          "type": "http",
+          "url": "https://server.smithery.ai/@itseasy21/mcp-knowledge-graph/mcp"
+        },
+        "smithery-ai-filesystem": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@smithery/cli@latest",
+            "run",
+            "@smithery-ai/filesystem",
+            "--profile",
+            "yummy-owl-S0TDf6",
+            "--key",
+            "af08fae1-5f3a-43f6-9e94-86f9638a08a0",
+            "--config",
+            "\"{\\\"allowedDirs\\\":[\\\"src\\\",\\\"examples\\\",\\\"tests\\\"]}\""
+          ],
+          "env": {}
+        },
+        "project-x-py Docs": {
+          "command": "npx",
+          "args": [
+            "mcp-remote",
+            "https://gitmcp.io/TexasCoding/project-x-py"
+          ]
+        },
+        "mcp-obsidian": {
+          "command": "uvx",
+          "args": [
+            "mcp-obsidian"
+          ],
+          "env": {
+            "OBSIDIAN_API_KEY": "ac148cef45d67024e93b4557ba6170e1b868d108489ab55c94a8d5bad2de3981",
+            "OBSIDIAN_HOST": "127.0.0.1",
+            "OBSIDIAN_PORT": "27124"
+          }
+        },
+        "tavily-mcp": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "tavily-mcp@latest"
+          ],
+          "env": {
+            "TAVILY_API_KEY": "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"
+          }
+        },
+        "waldzellai-clear-thought": {
+          "type": "http",
+          "url": "https://server.smithery.ai/@waldzellai/clear-thought/mcp"
+        }
+      }
+}
