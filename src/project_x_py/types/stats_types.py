@@ -267,6 +267,51 @@ class OrderbookStats(TypedDict):
     duplicate_updates: int
 
 
+class RiskManagerStats(TypedDict):
+    """Statistics for RiskManager component."""
+
+    # Risk rule statistics
+    rules_evaluated: int
+    rule_violations: int
+    rule_warnings: int
+    rules_passed: int
+
+    # Position risk metrics
+    total_risk_exposure: float
+    max_position_risk: float
+    portfolio_risk: float
+    var_95: float  # Value at Risk 95%
+
+    # Risk limits
+    max_loss_limit: float
+    daily_loss_limit: float
+    position_size_limit: int
+    leverage_limit: float
+
+    # Risk events
+    stop_losses_triggered: int
+    margin_calls: int
+    risk_alerts: int
+    emergency_stops: int
+
+    # Performance metrics
+    risk_calculations_per_second: float
+    avg_calculation_time_ms: float
+    memory_usage_mb: float
+
+    # Managed trades
+    managed_trades_active: int
+    managed_trades_completed: int
+    managed_trades_stopped: int
+    avg_trade_duration_minutes: float
+
+    # Risk-adjusted performance
+    sharpe_ratio: float
+    sortino_ratio: float
+    max_drawdown: float
+    risk_adjusted_return: float
+
+
 # Connection Statistics Types
 class RealtimeConnectionStats(TypedDict):
     """Statistics for real-time WebSocket connections."""
@@ -390,6 +435,7 @@ class ComprehensiveStats(TypedDict):
     position_manager: NotRequired[PositionManagerStats]
     data_manager: NotRequired[RealtimeDataManagerStats]
     orderbook: NotRequired[OrderbookStats]
+    risk_manager: NotRequired[RiskManagerStats]
 
     # Connection statistics
     realtime: NotRequired[RealtimeConnectionStats]
@@ -413,6 +459,7 @@ __all__ = [
     "PositionManagerStats",
     "RealtimeDataManagerStats",
     "OrderbookStats",
+    "RiskManagerStats",
     # Connection Statistics
     "RealtimeConnectionStats",
     "HTTPClientStats",

@@ -32,7 +32,6 @@ Example:
 from project_x_py.statistics.aggregator import StatisticsAggregator
 from project_x_py.statistics.base import BaseStatisticsTracker, StatisticsProvider
 from project_x_py.statistics.collector import ComponentCollector
-from project_x_py.statistics.export import StatsExporter
 from project_x_py.statistics.health import HealthMonitor
 
 __all__ = [
@@ -41,7 +40,6 @@ __all__ = [
     "ComponentCollector",
     "StatisticsAggregator",
     "HealthMonitor",
-    "StatsExporter",
 ]
 
 __version__ = "3.3.0"
