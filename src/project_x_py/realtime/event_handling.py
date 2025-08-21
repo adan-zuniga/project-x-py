@@ -211,6 +211,38 @@ class EventHandlingMixin(TaskManagerMixin):
                 self.callbacks[event_type].remove(callback)
                 self.logger.debug(f"Removed callback for {event_type}")
 
+    async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
+        """
+        Trigger all registered callbacks for an event type.
+
+        Internal method to execute all callbacks registered for a specific event type.
+        Handles both async and sync callbacks, with proper error handling.
+
+        Args:
+            event_type: The type of event to trigger callbacks for
+            data: Event data to pass to callbacks
+
+        Note:
+            - Callbacks are executed in registration order
+            - Exceptions in callbacks are caught and logged
+            - Does not block on individual callback failures
+        """
+        if event_type not in self.callbacks:
+            return
+
+        # Get callbacks under lock but execute outside
+        async with self._callback_lock:
+            callbacks_to_run = list(self.callbacks[event_type])
+
+        for callback in callbacks_to_run:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(data)
+                else:
+                    callback(data)
+            except Exception as e:
+                self.logger.error(f"Error in {event_type} callback: {e}", exc_info=True)
+
     # Event forwarding methods (cross-thread safe)
     def _forward_account_update(self, *args: Any) -> None:
         """
