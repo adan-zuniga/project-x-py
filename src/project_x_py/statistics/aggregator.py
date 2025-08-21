@@ -83,22 +83,21 @@ if TYPE_CHECKING:
 
 
 class ComponentProtocol(Protocol):
-    """Protocol for components that can provide statistics."""
+    """
+    Protocol for components that can provide statistics.
 
-    def get_stats(self) -> dict[str, Any] | None:
-        """Get component statistics (synchronous)."""
-        ...
+    Note: While the v3.3.0 statistics system is 100% async internally,
+    this protocol supports both sync and async methods for backward
+    compatibility during migration. New components should implement
+    only the async methods.
+    """
 
     async def get_statistics(self) -> dict[str, Any] | None:
-        """Get component statistics (asynchronous)."""
-        ...
-
-    def get_memory_stats(self) -> dict[str, Any] | None:
-        """Get memory statistics (synchronous)."""
+        """Get component statistics (async - PREFERRED)."""
         ...
 
     async def get_health_score(self) -> float:
-        """Get component health score (0-100)."""
+        """Get component health score (0-100) - async only."""
         ...
 
 
@@ -308,7 +307,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
             - TTL caching for frequent polling scenarios
         """
         # Register pending components if needed (compatibility layer)
-        if hasattr(self, '_pending_components') and self._pending_components:
+        if hasattr(self, "_pending_components") and self._pending_components:
             await self._register_all_pending_components()
 
         await self.set_status("collecting")
@@ -879,12 +878,12 @@ class StatisticsAggregator(BaseStatisticsTracker):
             "orderbook": "orderbook",
             "risk_manager": "risk_manager",
             "client": "client",
-            "realtime_client": "realtime_client"
+            "realtime_client": "realtime_client",
         }
 
         if name in component_mapping and value is not None:
             # Store components for lazy registration during stats calls
-            if not hasattr(self, '_pending_components'):
+            if not hasattr(self, "_pending_components"):
                 self._pending_components = {}
             self._pending_components[component_mapping[name]] = value
 
@@ -893,7 +892,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
 
     async def _register_all_pending_components(self) -> None:
         """Register all components that were set via direct assignment."""
-        if not hasattr(self, '_pending_components'):
+        if not hasattr(self, "_pending_components"):
             return
 
         # Make a copy to avoid modification during iteration
@@ -907,6 +906,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
             except Exception as e:
                 # Log error but don't fail - this is for backward compatibility
                 import logging
+
                 logging.getLogger(__name__).warning(
                     f"Failed to auto-register component {name}: {e}"
                 )
@@ -918,6 +918,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
         except Exception as e:
             # Log error but don't fail - this is for backward compatibility
             import logging
+
             logging.getLogger(__name__).warning(
                 f"Failed to auto-register component {name}: {e}"
             )
