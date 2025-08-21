@@ -43,7 +43,8 @@
           ],
           "env": {
             "OBSIDIAN_HOST": "127.0.0.1",
-            "OBSIDIAN_PORT": "27124"
+            "OBSIDIAN_PORT": "27124",
+            "OBSIDIAN_API_KEY": "${OBSIDIAN_API_KEY}"
           }
         },
         "tavily-mcp": {
@@ -52,7 +53,9 @@
             "-y",
             "tavily-mcp@latest"
           ],
-          "env": {}
+          "env": {
+            "TAVILY_API_KEY": "${TAVILY_API_KEY}"
+          }
         },
         "waldzellai-clear-thought": {
           "type": "http",
