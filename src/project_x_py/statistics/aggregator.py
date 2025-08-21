@@ -307,6 +307,10 @@ class StatisticsAggregator(BaseStatisticsTracker):
             - Focuses on suite-level metrics and cross-component calculations
             - TTL caching for frequent polling scenarios
         """
+        # Register pending components if needed (compatibility layer)
+        if hasattr(self, '_pending_components') and self._pending_components:
+            await self._register_all_pending_components()
+
         await self.set_status("collecting")
         collection_start = time.time()
 
@@ -836,6 +840,87 @@ class StatisticsAggregator(BaseStatisticsTracker):
             self._collector = None
             await self.increment("components_cleared", component_count)
             await self.set_status("idle")
+
+    # Compatibility layer for TradingSuite v3.2.x and earlier
+    async def aggregate_stats(self, force_refresh: bool = False) -> TradingSuiteStats:
+        """
+        Compatibility method for TradingSuite integration.
+
+        This method provides backward compatibility with the old StatisticsAggregator
+        interface used by TradingSuite. New code should use get_suite_stats().
+
+        Args:
+            force_refresh: Force refresh bypassing cache
+
+        Returns:
+            TradingSuiteStats: Aggregated statistics from all components
+        """
+        # Clear cache if force refresh requested
+        if force_refresh:
+            self._cache.clear()
+
+        return await self.get_suite_stats()
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Compatibility layer for direct component assignment.
+
+        Supports the old pattern where TradingSuite sets components directly:
+        aggregator.order_manager = order_manager
+        aggregator.data_manager = data_manager
+        etc.
+        """
+        # Handle component assignments for backward compatibility
+        component_mapping = {
+            "trading_suite": "trading_suite",
+            "order_manager": "order_manager",
+            "position_manager": "position_manager",
+            "data_manager": "realtime_data_manager",
+            "orderbook": "orderbook",
+            "risk_manager": "risk_manager",
+            "client": "client",
+            "realtime_client": "realtime_client"
+        }
+
+        if name in component_mapping and value is not None:
+            # Store components for lazy registration during stats calls
+            if not hasattr(self, '_pending_components'):
+                self._pending_components = {}
+            self._pending_components[component_mapping[name]] = value
+
+        # Always call parent __setattr__
+        super().__setattr__(name, value)
+
+    async def _register_all_pending_components(self) -> None:
+        """Register all components that were set via direct assignment."""
+        if not hasattr(self, '_pending_components'):
+            return
+
+        # Make a copy to avoid modification during iteration
+        pending_copy = dict(self._pending_components)
+
+        for name, component in pending_copy.items():
+            try:
+                await self.register_component(name, component)
+                # Remove successfully registered component
+                self._pending_components.pop(name, None)
+            except Exception as e:
+                # Log error but don't fail - this is for backward compatibility
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Failed to auto-register component {name}: {e}"
+                )
+
+    async def _register_pending_component(self, name: str, component: Any) -> None:
+        """Helper to register components set via direct assignment."""
+        try:
+            await self.register_component(name, component)
+        except Exception as e:
+            # Log error but don't fail - this is for backward compatibility
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Failed to auto-register component {name}: {e}"
+            )
 
 
 __all__ = [

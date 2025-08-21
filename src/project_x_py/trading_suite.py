@@ -62,7 +62,8 @@ from project_x_py.types.config_types import (
 )
 from project_x_py.types.protocols import ProjectXClientProtocol
 from project_x_py.types.stats_types import TradingSuiteStats
-from project_x_py.utils import ProjectXLogger, StatisticsAggregator
+from project_x_py.statistics import StatisticsAggregator
+from project_x_py.utils import ProjectXLogger
 
 logger = ProjectXLogger.get_logger(__name__)
 
@@ -235,8 +236,8 @@ class TradingSuite:
 
         # Initialize statistics aggregator
         self._stats_aggregator = StatisticsAggregator(
-            cache_ttl_seconds=5,
-            enable_caching=True,
+            cache_ttl=5.0,
+            component_timeout=1.0,
         )
         self._stats_aggregator.trading_suite = self
         self._stats_aggregator.client = client

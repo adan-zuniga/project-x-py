@@ -101,8 +101,7 @@ from project_x_py.utils.data_utils import (
     get_polars_rows,
 )
 
-# Enhanced statistics tracking (v3.2.1)
-from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
+# Enhanced statistics tracking moved to project_x_py.statistics in v3.3.0
 
 # Environment utilities
 from project_x_py.utils.environment import get_env_var
@@ -157,7 +156,7 @@ from project_x_py.utils.portfolio_analytics import (
     calculate_sharpe_ratio,
     calculate_volatility_metrics,
 )
-from project_x_py.utils.statistics_aggregator import StatisticsAggregator
+# StatisticsAggregator moved to project_x_py.statistics in v3.3.0
 
 # Trading calculations
 from project_x_py.utils.trading_calculations import (
@@ -173,9 +172,7 @@ __all__ = [
     "ErrorCode",
     "ErrorContext",
     "ErrorMessages",
-    # Enhanced statistics (v3.2.1)
-    "EnhancedStatsTrackingMixin",
-    "StatisticsAggregator",
+    # Enhanced statistics moved to project_x_py.statistics in v3.3.0
     # Rate limiting
     "LogContext",
     "LogMessages",

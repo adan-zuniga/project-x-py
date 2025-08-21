@@ -492,9 +492,9 @@ class TestStatisticsSystemIntegration:
         suite.risk_manager = mock_components["risk_manager"]
 
         # Initialize statistics aggregator manually
-        from project_x_py.utils import StatisticsAggregator as UtilsStatisticsAggregator
+        from project_x_py.statistics import StatisticsAggregator
 
-        suite._stats_aggregator = UtilsStatisticsAggregator()
+        suite._stats_aggregator = StatisticsAggregator()
 
         # Mock TradingSuite's own statistics
         suite_stats_mock = {

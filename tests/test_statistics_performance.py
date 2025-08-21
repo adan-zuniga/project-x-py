@@ -13,15 +13,14 @@ from typing import Any
 
 import pytest
 
-from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
-from project_x_py.utils.statistics_aggregator import StatisticsAggregator
+from project_x_py.statistics import BaseStatisticsTracker, StatisticsAggregator
 
 
-class MockComponent(EnhancedStatsTrackingMixin):
+class MockComponent(BaseStatisticsTracker):
     """Mock component for performance testing."""
 
     def __init__(self):
-        self._init_enhanced_stats()
+        super().__init__("mock_component")
         self.operations_executed = 0
 
     async def execute_operation(self, duration_ms: float = 1.0) -> None:
@@ -32,7 +31,7 @@ class MockComponent(EnhancedStatsTrackingMixin):
         actual_duration = (time.time() - start_time) * 1000
 
         # Track the operation
-        await self.track_operation("test_operation", actual_duration, success=True)
+        await self.record_timing("test_operation", actual_duration)
         self.operations_executed += 1
 
 
@@ -249,21 +248,26 @@ class TestStatisticsPerformance:
                 self.orderbook = MockComponent()
 
         suite = MockSuite()
-        aggregator = StatisticsAggregator(suite)
+        aggregator = StatisticsAggregator()
+        
+        # Register components with the aggregator
+        await aggregator.register_component("orders", suite.orders)
+        await aggregator.register_component("positions", suite.positions)
+        await aggregator.register_component("data", suite.data)
 
         # Populate components with data
         components = [suite.orders, suite.positions, suite.data]
         for component in components:
             for i in range(100):
-                await component.track_operation(f"op_{i}", float(i % 50))
+                await component.record_timing(f"op_{i}", float(i % 50))
 
         # Benchmark aggregation
         iterations = 100
         start_time = time.time()
 
         for _ in range(iterations):
-            stats = await aggregator.get_aggregated_stats()
-            assert "health_score" in stats
+            stats = await aggregator.get_comprehensive_stats()
+            assert stats["health_score"] is not None
 
         elapsed = time.time() - start_time
         avg_time_ms = (elapsed / iterations) * 1000

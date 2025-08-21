@@ -19,19 +19,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
-from project_x_py.utils.statistics_aggregator import StatisticsAggregator
+from project_x_py.statistics import BaseStatisticsTracker, StatisticsAggregator
 
 
-class TestComponent(EnhancedStatsTrackingMixin):
+class TestComponent(BaseStatisticsTracker):
     """Test component that uses the enhanced stats tracking mixin."""
 
     def __init__(self):
-        self._init_enhanced_stats(
+        super().__init__(
+            component_name="test_component",
             max_errors=10,
-            max_timings=100,
-            retention_hours=1,
-            enable_profiling=True,
+            cache_ttl=1.0,
         )
 
 
