@@ -267,6 +267,51 @@ class OrderbookStats(TypedDict):
     duplicate_updates: int
 
 
+class RiskManagerStats(TypedDict):
+    """Statistics for RiskManager component."""
+
+    # Risk rule statistics
+    rules_evaluated: int
+    rule_violations: int
+    rule_warnings: int
+    rules_passed: int
+
+    # Position risk metrics
+    total_risk_exposure: float
+    max_position_risk: float
+    portfolio_risk: float
+    var_95: float  # Value at Risk 95%
+
+    # Risk limits
+    max_loss_limit: float
+    daily_loss_limit: float
+    position_size_limit: int
+    leverage_limit: float
+
+    # Risk events
+    stop_losses_triggered: int
+    margin_calls: int
+    risk_alerts: int
+    emergency_stops: int
+
+    # Performance metrics
+    risk_calculations_per_second: float
+    avg_calculation_time_ms: float
+    memory_usage_mb: float
+
+    # Managed trades
+    managed_trades_active: int
+    managed_trades_completed: int
+    managed_trades_stopped: int
+    avg_trade_duration_minutes: float
+
+    # Risk-adjusted performance
+    sharpe_ratio: float
+    sortino_ratio: float
+    max_drawdown: float
+    risk_adjusted_return: float
+
+
 # Connection Statistics Types
 class RealtimeConnectionStats(TypedDict):
     """Statistics for real-time WebSocket connections."""
@@ -378,6 +423,60 @@ class MemoryUsageStats(TypedDict):
     last_cleanup: str | None
 
 
+# Top-Level Statistics Categories
+class HealthStats(TypedDict):
+    """System-wide health statistics."""
+
+    overall_score: float  # 0-100 health score
+    component_scores: dict[str, float]  # component name -> health score
+    issues: list[str]  # List of current health issues
+
+
+class PerformanceStats(TypedDict):
+    """System-wide performance statistics."""
+
+    api_calls_total: int
+    cache_hit_rate: float  # 0-1 ratio
+    avg_response_time: float  # seconds
+    requests_per_second: float
+
+
+class ErrorInfo(TypedDict):
+    """Individual error information."""
+
+    timestamp: str | None
+    component: str
+    error_type: str
+    message: str
+    severity: str
+
+
+class ErrorStats(TypedDict):
+    """System-wide error statistics."""
+
+    total_errors: int
+    error_rate: float  # 0-1 ratio
+    errors_by_component: dict[str, int]  # component name -> error count
+    recent_errors: list[ErrorInfo]
+
+
+class ConnectionStats(TypedDict):
+    """System-wide connection statistics."""
+
+    active_connections: int
+    connection_status: dict[str, str]  # connection type -> status
+    connection_uptime: dict[str, float]  # connection type -> uptime seconds
+
+
+class TradingStats(TypedDict):
+    """System-wide trading statistics."""
+
+    orders_today: int
+    fills_today: int
+    active_positions: int
+    pnl_today: float | None
+
+
 # Combined Statistics Type
 class ComprehensiveStats(TypedDict):
     """Combined statistics from all components and connections."""
@@ -385,11 +484,19 @@ class ComprehensiveStats(TypedDict):
     # Suite-level statistics
     suite: TradingSuiteStats
 
+    # Top-level aggregated statistics
+    health: NotRequired[HealthStats]
+    performance: NotRequired[PerformanceStats]
+    errors: NotRequired[ErrorStats]
+    connections: NotRequired[ConnectionStats]
+    trading: NotRequired[TradingStats]
+
     # Component statistics
     order_manager: NotRequired[OrderManagerStats]
     position_manager: NotRequired[PositionManagerStats]
     data_manager: NotRequired[RealtimeDataManagerStats]
     orderbook: NotRequired[OrderbookStats]
+    risk_manager: NotRequired[RiskManagerStats]
 
     # Connection statistics
     realtime: NotRequired[RealtimeConnectionStats]
@@ -408,11 +515,19 @@ __all__ = [
     # Suite Statistics
     "ComponentStats",
     "TradingSuiteStats",
+    # Top-Level Statistics
+    "HealthStats",
+    "PerformanceStats",
+    "ErrorInfo",
+    "ErrorStats",
+    "ConnectionStats",
+    "TradingStats",
     # Component Statistics
     "OrderManagerStats",
     "PositionManagerStats",
     "RealtimeDataManagerStats",
     "OrderbookStats",
+    "RiskManagerStats",
     # Connection Statistics
     "RealtimeConnectionStats",
     "HTTPClientStats",

@@ -113,7 +113,6 @@ from project_x_py.types.response_types import (
     MarketImpactResponse,
     OrderbookAnalysisResponse,
 )
-from project_x_py.types.stats_types import OrderbookStats
 from project_x_py.utils.deprecation import deprecated
 
 __all__ = [
@@ -443,14 +442,16 @@ class OrderBook(OrderBookBase):
         return await self.profile.get_spread_analysis(window_minutes)
 
     # Delegate memory methods
-    def get_memory_stats(self) -> OrderbookStats:
+    def get_memory_stats(self) -> dict[str, Any]:
         """
         Get comprehensive memory usage statistics.
 
         Delegates to MemoryManager.get_memory_stats().
         See MemoryManager.get_memory_stats() for complete documentation.
         """
-        return self.memory_manager.get_memory_stats()
+        # Call the synchronous memory manager method - matches base class signature
+        stats = self.memory_manager.get_memory_stats()
+        return dict(stats) if stats else {}
 
     async def cleanup(self) -> None:
         """Clean up resources and disconnect from real-time feeds."""

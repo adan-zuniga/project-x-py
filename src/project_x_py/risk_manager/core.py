@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.exceptions import InvalidOrderParameters
+from project_x_py.statistics.base import BaseStatisticsTracker
 from project_x_py.types import (
     OrderSide,
     OrderType,
@@ -22,7 +23,6 @@ from project_x_py.types.protocols import (
     ProjectXClientProtocol,
     RealtimeDataManagerProtocol,
 )
-from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
 
 from .config import RiskConfig
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RiskManager(EnhancedStatsTrackingMixin):
+class RiskManager(BaseStatisticsTracker):
     """Comprehensive risk management system for trading.
 
     Handles position sizing, risk validation, stop-loss management,
@@ -68,13 +68,8 @@ class RiskManager(EnhancedStatsTrackingMixin):
         self.event_bus = event_bus
         self.config = config or RiskConfig()
         self.data_manager = data_manager
-        # Initialize enhanced stats tracking
-        self._init_enhanced_stats(
-            max_errors=100,
-            max_timings=1000,
-            retention_hours=24,
-            enable_profiling=False,
-        )
+        # Initialize statistics tracking with new system
+        super().__init__("risk_manager", max_errors=100, cache_ttl=5.0)
 
         # Track daily losses and trades
         self._daily_loss = Decimal("0")
@@ -90,6 +85,28 @@ class RiskManager(EnhancedStatsTrackingMixin):
         # Track current risk exposure
         self._current_risk = Decimal("0")
         self._max_drawdown = Decimal("0")
+
+        # Initialize risk management statistics
+        self._init_task = asyncio.create_task(self._initialize_risk_stats())
+
+    async def _initialize_risk_stats(self) -> None:
+        """Initialize risk management statistics."""
+        try:
+            await self.set_status("initializing")
+            await self.set_gauge("max_daily_trades", self.config.max_daily_trades)
+            await self.set_gauge("max_positions", self.config.max_positions)
+            await self.set_gauge("max_position_size", self.config.max_position_size)
+            await self.set_gauge(
+                "max_risk_per_trade", self.config.max_risk_per_trade * 100
+            )
+            await self.set_gauge(
+                "max_portfolio_risk", self.config.max_portfolio_risk * 100
+            )
+            await self.set_gauge("max_daily_loss", self.config.max_daily_loss * 100)
+            await self.set_status("active")
+        except Exception as e:
+            logger.error(f"Error initializing risk stats: {e}")
+            await self.track_error(e, "initialize_risk_stats")
 
     def set_position_manager(self, position_manager: PositionManagerProtocol) -> None:
         """Set the position manager after initialization to resolve circular dependency."""
@@ -186,9 +203,11 @@ class RiskManager(EnhancedStatsTrackingMixin):
 
             # Track successful operation
             duration_ms = (time.time() - start_time) * 1000
-            await self.track_operation(
-                "calculate_position_size", duration_ms, success=True
-            )
+            await self.record_timing("calculate_position_size", duration_ms)
+            await self.increment("position_size_calculations")
+            await self.set_gauge("last_position_size", position_size)
+            await self.set_gauge("last_risk_amount", actual_risk)
+            await self.set_gauge("last_risk_percent", actual_risk_percent * 100)
 
             return result
 
@@ -196,9 +215,8 @@ class RiskManager(EnhancedStatsTrackingMixin):
             logger.error(f"Error calculating position size: {e}")
             # Track failed operation
             duration_ms = (time.time() - start_time) * 1000
-            await self.track_operation(
-                "calculate_position_size", duration_ms, success=False
-            )
+            await self.record_timing("calculate_position_size_failed", duration_ms)
+            await self.increment("position_size_calculation_errors")
             await self.track_error(e, "calculate_position_size")
             raise
 
@@ -308,7 +326,12 @@ class RiskManager(EnhancedStatsTrackingMixin):
 
             # Track successful operation
             duration_ms = (time.time() - start_time) * 1000
-            await self.track_operation("validate_trade", duration_ms, success=True)
+            await self.record_timing("validate_trade", duration_ms)
+            await self.increment("trade_validations")
+            await self.increment("valid_trades" if is_valid else "invalid_trades")
+            await self.set_gauge("current_portfolio_risk", total_risk)
+            await self.set_gauge("daily_trades_count", self._daily_trades)
+            await self.set_gauge("daily_loss_amount", float(self._daily_loss))
 
             return result
 
@@ -316,7 +339,8 @@ class RiskManager(EnhancedStatsTrackingMixin):
             logger.error(f"Error validating trade: {e}")
             # Track failed operation
             duration_ms = (time.time() - start_time) * 1000
-            await self.track_operation("validate_trade", duration_ms, success=False)
+            await self.record_timing("validate_trade_failed", duration_ms)
+            await self.increment("trade_validation_errors")
             await self.track_error(e, "validate_trade")
             return RiskValidationResponse(
                 is_valid=False,
@@ -439,6 +463,13 @@ class RiskManager(EnhancedStatsTrackingMixin):
                     limit_price=take_profit,
                 )
 
+            # Track risk order placement
+            await self.increment("risk_orders_attached")
+            if stop_loss:
+                await self.increment("stop_loss_orders_placed")
+            if take_profit:
+                await self.increment("take_profit_orders_placed")
+
             # Create bracket response structure
             from project_x_py.models import BracketOrderResponse
 
@@ -545,6 +576,7 @@ class RiskManager(EnhancedStatsTrackingMixin):
             )
 
             if success:
+                await self.increment("stop_adjustments")
                 await self.event_bus.emit(
                     "stop_adjusted",
                     {
@@ -553,6 +585,8 @@ class RiskManager(EnhancedStatsTrackingMixin):
                         "order_id": order_id,
                     },
                 )
+            else:
+                await self.increment("stop_adjustment_failures")
 
             return success
 
@@ -780,10 +814,11 @@ class RiskManager(EnhancedStatsTrackingMixin):
     async def _monitor_trailing_stop(
         self,
         position: "Position",
-        bracket_order: dict[str, Any],
+        _bracket_order: dict[str, Any],
     ) -> None:
         """Monitor position for trailing stop activation."""
         try:
+            await self.increment("trailing_stops_monitored")
             is_long = position.is_long
             entry_price = float(position.averagePrice)
 
@@ -825,6 +860,7 @@ class RiskManager(EnhancedStatsTrackingMixin):
                         else current_price + self.config.trailing_stop_distance
                     )
 
+                    await self.increment("trailing_stop_adjustments")
                     await self.adjust_stops(current_pos, new_stop)
 
                 await asyncio.sleep(5)  # Check every 5 seconds
@@ -861,6 +897,41 @@ class RiskManager(EnhancedStatsTrackingMixin):
         sharpe_ratio: float = (avg_return / std_return) * (252**0.5)
         return sharpe_ratio
 
+    async def _get_gauge_value(self, metric: str, default: float = 0.0) -> float:
+        """Helper to get current gauge value safely."""
+        async with self._lock:
+            value = self._gauges.get(metric, default)
+            return float(value) if value is not None else default
+
+    def get_memory_stats(self) -> dict[str, float]:
+        """Get memory statistics synchronously for backward compatibility."""
+        try:
+            # Calculate basic memory estimates without async
+            base_size = 0.1  # Base overhead in MB
+
+            # Estimate data structure sizes
+            trade_history_size = len(self._trade_history) * 0.001  # ~1KB per trade
+            config_size = 0.05  # Config overhead
+
+            # Risk-specific memory estimates
+            risk_data_size = 0.02  # Risk calculation cache
+
+            total_memory = base_size + trade_history_size + config_size + risk_data_size
+
+            return {
+                "total_mb": round(total_memory, 2),
+                "trade_history_mb": round(trade_history_size, 3),
+                "base_overhead_mb": round(base_size, 2),
+                "risk_data_mb": round(risk_data_size, 3),
+                "config_mb": round(config_size, 3),
+            }
+        except Exception as e:
+            logger.error(f"Error calculating memory stats: {e}")
+            return {
+                "total_mb": 0.0,
+                "error_code": 1.0,  # Use numeric error code instead of string
+            }
+
     async def record_trade_result(
         self,
         position_id: str,
@@ -889,9 +960,20 @@ class RiskManager(EnhancedStatsTrackingMixin):
         # Update daily loss
         if pnl < 0:
             self._daily_loss += Decimal(str(abs(pnl)))
+            await self.increment("losing_trades")
+            current_largest_loss = await self._get_gauge_value("largest_loss", 0.0)
+            await self.set_gauge("largest_loss", max(abs(pnl), current_largest_loss))
+        else:
+            await self.increment("winning_trades")
+            current_largest_win = await self._get_gauge_value("largest_win", 0.0)
+            await self.set_gauge("largest_win", max(pnl, current_largest_win))
 
         # Increment daily trades
         self._daily_trades += 1
+        await self.increment("total_trades")
+        await self.set_gauge("win_rate_percent", self._win_rate * 100)
+        await self.set_gauge("avg_win_amount", float(self._avg_win))
+        await self.set_gauge("avg_loss_amount", float(self._avg_loss))
 
         # Emit event
         await self.event_bus.emit(

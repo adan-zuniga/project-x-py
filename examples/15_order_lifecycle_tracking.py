@@ -474,7 +474,7 @@ async def cleanup_demo_orders_and_positions() -> None:
 
 async def main() -> None:
     """Run all demonstrations."""
-    suite = None
+    _suite = None
     try:
         # Basic order tracking
         await demonstrate_order_tracker()

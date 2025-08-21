@@ -83,6 +83,7 @@ from project_x_py.position_manager.operations import PositionOperationsMixin
 from project_x_py.position_manager.reporting import PositionReportingMixin
 from project_x_py.position_manager.tracking import PositionTrackingMixin
 from project_x_py.risk_manager import RiskManager
+from project_x_py.statistics.base import BaseStatisticsTracker
 from project_x_py.types.config_types import PositionManagerConfig
 from project_x_py.types.protocols import RealtimeDataManagerProtocol
 from project_x_py.types.response_types import (
@@ -94,7 +95,6 @@ from project_x_py.utils import (
     ProjectXLogger,
     handle_errors,
 )
-from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
 
 if TYPE_CHECKING:
     from project_x_py.order_manager import OrderManager
@@ -108,7 +108,7 @@ class PositionManager(
     PositionMonitoringMixin,
     PositionOperationsMixin,
     PositionReportingMixin,
-    EnhancedStatsTrackingMixin,
+    BaseStatisticsTracker,
 ):
     """
     Async comprehensive position management system for ProjectX trading operations.
@@ -225,8 +225,10 @@ class PositionManager(
         # Initialize all mixins
         PositionTrackingMixin.__init__(self)
         PositionMonitoringMixin.__init__(self)
-        # Initialize enhanced stats tracking
-        self._init_enhanced_stats()
+        # Initialize new statistics tracking
+        BaseStatisticsTracker.__init__(
+            self, component_name="position_manager", max_errors=100, cache_ttl=5.0
+        )
 
         self.project_x: ProjectXBase = project_x_client
         self.event_bus = event_bus  # Store the event bus for emitting events
@@ -444,7 +446,8 @@ class PositionManager(
 
         # Track the operation timing
         duration_ms = (time.time() - start_time) * 1000
-        await self.track_operation("get_all_positions", duration_ms, success=True)
+        await self.record_timing("get_all_positions", duration_ms)
+        await self.increment("get_all_positions_count")
 
         # Update tracked positions
         async with self.position_lock:
@@ -454,6 +457,10 @@ class PositionManager(
             # Update statistics
             self.stats["positions_tracked"] = len(positions)
             self.stats["last_update_time"] = datetime.now()
+            await self.set_gauge("positions_tracked", len(positions))
+            await self.set_gauge(
+                "open_positions", len([p for p in positions if p.size != 0])
+            )
 
         self.logger.info(
             LogMessages.POSITION_UPDATE, extra={"position_count": len(positions)}
@@ -507,12 +514,8 @@ class PositionManager(
                 cached_position = self.tracked_positions.get(contract_id)
                 if cached_position:
                     duration_ms = (time.time() - start_time) * 1000
-                    await self.track_operation(
-                        "get_position",
-                        duration_ms,
-                        success=True,
-                        metadata={"cache_hit": True},
-                    )
+                    await self.record_timing("get_position", duration_ms)
+                    await self.increment("get_position_cache_hits")
                     return cached_position
 
         # Fallback to API search
@@ -520,18 +523,13 @@ class PositionManager(
         for position in positions:
             if position.contractId == contract_id:
                 duration_ms = (time.time() - start_time) * 1000
-                await self.track_operation(
-                    "get_position",
-                    duration_ms,
-                    success=True,
-                    metadata={"cache_hit": False},
-                )
+                await self.record_timing("get_position", duration_ms)
+                await self.increment("get_position_api_calls")
                 return position
 
         duration_ms = (time.time() - start_time) * 1000
-        await self.track_operation(
-            "get_position", duration_ms, success=False, metadata={"reason": "not_found"}
-        )
+        await self.record_timing("get_position", duration_ms)
+        await self.increment("get_position_not_found")
         return None
 
     @handle_errors("refresh positions", reraise=False, default_return=False)
@@ -644,6 +642,135 @@ class PositionManager(
             raise ValueError(
                 "Risk manager not configured. Enable 'risk_manager' feature in TradingSuite."
             )
+
+    # ================================================================================
+    # POSITION STATISTICS TRACKING METHODS
+    # ================================================================================
+
+    async def track_position_opened(self, position: Position) -> None:
+        """Track when a position is opened."""
+        await self.increment("total_positions")
+        await self.increment("position_opens")
+        await self.set_gauge("current_open_positions", len(self.tracked_positions))
+
+        # Update position-specific stats
+        self.stats["total_positions"] += 1
+        self.stats["open_positions"] = len(
+            [p for p in self.tracked_positions.values() if p.size != 0]
+        )
+
+    async def track_position_closed(self, position: Position, pnl: float) -> None:
+        """Track when a position is closed with P&L."""
+        await self.increment("closed_positions")
+        await self.increment("position_closes")
+
+        if pnl > 0:
+            await self.increment("winning_positions")
+            await self.set_gauge(
+                "gross_profit", self.stats.get("gross_profit", 0) + pnl
+            )
+            self.stats["winning_positions"] += 1
+            self.stats["gross_profit"] += pnl
+        else:
+            await self.increment("losing_positions")
+            await self.set_gauge(
+                "gross_loss", self.stats.get("gross_loss", 0) + abs(pnl)
+            )
+            self.stats["losing_positions"] += 1
+            self.stats["gross_loss"] += abs(pnl)
+
+        # Update total P&L
+        total_pnl = self.stats.get("total_pnl", 0) + pnl
+        await self.set_gauge("total_pnl", total_pnl)
+        self.stats["total_pnl"] = total_pnl
+
+        # Update win rate
+        total_closed = self.stats.get("closed_positions", 0) + 1
+        win_rate = (
+            (self.stats.get("winning_positions", 0) / total_closed)
+            if total_closed > 0
+            else 0
+        )
+        await self.set_gauge("win_rate", win_rate)
+        self.stats["win_rate"] = win_rate
+        self.stats["closed_positions"] = total_closed
+
+    async def track_position_update(self, position: Position) -> None:
+        """Track position updates and changes."""
+        await self.increment("position_updates")
+        await self.set_gauge(
+            "avg_position_size",
+            sum(abs(p.size) for p in self.tracked_positions.values())
+            / len(self.tracked_positions)
+            if self.tracked_positions
+            else 0,
+        )
+
+        # Update position size tracking
+        position_sizes = [
+            abs(p.size) for p in self.tracked_positions.values() if p.size != 0
+        ]
+        if position_sizes:
+            self.stats["avg_position_size"] = sum(position_sizes) / len(position_sizes)
+            self.stats["largest_position"] = max(position_sizes)
+
+    async def track_risk_calculation(self, risk_amount: float) -> None:
+        """Track risk calculations and metrics."""
+        await self.increment("risk_calculations")
+        await self.set_gauge("total_risk", risk_amount)
+        self.stats["risk_calculations"] = self.stats.get("risk_calculations", 0) + 1
+        self.stats["total_risk"] = risk_amount
+
+    async def get_position_stats(self) -> dict[str, Any]:
+        """
+        Get comprehensive position statistics combining legacy stats with new metrics.
+
+        Returns:
+            Dictionary containing all position statistics
+        """
+        # Get base statistics from BaseStatisticsTracker
+        base_stats = await self.get_stats()
+
+        # Combine with position-specific statistics
+        position_stats = {
+            **self.stats,  # Legacy stats dict for backward compatibility
+            "component_stats": base_stats,
+            "health_score": await self.get_health_score(),
+            "uptime_seconds": await self.get_uptime(),
+            "memory_usage_mb": await self.get_memory_usage(),
+            "error_count": await self.get_error_count(),
+        }
+
+        return position_stats
+
+    def get_memory_stats(self) -> dict[str, Any]:
+        """
+        Get memory statistics synchronously for backward compatibility.
+
+        This method provides a synchronous interface to memory statistics
+        for components that expect immediate access.
+        """
+        # Calculate memory usage for position-specific data
+        memory_usage = 0.1  # Base overhead
+
+        # Calculate memory for tracked positions
+        if hasattr(self, "tracked_positions"):
+            memory_usage += len(self.tracked_positions) * 0.002  # ~2KB per position
+
+        # Calculate memory for position history
+        if hasattr(self, "position_history"):
+            memory_usage += len(self.position_history) * 0.001  # ~1KB per history entry
+
+        # Calculate memory for stats dictionary
+        if hasattr(self, "stats"):
+            memory_usage += len(self.stats) * 0.0001  # ~0.1KB per stat
+
+        return {
+            "current_memory_mb": memory_usage,
+            "tracked_positions": len(getattr(self, "tracked_positions", {})),
+            "position_history_entries": len(getattr(self, "position_history", {})),
+            "stats_tracked": len(getattr(self, "stats", {})),
+        }
 
     async def cleanup(self) -> None:
         """

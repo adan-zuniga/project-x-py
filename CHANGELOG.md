@@ -14,6 +14,127 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.3.0] - 2025-01-21
+
+### Breaking Changes
+- **🔄 Complete Statistics System Redesign**: Migrated to 100% async-first architecture
+  - All statistics methods are now async (requires `await`)
+  - Removed mixed sync/async patterns that caused deadlocks
+  - Components must use new `BaseStatisticsTracker` instead of old mixins
+  - Old statistics mixins (`EnhancedStatsTrackingMixin`, `StatsTrackingMixin`) have been removed
+  
+### Added
+- **📊 New Statistics Module** (`project_x_py.statistics`): Modern async statistics system
+  - `BaseStatisticsTracker`: Core async statistics tracking with single RW lock per component
+  - `ComponentCollector`: Specialized statistics collection for all trading components
+  - `StatisticsAggregator`: Parallel collection using `asyncio.gather()` with timeout protection
+  - `HealthMonitor`: Intelligent health scoring (0-100) with configurable thresholds
+  - `StatsExporter`: Multi-format export (JSON, Prometheus, CSV, Datadog) with data sanitization
+  
+- **🎯 Component-Specific Statistics**: Enhanced tracking for each manager
+  - OrderManager: Order counts, fill rates, latencies, order lifecycle tracking
+  - PositionManager: P&L tracking, win rates, position lifecycle, risk metrics
+  - RealtimeDataManager: Tick/quote/trade processing, bar creation, data quality metrics
+  - OrderBook: Spread tracking, market depth, pattern detection (icebergs, spoofing)
+  - RiskManager: Risk checks, violations, position sizing, capital utilization
+  
+- **⚡ Performance Optimizations**: Efficient async operations
+  - TTL caching (5-second default) for expensive operations
+  - Circular buffers (`deque` with maxlen) for memory efficiency
+  - Parallel statistics collection with 1-second timeout per component
+  - Lock-free reads for frequently accessed metrics
+
+### Changed
+- **🔄 Component Migration**: All managers now use new statistics system
+  - OrderManager: Inherits from `BaseStatisticsTracker`
+  - PositionManager: Inherits from `BaseStatisticsTracker`
+  - RealtimeDataManager: Uses composition pattern with `BaseStatisticsTracker`
+  - OrderBook: Inherits from `BaseStatisticsTracker`
+  - RiskManager: Inherits from `BaseStatisticsTracker`
+  
+- **📈 TradingSuite Integration**: Updated to use new statistics module
+  - Uses new `StatisticsAggregator` from `project_x_py.statistics`
+  - Backward compatibility layer for existing code
+  - Lazy component registration for better initialization
+
+### Removed
+- **🗑️ Old Statistics Files**: Cleaned up legacy implementations
+  - Removed `utils/enhanced_stats_tracking.py`
+  - Removed `utils/stats_tracking.py`
+  - Removed `utils/statistics_aggregator.py`
+  - Cleaned up exports from `utils/__init__.py`
+
+### Fixed
+- **💀 Deadlock Prevention**: Eliminated all statistics-related deadlocks
+  - Single RW lock per component instead of 6+ different locks
+  - Async-first design prevents sync/async mixing issues
+  - Event emission outside lock scope for handler safety
+  
+- **🧪 Test Coverage**: Comprehensive testing for new system
+  - 34 unit tests for core statistics modules
+  - 11 integration tests for cross-component functionality
+  - Performance benchmarks for overhead validation
+
+### Migration Guide
+
+#### From v3.2.x to v3.3.0
+
+**1. Update Statistics Method Calls**
+```python
+# Old (v3.2.x) - Mixed sync/async
+stats = suite.orders.get_order_statistics()  # Synchronous
+suite_stats = await suite.get_stats()        # Async
+
+# New (v3.3.0) - All async
+stats = await suite.orders.get_stats()       # Now async
+suite_stats = await suite.get_stats()        # Still async
+```
+
+**2. Replace Old Statistics Mixins**
+```python
+# Old (v3.2.x)
+from project_x_py.utils import EnhancedStatsTrackingMixin
+
+class MyComponent(EnhancedStatsTrackingMixin):
+    pass
+
+# New (v3.3.0)
+from project_x_py.statistics import BaseStatisticsTracker
+
+class MyComponent(BaseStatisticsTracker):
+    def __init__(self):
+        super().__init__()
+```
+
+**3. Use New Export Capabilities**
+```python
+# New in v3.3.0 - Multi-format export
+prometheus_metrics = await suite.export_stats("prometheus")
+csv_data = await suite.export_stats("csv")
+datadog_metrics = await suite.export_stats("datadog")
+```
+
+**4. Updated Health Monitoring**
+```python
+# Old (v3.2.x)
+stats = await suite.get_stats()
+health = stats['health_score']
+
+# New (v3.3.0) - Enhanced health API
+health_score = await suite.get_health_score()
+component_health = await suite.get_component_health()
+```
+
+**Breaking Changes:**
+- All component statistics methods now require `await`
+- `EnhancedStatsTrackingMixin` and `StatsTrackingMixin` removed
+- Component constructors now require `BaseStatisticsTracker` inheritance
+
+**Backward Compatibility:**
+- `get_memory_stats()` methods remain synchronous where needed
+- Main TradingSuite API remains unchanged
+- Event system and core trading operations unaffected
+
 ## [3.2.1] - 2025-08-19
 
 ### Added

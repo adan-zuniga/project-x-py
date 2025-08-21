@@ -219,9 +219,19 @@ class DataProcessingMixin:
 
                 await self._process_tick_data(tick_data)
 
+                # Track quote processing with new statistics system
+                if hasattr(self, "track_quote_processed"):
+                    await self.track_quote_processed()
+
         except Exception as e:
             self.logger.error(f"Error processing quote update for OHLCV: {e}")
             self.logger.debug(f"Callback data that caused error: {callback_data}")
+
+            # Track error with new statistics system
+            if hasattr(self, "track_error"):
+                await self.track_error(
+                    e, "quote_update", {"callback_data": str(callback_data)[:200]}
+                )
 
     async def _on_trade_update(self, callback_data: dict[str, Any]) -> None:
         """
@@ -279,9 +289,19 @@ class DataProcessingMixin:
                 self.logger.debug(f"🔥 Processing tick: {tick_data}")
                 await self._process_tick_data(tick_data)
 
+                # Track trade processing with new statistics system
+                if hasattr(self, "track_trade_processed"):
+                    await self.track_trade_processed()
+
         except Exception as e:
             self.logger.error(f"❌ Error processing market trade for OHLCV: {e}")
             self.logger.debug(f"Callback data that caused error: {callback_data}")
+
+            # Track error with new statistics system
+            if hasattr(self, "track_error"):
+                await self.track_error(
+                    e, "trade_update", {"callback_data": str(callback_data)[:200]}
+                )
 
     async def _process_tick_data(self, tick: dict[str, Any]) -> None:
         """
@@ -332,26 +352,28 @@ class DataProcessingMixin:
             self.memory_stats["ticks_processed"] += 1
             await self._cleanup_old_data()
 
-            # Track operation timing if enhanced stats available
-            if hasattr(self, "track_operation"):
+            # Track operation timing with new statistics system
+            if hasattr(self, "record_timing"):
                 duration_ms = (time.time() - start_time) * 1000
-                await self.track_operation(  # pyright: ignore[reportAttributeAccessIssue]
-                    "process_tick",
-                    duration_ms,
-                    success=True,
-                    metadata={"price": price, "volume": volume},
-                )
+                await self.record_timing("process_tick", duration_ms)
+
+            # Track tick processing with new statistics system
+            if hasattr(self, "track_tick_processed"):
+                await self.track_tick_processed()
 
         except Exception as e:
             self.logger.error(f"Error processing tick data: {e}")
-            # Track failed operation if enhanced stats available
-            if hasattr(self, "track_operation"):
+            # Track failed operation with new statistics system
+            if hasattr(self, "record_timing"):
                 duration_ms = (time.time() - start_time) * 1000
-                await self.track_operation(  # pyright: ignore[reportAttributeAccessIssue]
+                await self.record_timing("process_tick_failed", duration_ms)
+
+            # Track error with new statistics system
+            if hasattr(self, "track_error"):
+                await self.track_error(
+                    e,
                     "process_tick",
-                    duration_ms,
-                    success=False,
-                    metadata={"error": str(e)},
+                    {"price": tick.get("price"), "volume": tick.get("volume")},
                 )
 
     async def _update_timeframe_data(
@@ -407,6 +429,10 @@ class DataProcessingMixin:
                 self.data[tf_key] = new_bar
                 self.last_bar_times[tf_key] = bar_time
 
+                # Track first bar creation with new statistics system
+                if hasattr(self, "track_bar_created"):
+                    await self.track_bar_created(tf_key)
+
             else:
                 last_bar_time = current_data.select(pl.col("timestamp")).tail(1).item()
 
@@ -426,6 +452,10 @@ class DataProcessingMixin:
 
                     self.data[tf_key] = pl.concat([current_data, new_bar])
                     self.last_bar_times[tf_key] = bar_time
+
+                    # Track new bar creation with new statistics system
+                    if hasattr(self, "track_bar_created"):
+                        await self.track_bar_created(tf_key)
 
                     # Return new bar event data to be triggered outside the lock
                     return {
@@ -486,6 +516,10 @@ class DataProcessingMixin:
                             .alias("volume"),
                         ]
                     )
+
+                    # Track bar update with new statistics system
+                    if hasattr(self, "track_bar_updated"):
+                        await self.track_bar_updated(tf_key)
 
             # Return None if no new bar was created
             return None

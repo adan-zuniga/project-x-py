@@ -62,6 +62,7 @@ See Also:
 """
 
 import asyncio
+import time
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
@@ -75,6 +76,7 @@ if TYPE_CHECKING:
 
 from project_x_py.exceptions import ProjectXError
 from project_x_py.orderbook.memory import MemoryManager
+from project_x_py.statistics.base import BaseStatisticsTracker
 from project_x_py.types import (
     DEFAULT_TIMEZONE,
     CallbackType,
@@ -92,12 +94,11 @@ from project_x_py.utils import (
     handle_errors,
 )
 from project_x_py.utils.deprecation import deprecated
-from project_x_py.utils.stats_tracking import StatsTrackingMixin
 
 logger = ProjectXLogger.get_logger(__name__)
 
 
-class OrderBookBase(StatsTrackingMixin):
+class OrderBookBase(BaseStatisticsTracker):
     """
     Base class for async orderbook with core functionality.
 
@@ -161,7 +162,8 @@ class OrderBookBase(StatsTrackingMixin):
         self.event_bus = event_bus  # Store the event bus for emitting events
         self.timezone = pytz.timezone(timezone_str)
         self.logger = ProjectXLogger.get_logger(__name__)
-        StatsTrackingMixin._init_stats_tracking(self)
+        # Initialize BaseStatisticsTracker with orderbook-specific component name
+        BaseStatisticsTracker.__init__(self, f"orderbook_{instrument}")
 
         # Store configuration with defaults
         self.config = config or {}
@@ -169,6 +171,27 @@ class OrderBookBase(StatsTrackingMixin):
 
         # Cache instrument tick size during initialization
         self._tick_size: Decimal | None = None
+
+        # Orderbook-specific statistics
+        self._trades_processed = 0
+        self._total_volume = 0
+        self._largest_trade = 0
+        self._bid_updates = 0
+        self._ask_updates = 0
+        self._spread_samples: list[float] = []
+        self._pattern_detections = {
+            "icebergs_detected": 0,
+            "spoofing_alerts": 0,
+            "unusual_patterns": 0,
+        }
+        self._data_quality = {
+            "data_gaps": 0,
+            "invalid_updates": 0,
+            "duplicate_updates": 0,
+        }
+        self._last_update_time = 0.0
+        self._update_frequency_counter = 0
+        self._update_timestamps: list[float] = []
 
         # Async locks for thread-safe operations
         self.orderbook_lock = asyncio.Lock()
@@ -773,6 +796,226 @@ class OrderBookBase(StatsTrackingMixin):
         # Legacy callbacks have been removed - use EventBus
 
     @handle_errors("cleanup", reraise=False)
+    async def track_bid_update(self, levels: int = 1) -> None:
+        """Track bid-side orderbook updates."""
+        await self.increment("bid_updates", levels)
+        self._bid_updates += levels
+        await self._track_update_frequency()
+
+    async def track_ask_update(self, levels: int = 1) -> None:
+        """Track ask-side orderbook updates."""
+        await self.increment("ask_updates", levels)
+        self._ask_updates += levels
+        await self._track_update_frequency()
+
+    async def track_trade_processed(self, volume: int, price: float) -> None:
+        """Track trade execution processing."""
+        await self.increment("trades_processed", 1)
+        await self.increment("total_volume", volume)
+        self._trades_processed += 1
+        self._total_volume += volume
+        if volume > self._largest_trade:
+            self._largest_trade = volume
+            await self.set_gauge("largest_trade", volume)
+
+    async def track_spread_sample(self, spread: float) -> None:
+        """Track spread measurements for volatility calculation."""
+        self._spread_samples.append(spread)
+        # Keep only last 1000 samples to prevent memory growth
+        if len(self._spread_samples) > 1000:
+            self._spread_samples = self._spread_samples[-1000:]
+        await self.set_gauge("current_spread", spread)
+
+    async def track_pattern_detection(self, pattern_type: str) -> None:
+        """Track pattern detection events."""
+        if pattern_type in self._pattern_detections:
+            self._pattern_detections[pattern_type] += 1
+            await self.increment(pattern_type, 1)
+
+    async def track_data_quality_issue(self, issue_type: str) -> None:
+        """Track data quality issues."""
+        if issue_type in self._data_quality:
+            self._data_quality[issue_type] += 1
+            await self.increment(issue_type, 1)
+
+    async def _track_update_frequency(self) -> None:
+        """Track orderbook update frequency."""
+        current_time = time.time()
+        self._update_timestamps.append(current_time)
+
+        # Keep only last 60 seconds of timestamps
+        cutoff_time = current_time - 60.0
+        self._update_timestamps = [
+            ts for ts in self._update_timestamps if ts > cutoff_time
+        ]
+
+        # Calculate updates per second
+        if len(self._update_timestamps) > 1:
+            time_span = self._update_timestamps[-1] - self._update_timestamps[0]
+            if time_span > 0:
+                frequency = len(self._update_timestamps) / time_span
+                await self.set_gauge("update_frequency_per_second", frequency)
+
+    async def get_orderbook_memory_usage(self) -> float:
+        """Calculate orderbook-specific memory usage in MB."""
+        base_memory = await self.get_memory_usage()
+
+        # Add DataFrame memory estimates
+        bids_memory = 0.0
+        asks_memory = 0.0
+        trades_memory = 0.0
+
+        if self.orderbook_bids.height > 0:
+            bids_memory = self.orderbook_bids.estimated_size("mb")
+        if self.orderbook_asks.height > 0:
+            asks_memory = self.orderbook_asks.estimated_size("mb")
+        if self.recent_trades.height > 0:
+            trades_memory = self.recent_trades.estimated_size("mb")
+
+        # Add history memory estimates
+        history_memory = (
+            len(self.best_bid_history) * 0.0001  # ~0.1KB per entry
+            + len(self.best_ask_history) * 0.0001
+            + len(self.spread_history) * 0.0001
+            + len(self.price_level_history) * 0.0005  # ~0.5KB per entry
+            + len(self._spread_samples) * 0.00001  # ~0.01KB per float
+            + len(self._update_timestamps) * 0.00001
+        )
+
+        return base_memory + bids_memory + asks_memory + trades_memory + history_memory
+
+    def get_memory_stats(self) -> dict[str, Any]:
+        """
+        Get comprehensive memory and statistics (synchronous for backward compatibility).
+
+        Returns orderbook-specific statistics compatible with the collector expectations.
+        """
+        import asyncio
+
+        # For backward compatibility, run async methods in a new event loop if needed
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If we're in an async context, we can't use async methods synchronously
+                # Return basic memory stats only
+                return self._get_basic_memory_stats()
+        except RuntimeError:
+            pass
+
+        # If no loop is running, we can create one
+        try:
+            return asyncio.run(self._get_comprehensive_stats())
+        except RuntimeError:
+            # Fallback to basic stats if async operations fail
+            return self._get_basic_memory_stats()
+
+    def _get_basic_memory_stats(self) -> dict[str, Any]:
+        """Get basic memory stats without async operations."""
+        # Calculate basic DataFrame sizes
+        bids_rows = self.orderbook_bids.height
+        asks_rows = self.orderbook_asks.height
+        trades_rows = self.recent_trades.height
+
+        # Estimate memory usage (rough calculation)
+        estimated_memory = (
+            (bids_rows + asks_rows + trades_rows) * 0.0001  # ~0.1KB per row
+            + len(self.best_bid_history) * 0.0001
+            + len(self.best_ask_history) * 0.0001
+            + len(self.spread_history) * 0.0001
+            + 0.5  # Base overhead
+        )
+
+        return {
+            "memory_usage_mb": round(estimated_memory, 2),
+            "bids_count": bids_rows,
+            "asks_count": asks_rows,
+            "trades_processed": self._trades_processed,
+            "total_volume": self._total_volume,
+            "largest_trade": self._largest_trade,
+            "avg_bid_depth": bids_rows,
+            "avg_ask_depth": asks_rows,
+            "max_bid_depth": bids_rows,
+            "max_ask_depth": asks_rows,
+            "avg_trade_size": self._total_volume / max(self._trades_processed, 1),
+            "avg_spread": sum(self._spread_samples) / max(len(self._spread_samples), 1)
+            if self._spread_samples
+            else 0.0,
+            "spread_volatility": self._calculate_spread_volatility(),
+            "price_levels": bids_rows + asks_rows,
+            "order_clustering": 0.0,  # Would need more complex calculation
+            "icebergs_detected": self._pattern_detections["icebergs_detected"],
+            "spoofing_alerts": self._pattern_detections["spoofing_alerts"],
+            "unusual_patterns": self._pattern_detections["unusual_patterns"],
+            "update_frequency_per_second": len(self._update_timestamps) / 60.0
+            if self._update_timestamps
+            else 0.0,
+            "processing_latency_ms": 0.0,  # Would need timing measurements
+            "data_gaps": self._data_quality["data_gaps"],
+            "invalid_updates": self._data_quality["invalid_updates"],
+            "duplicate_updates": self._data_quality["duplicate_updates"],
+        }
+
+    async def _get_comprehensive_stats(self) -> dict[str, Any]:
+        """Get comprehensive statistics using async operations."""
+        memory_usage = await self.get_orderbook_memory_usage()
+
+        # Get current spread for volatility calculation
+        spread_volatility = self._calculate_spread_volatility()
+
+        # Calculate average trade size
+        avg_trade_size = self._total_volume / max(self._trades_processed, 1)
+
+        # Calculate average spread
+        avg_spread = (
+            sum(self._spread_samples) / max(len(self._spread_samples), 1)
+            if self._spread_samples
+            else 0.0
+        )
+
+        # Calculate update frequency
+        update_frequency = 0.0
+        if len(self._update_timestamps) > 1:
+            time_span = self._update_timestamps[-1] - self._update_timestamps[0]
+            if time_span > 0:
+                update_frequency = len(self._update_timestamps) / time_span
+
+        return {
+            "memory_usage_mb": round(memory_usage, 2),
+            "bids_count": self.orderbook_bids.height,
+            "asks_count": self.orderbook_asks.height,
+            "trades_processed": self._trades_processed,
+            "total_volume": self._total_volume,
+            "largest_trade": self._largest_trade,
+            "avg_bid_depth": self.orderbook_bids.height,
+            "avg_ask_depth": self.orderbook_asks.height,
+            "max_bid_depth": self.orderbook_bids.height,
+            "max_ask_depth": self.orderbook_asks.height,
+            "avg_trade_size": round(avg_trade_size, 2),
+            "avg_spread": round(avg_spread, 4),
+            "spread_volatility": round(spread_volatility, 4),
+            "price_levels": self.orderbook_bids.height + self.orderbook_asks.height,
+            "order_clustering": 0.0,  # Would need more complex calculation
+            "icebergs_detected": self._pattern_detections["icebergs_detected"],
+            "spoofing_alerts": self._pattern_detections["spoofing_alerts"],
+            "unusual_patterns": self._pattern_detections["unusual_patterns"],
+            "update_frequency_per_second": round(update_frequency, 2),
+            "processing_latency_ms": 0.0,  # Would need timing measurements
+            "data_gaps": self._data_quality["data_gaps"],
+            "invalid_updates": self._data_quality["invalid_updates"],
+            "duplicate_updates": self._data_quality["duplicate_updates"],
+        }
+
+    def _calculate_spread_volatility(self) -> float:
+        """Calculate spread volatility from recent samples."""
+        if len(self._spread_samples) < 2:
+            return 0.0
+
+        mean_spread = sum(self._spread_samples) / len(self._spread_samples)
+        variance = sum((x - mean_spread) ** 2 for x in self._spread_samples) / len(
+            self._spread_samples
+        )
+        return float(variance**0.5)  # Standard deviation
+
     async def cleanup(self) -> None:
         """Clean up resources."""
         await self.memory_manager.stop()

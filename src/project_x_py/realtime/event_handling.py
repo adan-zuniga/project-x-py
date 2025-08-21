@@ -213,35 +213,35 @@ class EventHandlingMixin(TaskManagerMixin):
 
     async def _trigger_callbacks(self, event_type: str, data: dict[str, Any]) -> None:
         """
-        Trigger all callbacks for a specific event type asynchronously.
+        Trigger all registered callbacks for an event type.
 
-        Executes all registered callbacks for an event type in order. Handles both
-        async and sync callbacks. Exceptions are caught to prevent one callback
-        from affecting others.
+        Internal method to execute all callbacks registered for a specific event type.
+        Handles both async and sync callbacks, with proper error handling.
 
         Args:
-            event_type (str): Event type to trigger callbacks for
-            data (dict[str, Any]): Event data to pass to callbacks
-
-        Callback Execution:
-            - Async callbacks: Awaited directly
-            - Sync callbacks: Called directly
-            - Exceptions: Logged but don't stop other callbacks
-            - Order: Same as registration order
+            event_type: The type of event to trigger callbacks for
+            data: Event data to pass to callbacks
 
         Note:
-            This is an internal method called by event forwarding methods.
+            - Callbacks are executed in registration order
+            - Exceptions in callbacks are caught and logged
+            - Does not block on individual callback failures
         """
-        callbacks = self.callbacks.get(event_type, [])
-        for callback in callbacks:
+        if event_type not in self.callbacks:
+            return
+
+        # Get callbacks under lock but execute outside
+        async with self._callback_lock:
+            callbacks_to_run = list(self.callbacks[event_type])
+
+        for callback in callbacks_to_run:
             try:
                 if asyncio.iscoroutinefunction(callback):
                     await callback(data)
                 else:
-                    # Handle sync callbacks
                     callback(data)
             except Exception as e:
-                self.logger.error(f"Error in {event_type} callback: {e}")
+                self.logger.error(f"Error in {event_type} callback: {e}", exc_info=True)
 
     # Event forwarding methods (cross-thread safe)
     def _forward_account_update(self, *args: Any) -> None:

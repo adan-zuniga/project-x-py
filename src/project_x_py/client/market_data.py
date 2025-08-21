@@ -98,17 +98,19 @@ class MarketDataMixin:
         """Provided by HttpMixin."""
         _ = (method, endpoint, data, params, headers, retry_count)
 
-    def get_cached_instrument(self, symbol: str) -> Any:
+    def get_cached_instrument(self, symbol: str) -> Instrument | None:
         """Provided by CacheMixin."""
         _ = symbol
+        return None
 
     def cache_instrument(self, symbol: str, instrument: Any) -> None:
         """Provided by CacheMixin."""
         _ = (symbol, instrument)
 
-    def get_cached_market_data(self, cache_key: str) -> Any:
+    def get_cached_market_data(self, cache_key: str) -> pl.DataFrame | None:
         """Provided by CacheMixin."""
         _ = cache_key
+        return None
 
     def cache_market_data(self, cache_key: str, data: Any) -> None:
         """Provided by CacheMixin."""

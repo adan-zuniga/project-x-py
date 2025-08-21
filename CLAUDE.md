@@ -19,7 +19,7 @@ PROJECT_X_API_KEY="..." PROJECT_X_USERNAME="..." uv run python script.py
 
 The test.sh script properly configures all required environment variables. DO NOT attempt to set PROJECT_X_API_KEY or PROJECT_X_USERNAME manually.
 
-## Project Status: v3.2.1 - Statistics and Analytics Overhaul
+## Project Status: v3.3.0 - Complete Statistics Module Redesign
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
 
@@ -80,6 +80,279 @@ The standardized deprecation utilities provide:
 - IDE support through the `deprecated` package
 - Metadata tracking for deprecation management
 - Support for functions, methods, classes, and parameters
+
+## Specialized Agent Usage Guidelines
+
+### IMPORTANT: Use Appropriate Subagents for Different Tasks
+
+Claude Code includes specialized agents that should be used PROACTIVELY for specific development tasks. Each agent has specialized knowledge and tools optimized for their domain.
+
+### When to Use Each Agent
+
+#### **python-developer**
+Use for project-x-py SDK development tasks:
+- Writing async trading components (OrderManager, PositionManager, etc.)
+- Implementing financial indicators with Polars DataFrames
+- Optimizing real-time data processing and WebSocket connections
+- Creating new TradingSuite features
+- Ensuring 100% async architecture compliance
+- Handling Decimal price precision requirements
+
+Example scenarios:
+- "Implement a new technical indicator"
+- "Add WebSocket reconnection logic"
+- "Create async order placement methods"
+
+#### **code-standards-enforcer**
+Use PROACTIVELY for maintaining SDK standards:
+- **ALWAYS check IDE diagnostics first** via `mcp__ide__getDiagnostics`
+- Before committing changes (enforce standards)
+- PR review checks
+- Release validation
+- Verifying 100% async architecture
+- Checking TradingSuite patterns compliance
+- Ensuring Polars-only DataFrames usage
+- Validating deprecation compliance
+- Type safety with TypedDict/Protocol
+
+Example scenarios:
+- After implementing new features
+- Before creating pull requests
+- When refactoring existing code
+- **After any code changes** - check IDE diagnostics immediately
+
+#### **code-refactor**
+Use PROACTIVELY for architecture improvements:
+- Migrating to TradingSuite patterns
+- Optimizing Polars operations
+- Consolidating WebSocket handling
+- Modernizing async patterns
+- Monolithic to modular transitions
+- Event system optimization
+- Memory management improvements
+
+Example scenarios:
+- "Refactor OrderManager to use EventBus"
+- "Optimize DataFrame operations in indicators"
+- "Migrate legacy sync code to async"
+
+#### **code-documenter**
+Use PROACTIVELY for documentation tasks:
+- Documenting new TradingSuite APIs
+- Writing indicator function docs
+- Explaining WebSocket events
+- Creating migration guides
+- Maintaining README and examples/
+- Writing deprecation notices
+- Updating docstrings
+
+Example scenarios:
+- After adding new features
+- When changing APIs
+- Creating example scripts
+
+#### **code-debugger**
+Use PROACTIVELY for troubleshooting:
+- WebSocket disconnection issues
+- Order lifecycle failures
+- Real-time data gaps
+- Event deadlocks
+- Price precision errors
+- Memory leaks
+- AsyncIO debugging
+- SignalR tracing
+
+Example scenarios:
+- "Debug why orders aren't filling"
+- "Fix WebSocket reconnection issues"
+- "Trace event propagation problems"
+
+#### **code-reviewer**
+Use PROACTIVELY for code review:
+- Reviewing async patterns
+- Checking real-time performance
+- Validating financial data integrity
+- Ensuring API stability
+- Before releases
+- PR reviews
+
+Example scenarios:
+- Before merging pull requests
+- After completing features
+- Before version releases
+
+### Agent Selection Best Practices
+
+1. **Use agents concurrently** when multiple tasks can be parallelized
+2. **Be specific** in task descriptions for agents
+3. **Choose the right agent** based on the task type, not just keywords
+4. **Use PROACTIVELY** - don't wait for user to request specific agents
+5. **Combine agents** for complex tasks (e.g., refactor → standards → review)
+
+### Example Multi-Agent Workflow
+
+```python
+# When implementing a new feature:
+1. python-developer: Implement the feature
+2. code-standards-enforcer: Verify compliance
+3. code-documenter: Add documentation  
+4. code-reviewer: Final review before commit
+```
+
+### Agent Command Requirements
+
+**Note**: Tool permissions are configured at the system level. This section documents common commands agents need.
+
+#### Commands Agents Typically Use
+
+**All Agents**:
+- `./test.sh [script]` - Run tests and examples with proper environment
+- File operations (Read, Write, Edit, MultiEdit)
+- `git status`, `git diff`, `git add` - Version control
+
+**python-developer**:
+- `uv run pytest` - Run test suite
+- `uv add [package]` - Add dependencies
+- `./test.sh examples/*.py` - Test example scripts
+
+**code-standards-enforcer**:
+- `mcp__ide__getDiagnostics` - **CHECK FIRST** - IDE diagnostics
+- `uv run ruff check .` - Lint code
+- `uv run ruff format .` - Format code  
+- `uv run mypy src/` - Type checking
+- `uv run pytest --cov` - Coverage reports
+
+**code-debugger**:
+- `./test.sh` with debug scripts
+- `grep` and search operations
+- Log analysis commands
+
+**code-reviewer**:
+- `git diff` - Review changes
+- `uv run pytest` - Verify tests pass
+- Static analysis tools
+
+#### Example Agent Command Workflow
+
+```bash
+# Agent workflow for implementing a feature
+1. python-developer:
+   - Edit src/project_x_py/new_feature.py
+   - ./test.sh tests/test_new_feature.py
+   
+2. code-standards-enforcer:
+   - mcp__ide__getDiagnostics  # ALWAYS CHECK FIRST
+   - uv run ruff check src/
+   - uv run mypy src/
+   - Fix any issues found
+   
+3. code-reviewer:
+   - mcp__ide__getDiagnostics  # Verify no issues remain
+   - git diff
+   - uv run pytest
+   - Review implementation
+```
+
+#### IDE Diagnostics Priority
+
+**CRITICAL**: The `code-standards-enforcer` agent must ALWAYS:
+1. **First** check `mcp__ide__getDiagnostics` for the modified files
+2. **Fix** any IDE diagnostic errors/warnings before proceeding
+3. **Then** run traditional linting tools (ruff, mypy)
+4. **Verify** with IDE diagnostics again after fixes
+
+This catches issues that mypy might miss, such as:
+- Incorrect method names (e.g., `get_statistics` vs `get_position_stats`)
+- Missing attributes on classes
+- Type mismatches that IDE's type checker detects
+- Real-time semantic errors
+
+### MCP Server Permissions for Agents
+
+**Note**: MCP server access is system-configured. Agents should have access to relevant MCP servers for their tasks.
+
+#### Essential MCP Servers for Agents
+
+**All Agents Should Access**:
+- `mcp__aakarsh-sasi-memory-bank-mcp` - Track progress and context
+- `mcp__mcp-obsidian` - Document plans and decisions
+- `mcp__smithery-ai-filesystem` - File operations
+
+**python-developer**:
+- `mcp__project-x-py_Docs` - Search project documentation
+- `mcp__upstash-context-7-mcp` - Get library documentation
+- `mcp__waldzellai-clear-thought` - Complex problem solving
+- `mcp__itseasy-21-mcp-knowledge-graph` - Map component relationships
+
+**code-standards-enforcer**:
+- `mcp__project-x-py_Docs` - Verify against documentation
+- `mcp__aakarsh-sasi-memory-bank-mcp` - Check architectural decisions
+
+**code-refactor**:
+- `mcp__waldzellai-clear-thought` - Plan refactoring strategy
+- `mcp__itseasy-21-mcp-knowledge-graph` - Understand dependencies
+- `mcp__aakarsh-sasi-memory-bank-mcp` - Log refactoring decisions
+
+**code-documenter**:
+- `mcp__mcp-obsidian` - Create documentation
+- `mcp__project-x-py_Docs` - Reference existing docs
+- `mcp__tavily-mcp` - Research external APIs
+
+**code-debugger**:
+- `mcp__waldzellai-clear-thought` - Analyze issues systematically
+- `mcp__itseasy-21-mcp-knowledge-graph` - Trace data flow
+- `mcp__ide` - Get diagnostics and errors
+
+**code-reviewer**:
+- `mcp__github` - Review PRs and issues
+- `mcp__project-x-py_Docs` - Verify against standards
+- `mcp__aakarsh-sasi-memory-bank-mcp` - Check design decisions
+
+#### Example MCP Usage in Agent Workflows
+
+```python
+# python-developer agent workflow
+1. Search existing patterns:
+   await mcp__project_x_py_Docs__search_project_x_py_code(
+       query="async def place_order"
+   )
+
+2. Track implementation:
+   await mcp__aakarsh_sasi_memory_bank_mcp__track_progress(
+       action="Implemented async order placement",
+       description="Added bracket order support"
+   )
+
+3. Document in Obsidian:
+   await mcp__mcp_obsidian__obsidian_append_content(
+       filepath="Development/ProjectX SDK/Features/Order System.md",
+       content="## Bracket Order Implementation\n..."
+   )
+
+# code-debugger agent workflow  
+1. Analyze problem:
+   await mcp__waldzellai_clear_thought__clear_thought(
+       operation="debugging_approach",
+       prompt="WebSocket disconnecting under load"
+   )
+
+2. Check component relationships:
+   await mcp__itseasy_21_mcp_knowledge_graph__search_nodes(
+       query="WebSocket RealtimeClient"
+   )
+
+3. Get IDE diagnostics:
+   await mcp__ide__getDiagnostics()
+```
+
+#### MCP Server Best Practices for Agents
+
+1. **Memory Bank**: Update after completing tasks
+2. **Obsidian**: Document multi-session plans and decisions
+3. **Clear Thought**: Use for complex analysis and planning
+4. **Knowledge Graph**: Maintain component relationships
+5. **Project Docs**: Reference before implementing
+6. **GitHub**: Check issues and PRs for context
 
 ## Development Documentation with Obsidian
 
@@ -504,7 +777,18 @@ async with ProjectX.from_env() as client:
 
 ## Recent Changes
 
-### v3.2.1 - Latest Release (2025-08-19)
+### v3.3.0 - Latest Release (2025-01-21)
+- **Breaking**: Complete statistics system redesign with 100% async-first architecture
+- **Added**: New statistics module with BaseStatisticsTracker, ComponentCollector, StatisticsAggregator
+- **Added**: Multi-format export (JSON, Prometheus, CSV, Datadog) with data sanitization
+- **Added**: Enhanced health monitoring with 0-100 scoring and configurable thresholds
+- **Added**: TTL caching, parallel collection, and circular buffers for performance optimization
+- **Added**: 45+ new tests covering all aspects of the async statistics system
+- **Fixed**: Eliminated all statistics-related deadlocks with single RW lock per component
+- **Changed**: All statistics methods now require `await` for consistency and performance
+- **Removed**: Legacy statistics mixins (EnhancedStatsTrackingMixin, StatsTrackingMixin)
+
+### v3.2.1 - Previous Release (2025-08-19)
 - **Added**: Complete statistics and analytics system with health monitoring and performance tracking
 - **Added**: Fine-grained locking system to prevent deadlocks (replaced single `_stats_lock` with category-specific locks)
 - **Added**: Consistent synchronous statistics API across all components for thread-safe access
