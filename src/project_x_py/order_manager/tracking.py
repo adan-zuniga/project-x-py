@@ -184,6 +184,20 @@ class OrderTrackingMixin:
                 }
 
                 if new_status in status_events:
+                    # Update statistics for new status
+                    # The OrderManager inherits from BaseStatisticsTracker, so it has increment method
+                    try:
+                        # Check if the parent OrderManager has statistics tracking capability
+                        if hasattr(self, "increment"):
+                            increment_method = getattr(self, "increment")
+                            if new_status == 2:  # Filled
+                                await increment_method("orders_filled")
+                            elif new_status == 5:  # Rejected
+                                await increment_method("orders_rejected")
+                            elif new_status == 4:  # Expired
+                                await increment_method("orders_expired")
+                    except Exception as e:
+                        logger.debug(f"Failed to update statistics: {e}")
                     from project_x_py.models import Order
 
                     try:

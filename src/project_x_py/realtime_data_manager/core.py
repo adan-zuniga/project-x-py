@@ -116,6 +116,7 @@ import contextlib
 import time
 from collections import defaultdict
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -133,7 +134,9 @@ from project_x_py.realtime_data_manager.data_processing import DataProcessingMix
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.mmap_overflow import MMapOverflowMixin
 from project_x_py.realtime_data_manager.validation import ValidationMixin
+from project_x_py.statistics.base import BaseStatisticsTracker
 from project_x_py.types.config_types import DataManagerConfig
+from project_x_py.types.stats_types import ComponentStats, RealtimeDataManagerStats
 from project_x_py.utils import (
     ErrorMessages,
     LogContext,
@@ -142,7 +145,6 @@ from project_x_py.utils import (
     format_error_message,
     handle_errors,
 )
-from project_x_py.utils.enhanced_stats_tracking import EnhancedStatsTrackingMixin
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
@@ -166,7 +168,7 @@ class RealtimeDataManager(
     CallbackMixin,
     DataAccessMixin,
     ValidationMixin,
-    EnhancedStatsTrackingMixin,
+    BaseStatisticsTracker,
 ):
     """
     Async optimized real-time OHLCV data manager for efficient multi-timeframe trading data.
@@ -365,8 +367,11 @@ class RealtimeDataManager(
         # Initialize all mixins (they may need the above attributes)
         super().__init__()
 
-        # Initialize enhanced stats tracking
-        self._init_enhanced_stats()
+        # Initialize v3.3.0 statistics system using composition
+        self._statistics = BaseStatisticsTracker("realtime_data_manager")
+
+        # Set initial status asynchronously after init is complete
+        self._initial_status_task = asyncio.create_task(self._set_initial_status())
 
         # Set timezone for consistent timestamp handling
         self.timezone: Any = pytz.timezone(timezone)  # CME timezone
@@ -418,7 +423,7 @@ class RealtimeDataManager(
         # Memory management settings are set in _apply_config_defaults()
         self.last_cleanup: float = time.time()
 
-        # Comprehensive statistics tracking
+        # Legacy memory stats for backward compatibility
         self.memory_stats = {
             "bars_processed": 0,
             "ticks_processed": 0,
@@ -443,6 +448,9 @@ class RealtimeDataManager(
             "last_cleanup": time.time(),
         }
 
+        # Initialize new statistics system counters
+        self._init_data_manager_counters()
+
         # Background cleanup task
         self._cleanup_task: asyncio.Task[None] | None = None
 
@@ -452,6 +460,88 @@ class RealtimeDataManager(
         self.logger.info(
             "RealtimeDataManager initialized", extra={"instrument": instrument}
         )
+
+    def _init_data_manager_counters(self) -> None:
+        """Initialize data manager specific counters for new statistics system."""
+        # These will be tracked using the new BaseStatisticsTracker async methods
+        # Called during __init__ but actual counter setup happens async
+
+    def get_memory_stats(self) -> "RealtimeDataManagerStats":
+        """Get comprehensive memory usage statistics (synchronous for backward compatibility)."""
+        # This method remains synchronous to maintain backward compatibility
+        # but pulls data from both legacy stats and new statistics system
+
+        # Update current statistics from data structures
+        timeframe_stats = {}
+        total_bars = 0
+
+        for tf_key in self.timeframes:
+            if tf_key in self.data:
+                bar_count = len(self.data[tf_key])
+                timeframe_stats[tf_key] = bar_count
+                total_bars += bar_count
+            else:
+                timeframe_stats[tf_key] = 0
+
+        # Update legacy memory stats
+        self.memory_stats["total_bars_stored"] = total_bars
+        self.memory_stats["buffer_utilization"] = (
+            len(self.current_tick_data) / self.tick_buffer_size
+            if self.tick_buffer_size > 0
+            else 0.0
+        )
+
+        # Calculate memory usage (synchronous version)
+        data_memory = sum(
+            (len(df) * 6 * 8) / (1024 * 1024)
+            for df in self.data.values()
+            if df is not None and not df.is_empty()
+        )
+        tick_memory = (
+            len(self.current_tick_data) * 0.0001
+            if hasattr(self, "current_tick_data")
+            else 0.0
+        )
+        estimated_memory_mb = 0.1 + data_memory + tick_memory  # Base overhead + data
+
+        self.memory_stats["memory_usage_mb"] = estimated_memory_mb
+        self.memory_stats["last_update"] = datetime.now()
+
+        # Add overflow stats if available
+        overflow_stats = {}
+        if hasattr(self, "get_overflow_stats"):
+            overflow_stats = self.get_overflow_stats()
+
+        # Return structure that matches RealtimeDataManagerStats TypedDict
+        result: RealtimeDataManagerStats = {
+            "bars_processed": self.memory_stats["bars_processed"],
+            "ticks_processed": self.memory_stats["ticks_processed"],
+            "quotes_processed": self.memory_stats["quotes_processed"],
+            "trades_processed": self.memory_stats["trades_processed"],
+            "timeframe_stats": self.memory_stats["timeframe_stats"],
+            "avg_processing_time_ms": self.memory_stats["avg_processing_time_ms"],
+            "data_latency_ms": self.memory_stats["data_latency_ms"],
+            "buffer_utilization": self.memory_stats["buffer_utilization"],
+            "total_bars_stored": self.memory_stats["total_bars_stored"],
+            "memory_usage_mb": self.memory_stats["memory_usage_mb"],
+            "compression_ratio": self.memory_stats["compression_ratio"],
+            "updates_per_minute": self.memory_stats["updates_per_minute"],
+            "last_update": (
+                self.memory_stats["last_update"].isoformat()
+                if self.memory_stats["last_update"]
+                else None
+            ),
+            "data_freshness_seconds": self.memory_stats["data_freshness_seconds"],
+            "data_validation_errors": self.memory_stats["data_validation_errors"],
+            "connection_interruptions": self.memory_stats["connection_interruptions"],
+            "recovery_attempts": self.memory_stats["recovery_attempts"],
+        }
+
+        # Add overflow stats if available (NotRequired field)
+        if overflow_stats:
+            result["overflow_stats"] = overflow_stats
+
+        return result
 
     def _apply_config_defaults(self) -> None:
         """Apply default values for configuration options."""
@@ -472,6 +562,16 @@ class RealtimeDataManager(
         self.cleanup_interval = float(
             self.cleanup_interval_minutes * 60
         )  # Convert to seconds
+
+    async def _set_initial_status(self) -> None:
+        """Set initial status for statistics tracking."""
+        await self.set_status("initializing")
+        # Initialize key counters
+        await self.increment("component_initialized", 1)
+        await self.set_gauge(
+            "total_timeframes",
+            len(self.timeframes) if hasattr(self, "timeframes") else 0,
+        )
 
     @handle_errors("initialize", reraise=False, default_return=False)
     async def initialize(self, initial_days: int = 1) -> bool:
@@ -617,6 +717,14 @@ class RealtimeDataManager(
                             extra={"timeframe": tf_key, "error": "No data loaded"},
                         )
 
+            # Update statistics for successful initialization
+            await self.set_status("initialized")
+            await self.increment("initialization_success", 1)
+            await self.set_gauge(
+                "total_timeframes_loaded",
+                len([tf for tf in self.timeframes if tf in self.data]),
+            )
+
             self.logger.debug(
                 LogMessages.DATA_RECEIVED,
                 extra={"status": "initialized", "instrument": self.instrument},
@@ -730,6 +838,11 @@ class RealtimeDataManager(
             )
 
             self.is_running = True
+
+            # Update statistics for successful connection
+            await self.set_status("connected")
+            await self.increment("realtime_connections", 1)
+            await self.set_gauge("is_running", 1)
 
             # Start cleanup task
             self.start_cleanup_task()
@@ -955,5 +1068,121 @@ class RealtimeDataManager(
                 _ = asyncio.create_task(self._trigger_callbacks("new_bar", event))  # noqa: RUF006
 
         except Exception as e:
+            # Track error in new statistics system
+            await self.track_error(e, "bar_timer_check")
             self.logger.error(f"Error checking/creating empty bars: {e}")
             # Don't re-raise - bar timer should continue even if one check fails
+
+    async def track_tick_processed(self) -> None:
+        """Track a tick being processed."""
+        await self.increment("ticks_processed", 1)
+        # Update legacy stats for backward compatibility
+        self.memory_stats["ticks_processed"] += 1
+
+    async def track_quote_processed(self) -> None:
+        """Track a quote being processed."""
+        await self.increment("quotes_processed", 1)
+        # Update legacy stats for backward compatibility
+        self.memory_stats["quotes_processed"] += 1
+
+    async def track_trade_processed(self) -> None:
+        """Track a trade being processed."""
+        await self.increment("trades_processed", 1)
+        # Update legacy stats for backward compatibility
+        self.memory_stats["trades_processed"] += 1
+
+    async def track_bar_created(self, timeframe: str) -> None:
+        """Track a bar being created for a specific timeframe."""
+        await self.increment("bars_created", 1)
+        await self.increment(f"bars_created_{timeframe}", 1)
+        # Update legacy stats for backward compatibility
+        self.memory_stats["bars_processed"] += 1
+        if timeframe in self.memory_stats["timeframe_stats"]:
+            self.memory_stats["timeframe_stats"][timeframe]["bars"] += 1
+
+    async def track_bar_updated(self, timeframe: str) -> None:
+        """Track a bar being updated for a specific timeframe."""
+        await self.increment("bars_updated", 1)
+        await self.increment(f"bars_updated_{timeframe}", 1)
+        # Update legacy stats for backward compatibility
+        if timeframe in self.memory_stats["timeframe_stats"]:
+            self.memory_stats["timeframe_stats"][timeframe]["updates"] += 1
+
+    async def track_data_latency(self, latency_ms: float) -> None:
+        """Track data processing latency."""
+        await self.record_timing("data_processing", latency_ms)
+        # Update legacy stats for backward compatibility
+        self.memory_stats["data_latency_ms"] = latency_ms
+
+    async def track_connection_interruption(self) -> None:
+        """Track a connection interruption."""
+        await self.increment("connection_interruptions", 1)
+        await self.set_status("disconnected")
+        # Update legacy stats for backward compatibility
+        self.memory_stats["connection_interruptions"] += 1
+
+    async def track_recovery_attempt(self) -> None:
+        """Track a recovery attempt."""
+        await self.increment("recovery_attempts", 1)
+        # Update legacy stats for backward compatibility
+        self.memory_stats["recovery_attempts"] += 1
+
+    async def get_memory_usage(self) -> float:
+        """Override BaseStatisticsTracker method to provide component-specific memory calculation."""
+        base_memory = await self._statistics.get_memory_usage()
+
+        # Add data manager specific memory calculations
+        data_memory = 0.0
+        tick_memory = 0.0
+
+        # Calculate memory for stored bar data
+        for _timeframe, df in self.data.items():
+            if df is not None and not df.is_empty():
+                # Rough estimate: 6 columns * 8 bytes * row count + overhead
+                data_memory += (len(df) * 6 * 8) / (1024 * 1024)  # Convert to MB
+
+        # Calculate memory for tick buffer
+        if hasattr(self, "current_tick_data"):
+            tick_count = len(self.current_tick_data)
+            tick_memory = tick_count * 0.0001  # Rough estimate in MB
+
+        total_memory = base_memory + data_memory + tick_memory
+
+        # Update legacy stats for backward compatibility
+        self.memory_stats["memory_usage_mb"] = total_memory
+
+        return total_memory
+
+    # Delegate statistics methods to composed _statistics object
+    async def increment(self, metric: str, value: int | float = 1) -> None:
+        """Increment a counter metric."""
+        await self._statistics.increment(metric, value)
+
+    async def set_gauge(self, metric: str, value: int | float | Decimal) -> None:
+        """Set a gauge metric."""
+        await self._statistics.set_gauge(metric, value)
+
+    async def record_timing(self, operation: str, duration_ms: float) -> None:
+        """Record timing information."""
+        await self._statistics.record_timing(operation, duration_ms)
+
+    async def track_error(
+        self,
+        error: Exception | str,
+        context: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Track an error occurrence."""
+        await self._statistics.track_error(error, context, details)
+
+    async def get_stats(self) -> ComponentStats:
+        """Get current statistics."""
+        return await self._statistics.get_stats()
+
+    async def get_health_score(self) -> float:
+        """Get health score."""
+        return await self._statistics.get_health_score()
+
+    async def set_status(self, status: str) -> None:
+        """Set component status."""
+        await self._statistics.set_status(status)

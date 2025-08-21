@@ -40,7 +40,8 @@ class MMapOverflowMixin:
 
     def __init__(self) -> None:
         """Initialize memory-mapped overflow storage."""
-        super().__init__()
+        # Note: Commenting out super().__init__() to avoid MRO issues with BaseStatisticsTracker
+        # super().__init__()
 
         # Storage configuration (can be overridden via config)
         self.enable_mmap_overflow = getattr(self, "config", {}).get(
