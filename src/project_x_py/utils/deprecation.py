@@ -204,8 +204,8 @@ def deprecated_class(
     full_message = " ".join(messages)
 
     def decorator(cls: type) -> type:
-        # Store the original __init__
-        original_init = cls.__init__
+        # Store the original __init__ - using getattr to satisfy mypy type checking
+        original_init = getattr(cls, "__init__")  # noqa: B009
 
         def new_init(self: Any, *args: Any, **kwargs: Any) -> None:
             warnings.warn(

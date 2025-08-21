@@ -189,7 +189,7 @@ class OrderTrackingMixin:
                     try:
                         # Check if the parent OrderManager has statistics tracking capability
                         if hasattr(self, "increment"):
-                            increment_method = getattr(self, "increment")
+                            increment_method = self.increment
                             if new_status == 2:  # Filled
                                 await increment_method("orders_filled")
                             elif new_status == 5:  # Rejected

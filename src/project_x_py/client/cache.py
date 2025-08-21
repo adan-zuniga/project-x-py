@@ -50,7 +50,7 @@ class CacheMixin:
         super().__init__()
 
         # Cache settings (set early so they can be overridden)
-        self._cache_ttl = 300  # 5 minutes default
+        self._cache_ttl: float = 300.0  # 5 minutes default
         self.cache_hit_count = 0
 
         # Internal optimized caches with time-to-live eviction

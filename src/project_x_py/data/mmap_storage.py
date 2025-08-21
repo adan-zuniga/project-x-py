@@ -12,7 +12,7 @@ import tempfile
 import threading
 from io import BufferedRandom, BufferedReader
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import polars as pl
@@ -71,10 +71,10 @@ class MemoryMappedStorage:
                 with open(self.filename, "wb") as f:
                     f.write(b"\x00" * self._file_size)
 
-            self.fp = open(self.filename, self.mode)  # type: ignore # noqa: SIM115
-
-            if self.fp is None:
-                raise ValueError("File pointer is None")
+            self.fp = cast(
+                BufferedRandom | BufferedReader, open(self.filename, self.mode)
+            )  # noqa: SIM115
+            # Note: open() either succeeds or raises an exception, so fp is never None
 
             # Get file size
             self.fp.seek(0, 2)  # Seek to end

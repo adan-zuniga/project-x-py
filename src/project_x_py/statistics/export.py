@@ -8,13 +8,12 @@ Provides export functionality for statistics in multiple formats:
 - Datadog (optional, for Datadog metrics)
 """
 
-import asyncio
 import csv
 import json
 import re
 from datetime import datetime
 from io import StringIO
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, ClassVar, Union
 
 from project_x_py.types.stats_types import ComprehensiveStats
 
@@ -23,7 +22,7 @@ class StatsExporter:
     """Export statistics in multiple formats for monitoring and analysis."""
 
     # Sensitive fields to sanitize
-    SENSITIVE_FIELDS = {
+    SENSITIVE_FIELDS: ClassVar[set[str]] = {
         "account_id",
         "account_number",
         "token",
@@ -92,102 +91,111 @@ class StatsExporter:
         timestamp = int(datetime.utcnow().timestamp() * 1000)
 
         # Health metrics
-        if stats.health:
+        health_stats = stats.get("health")
+        if health_stats:
             metric_name = f"{prefix}_health_score"
             lines.append(f"# HELP {metric_name} Overall system health score (0-100)")
             lines.append(f"# TYPE {metric_name} gauge")
-            lines.append(f"{metric_name} {stats.health.overall_score} {timestamp}")
+            lines.append(f"{metric_name} {health_stats['overall_score']} {timestamp}")
 
             # Component health
-            for component, score in stats.health.component_scores.items():
+            for component, score in health_stats["component_scores"].items():
                 component_clean = self._sanitize_prometheus_label(component)
                 lines.append(
                     f'{prefix}_component_health{{component="{component_clean}"}} {score} {timestamp}'
                 )
 
         # Performance metrics
-        if stats.performance:
+        performance_stats = stats.get("performance")
+        if performance_stats:
             # API calls
-            if stats.performance.api_calls_total:
+            if performance_stats.get("api_calls_total"):
                 metric_name = f"{prefix}_api_calls_total"
                 lines.append(f"# HELP {metric_name} Total number of API calls")
                 lines.append(f"# TYPE {metric_name} counter")
                 lines.append(
-                    f"{metric_name} {stats.performance.api_calls_total} {timestamp}"
+                    f"{metric_name} {performance_stats['api_calls_total']} {timestamp}"
                 )
 
             # Cache metrics
-            if stats.performance.cache_hit_rate is not None:
+            if performance_stats.get("cache_hit_rate") is not None:
                 metric_name = f"{prefix}_cache_hit_rate"
                 lines.append(f"# HELP {metric_name} Cache hit rate (0-1)")
                 lines.append(f"# TYPE {metric_name} gauge")
                 lines.append(
-                    f"{metric_name} {stats.performance.cache_hit_rate} {timestamp}"
+                    f"{metric_name} {performance_stats['cache_hit_rate']} {timestamp}"
                 )
 
             # Response time
-            if stats.performance.avg_response_time is not None:
+            if performance_stats.get("avg_response_time") is not None:
                 metric_name = f"{prefix}_response_time_seconds"
                 lines.append(f"# HELP {metric_name} Average response time in seconds")
                 lines.append(f"# TYPE {metric_name} gauge")
                 lines.append(
-                    f"{metric_name} {stats.performance.avg_response_time} {timestamp}"
+                    f"{metric_name} {performance_stats['avg_response_time']} {timestamp}"
                 )
 
         # Memory metrics
-        if stats.memory:
+        memory_stats = stats.get("memory")
+        if memory_stats:
             # Total memory
-            if stats.memory.total_memory_mb:
+            if memory_stats.get("total_memory_mb"):
                 metric_name = f"{prefix}_memory_total_mb"
                 lines.append(f"# HELP {metric_name} Total memory usage in MB")
                 lines.append(f"# TYPE {metric_name} gauge")
                 lines.append(
-                    f"{metric_name} {stats.memory.total_memory_mb} {timestamp}"
+                    f"{metric_name} {memory_stats['total_memory_mb']} {timestamp}"
                 )
 
             # Component memory
-            for component, memory_mb in stats.memory.component_memory.items():
+            for component, memory_mb in memory_stats.get(
+                "component_memory", {}
+            ).items():
                 component_clean = self._sanitize_prometheus_label(component)
                 lines.append(
                     f'{prefix}_component_memory_mb{{component="{component_clean}"}} {memory_mb} {timestamp}'
                 )
 
         # Error metrics
-        if stats.errors:
+        error_stats = stats.get("errors")
+        if error_stats:
             # Total errors
-            if stats.errors.total_errors:
+            if error_stats.get("total_errors"):
                 metric_name = f"{prefix}_errors_total"
                 lines.append(f"# HELP {metric_name} Total number of errors")
                 lines.append(f"# TYPE {metric_name} counter")
-                lines.append(f"{metric_name} {stats.errors.total_errors} {timestamp}")
+                lines.append(f"{metric_name} {error_stats['total_errors']} {timestamp}")
 
             # Error rate
-            if stats.errors.error_rate is not None:
+            if error_stats.get("error_rate") is not None:
                 metric_name = f"{prefix}_error_rate"
                 lines.append(f"# HELP {metric_name} Error rate (0-1)")
                 lines.append(f"# TYPE {metric_name} gauge")
-                lines.append(f"{metric_name} {stats.errors.error_rate} {timestamp}")
+                lines.append(f"{metric_name} {error_stats['error_rate']} {timestamp}")
 
             # Errors by component
-            for component, count in stats.errors.errors_by_component.items():
+            for component, count in error_stats.get("errors_by_component", {}).items():
                 component_clean = self._sanitize_prometheus_label(component)
                 lines.append(
                     f'{prefix}_component_errors_total{{component="{component_clean}"}} {count} {timestamp}'
                 )
 
         # Connection metrics
-        if stats.connections:
+        connection_stats = stats.get("connections")
+        if connection_stats:
             # Active connections
-            if stats.connections.active_connections:
+            if connection_stats.get("active_connections"):
                 metric_name = f"{prefix}_connections_active"
                 lines.append(f"# HELP {metric_name} Number of active connections")
                 lines.append(f"# TYPE {metric_name} gauge")
                 lines.append(
-                    f"{metric_name} {stats.connections.active_connections} {timestamp}"
+                    f"{metric_name} {connection_stats['active_connections']} {timestamp}"
                 )
 
             # Connection status by type
-            for conn_type, status in stats.connections.connection_status.items():
+            for conn_type, status in connection_stats.get(
+                "connection_status", {}
+            ).items():
                 conn_type_clean = self._sanitize_prometheus_label(conn_type)
                 status_value = 1 if status == "connected" else 0
                 lines.append(
@@ -225,80 +233,91 @@ class StatsExporter:
         rows = []
 
         # Health metrics
-        if stats.health:
+        health_stats = stats.get("health")
+        if health_stats:
             rows.append(
-                ["health", "overall_score", stats.health.overall_score, "system"]
+                ["health", "overall_score", health_stats["overall_score"], "system"]
             )
-            for component, score in stats.health.component_scores.items():
+            for component, score in health_stats.get("component_scores", {}).items():
                 rows.append(["health", "component_score", score, component])
 
         # Performance metrics
-        if stats.performance:
-            if stats.performance.api_calls_total:
+        performance_stats = stats.get("performance")
+        if performance_stats:
+            if performance_stats.get("api_calls_total"):
                 rows.append(
                     [
                         "performance",
                         "api_calls_total",
-                        stats.performance.api_calls_total,
+                        performance_stats["api_calls_total"],
                         "system",
                     ]
                 )
-            if stats.performance.cache_hit_rate is not None:
+            if performance_stats.get("cache_hit_rate") is not None:
                 rows.append(
                     [
                         "performance",
                         "cache_hit_rate",
-                        stats.performance.cache_hit_rate,
+                        performance_stats["cache_hit_rate"],
                         "system",
                     ]
                 )
-            if stats.performance.avg_response_time is not None:
+            if performance_stats.get("avg_response_time") is not None:
                 rows.append(
                     [
                         "performance",
                         "avg_response_time",
-                        stats.performance.avg_response_time,
+                        performance_stats["avg_response_time"],
                         "system",
                     ]
                 )
 
         # Memory metrics
-        if stats.memory:
-            if stats.memory.total_memory_mb:
+        memory_stats = stats.get("memory")
+        if memory_stats:
+            if memory_stats.get("total_memory_mb"):
                 rows.append(
                     [
                         "memory",
                         "total_memory_mb",
-                        stats.memory.total_memory_mb,
+                        memory_stats["total_memory_mb"],
                         "system",
                     ]
                 )
-            for component, memory_mb in stats.memory.component_memory.items():
+            for component, memory_mb in memory_stats.get(
+                "component_memory", {}
+            ).items():
                 rows.append(["memory", "component_memory_mb", memory_mb, component])
 
         # Error metrics
-        if stats.errors:
-            if stats.errors.total_errors:
+        error_stats = stats.get("errors")
+        if error_stats:
+            if error_stats.get("total_errors"):
                 rows.append(
-                    ["errors", "total_errors", stats.errors.total_errors, "system"]
+                    ["errors", "total_errors", error_stats["total_errors"], "system"]
                 )
-            if stats.errors.error_rate is not None:
-                rows.append(["errors", "error_rate", stats.errors.error_rate, "system"])
-            for component, count in stats.errors.errors_by_component.items():
+            if error_stats.get("error_rate") is not None:
+                rows.append(
+                    ["errors", "error_rate", error_stats["error_rate"], "system"]
+                )
+            for component, count in error_stats.get("errors_by_component", {}).items():
                 rows.append(["errors", "component_errors", count, component])
 
         # Connection metrics
-        if stats.connections:
-            if stats.connections.active_connections:
+        connection_stats = stats.get("connections")
+        if connection_stats:
+            if connection_stats.get("active_connections"):
                 rows.append(
                     [
                         "connections",
                         "active_connections",
-                        stats.connections.active_connections,
+                        connection_stats["active_connections"],
                         "system",
                     ]
                 )
-            for conn_type, status in stats.connections.connection_status.items():
+            for conn_type, status in connection_stats.get(
+                "connection_status", {}
+            ).items():
                 rows.append(["connections", "connection_status", status, conn_type])
 
         # Write rows
@@ -311,7 +330,7 @@ class StatsExporter:
 
     async def to_datadog(
         self, stats: ComprehensiveStats, prefix: str = "projectx"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Export statistics for Datadog.
 
@@ -326,146 +345,155 @@ class StatsExporter:
         timestamp = int(datetime.utcnow().timestamp())
 
         # Health metrics
-        if stats.health:
+        health_stats = stats.get("health")
+        if health_stats:
             metrics.append(
                 {
                     "metric": f"{prefix}.health.overall_score",
-                    "points": [[timestamp, stats.health.overall_score]],
+                    "points": [[timestamp, health_stats["overall_score"]]],
                     "type": "gauge",
                     "tags": ["service:projectx"],
                 }
             )
 
-            for component, score in stats.health.component_scores.items():
+            for component, score in health_stats.get("component_scores", {}).items():
                 metrics.append(
                     {
                         "metric": f"{prefix}.health.component_score",
                         "points": [[timestamp, score]],
                         "type": "gauge",
-                        "tags": [f"service:projectx", f"component:{component}"],
+                        "tags": ["service:projectx", f"component:{component}"],
                     }
                 )
 
         # Performance metrics
-        if stats.performance:
-            if stats.performance.api_calls_total:
+        performance_stats = stats.get("performance")
+        if performance_stats:
+            if performance_stats.get("api_calls_total"):
                 metrics.append(
                     {
                         "metric": f"{prefix}.performance.api_calls_total",
-                        "points": [[timestamp, stats.performance.api_calls_total]],
+                        "points": [[timestamp, performance_stats["api_calls_total"]]],
                         "type": "count",
                         "tags": ["service:projectx"],
                     }
                 )
 
-            if stats.performance.cache_hit_rate is not None:
+            if performance_stats.get("cache_hit_rate") is not None:
                 metrics.append(
                     {
                         "metric": f"{prefix}.performance.cache_hit_rate",
-                        "points": [[timestamp, stats.performance.cache_hit_rate]],
+                        "points": [[timestamp, performance_stats["cache_hit_rate"]]],
                         "type": "gauge",
                         "tags": ["service:projectx"],
                     }
                 )
 
-            if stats.performance.avg_response_time is not None:
+            if performance_stats.get("avg_response_time") is not None:
                 metrics.append(
                     {
                         "metric": f"{prefix}.performance.avg_response_time",
-                        "points": [[timestamp, stats.performance.avg_response_time]],
+                        "points": [[timestamp, performance_stats["avg_response_time"]]],
                         "type": "gauge",
                         "tags": ["service:projectx"],
                     }
                 )
 
         # Memory metrics
-        if stats.memory:
-            if stats.memory.total_memory_mb:
+        memory_stats = stats.get("memory")
+        if memory_stats:
+            if memory_stats.get("total_memory_mb"):
                 metrics.append(
                     {
                         "metric": f"{prefix}.memory.total_mb",
-                        "points": [[timestamp, stats.memory.total_memory_mb]],
+                        "points": [[timestamp, memory_stats["total_memory_mb"]]],
                         "type": "gauge",
                         "tags": ["service:projectx"],
                     }
                 )
 
-            for component, memory_mb in stats.memory.component_memory.items():
+            for component, memory_mb in memory_stats.get(
+                "component_memory", {}
+            ).items():
                 metrics.append(
                     {
                         "metric": f"{prefix}.memory.component_mb",
                         "points": [[timestamp, memory_mb]],
                         "type": "gauge",
-                        "tags": [f"service:projectx", f"component:{component}"],
+                        "tags": ["service:projectx", f"component:{component}"],
                     }
                 )
 
         # Error metrics
-        if stats.errors:
-            if stats.errors.total_errors:
+        error_stats = stats.get("errors")
+        if error_stats:
+            if error_stats.get("total_errors"):
                 metrics.append(
                     {
                         "metric": f"{prefix}.errors.total",
-                        "points": [[timestamp, stats.errors.total_errors]],
+                        "points": [[timestamp, error_stats["total_errors"]]],
                         "type": "count",
                         "tags": ["service:projectx"],
                     }
                 )
 
-            if stats.errors.error_rate is not None:
+            if error_stats.get("error_rate") is not None:
                 metrics.append(
                     {
                         "metric": f"{prefix}.errors.rate",
-                        "points": [[timestamp, stats.errors.error_rate]],
+                        "points": [[timestamp, error_stats["error_rate"]]],
                         "type": "gauge",
                         "tags": ["service:projectx"],
                     }
                 )
 
-            for component, count in stats.errors.errors_by_component.items():
+            for component, count in error_stats.get("errors_by_component", {}).items():
                 metrics.append(
                     {
                         "metric": f"{prefix}.errors.component_total",
                         "points": [[timestamp, count]],
                         "type": "count",
-                        "tags": [f"service:projectx", f"component:{component}"],
+                        "tags": ["service:projectx", f"component:{component}"],
                     }
                 )
 
         # Connection metrics
-        if stats.connections:
-            if stats.connections.active_connections:
+        connection_stats = stats.get("connections")
+        if connection_stats:
+            if connection_stats.get("active_connections"):
                 metrics.append(
                     {
                         "metric": f"{prefix}.connections.active",
-                        "points": [[timestamp, stats.connections.active_connections]],
+                        "points": [[timestamp, connection_stats["active_connections"]]],
                         "type": "gauge",
                         "tags": ["service:projectx"],
                     }
                 )
 
-            for conn_type, status in stats.connections.connection_status.items():
+            for conn_type, status in connection_stats.get(
+                "connection_status", {}
+            ).items():
                 status_value = 1 if status == "connected" else 0
                 metrics.append(
                     {
                         "metric": f"{prefix}.connections.status",
                         "points": [[timestamp, status_value]],
                         "type": "gauge",
-                        "tags": [f"service:projectx", f"type:{conn_type}"],
+                        "tags": ["service:projectx", f"type:{conn_type}"],
                     }
                 )
 
         return {"series": metrics}
 
     async def export(
-        self, stats: ComprehensiveStats, format: str = "json", **kwargs
-    ) -> Union[str, Dict[str, Any]]:
+        self, stats: ComprehensiveStats, export_format: str = "json", **kwargs: Any
+    ) -> Union[str, dict[str, Any]]:
         """
         Generic export method.
 
         Args:
             stats: Statistics to export
-            format: Export format ('json', 'prometheus', 'csv', 'datadog')
+            export_format: Export format ('json', 'prometheus', 'csv', 'datadog')
             **kwargs: Format-specific options
 
         Returns:
@@ -474,78 +502,84 @@ class StatsExporter:
         Raises:
             ValueError: If format is not supported
         """
-        format = format.lower()
+        format_lower = export_format.lower()
 
-        if format == "json":
+        if format_lower == "json":
             return await self.to_json(stats, **kwargs)
-        elif format == "prometheus":
+        elif format_lower == "prometheus":
             return await self.to_prometheus(stats, **kwargs)
-        elif format == "csv":
+        elif format_lower == "csv":
             return await self.to_csv(stats, **kwargs)
-        elif format == "datadog":
+        elif format_lower == "datadog":
             return await self.to_datadog(stats, **kwargs)
         else:
-            raise ValueError(f"Unsupported export format: {format}")
+            raise ValueError(f"Unsupported export format: {export_format}")
 
-    def _stats_to_dict(self, stats: ComprehensiveStats) -> Dict[str, Any]:
+    def _stats_to_dict(self, stats: ComprehensiveStats) -> dict[str, Any]:
         """Convert ComprehensiveStats to dictionary."""
         result = {}
 
-        if stats.health:
+        health_stats = stats.get("health")
+        if health_stats:
             result["health"] = {
-                "overall_score": stats.health.overall_score,
-                "component_scores": dict(stats.health.component_scores),
-                "issues": list(stats.health.issues),
+                "overall_score": health_stats["overall_score"],
+                "component_scores": dict(health_stats["component_scores"]),
+                "issues": list(health_stats["issues"]),
             }
 
-        if stats.performance:
+        performance_stats = stats.get("performance")
+        if performance_stats:
             result["performance"] = {
-                "api_calls_total": stats.performance.api_calls_total,
-                "cache_hit_rate": stats.performance.cache_hit_rate,
-                "avg_response_time": stats.performance.avg_response_time,
-                "requests_per_second": stats.performance.requests_per_second,
+                "api_calls_total": performance_stats["api_calls_total"],
+                "cache_hit_rate": performance_stats["cache_hit_rate"],
+                "avg_response_time": performance_stats["avg_response_time"],
+                "requests_per_second": performance_stats["requests_per_second"],
             }
 
-        if stats.memory:
+        memory_stats = stats.get("memory")
+        if memory_stats:
             result["memory"] = {
-                "total_memory_mb": stats.memory.total_memory_mb,
-                "component_memory": dict(stats.memory.component_memory),
-                "peak_memory_mb": stats.memory.peak_memory_mb,
+                "total_memory_mb": memory_stats["total_memory_mb"],
+                "component_memory": dict(memory_stats["component_memory"]),
+                "peak_memory_mb": memory_stats.get("peak_memory_mb"),
             }
 
-        if stats.errors:
+        error_stats = stats.get("errors")
+        if error_stats:
             result["errors"] = {
-                "total_errors": stats.errors.total_errors,
-                "error_rate": stats.errors.error_rate,
-                "errors_by_component": dict(stats.errors.errors_by_component),
+                "total_errors": error_stats["total_errors"],
+                "error_rate": error_stats["error_rate"],
+                "errors_by_component": dict(error_stats["errors_by_component"]),
                 "recent_errors": [
                     {
-                        "timestamp": error.timestamp.isoformat()
-                        if error.timestamp
+                        "timestamp": error["timestamp"]
+                        if error.get("timestamp")
                         else None,
-                        "component": error.component,
-                        "error_type": error.error_type,
-                        "message": error.message,
-                        "severity": error.severity,
+                        "component": error["component"],
+                        "error_type": error["error_type"],
+                        "message": error["message"],
+                        "severity": error["severity"],
                     }
-                    for error in stats.errors.recent_errors
+                    for error in error_stats["recent_errors"]
                 ],
             }
 
-        if stats.connections:
+        connection_stats = stats.get("connections")
+        if connection_stats:
             result["connections"] = {
-                "active_connections": stats.connections.active_connections,
-                "connection_status": dict(stats.connections.connection_status),
-                "connection_uptime": dict(stats.connections.connection_uptime),
+                "active_connections": connection_stats["active_connections"],
+                "connection_status": dict(connection_stats["connection_status"]),
+                "connection_uptime": dict(connection_stats["connection_uptime"]),
             }
 
-        if stats.trading:
+        trading_stats = stats.get("trading")
+        if trading_stats:
             result["trading"] = {
-                "orders_today": stats.trading.orders_today,
-                "fills_today": stats.trading.fills_today,
-                "active_positions": stats.trading.active_positions,
-                "pnl_today": float(stats.trading.pnl_today)
-                if stats.trading.pnl_today
+                "orders_today": trading_stats["orders_today"],
+                "fills_today": trading_stats["fills_today"],
+                "active_positions": trading_stats["active_positions"],
+                "pnl_today": float(pnl_value)
+                if (pnl_value := trading_stats.get("pnl_today")) is not None
                 else None,
             }
 

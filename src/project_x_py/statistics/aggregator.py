@@ -76,7 +76,11 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from project_x_py.statistics.base import BaseStatisticsTracker
 from project_x_py.statistics.collector import ComponentCollector
-from project_x_py.types.stats_types import ComprehensiveStats, TradingSuiteStats
+from project_x_py.types.stats_types import (
+    ComponentStats,
+    ComprehensiveStats,
+    TradingSuiteStats,
+)
 
 if TYPE_CHECKING:
     pass
@@ -447,7 +451,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
                         await self.record_timing(
                             f"{name}_collection", (time.time() - start_time) * 1000
                         )
-                        return result
+                        return dict(result) if isinstance(result, dict) else None
                 except (AttributeError, TypeError, TimeoutError):
                     pass
 
@@ -459,7 +463,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
                         await self.record_timing(
                             f"{name}_collection", (time.time() - start_time) * 1000
                         )
-                        return result
+                        return dict(result) if isinstance(result, dict) else None
                 except (AttributeError, TypeError):
                     pass
 
@@ -471,7 +475,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
                         await self.record_timing(
                             f"{name}_collection", (time.time() - start_time) * 1000
                         )
-                        return result
+                        return dict(result) if isinstance(result, dict) else None
                 except (AttributeError, TypeError):
                     pass
 
@@ -547,18 +551,22 @@ class StatisticsAggregator(BaseStatisticsTracker):
         cross_metrics = await self._calculate_cross_metrics(component_stats)
 
         # Build component status summary
-        components = {}
+        components: dict[str, ComponentStats] = {}
         for name, stats in component_stats.items():
             if isinstance(stats, dict):
-                components[name] = {
+                component_stat: ComponentStats = {
                     "name": name,
                     "status": stats.get("status", "unknown"),
-                    "uptime_seconds": stats.get("uptime_seconds", 0),
+                    "uptime_seconds": int(stats.get("uptime_seconds", 0)),
                     "last_activity": stats.get("last_activity"),
-                    "error_count": stats.get("error_count", 0),
-                    "memory_usage_mb": stats.get("memory_usage_mb", 0.0),
-                    "performance_metrics": stats.get("performance_metrics", {}),
+                    "error_count": int(stats.get("error_count", 0)),
+                    "memory_usage_mb": float(stats.get("memory_usage_mb", 0.0)),
                 }
+                # Add optional performance_metrics if present
+                perf_metrics = stats.get("performance_metrics")
+                if perf_metrics:
+                    component_stat["performance_metrics"] = perf_metrics
+                components[name] = component_stat
 
         # Determine overall status
         if not components:

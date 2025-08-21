@@ -156,10 +156,10 @@ async def main() -> None:
                         except Exception as e:
                             # Order might have been filled or already cancelled
                             print(
-                                f"ℹ️  {order_type} order {order_id} could not be cancelled: {str(e).split(':')[-1].strip()}"
+                                f"  {order_type} order {order_id} could not be cancelled: {str(e).split(':')[-1].strip()}"
                             )
                             print(
-                                f"   (Order may have been filled or already cancelled)"
+                                "   (Order may have been filled or already cancelled)"
                             )
 
             # Check for any open positions that need to be closed
@@ -182,7 +182,7 @@ async def main() -> None:
                         # If SHORT (type=2), we need to BUY (side=0) to close
                         side = 1 if position.type == 1 else 0
 
-                        print(f"  Closing position with market order...")
+                        print("  Closing position with market order...")
                         try:
                             close_order = await suite.orders.place_market_order(
                                 contract_id=position.contractId,

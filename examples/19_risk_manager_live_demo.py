@@ -18,7 +18,7 @@ import logging
 from typing import Any, cast
 
 from project_x_py import EventType, TradingSuite
-from project_x_py.models import Order
+from project_x_py.models import BracketOrderResponse, Order, Position
 from project_x_py.risk_manager import ManagedTrade, RiskConfig
 from project_x_py.types import OrderSide
 
@@ -376,7 +376,7 @@ class RiskManagerDemo:
         except Exception as e:
             print(f"   ❌ Error placing order: {e}")
 
-    async def demo_risk_orders_for_position(self, position: Any) -> None:
+    async def demo_risk_orders_for_position(self, position: Position) -> None:
         """Attach and manage risk orders for a position."""
         print("\n📎 Attaching risk orders to position...")
 
@@ -399,7 +399,7 @@ class RiskManagerDemo:
                 print("✅ Risk orders attached:")
                 # orders is the dict returned from attach_risk_orders
                 if "bracket_order" in orders:
-                    bracket = orders["bracket_order"]
+                    bracket: BracketOrderResponse = orders["bracket_order"]
                     if bracket.stop_order_id:
                         print(f"   - Stop Order ID: {bracket.stop_order_id}")
                     if bracket.target_order_id:
@@ -439,9 +439,7 @@ class RiskManagerDemo:
                             print(
                                 f"   ❌ Failed to adjust stops after {max_retries} attempts"
                             )
-                            print(
-                                f"   ℹ️ Attempted to set stop to ${new_stop_price:.2f}"
-                            )
+                            print(f"    Attempted to set stop to ${new_stop_price:.2f}")
                 except Exception as stop_error:
                     if attempt < max_retries - 1:
                         print(f"   ⚠️ Stop adjustment error: {stop_error}, retrying...")
@@ -449,7 +447,7 @@ class RiskManagerDemo:
                     else:
                         print(f"   ❌ Stop adjustment failed with error: {stop_error}")
                         print(
-                            f"   ℹ️ Check that stop price ${new_stop_price:.2f} is valid for {position.direction} position"
+                            f"    Check that stop price ${new_stop_price:.2f} is valid for {position.direction} position"
                         )
 
         except Exception as e:

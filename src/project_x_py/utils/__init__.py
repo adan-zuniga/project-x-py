@@ -102,7 +102,6 @@ from project_x_py.utils.data_utils import (
 )
 
 # Enhanced statistics tracking moved to project_x_py.statistics in v3.3.0
-
 # Environment utilities
 from project_x_py.utils.environment import get_env_var
 
@@ -156,8 +155,8 @@ from project_x_py.utils.portfolio_analytics import (
     calculate_sharpe_ratio,
     calculate_volatility_metrics,
 )
-# StatisticsAggregator moved to project_x_py.statistics in v3.3.0
 
+# StatisticsAggregator moved to project_x_py.statistics in v3.3.0
 # Trading calculations
 from project_x_py.utils.trading_calculations import (
     calculate_position_sizing,

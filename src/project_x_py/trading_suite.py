@@ -54,6 +54,7 @@ from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
 from project_x_py.risk_manager import ManagedTrade, RiskConfig, RiskManager
+from project_x_py.statistics import StatisticsAggregator
 from project_x_py.types.config_types import (
     DataManagerConfig,
     OrderbookConfig,
@@ -62,7 +63,6 @@ from project_x_py.types.config_types import (
 )
 from project_x_py.types.protocols import ProjectXClientProtocol
 from project_x_py.types.stats_types import TradingSuiteStats
-from project_x_py.statistics import StatisticsAggregator
 from project_x_py.utils import ProjectXLogger
 
 logger = ProjectXLogger.get_logger(__name__)

@@ -19,6 +19,8 @@ Key Features:
     - Risk management and position sizing tools
     - Multi-timeframe data management and analysis
     - WebSocket-based real-time updates and event handling
+    - Comprehensive statistics and analytics system with health monitoring
+    - Fine-grained locking and async-first performance optimization
 
 Core Components:
     - TradingSuite: All-in-one trading environment with automatic initialization
@@ -28,6 +30,7 @@ Core Components:
     - OrderBook: Level 2 market depth analysis and order flow
     - RealtimeDataManager: Multi-timeframe real-time data processing
     - ProjectXRealtimeClient: WebSocket-based real-time connections
+    - Statistics Module: Comprehensive async statistics system with health monitoring
 
 Trading Capabilities:
     - Market data retrieval and real-time streaming
@@ -38,6 +41,8 @@ Trading Capabilities:
     - Advanced technical indicators and market analysis
     - Level 2 orderbook depth and market microstructure
     - Risk management and position sizing
+    - Real-time statistics tracking and performance monitoring
+    - Health scoring and system analytics with multi-format export
 
 Example Usage:
     ```python
@@ -62,6 +67,15 @@ Example Usage:
     # Access real-time data
     current_price = await suite.data.get_current_price()
 
+    # Get comprehensive statistics (v3.3.0+)
+    stats = await suite.get_stats()
+    print(f"System Health: {stats['health_score']}/100")
+    print(f"API Success Rate: {stats['api_success_rate']:.1%}")
+
+    # Export statistics to multiple formats
+    prometheus_metrics = await suite.export_stats("prometheus")
+    csv_data = await suite.export_stats("csv")
+
     # Clean shutdown
     await suite.disconnect()
     ```
@@ -78,7 +92,7 @@ Architecture Benefits:
 It provides the infrastructure to help developers create their own trading applications
 that integrate with the ProjectX platform.
 
-Version: 3.2.1
+Version: 3.3.0
 Author: TexasCoding
 
 See Also:
@@ -95,7 +109,7 @@ from typing import Any
 
 from project_x_py.client.base import ProjectXBase
 
-__version__ = "3.2.1"
+__version__ = "3.3.0"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names

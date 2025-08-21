@@ -423,12 +423,73 @@ class MemoryUsageStats(TypedDict):
     last_cleanup: str | None
 
 
+# Top-Level Statistics Categories
+class HealthStats(TypedDict):
+    """System-wide health statistics."""
+
+    overall_score: float  # 0-100 health score
+    component_scores: dict[str, float]  # component name -> health score
+    issues: list[str]  # List of current health issues
+
+
+class PerformanceStats(TypedDict):
+    """System-wide performance statistics."""
+
+    api_calls_total: int
+    cache_hit_rate: float  # 0-1 ratio
+    avg_response_time: float  # seconds
+    requests_per_second: float
+
+
+class ErrorInfo(TypedDict):
+    """Individual error information."""
+
+    timestamp: str | None
+    component: str
+    error_type: str
+    message: str
+    severity: str
+
+
+class ErrorStats(TypedDict):
+    """System-wide error statistics."""
+
+    total_errors: int
+    error_rate: float  # 0-1 ratio
+    errors_by_component: dict[str, int]  # component name -> error count
+    recent_errors: list[ErrorInfo]
+
+
+class ConnectionStats(TypedDict):
+    """System-wide connection statistics."""
+
+    active_connections: int
+    connection_status: dict[str, str]  # connection type -> status
+    connection_uptime: dict[str, float]  # connection type -> uptime seconds
+
+
+class TradingStats(TypedDict):
+    """System-wide trading statistics."""
+
+    orders_today: int
+    fills_today: int
+    active_positions: int
+    pnl_today: float | None
+
+
 # Combined Statistics Type
 class ComprehensiveStats(TypedDict):
     """Combined statistics from all components and connections."""
 
     # Suite-level statistics
     suite: TradingSuiteStats
+
+    # Top-level aggregated statistics
+    health: NotRequired[HealthStats]
+    performance: NotRequired[PerformanceStats]
+    errors: NotRequired[ErrorStats]
+    connections: NotRequired[ConnectionStats]
+    trading: NotRequired[TradingStats]
 
     # Component statistics
     order_manager: NotRequired[OrderManagerStats]
@@ -454,6 +515,13 @@ __all__ = [
     # Suite Statistics
     "ComponentStats",
     "TradingSuiteStats",
+    # Top-Level Statistics
+    "HealthStats",
+    "PerformanceStats",
+    "ErrorInfo",
+    "ErrorStats",
+    "ConnectionStats",
+    "TradingStats",
     # Component Statistics
     "OrderManagerStats",
     "PositionManagerStats",

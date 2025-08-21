@@ -388,7 +388,13 @@ class Position:
 
     # Allow dict-like access for compatibility in tests/utilities
     def __getitem__(self, key: str) -> Union[int, str, float]:
-        return getattr(self, key)
+        value = getattr(self, key)
+        if isinstance(value, int | str | float):
+            return value
+        else:
+            raise TypeError(
+                f"Attribute {key} has type {type(value)}, expected int, str, or float"
+            )
 
     @property
     def is_long(self) -> bool:

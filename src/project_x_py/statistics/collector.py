@@ -282,8 +282,8 @@ class ComponentCollector(BaseStatisticsTracker):
 
             # Get base statistics
             base_stats: dict[str, Any] = {}
-            if hasattr(position_manager, "get_statistics"):
-                result = await position_manager.get_statistics()
+            if hasattr(position_manager, "get_position_stats"):
+                result = await position_manager.get_position_stats()
                 if isinstance(result, dict):
                     base_stats = result
             elif hasattr(position_manager, "stats"):
@@ -473,12 +473,12 @@ class ComponentCollector(BaseStatisticsTracker):
             start_time = time.time()
             orderbook = self.trading_suite.orderbook
 
-            # Get memory statistics (async method)
+            # Get memory statistics (synchronous method)
             base_stats: dict[str, Any] = {}
             if hasattr(orderbook, "get_memory_stats"):
-                result = await orderbook.get_memory_stats()
-                # Convert TypedDict to regular dict
-                base_stats = dict(result) if result else {}
+                result = orderbook.get_memory_stats()
+                # Result is already a dict from the orderbook implementation
+                base_stats = result if result else {}
 
             # Extract depth statistics
             avg_bid_depth = base_stats.get("avg_bid_depth", 0)
@@ -569,15 +569,15 @@ class ComponentCollector(BaseStatisticsTracker):
 
             # Get base statistics
             base_stats: dict[str, Any] = {}
-            if hasattr(risk_manager, "get_statistics"):
-                if asyncio.iscoroutinefunction(risk_manager.get_statistics):
-                    result = await risk_manager.get_statistics()
-                else:
-                    result = risk_manager.get_statistics()
+            if hasattr(risk_manager, "get_memory_stats"):
+                result = risk_manager.get_memory_stats()
                 if isinstance(result, dict):
                     base_stats = result
-            elif hasattr(risk_manager, "stats"):
-                base_stats = dict(risk_manager.stats)
+
+            # If no stats available, use defaults
+            if not base_stats:
+                # Provide default values for risk manager stats
+                base_stats = {}
 
             # Extract rule statistics
             rules_evaluated = base_stats.get("rules_evaluated", 0)

@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
-## [3.3.0] - 2025-08-21
+## [3.3.0] - 2025-01-21
 
 ### Breaking Changes
 - **🔄 Complete Statistics System Redesign**: Migrated to 100% async-first architecture
@@ -76,10 +76,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Performance benchmarks for overhead validation
 
 ### Migration Guide
-- Update all statistics method calls to use `await`
-- Replace `EnhancedStatsTrackingMixin` with `BaseStatisticsTracker`
-- Use new async methods: `await component.get_stats()`, `await component.get_health_score()`
-- Backward compatibility: `get_memory_stats()` remains synchronous for compatibility
+
+#### From v3.2.x to v3.3.0
+
+**1. Update Statistics Method Calls**
+```python
+# Old (v3.2.x) - Mixed sync/async
+stats = suite.orders.get_order_statistics()  # Synchronous
+suite_stats = await suite.get_stats()        # Async
+
+# New (v3.3.0) - All async
+stats = await suite.orders.get_stats()       # Now async
+suite_stats = await suite.get_stats()        # Still async
+```
+
+**2. Replace Old Statistics Mixins**
+```python
+# Old (v3.2.x)
+from project_x_py.utils import EnhancedStatsTrackingMixin
+
+class MyComponent(EnhancedStatsTrackingMixin):
+    pass
+
+# New (v3.3.0)
+from project_x_py.statistics import BaseStatisticsTracker
+
+class MyComponent(BaseStatisticsTracker):
+    def __init__(self):
+        super().__init__()
+```
+
+**3. Use New Export Capabilities**
+```python
+# New in v3.3.0 - Multi-format export
+prometheus_metrics = await suite.export_stats("prometheus")
+csv_data = await suite.export_stats("csv")
+datadog_metrics = await suite.export_stats("datadog")
+```
+
+**4. Updated Health Monitoring**
+```python
+# Old (v3.2.x)
+stats = await suite.get_stats()
+health = stats['health_score']
+
+# New (v3.3.0) - Enhanced health API
+health_score = await suite.get_health_score()
+component_health = await suite.get_component_health()
+```
+
+**Breaking Changes:**
+- All component statistics methods now require `await`
+- `EnhancedStatsTrackingMixin` and `StatsTrackingMixin` removed
+- Component constructors now require `BaseStatisticsTracker` inheritance
+
+**Backward Compatibility:**
+- `get_memory_stats()` methods remain synchronous where needed
+- Main TradingSuite API remains unchanged
+- Event system and core trading operations unaffected
 
 ## [3.2.1] - 2025-08-19
 
