@@ -94,6 +94,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 import polars as pl
+from cachetools import TTLCache  # type: ignore
 
 from project_x_py.types.base import HubConnection
 from project_x_py.types.response_types import (
@@ -224,12 +225,20 @@ class OrderManagerProtocol(Protocol):
     _realtime_enabled: bool
     stats: dict[str, Any]  # Comprehensive statistics tracking
 
-    # From tracking mixin
-    tracked_orders: dict[str, dict[str, Any]]
-    order_status_cache: dict[str, int]
+    # From tracking mixin - updated to use TTLCache for memory management
+    tracked_orders: TTLCache[str, dict[str, Any]]
+    order_status_cache: TTLCache[str, int]
     position_orders: dict[str, dict[str, list[int]]]
     order_to_position: dict[int, str]
     oco_groups: dict[int, int]  # order_id -> other_order_id for OCO pairs
+    # Memory management attributes for order tracking
+    _max_tracked_orders: int
+    _order_ttl_seconds: int
+    _cleanup_interval: int
+    _completed_orders: Any  # deque[tuple[str, float]]
+    _memory_stats: dict[str, Any]
+    _cleanup_task: "asyncio.Task[None] | None"
+    _cleanup_enabled: bool
 
     # Methods that mixins need
     async def place_order(
@@ -274,6 +283,12 @@ class OrderManagerProtocol(Protocol):
         self, order_id: int, account_id: int | None = None
     ) -> bool: ...
 
+    # Memory management methods
+    def get_memory_stats(self) -> dict[str, Any]: ...
+    async def _start_cleanup_task(self) -> None: ...
+    async def _stop_cleanup_task(self) -> None: ...
+    def clear_order_tracking(self) -> None: ...
+
     async def modify_order(
         self,
         order_id: int,
@@ -317,7 +332,7 @@ class OrderManagerProtocol(Protocol):
         contract_id: str,
         order_types: list[str] | None = None,
         account_id: int | None = None,
-    ) -> dict[str, int]: ...
+    ) -> dict[str, int | list[str]]: ...
 
     async def update_position_order_sizes(
         self, contract_id: str, new_size: int, account_id: int | None = None
@@ -342,6 +357,19 @@ class OrderManagerProtocol(Protocol):
         self, order_id: int, timeout_seconds: int = 30
     ) -> bool: ...
     def _link_oco_orders(self, order1_id: int, order2_id: int) -> None: ...
+    def _unlink_oco_orders(self, order_id: int) -> int | None: ...
+    async def _check_order_fill_status(
+        self, order_id: int
+    ) -> tuple[bool, int, int]: ...
+    async def _place_protective_orders_with_retry(
+        self,
+        contract_id: str,
+        side: int,
+        size: int,
+        stop_loss_price: float,
+        take_profit_price: float,
+        account_id: int | None = None,
+    ) -> tuple[Any, Any]: ...
     async def close_position(
         self,
         contract_id: str,
@@ -349,6 +377,8 @@ class OrderManagerProtocol(Protocol):
         limit_price: float | None = None,
         account_id: int | None = None,
     ) -> "OrderPlaceResponse | None": ...
+
+    def _get_recovery_manager(self) -> Any: ...
 
 
 class PositionManagerProtocol(Protocol):

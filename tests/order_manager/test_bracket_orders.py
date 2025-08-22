@@ -72,6 +72,22 @@ class TestBracketOrderMixin:
         mixin._wait_for_order_fill = AsyncMock(return_value=True)
         mixin._link_oco_orders = AsyncMock()
 
+        # Mock the new methods added for race condition fix
+        mixin.get_order_by_id = AsyncMock(return_value=None)  # Simulate filled order
+        mixin._check_order_fill_status = AsyncMock(
+            return_value=(True, 2, 0)
+        )  # Fully filled
+        mixin._place_protective_orders_with_retry = AsyncMock(
+            return_value=(
+                OrderPlaceResponse(
+                    orderId=4, success=True, errorCode=0, errorMessage=None
+                ),
+                OrderPlaceResponse(
+                    orderId=3, success=True, errorCode=0, errorMessage=None
+                ),
+            )
+        )
+
         # Create a side effect that updates position_orders
         async def mock_track_order(contract_id, order_id, order_type, account_id=None):
             if contract_id not in mixin.position_orders:

@@ -59,6 +59,7 @@ See Also:
 import asyncio
 import time
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Optional
 
 from project_x_py.exceptions import ProjectXOrderError
@@ -78,10 +79,15 @@ from project_x_py.utils import (
 )
 
 from .bracket_orders import BracketOrderMixin
+from .error_recovery import OperationRecoveryManager
 from .order_types import OrderTypesMixin
 from .position_orders import PositionOrderMixin
 from .tracking import OrderTrackingMixin
-from .utils import align_price_to_tick_size, resolve_contract_id
+from .utils import (
+    align_price_to_tick_size,
+    resolve_contract_id,
+    validate_price_tick_size,
+)
 
 if TYPE_CHECKING:
     from project_x_py.client import ProjectXBase
@@ -200,7 +206,7 @@ class OrderManager(
             "stop_orders": 0,
             "bracket_orders": 0,
             "total_volume": 0,
-            "total_value": 0.0,
+            "total_value": Decimal("0.0"),
             "largest_order": 0,
             "risk_violations": 0,
             "order_validation_failures": 0,
@@ -224,6 +230,32 @@ class OrderManager(
         self.require_confirmation = self.config.get("require_confirmation", False)
         self.auto_cancel_on_close = self.config.get("auto_cancel_on_close", False)
         self.order_timeout_minutes = self.config.get("order_timeout_minutes", 60)
+
+        # Order state validation retry configuration with enhanced defaults
+        self.status_check_max_attempts = self.config.get("status_check_max_attempts", 5)
+        self.status_check_initial_delay = self.config.get(
+            "status_check_initial_delay", 0.5
+        )
+        self.status_check_backoff_factor = self.config.get(
+            "status_check_backoff_factor", 2.0
+        )
+        self.status_check_max_delay = self.config.get("status_check_max_delay", 30.0)
+        self.status_check_circuit_breaker_threshold = self.config.get(
+            "status_check_circuit_breaker_threshold", 10
+        )
+        self.status_check_circuit_breaker_reset_time = self.config.get(
+            "status_check_circuit_breaker_reset_time", 300.0
+        )
+
+        # Initialize circuit breaker state
+        self._circuit_breaker_failure_count = 0
+        self._circuit_breaker_last_failure_time = 0.0
+        self._circuit_breaker_state = "closed"  # closed, open, half-open
+
+        # Initialize recovery manager for complex operations
+        self._recovery_manager: OperationRecoveryManager = OperationRecoveryManager(
+            self
+        )
 
     async def initialize(
         self, realtime_client: Optional["ProjectXRealtimeClient"] = None
@@ -281,6 +313,9 @@ class OrderManager(
                 self.logger.info(
                     "✅ AsyncOrderManager initialized with real-time capabilities"
                 )
+
+                # Start memory management cleanup task
+                await self._start_cleanup_task()
             else:
                 self.logger.info("✅ AsyncOrderManager initialized (polling mode)")
 
@@ -408,15 +443,43 @@ class OrderManager(
                 },
             )
 
+            # CRITICAL: Validate tick size BEFORE any price operations
+            await validate_price_tick_size(
+                limit_price, contract_id, self.project_x, "limit_price"
+            )
+            await validate_price_tick_size(
+                stop_price, contract_id, self.project_x, "stop_price"
+            )
+            await validate_price_tick_size(
+                trail_price, contract_id, self.project_x, "trail_price"
+            )
+
+            # Convert prices to Decimal for precision, then align to tick size
+            decimal_limit_price = (
+                Decimal(str(limit_price)) if limit_price is not None else None
+            )
+            decimal_stop_price = (
+                Decimal(str(stop_price)) if stop_price is not None else None
+            )
+            decimal_trail_price = (
+                Decimal(str(trail_price)) if trail_price is not None else None
+            )
+
             # Align all prices to tick size to prevent "Invalid price" errors
             aligned_limit_price = await align_price_to_tick_size(
-                limit_price, contract_id, self.project_x
+                float(decimal_limit_price) if decimal_limit_price is not None else None,
+                contract_id,
+                self.project_x,
             )
             aligned_stop_price = await align_price_to_tick_size(
-                stop_price, contract_id, self.project_x
+                float(decimal_stop_price) if decimal_stop_price is not None else None,
+                contract_id,
+                self.project_x,
             )
             aligned_trail_price = await align_price_to_tick_size(
-                trail_price, contract_id, self.project_x
+                float(decimal_trail_price) if decimal_trail_price is not None else None,
+                contract_id,
+                self.project_x,
             )
 
             # Use account_info if no account_id provided
@@ -495,6 +558,14 @@ class OrderManager(
                 await self.increment("orders_placed")
                 await self.increment("total_volume", size)
                 await self.set_gauge("last_order_timestamp", time.time())
+
+                # Calculate order value with Decimal precision if limit price available
+                if aligned_limit_price is not None:
+                    order_value = Decimal(str(aligned_limit_price)) * Decimal(str(size))
+                    current_total_value = self.stats.get("total_value", Decimal("0.0"))
+                    if isinstance(current_total_value, int | float):
+                        current_total_value = Decimal(str(current_total_value))
+                    self.stats["total_value"] = current_total_value + order_value
 
                 # Check if this is the largest order
                 if size > self.stats.get("largest_order", 0):
@@ -590,13 +661,65 @@ class OrderManager(
 
         return open_orders
 
+    async def _check_circuit_breaker(self) -> bool:
+        """
+        Check if circuit breaker allows execution.
+
+        Returns:
+            bool: True if request is allowed, False if circuit is open
+        """
+        current_time = time.time()
+
+        if self._circuit_breaker_state == "open":
+            # Check if enough time has passed to attempt reset
+            if (
+                current_time - self._circuit_breaker_last_failure_time
+                >= self.status_check_circuit_breaker_reset_time
+            ):
+                self._circuit_breaker_state = "half-open"
+                self.logger.info("Circuit breaker transitioning to half-open state")
+                return True
+            return False
+
+        return True
+
+    async def _record_circuit_breaker_success(self) -> None:
+        """
+        Record successful operation, potentially closing the circuit.
+        """
+        if self._circuit_breaker_state == "half-open":
+            self._circuit_breaker_state = "closed"
+            self._circuit_breaker_failure_count = 0
+            self.logger.info("Circuit breaker closed after successful operation")
+
+    async def _record_circuit_breaker_failure(self) -> None:
+        """
+        Record failed operation, potentially opening the circuit.
+        """
+        self._circuit_breaker_failure_count += 1
+        self._circuit_breaker_last_failure_time = time.time()
+
+        if (
+            self._circuit_breaker_failure_count
+            >= self.status_check_circuit_breaker_threshold
+            and self._circuit_breaker_state != "open"
+        ):
+            self._circuit_breaker_state = "open"
+            self.logger.error(
+                f"Circuit breaker opened after {self._circuit_breaker_failure_count} failures"
+            )
+
     async def is_order_filled(self, order_id: str | int) -> bool:
         """
         Check if an order has been filled using cached data with API fallback.
 
+        Features enhanced configurable retry logic with exponential backoff,
+        circuit breaker pattern for repeated failures, and intelligent market
+        condition adaptation.
+
         Efficiently checks order fill status by first consulting the real-time
-        cache (if available) before falling back to API queries for maximum
-        performance.
+        cache (if available) before falling back to API queries with robust
+        retry mechanisms optimized for different network latency scenarios.
 
         Args:
             order_id: Order ID to check (accepts both string and integer)
@@ -606,20 +729,101 @@ class OrderManager(
         """
         order_id_str = str(order_id)
 
-        # Try cached data first with brief retry for real-time updates
+        # Check circuit breaker before attempting operations
+        if not await self._check_circuit_breaker():
+            self.logger.warning(
+                f"Circuit breaker is open, skipping order status check for {order_id_str}"
+            )
+            # Return False to indicate we couldn't verify the order status
+            return False
+
+        # Try cached data first with configurable retry for real-time updates
         if self._realtime_enabled:
-            for attempt in range(3):  # Try 3 times with small delays
-                async with self.order_lock:
-                    status = self.order_status_cache.get(order_id_str)
-                    if status is not None:
-                        return status == OrderStatus.FILLED
+            for attempt in range(self.status_check_max_attempts):
+                try:
+                    async with self.order_lock:
+                        status = self.order_status_cache.get(order_id_str)
+                        if status is not None:
+                            await self._record_circuit_breaker_success()
+                            return bool(status == OrderStatus.FILLED)
 
-                if attempt < 2:  # Don't sleep on last attempt
-                    await asyncio.sleep(0.2)  # Brief wait for real-time update
+                    if attempt < self.status_check_max_attempts - 1:
+                        # Calculate exponential backoff delay with jitter
+                        delay = min(
+                            self.status_check_initial_delay
+                            * (self.status_check_backoff_factor**attempt),
+                            self.status_check_max_delay,
+                        )
+                        # Add small jitter to prevent thundering herd
+                        jitter = (
+                            delay * 0.1 * (0.5 - asyncio.get_event_loop().time() % 1)
+                        )
+                        final_delay = max(0.1, delay + jitter)
 
-        # Fallback to API check
-        order = await self.get_order_by_id(int(order_id))
-        return order is not None and order.status == OrderStatus.FILLED
+                        self.logger.debug(
+                            f"Retrying order status check for {order_id_str} in {final_delay:.2f}s "
+                            f"(attempt {attempt + 1}/{self.status_check_max_attempts})"
+                        )
+                        await asyncio.sleep(final_delay)
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"Error checking cached order status for {order_id_str} "
+                        f"(attempt {attempt + 1}): {e}"
+                    )
+                    await self._record_circuit_breaker_failure()
+
+                    if attempt < self.status_check_max_attempts - 1:
+                        delay = min(
+                            self.status_check_initial_delay
+                            * (self.status_check_backoff_factor**attempt),
+                            self.status_check_max_delay,
+                        )
+                        await asyncio.sleep(delay)
+
+        # Fallback to API check with retry logic
+        last_exception = None
+        for attempt in range(self.status_check_max_attempts):
+            try:
+                order = await self.get_order_by_id(int(order_id))
+                await self._record_circuit_breaker_success()
+                return order is not None and order.status == OrderStatus.FILLED
+
+            except Exception as e:
+                last_exception = e
+                await self._record_circuit_breaker_failure()
+
+                if attempt < self.status_check_max_attempts - 1:
+                    delay = min(
+                        self.status_check_initial_delay
+                        * (self.status_check_backoff_factor**attempt),
+                        self.status_check_max_delay,
+                    )
+                    # Add jitter for API calls to prevent rate limiting
+                    jitter = delay * 0.2 * (0.5 - time.time() % 1)
+                    final_delay = max(0.5, delay + jitter)
+
+                    self.logger.warning(
+                        f"API order status check failed for {order_id_str} "
+                        f"(attempt {attempt + 1}/{self.status_check_max_attempts}): {e}. "
+                        f"Retrying in {final_delay:.2f}s"
+                    )
+                    await asyncio.sleep(final_delay)
+                else:
+                    self.logger.error(
+                        f"All {self.status_check_max_attempts} attempts failed for order {order_id_str}. "
+                        f"Last error: {e}"
+                    )
+
+        # If we get here, all attempts failed
+        if last_exception:
+            self.logger.error(
+                f"Unable to determine order status for {order_id_str} after "
+                f"{self.status_check_max_attempts} attempts"
+            )
+
+        # Return False to indicate we couldn't verify the order is filled
+        return False
 
     async def get_order_by_id(self, order_id: int) -> Order | None:
         """
@@ -758,12 +962,30 @@ class OrderManager(
 
             contract_id = existing_order.contractId
 
+            # CRITICAL: Validate tick size BEFORE any price operations
+            await validate_price_tick_size(
+                limit_price, contract_id, self.project_x, "limit_price"
+            )
+            await validate_price_tick_size(
+                stop_price, contract_id, self.project_x, "stop_price"
+            )
+
+            # Convert prices to Decimal for precision, then align to tick size
+            decimal_limit = (
+                Decimal(str(limit_price)) if limit_price is not None else None
+            )
+            decimal_stop = Decimal(str(stop_price)) if stop_price is not None else None
+
             # Align prices to tick size
             aligned_limit = await align_price_to_tick_size(
-                limit_price, contract_id, self.project_x
+                float(decimal_limit) if decimal_limit is not None else None,
+                contract_id,
+                self.project_x,
             )
             aligned_stop = await align_price_to_tick_size(
-                stop_price, contract_id, self.project_x
+                float(decimal_stop) if decimal_stop is not None else None,
+                contract_id,
+                self.project_x,
             )
 
             # Build modification request
@@ -886,6 +1108,85 @@ class OrderManager(
 
             return results
 
+    def _get_recovery_manager(self) -> OperationRecoveryManager:
+        """Get the recovery manager instance for complex operations."""
+        return self._recovery_manager
+
+    def get_recovery_statistics(self) -> dict[str, Any]:
+        """
+        Get comprehensive recovery statistics.
+
+        Returns:
+            Dictionary with recovery statistics and system health
+        """
+        return self._recovery_manager.get_recovery_statistics()
+
+    async def get_operation_status(self, operation_id: str) -> dict[str, Any] | None:
+        """
+        Get status of a recovery operation.
+
+        Args:
+            operation_id: ID of the operation to check
+
+        Returns:
+            Dictionary with operation status or None if not found
+        """
+        return self._recovery_manager.get_operation_status(operation_id)
+
+    async def force_rollback_operation(self, operation_id: str) -> bool:
+        """
+        Force rollback of an active operation.
+
+        Args:
+            operation_id: ID of the operation to rollback
+
+        Returns:
+            True if rollback was initiated, False if operation not found
+        """
+        return await self._recovery_manager.force_rollback_operation(operation_id)
+
+    async def cleanup_stale_operations(self, max_age_hours: float = 24.0) -> int:
+        """
+        Clean up stale recovery operations.
+
+        Args:
+            max_age_hours: Maximum age in hours for active operations
+
+        Returns:
+            Number of operations cleaned up
+        """
+        return await self._recovery_manager.cleanup_stale_operations(max_age_hours)
+
+    def get_circuit_breaker_status(self) -> dict[str, Any]:
+        """
+        Get current circuit breaker status and statistics.
+
+        Returns:
+            dict: Circuit breaker statistics including state, failure count,
+                  last failure time, and configuration parameters
+        """
+        return {
+            "state": self._circuit_breaker_state,
+            "failure_count": self._circuit_breaker_failure_count,
+            "last_failure_time": self._circuit_breaker_last_failure_time,
+            "threshold": self.status_check_circuit_breaker_threshold,
+            "reset_time_seconds": self.status_check_circuit_breaker_reset_time,
+            "time_until_reset": max(
+                0,
+                self.status_check_circuit_breaker_reset_time
+                - (time.time() - self._circuit_breaker_last_failure_time),
+            )
+            if self._circuit_breaker_state == "open"
+            else 0,
+            "is_healthy": self._circuit_breaker_state != "open",
+            "retry_config": {
+                "max_attempts": self.status_check_max_attempts,
+                "initial_delay": self.status_check_initial_delay,
+                "backoff_factor": self.status_check_backoff_factor,
+                "max_delay": self.status_check_max_delay,
+            },
+        }
+
     async def get_order_statistics_async(self) -> dict[str, Any]:
         """
         Get comprehensive async order management statistics using the new statistics system.
@@ -958,6 +1259,11 @@ class OrderManager(
             max(stats_copy["fill_times_ms"]) if stats_copy["fill_times_ms"] else 0.0
         )
 
+        # Ensure total_value is Decimal for precise calculations
+        total_value = stats_copy["total_value"]
+        if not isinstance(total_value, Decimal):
+            total_value = Decimal(str(total_value))
+
         avg_order_size = (
             stats_copy["total_volume"] / stats_copy["orders_placed"]
             if stats_copy["orders_placed"] > 0
@@ -988,7 +1294,7 @@ class OrderManager(
             "slowest_fill_ms": slowest_fill_ms,
             # Volume and value
             "total_volume": stats_copy["total_volume"],
-            "total_value": stats_copy["total_value"],
+            "total_value": float(total_value),
             "avg_order_size": avg_order_size,
             "largest_order": stats_copy["largest_order"],
             # Risk metrics
@@ -1072,6 +1378,11 @@ class OrderManager(
             max(stats_copy["fill_times_ms"]) if stats_copy["fill_times_ms"] else 0.0
         )
 
+        # Ensure total_value is Decimal for precise calculations in synchronous method
+        total_value_sync = stats_copy["total_value"]
+        if not isinstance(total_value_sync, Decimal):
+            total_value_sync = Decimal(str(total_value_sync))
+
         avg_order_size = (
             stats_copy["total_volume"] / stats_copy["orders_placed"]
             if stats_copy["orders_placed"] > 0
@@ -1102,7 +1413,7 @@ class OrderManager(
             "slowest_fill_ms": slowest_fill_ms,
             # Volume and value
             "total_volume": stats_copy["total_volume"],
-            "total_value": stats_copy["total_value"],
+            "total_value": float(total_value_sync),
             "avg_order_size": avg_order_size,
             "largest_order": stats_copy["largest_order"],
             # Risk metrics
@@ -1114,13 +1425,21 @@ class OrderManager(
         """Clean up resources and connections."""
         self.logger.info("Cleaning up AsyncOrderManager resources")
 
+        # Stop memory management cleanup task
+        await self._stop_cleanup_task()
+
+        # Clean up recovery manager operations
+        try:
+            stale_count = await self.cleanup_stale_operations(
+                max_age_hours=0.1
+            )  # Clean up very recent operations too
+            if stale_count > 0:
+                self.logger.info(f"Cleaned up {stale_count} stale recovery operations")
+        except Exception as e:
+            self.logger.error(f"Error cleaning up recovery operations: {e}")
+
         # Clear all tracking data
-        async with self.order_lock:
-            self.tracked_orders.clear()
-            self.order_status_cache.clear()
-            self.order_to_position.clear()
-            self.position_orders.clear()
-            # EventBus handles all callbacks now
+        self.clear_order_tracking()
 
         # Clean up realtime client if it exists
         if self.realtime_client:

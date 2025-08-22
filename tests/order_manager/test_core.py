@@ -146,7 +146,7 @@ class TestOrderManagerCore:
     @pytest.mark.asyncio
     async def test_get_order_statistics(self, order_manager):
         """get_order_statistics returns expected stats."""
-        stats = await order_manager.get_order_statistics()
+        stats = order_manager.get_order_statistics()
         # Check for key statistics fields
         assert "orders_placed" in stats
         assert "orders_filled" in stats

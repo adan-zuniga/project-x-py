@@ -203,7 +203,7 @@ class TestOrderBookPublicAPI:
         ob = orderbook
 
         # Get memory stats
-        stats = await ob.get_memory_stats()
+        stats = ob.get_memory_stats()
 
         # Should return memory stats
         assert stats is not None
