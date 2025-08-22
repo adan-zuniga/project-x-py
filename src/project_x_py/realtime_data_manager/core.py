@@ -192,6 +192,9 @@ class RealtimeDataManager(
     LockOptimizationMixin,
     DSTHandlingMixin,
 ):
+    # Explicit attribute definitions to resolve mixin conflicts
+    data_lock: Any  # Will be set to AsyncRWLock in __init__
+    log_dst_event: Any  # Will be overridden by mixins
     """
     Async optimized real-time OHLCV data manager for efficient multi-timeframe trading data.
 
@@ -396,7 +399,7 @@ class RealtimeDataManager(
         self._apply_config_defaults()
 
         # Check if bounded statistics are enabled
-        self.use_bounded_statistics = (
+        self.use_bounded_statistics: bool = bool(
             config.get("use_bounded_statistics", True) if config else True
         )
 
@@ -405,23 +408,51 @@ class RealtimeDataManager(
 
         # Initialize bounded statistics if enabled
         if self.use_bounded_statistics:
+            # Extract config values with type safety
+            max_recent_metrics = 3600
+            hourly_retention_hours = 24
+            daily_retention_days = 30
+            timing_buffer_size = 1000
+            cleanup_interval_minutes = 5.0
+
+            if config:
+                # Safely cast config values with proper type conversion
+                max_recent_val = config.get("max_recent_metrics", 3600)
+                max_recent_metrics = (
+                    int(max_recent_val) if max_recent_val is not None else 3600  # type: ignore[call-overload]
+                )
+
+                hourly_retention_val = config.get("hourly_retention_hours", 24)
+                hourly_retention_hours = (
+                    int(hourly_retention_val)  # type: ignore[call-overload]
+                    if hourly_retention_val is not None
+                    else 24
+                )
+
+                daily_retention_val = config.get("daily_retention_days", 30)
+                daily_retention_days = (
+                    int(daily_retention_val) if daily_retention_val is not None else 30  # type: ignore[call-overload]
+                )
+
+                timing_buffer_val = config.get("timing_buffer_size", 1000)
+                timing_buffer_size = (
+                    int(timing_buffer_val) if timing_buffer_val is not None else 1000  # type: ignore[call-overload]
+                )
+
+                cleanup_interval_val = config.get("cleanup_interval_minutes", 5.0)
+                cleanup_interval_minutes = (
+                    float(cleanup_interval_val)
+                    if cleanup_interval_val is not None
+                    else 5.0
+                )
+
             BoundedStatisticsMixin.__init__(
                 self,
-                max_recent_metrics=config.get("max_recent_metrics", 3600)
-                if config
-                else 3600,
-                hourly_retention_hours=config.get("hourly_retention_hours", 24)
-                if config
-                else 24,
-                daily_retention_days=config.get("daily_retention_days", 30)
-                if config
-                else 30,
-                timing_buffer_size=config.get("timing_buffer_size", 1000)
-                if config
-                else 1000,
-                cleanup_interval_minutes=config.get("cleanup_interval_minutes", 5.0)
-                if config
-                else 5.0,
+                max_recent_metrics=max_recent_metrics,
+                hourly_retention_hours=hourly_retention_hours,
+                daily_retention_days=daily_retention_days,
+                timing_buffer_size=timing_buffer_size,
+                cleanup_interval_minutes=cleanup_interval_minutes,
             )
 
         # Initialize v3.3.0 statistics system using inheritance (for backward compatibility)
@@ -803,7 +834,7 @@ class RealtimeDataManager(
 
     async def _load_timeframe_data(
         self, tf_key: str, tf_config: dict[str, Any], initial_days: int
-    ):
+    ) -> None:
         """Load data for a specific timeframe."""
         if self.project_x is None:
             raise ProjectXError(
@@ -1514,9 +1545,9 @@ class RealtimeDataManager(
 
     async def optimize_data_access_patterns(self) -> dict[str, Any]:
         """Analyze and optimize data access patterns based on usage."""
-        optimization_results = {
+        optimization_results: dict[str, Any] = {
             "analysis": {},
-            "optimizations_applied": [],
+            "optimizations_applied": list[str](),
             "performance_improvements": {},
         }
 

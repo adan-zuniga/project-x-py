@@ -695,7 +695,7 @@ class DynamicResourceMixin(TaskManagerMixin):
         current_resources = self._system_resources
         current_limits = self._current_limits
 
-        stats = {
+        stats: dict[str, Any] = {
             "dynamic_limits_enabled": True,
             "psutil_available": PSUTIL_AVAILABLE,
             "resource_adjustments": self._resource_stats["resource_adjustments"],
@@ -707,36 +707,28 @@ class DynamicResourceMixin(TaskManagerMixin):
         }
 
         if current_resources:
-            stats.update(
-                {
-                    "system_resources": {
-                        "total_memory_mb": current_resources.total_memory_mb,
-                        "available_memory_mb": current_resources.available_memory_mb,
-                        "memory_percent": current_resources.memory_percent,
-                        "cpu_count": current_resources.cpu_count,
-                        "cpu_percent": current_resources.cpu_percent,
-                        "process_memory_mb": current_resources.process_memory_mb,
-                        "process_cpu_percent": current_resources.process_cpu_percent,
-                    }
-                }
-            )
+            stats["system_resources"] = {
+                "total_memory_mb": current_resources.total_memory_mb,
+                "available_memory_mb": current_resources.available_memory_mb,
+                "memory_percent": current_resources.memory_percent,
+                "cpu_count": current_resources.cpu_count,
+                "cpu_percent": current_resources.cpu_percent,
+                "process_memory_mb": current_resources.process_memory_mb,
+                "process_cpu_percent": current_resources.process_cpu_percent,
+            }
 
         if current_limits:
-            stats.update(
-                {
-                    "current_limits": {
-                        "max_bars_per_timeframe": current_limits.max_bars_per_timeframe,
-                        "tick_buffer_size": current_limits.tick_buffer_size,
-                        "max_concurrent_tasks": current_limits.max_concurrent_tasks,
-                        "cache_size_limit": current_limits.cache_size_limit,
-                        "memory_limit_mb": current_limits.memory_limit_mb,
-                        "memory_pressure": current_limits.memory_pressure,
-                        "cpu_pressure": current_limits.cpu_pressure,
-                        "scaling_reason": current_limits.scaling_reason,
-                        "last_updated": current_limits.last_updated,
-                    }
-                }
-            )
+            stats["current_limits"] = {
+                "max_bars_per_timeframe": current_limits.max_bars_per_timeframe,
+                "tick_buffer_size": current_limits.tick_buffer_size,
+                "max_concurrent_tasks": current_limits.max_concurrent_tasks,
+                "cache_size_limit": current_limits.cache_size_limit,
+                "memory_limit_mb": current_limits.memory_limit_mb,
+                "memory_pressure": current_limits.memory_pressure,
+                "cpu_pressure": current_limits.cpu_pressure,
+                "scaling_reason": current_limits.scaling_reason,
+                "last_updated": current_limits.last_updated,
+            }
 
         if self._memory_pressure_history:
             stats["pressure_history"] = {

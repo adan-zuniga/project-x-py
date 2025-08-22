@@ -465,7 +465,7 @@ class LazyDataFrameMixin:
                     return self.data[timeframe].lazy()
 
         # Fallback to regular lock
-        async with self.data_lock:  # type: ignore
+        async with self.data_lock:
             if timeframe not in self.data or self.data[timeframe].is_empty():
                 return None
             return self.data[timeframe].lazy()
@@ -498,14 +498,17 @@ class LazyDataFrameMixin:
                 operations = self.query_optimizer.optimize_operations(operations)
 
             # Apply operations to LazyFrame
-            current_lazy = lazy_df
+            current_lazy: pl.LazyFrame | None = lazy_df
 
             for op_name, op_params in operations:
+                if current_lazy is None:
+                    return None
                 current_lazy = self._apply_single_lazy_operation(
                     current_lazy, op_name, op_params
                 )
-                if current_lazy is None:
-                    return None
+
+            if current_lazy is None:
+                return None
 
             # Collect the final result
             result = current_lazy.collect()
@@ -806,7 +809,7 @@ class LazyDataFrameMixin:
                     return await self._perform_memory_optimization(timeframe)
 
         # Fallback to regular lock
-        async with self.data_lock:  # type: ignore
+        async with self.data_lock:
             return await self._perform_memory_optimization(timeframe)
 
     async def _perform_memory_optimization(self, timeframe: str) -> bool:

@@ -315,9 +315,6 @@ class DataValidationMixin:
         self, quote_data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Basic quote validation fallback when ValidationMixin methods are not available."""
-        if not isinstance(quote_data, dict):
-            return None
-
         # Basic required field check
         if "symbol" not in quote_data:
             return None
@@ -328,9 +325,6 @@ class DataValidationMixin:
         self, trade_data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Basic trade validation fallback when ValidationMixin methods are not available."""
-        if not isinstance(trade_data, dict):
-            return None
-
         # Basic required field check
         required_fields = {"symbolId", "price", "timestamp", "volume"}
         if not all(field in trade_data for field in required_fields):

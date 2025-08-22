@@ -499,7 +499,7 @@ class RiskManager(BaseStatisticsTracker):
             )
             if use_trailing and self.config.trailing_stop_distance > 0:
                 # Monitor position for trailing stop activation
-                _trailing_task = asyncio.create_task(  # noqa: RUF006
+                _trailing_task = asyncio.create_task(
                     self._monitor_trailing_stop(
                         position,
                         {

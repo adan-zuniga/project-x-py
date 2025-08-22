@@ -431,8 +431,9 @@ class CircuitBreaker:
         elif self.state == CircuitState.HALF_OPEN:
             # Allow limited calls in half-open state
             return self.half_open_calls < self.config.half_open_max_calls
-
-        return False
+        else:
+            # This should never happen, but handle it defensively
+            return False
 
     async def _handle_open_circuit(
         self, event_type: str, *args: Any, **kwargs: Any
