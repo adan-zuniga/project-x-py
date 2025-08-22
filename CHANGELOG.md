@@ -14,6 +14,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.3.1] - 2025-01-22
+
+### Fixed
+- **🚨 CRITICAL: OrderManager Race Condition in Bracket Orders** ([#51](https://github.com/TexasCoding/project-x-py/pull/51))
+  - Fixed race condition where entry orders could partially fill without protective orders being placed
+  - Added `_check_order_fill_status()` method to detect partial fills before cancellation
+  - Implemented `_place_protective_orders_with_retry()` with exponential backoff for network failures
+  - Added comprehensive `OperationRecoveryManager` with transaction-like semantics and automatic rollback
+
+- **🚨 CRITICAL: OrderManager Memory Leaks** 
+  - Replaced unbounded dictionaries with `TTLCache` (maxsize=10000, ttl=86400 seconds)
+  - Added automatic cleanup task for old order tracking data
+  - Implemented proper task lifecycle management to prevent task accumulation
+  - Memory usage now bounded and automatically maintained
+
+- **🚨 CRITICAL: OrderManager Deadlock Potential**
+  - Fixed fire-and-forget asyncio tasks that could cause deadlocks
+  - Implemented `_managed_tasks` set with proper exception handling
+  - Added `_cleanup_completed_tasks()` for automatic task cleanup
+  - All async tasks now properly tracked and managed
+
+- **🚨 CRITICAL: Price Precision Loss in OrderManager**
+  - Converted all price calculations to use `Decimal` for financial precision
+  - Added `ensure_decimal()` utility function for consistent conversion
+  - Fixed tick size alignment to use Decimal arithmetic throughout
+  - Eliminated float arithmetic in all financial calculations
+
+### Added
+- **🛡️ OrderManager Error Recovery System** (`error_recovery.py`)
+  - Complete transaction semantics with rollback capabilities
+  - Operation tracking with state management
+  - Retry logic with exponential backoff and circuit breakers
+  - Comprehensive error handling and recovery mechanisms
+
+- **✅ OrderManager Validation Improvements**
+  - Pre-validation of prices against tick size before any operations
+  - Exponential backoff for order state validation (0.2s → 3.2s)
+  - Circuit breaker pattern for repeated failures
+  - Robust SignalR message parsing for multiple data formats
+
+### Improved
+- **📝 Type Safety in OrderManager**
+  - Added `_unlink_oco_orders()` to `OrderManagerProtocol`
+  - Fixed union type handling in position orders
+  - Proper type annotations for all recovery operations
+  - Zero mypy errors across entire module
+
+### Testing
+- All 33 OrderManager tests passing (100% success rate)
+- Zero IDE diagnostic issues
+- Full mypy type checking compliance
+- Comprehensive test coverage maintained
+
 ## [3.3.0] - 2025-01-21
 
 ### Breaking Changes
