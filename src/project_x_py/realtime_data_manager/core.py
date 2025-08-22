@@ -367,8 +367,10 @@ class RealtimeDataManager(
         # Initialize all mixins (they may need the above attributes)
         super().__init__()
 
-        # Initialize v3.3.0 statistics system using composition
-        self._statistics = BaseStatisticsTracker("realtime_data_manager")
+        # Initialize v3.3.0 statistics system using inheritance (for backward compatibility)
+        BaseStatisticsTracker.__init__(
+            self, component_name="realtime_data_manager", max_errors=100, cache_ttl=5.0
+        )
 
         # Set initial status asynchronously after init is complete
         self._initial_status_task = asyncio.create_task(self._set_initial_status())
@@ -535,11 +537,9 @@ class RealtimeDataManager(
             "data_validation_errors": self.memory_stats["data_validation_errors"],
             "connection_interruptions": self.memory_stats["connection_interruptions"],
             "recovery_attempts": self.memory_stats["recovery_attempts"],
+            "overflow_stats": overflow_stats,
+            "buffer_overflow_stats": overflow_stats.get("buffer_stats", {}),
         }
-
-        # Add overflow stats if available (NotRequired field)
-        if overflow_stats:
-            result["overflow_stats"] = overflow_stats
 
         return result
 
@@ -1129,7 +1129,7 @@ class RealtimeDataManager(
 
     async def get_memory_usage(self) -> float:
         """Override BaseStatisticsTracker method to provide component-specific memory calculation."""
-        base_memory = await self._statistics.get_memory_usage()
+        base_memory = await super().get_memory_usage()
 
         # Add data manager specific memory calculations
         data_memory = 0.0
@@ -1156,15 +1156,15 @@ class RealtimeDataManager(
     # Delegate statistics methods to composed _statistics object
     async def increment(self, metric: str, value: int | float = 1) -> None:
         """Increment a counter metric."""
-        await self._statistics.increment(metric, value)
+        await super().increment(metric, value)
 
     async def set_gauge(self, metric: str, value: int | float | Decimal) -> None:
         """Set a gauge metric."""
-        await self._statistics.set_gauge(metric, value)
+        await super().set_gauge(metric, value)
 
     async def record_timing(self, operation: str, duration_ms: float) -> None:
         """Record timing information."""
-        await self._statistics.record_timing(operation, duration_ms)
+        await super().record_timing(operation, duration_ms)
 
     async def track_error(
         self,
@@ -1173,16 +1173,20 @@ class RealtimeDataManager(
         details: dict[str, Any] | None = None,
     ) -> None:
         """Track an error occurrence."""
-        await self._statistics.track_error(error, context, details)
+        await super().track_error(
+            error if isinstance(error, Exception) else Exception(error),
+            context,
+            details,
+        )
 
     async def get_stats(self) -> ComponentStats:
         """Get current statistics."""
-        return await self._statistics.get_stats()
+        return await super().get_stats()
 
     async def get_health_score(self) -> float:
         """Get health score."""
-        return await self._statistics.get_health_score()
+        return await super().get_health_score()
 
     async def set_status(self, status: str) -> None:
         """Set component status."""
-        await self._statistics.set_status(status)
+        await super().set_status(status)

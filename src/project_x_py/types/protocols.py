@@ -543,6 +543,7 @@ class ProjectXRealtimeClientProtocol(Protocol):
     market_hub_url: str
     base_user_url: str
     base_market_url: str
+    config: "ProjectXConfig"
 
     # Connection objects
     user_connection: HubConnection | None
@@ -614,8 +615,17 @@ class ProjectXRealtimeClientProtocol(Protocol):
     async def unsubscribe_market_data(self, contract_ids: list[str]) -> bool: ...
     def is_connected(self) -> bool: ...
     def get_stats(self) -> dict[str, Any]: ...
-    async def update_jwt_token(self, new_jwt_token: str) -> bool: ...
+    async def update_jwt_token(
+        self, new_jwt_token: str, timeout: float = 30.0
+    ) -> bool: ...
+    async def _recover_connection_state(
+        self,
+        original_token: str,
+        original_setup_complete: bool,
+        original_subscriptions: list[str],
+    ) -> None: ...
     async def cleanup(self) -> None: ...
+    def get_task_stats(self) -> dict[str, Any]: ...
 
 
 __all__ = [

@@ -101,6 +101,7 @@ from project_x_py.realtime.connection_management import ConnectionManagementMixi
 from project_x_py.realtime.event_handling import EventHandlingMixin
 from project_x_py.realtime.subscriptions import SubscriptionsMixin
 from project_x_py.types.base import HubConnection
+from project_x_py.utils.task_management import TaskManagerMixin
 
 if TYPE_CHECKING:
     from project_x_py.models import ProjectXConfig
@@ -110,23 +111,35 @@ class ProjectXRealtimeClient(
     ConnectionManagementMixin,
     EventHandlingMixin,
     SubscriptionsMixin,
+    TaskManagerMixin,
 ):
     """
     Async real-time client for ProjectX Gateway API WebSocket connections.
+
+    **CRITICAL FIXES (v3.3.1)**: This class now includes comprehensive safety mechanisms
+    to prevent deadlocks, memory leaks, and connection failures in production environments.
 
     This class provides an async interface for ProjectX SignalR connections and
     forwards all events to registered managers. It does NOT cache data or perform
     business logic - that's handled by the specialized managers.
 
+    **Safety Features (v3.3.1)**:
+        - **Task Lifecycle Management**: Automatic tracking and cleanup of async tasks
+        - **Deadlock Prevention**: Timeout-based token refresh with state recovery
+        - **Memory Leak Protection**: WeakSet-based task tracking prevents accumulation
+        - **Connection Recovery**: Automatic rollback to stable state on failures
+
     Features:
         - Async SignalR WebSocket connections to ProjectX Gateway hubs
         - Event forwarding to registered async managers
         - Automatic reconnection with exponential backoff
-        - JWT token refresh and reconnection
+        - JWT token refresh and reconnection with deadlock prevention
         - Connection health monitoring
         - Async event callbacks
         - Thread-safe event processing and callback execution
         - Comprehensive connection statistics and health tracking
+        - **NEW**: Centralized task management prevents memory leaks
+        - **NEW**: Connection state recovery on failures
 
     Architecture:
         - Pure event forwarding (no business logic)
@@ -134,6 +147,7 @@ class ProjectXRealtimeClient(
         - No payload parsing (managers handle ProjectX formats)
         - Minimal stateful operations
         - Mixin-based design for modular functionality
+        - **NEW**: TaskManagerMixin provides automatic task cleanup
 
     Real-time Hubs (per ProjectX Gateway docs):
         - User Hub: Account, position, and order updates
@@ -141,9 +155,11 @@ class ProjectXRealtimeClient(
 
     Connection Management:
         - Dual-hub SignalR connections with automatic reconnection
-        - JWT token authentication via Authorization headers
+        - JWT token authentication via URL query parameter (required by ProjectX Gateway)
         - Connection health monitoring and error handling
         - Thread-safe operations with proper lock management
+        - **NEW**: Timeout-based operations prevent indefinite blocking
+        - **NEW**: Connection state recovery preserves subscriptions
 
     Event Processing:
         - Cross-thread event scheduling for asyncio compatibility
@@ -151,11 +167,23 @@ class ProjectXRealtimeClient(
         - Error isolation to prevent callback failures
         - Event statistics and flow monitoring
 
+    **Task Management (v3.3.1)**:
+        - All background tasks are automatically tracked
+        - WeakSet-based tracking prevents memory leaks
+        - Graceful cancellation with configurable timeouts
+        - Error collection and reporting for failed tasks
+        - Statistics available via `get_task_stats()`
+
     Example:
         >>> # V3.1: Use TradingSuite for automatic real-time management
         >>> suite = await TradingSuite.create("MNQ", timeframes=["1min"])
         >>> # V3.1: Access real-time client if needed
         >>> print(f"Connected: {suite.realtime_client.is_connected()}")
+        >>>
+        >>> # V3.3.1: Task management statistics
+        >>> task_stats = suite.realtime_client.get_task_stats()
+        >>> print(f"Active tasks: {task_stats['pending_tasks']}")
+        >>> print(f"Failed tasks: {task_stats['failed_tasks']}")
         >>>
         >>> # V3.1: Register callbacks via suite's event bus
         >>> from project_x_py import EventType
@@ -164,14 +192,17 @@ class ProjectXRealtimeClient(
         ...     print(f"Position: {data.get('contractId')} - {data.get('netPos')}")
         >>> await suite.on(EventType.POSITION_UPDATE, handle_position)
         >>>
-        >>> # V3.1: Direct low-level usage (advanced)
-        >>> # from project_x_py.realtime import ProjectXRealtimeClient
-        >>> # realtime = ProjectXRealtimeClient(
-        >>> #     jwt_token=client.session_token,
-        >>> #     account_id=str(client.account_info.id),
-        >>> # )
-        >>> # await realtime.connect()
-        >>> # await realtime.subscribe_market_data(["MNQ", "ES"])
+        >>> # V3.3.1: Safe token refresh with deadlock prevention
+        >>> try:
+        ...     success = await suite.realtime_client.update_jwt_token(
+        ...         new_token, timeout=30.0
+        ...     )
+        ...     if not success:
+        ...         print(
+        ...             "Token refresh failed, connection recovered to original state"
+        ...         )
+        ... except TimeoutError:
+        ...     print("Token refresh timed out, deadlock prevented")
 
     Event Types (per ProjectX Gateway docs):
         User Hub: GatewayUserAccount, GatewayUserPosition, GatewayUserOrder, GatewayUserTrade
@@ -182,6 +213,13 @@ class ProjectXRealtimeClient(
         - AsyncOrderManager handles order events and tracking
         - AsyncRealtimeDataManager handles market data and caching
         - This client only handles connections and event forwarding
+
+    **Production Reliability (v3.3.1)**:
+        - Zero memory leaks from task accumulation
+        - No deadlocks during token refresh operations
+        - Automatic recovery from connection failures
+        - Comprehensive error handling and logging
+        - Performance monitoring through task statistics
     """
 
     def __init__(
@@ -245,15 +283,21 @@ class ProjectXRealtimeClient(
             ... )
 
         Note:
-            - JWT token is passed securely via Authorization header
+            - JWT token is passed via URL query parameter (required by ProjectX Gateway)
             - Both hubs must connect successfully for full functionality
             - SignalR connections are established lazily on connect()
         """
         # Initialize parent mixins
         super().__init__()
+        self._init_task_manager()  # Initialize task management
 
         self.jwt_token = jwt_token
         self.account_id = account_id
+
+        # Store config for URL access
+        from project_x_py.models import ProjectXConfig
+
+        self.config = config or ProjectXConfig()
 
         # Determine URLs with priority: params > config > defaults
         if config:

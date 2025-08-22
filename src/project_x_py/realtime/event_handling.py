@@ -91,9 +91,6 @@ class EventHandlingMixin(TaskManagerMixin):
         stats: dict[str, Any]
 
         async def disconnect(self) -> None: ...
-        async def _trigger_callbacks(
-            self, event_type: str, data: dict[str, Any]
-        ) -> None: ...
 
     def __init__(self) -> None:
         """Initialize event handling with batching support."""
