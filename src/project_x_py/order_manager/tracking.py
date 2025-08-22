@@ -753,11 +753,20 @@ class OrderTrackingMixin:
                                         )
 
                                     # Clean up OCO group using safe unlinking
-                                    linked_id = self._unlink_oco_orders(order_id_int)
-                                    if linked_id != other_order_id:
-                                        logger.warning(
-                                            f"OCO cleanup: expected {other_order_id}, got {linked_id}"
+                                    if hasattr(self, "_unlink_oco_orders"):
+                                        linked_id = self._unlink_oco_orders(
+                                            order_id_int
                                         )
+                                        if linked_id != other_order_id:
+                                            logger.warning(
+                                                f"OCO cleanup: expected {other_order_id}, got {linked_id}"
+                                            )
+                                    else:
+                                        # Just remove from OCO groups directly
+                                        if order_id_int in self.oco_groups:
+                                            del self.oco_groups[order_id_int]
+                                        if other_order_id in self.oco_groups:
+                                            del self.oco_groups[other_order_id]
                                 else:
                                     logger.warning(
                                         f"OCO group entry for {order_id_int} is None"
@@ -878,12 +887,12 @@ class OrderTrackingMixin:
             logger.error(f"Error extracting trade data: {e}")
             return None
 
-    def _validate_trade_data(self, trade_data: dict[str, Any]) -> dict[str, Any] | None:
+    def _validate_trade_data(self, trade_data: Any) -> dict[str, Any] | None:
         """
         Validate trade execution data structure.
 
         Args:
-            trade_data: Dictionary containing trade information
+            trade_data: Data containing trade information (expected to be a dict)
 
         Returns:
             Validated trade data or None if invalid
