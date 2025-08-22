@@ -86,7 +86,12 @@ from project_x_py.exceptions import ProjectXOrderError
 from project_x_py.models import BracketOrderResponse
 from project_x_py.utils.error_handler import retry_on_network_error
 
-from .error_recovery import OperationRecoveryManager, OperationType
+from .error_recovery import (
+    OperationRecoveryManager,
+    OperationType,
+    OrderReference,
+    RecoveryOperation,
+)
 
 if TYPE_CHECKING:
     from project_x_py.types import OrderManagerProtocol
@@ -114,7 +119,7 @@ class BracketOrderMixin:
         """Initialize the recovery manager for bracket orders."""
         super().__init__()
         # Initialize recovery manager - will be properly set up in the main class
-        self._recovery_manager = None
+        self._recovery_manager: OperationRecoveryManager | None = None
 
     def _get_recovery_manager(self) -> OperationRecoveryManager | None:
         """Get or create the recovery manager instance.
@@ -243,7 +248,7 @@ class BracketOrderMixin:
         """
         # Initialize recovery manager for this operation (if available)
         recovery_manager = self._get_recovery_manager()
-        operation = None
+        operation: RecoveryOperation | None = None
 
         if recovery_manager:
             operation = await recovery_manager.start_operation(
@@ -291,9 +296,9 @@ class BracketOrderMixin:
                     )
 
             # Add order references to the recovery operation (if available)
-            entry_ref = None
-            stop_ref = None
-            target_ref = None
+            entry_ref: OrderReference | None = None
+            stop_ref: OrderReference | None = None
+            target_ref: OrderReference | None = None
             if recovery_manager and operation:
                 entry_ref = await recovery_manager.add_order_to_operation(
                     operation,
@@ -348,6 +353,11 @@ class BracketOrderMixin:
 
             # STEP 2: Wait for entry order to fill and handle partial fills
             logger.info(f"Waiting for entry order {entry_order_id} to fill...")
+
+            # Initialize fill tracking variables
+            filled_size = 0
+            is_fully_filled = False
+            remaining_size = 0
 
             try:
                 is_filled = await self._wait_for_order_fill(
