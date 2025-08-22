@@ -83,7 +83,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from project_x_py.exceptions import ProjectXOrderError
-from project_x_py.models import BracketOrderResponse
+from project_x_py.models import BracketOrderResponse, OrderPlaceResponse
 from project_x_py.utils.error_handler import retry_on_network_error
 
 from .error_recovery import (
@@ -247,7 +247,7 @@ class BracketOrderMixin:
             ProjectXOrderError: If bracket order validation or placement fails completely
         """
         # Initialize recovery manager for this operation (if available)
-        recovery_manager = self._get_recovery_manager()
+        recovery_manager: OperationRecoveryManager | None = self._get_recovery_manager()
         operation: RecoveryOperation | None = None
 
         if recovery_manager:
@@ -299,6 +299,10 @@ class BracketOrderMixin:
             entry_ref: OrderReference | None = None
             stop_ref: OrderReference | None = None
             target_ref: OrderReference | None = None
+
+            # Determine protective order side (opposite of entry)
+            protective_side: int = 1 if side == 0 else 0
+
             if recovery_manager and operation:
                 entry_ref = await recovery_manager.add_order_to_operation(
                     operation,
@@ -308,9 +312,6 @@ class BracketOrderMixin:
                     "entry",
                     entry_price if entry_type.lower() != "market" else None,
                 )
-
-                # Determine protective order side (opposite of entry)
-                protective_side = 1 if side == 0 else 0
 
                 stop_ref = await recovery_manager.add_order_to_operation(
                     operation,
@@ -329,11 +330,9 @@ class BracketOrderMixin:
                     "target",
                     take_profit_price,
                 )
-            else:
-                # Determine protective order side (opposite of entry)
-                protective_side = 1 if side == 0 else 0
 
             # Place entry order
+            entry_response: OrderPlaceResponse
             if entry_type.lower() == "market":
                 entry_response = await self.place_market_order(
                     contract_id, side, size, account_id
@@ -460,7 +459,7 @@ class BracketOrderMixin:
             try:
                 # Place stop loss order
                 logger.debug(f"Placing stop loss at {stop_loss_price}")
-                stop_response = await self.place_stop_order(
+                stop_response: OrderPlaceResponse = await self.place_stop_order(
                     contract_id, protective_side, size, stop_loss_price, account_id
                 )
 
@@ -486,7 +485,7 @@ class BracketOrderMixin:
 
                 # Place take profit order
                 logger.debug(f"Placing take profit at {take_profit_price}")
-                target_response = await self.place_limit_order(
+                target_response: OrderPlaceResponse = await self.place_limit_order(
                     contract_id, protective_side, size, take_profit_price, account_id
                 )
 

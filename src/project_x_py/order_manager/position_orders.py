@@ -409,7 +409,9 @@ class PositionOrderMixin:
             order_types = ["entry", "stop", "target"]
 
         position_orders = self.get_position_orders(contract_id)
-        results = {"entry": 0, "stop": 0, "target": 0, "failed": 0, "errors": []}
+        # Track successful cancellations by type
+        success_counts = {"entry": 0, "stop": 0, "target": 0, "failed": 0}
+        error_messages: list[str] = []
 
         # Track cancellation attempts and failures for better recovery
         failed_cancellations = []
@@ -421,7 +423,7 @@ class PositionOrderMixin:
                     try:
                         success = await self.cancel_order(order_id, account_id)
                         if success:
-                            results[order_type] += 1
+                            success_counts[order_type] += 1
                             self.untrack_order(order_id)
                             logger.debug(
                                 f"Successfully cancelled {order_type} order {order_id}"
@@ -432,7 +434,7 @@ class PositionOrderMixin:
                                 f"Cancellation of {order_type} order {order_id} returned False - "
                                 f"order may be filled or already cancelled"
                             )
-                            results["failed"] += 1
+                            success_counts["failed"] += 1
                             failed_cancellations.append(
                                 {
                                     "order_id": order_id,
@@ -446,8 +448,8 @@ class PositionOrderMixin:
                             f"Failed to cancel {order_type} order {order_id}: {e}"
                         )
                         logger.error(error_msg)
-                        results["failed"] += 1
-                        results["errors"].append(error_msg)
+                        success_counts["failed"] += 1
+                        error_messages.append(error_msg)
                         failed_cancellations.append(
                             {
                                 "order_id": order_id,
@@ -460,16 +462,12 @@ class PositionOrderMixin:
         total_attempted = sum(
             len(position_orders.get(f"{ot}_orders", [])) for ot in order_types
         )
-        total_successful = sum(
-            results[ot]
-            for ot in order_types
-            if ot in results and isinstance(results[ot], int)
-        )
+        total_successful = sum(success_counts[ot] for ot in order_types)
 
         if total_attempted > 0:
             logger.info(
                 f"Position order cancellation for {contract_id}: "
-                f"{total_successful}/{total_attempted} successful, {results['failed']} failed"
+                f"{total_successful}/{total_attempted} successful, {success_counts['failed']} failed"
             )
 
             if failed_cancellations:
@@ -478,6 +476,11 @@ class PositionOrderMixin:
                     f"Manual verification may be required."
                 )
 
+        # Return results in expected format
+        results: dict[str, int | list[str]] = {
+            **success_counts,
+            "errors": error_messages,
+        }
         return results
 
     async def update_position_order_sizes(

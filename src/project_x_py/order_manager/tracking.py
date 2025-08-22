@@ -53,7 +53,7 @@ import logging
 import time
 from collections import defaultdict, deque
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from cachetools import TTLCache  # type: ignore
 
@@ -502,12 +502,12 @@ class OrderTrackingMixin:
             logger.error(f"Error extracting order data from {type(raw_data)}: {e}")
             return None
 
-    def _validate_order_data(self, order_data: dict[str, Any]) -> dict[str, Any] | None:
+    def _validate_order_data(self, order_data: Any) -> dict[str, Any] | None:
         """
         Validate and sanitize order data structure.
 
         Args:
-            order_data: Dictionary containing order information
+            order_data: Raw order information (validated to be dict)
 
         Returns:
             Validated order data or None if invalid
@@ -754,7 +754,8 @@ class OrderTrackingMixin:
 
                                     # Clean up OCO group using safe unlinking
                                     if hasattr(self, "_unlink_oco_orders"):
-                                        linked_id = self._unlink_oco_orders(
+                                        manager = cast("OrderManagerProtocol", self)
+                                        linked_id = manager._unlink_oco_orders(
                                             order_id_int
                                         )
                                         if linked_id != other_order_id:
