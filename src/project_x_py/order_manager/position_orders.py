@@ -311,8 +311,11 @@ class PositionOrderMixin:
             contract_id: Contract ID the order is for
             order_id: Order ID to track
             order_type: Type of order: "entry", "stop", or "target"
-            account_id: Account ID for multi-account support
+            account_id: Account ID for multi-account support (future feature)
         """
+        # TODO: Implement multi-account support using account_id parameter
+        _ = account_id  # Unused for now, reserved for future multi-account support
+
         async with self.order_lock:
             if contract_id not in self.position_orders:
                 self.position_orders[contract_id] = {
@@ -373,7 +376,7 @@ class PositionOrderMixin:
         contract_id: str,
         order_types: list[str] | None = None,
         account_id: int | None = None,
-    ) -> dict[str, int]:
+    ) -> dict[str, int | list[str]]:
         """
         Cancel all orders associated with a position.
 
@@ -406,20 +409,74 @@ class PositionOrderMixin:
             order_types = ["entry", "stop", "target"]
 
         position_orders = self.get_position_orders(contract_id)
-        results = {"entry": 0, "stop": 0, "target": 0}
+        results = {"entry": 0, "stop": 0, "target": 0, "failed": 0, "errors": []}
+
+        # Track cancellation attempts and failures for better recovery
+        failed_cancellations = []
 
         for order_type in order_types:
             order_key = f"{order_type}_orders"
             if order_key in position_orders:
                 for order_id in position_orders[order_key][:]:  # Copy list
                     try:
-                        if await self.cancel_order(order_id, account_id):
+                        success = await self.cancel_order(order_id, account_id)
+                        if success:
                             results[order_type] += 1
                             self.untrack_order(order_id)
+                            logger.debug(
+                                f"Successfully cancelled {order_type} order {order_id}"
+                            )
+                        else:
+                            # Cancellation returned False - order might be filled or already cancelled
+                            logger.warning(
+                                f"Cancellation of {order_type} order {order_id} returned False - "
+                                f"order may be filled or already cancelled"
+                            )
+                            results["failed"] += 1
+                            failed_cancellations.append(
+                                {
+                                    "order_id": order_id,
+                                    "order_type": order_type,
+                                    "reason": "Cancellation returned False",
+                                }
+                            )
+
                     except Exception as e:
-                        logger.error(
+                        error_msg = (
                             f"Failed to cancel {order_type} order {order_id}: {e}"
                         )
+                        logger.error(error_msg)
+                        results["failed"] += 1
+                        results["errors"].append(error_msg)
+                        failed_cancellations.append(
+                            {
+                                "order_id": order_id,
+                                "order_type": order_type,
+                                "reason": str(e),
+                            }
+                        )
+
+        # Log summary of cancellation results
+        total_attempted = sum(
+            len(position_orders.get(f"{ot}_orders", [])) for ot in order_types
+        )
+        total_successful = sum(
+            results[ot]
+            for ot in order_types
+            if ot in results and isinstance(results[ot], int)
+        )
+
+        if total_attempted > 0:
+            logger.info(
+                f"Position order cancellation for {contract_id}: "
+                f"{total_successful}/{total_attempted} successful, {results['failed']} failed"
+            )
+
+            if failed_cancellations:
+                logger.warning(
+                    f"Failed to cancel {len(failed_cancellations)} orders for {contract_id}. "
+                    f"Manual verification may be required."
+                )
 
         return results
 
@@ -435,11 +492,14 @@ class PositionOrderMixin:
         Args:
             contract_id: Contract ID of the position
             new_size: New position size to protect
-            account_id: Account ID. Uses default account if None.
+            account_id: Account ID. Uses default account if None (future feature).
 
         Returns:
             Dict with update results
         """
+        # TODO: Implement multi-account support using account_id parameter
+        _ = account_id  # Unused for now, reserved for future multi-account support
+
         position_orders = self.get_position_orders(contract_id)
         results: dict[str, Any] = {"modified": 0, "failed": 0, "errors": []}
 

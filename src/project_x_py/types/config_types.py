@@ -119,6 +119,24 @@ class OrderManagerConfig(TypedDict):
     auto_cancel_on_close: NotRequired[bool]
     order_timeout_minutes: NotRequired[int]
 
+    # Order state validation retry configuration
+    status_check_max_attempts: NotRequired[int]  # Max retry attempts (default: 5)
+    status_check_initial_delay: NotRequired[
+        float
+    ]  # Initial delay in seconds (default: 0.5)
+    status_check_backoff_factor: NotRequired[
+        float
+    ]  # Exponential backoff multiplier (default: 2.0)
+    status_check_max_delay: NotRequired[
+        float
+    ]  # Max delay between retries (default: 30.0)
+    status_check_circuit_breaker_threshold: NotRequired[
+        int
+    ]  # Failures before circuit opens (default: 10)
+    status_check_circuit_breaker_reset_time: NotRequired[
+        float
+    ]  # Time before circuit reset (default: 300.0)
+
 
 class PositionManagerConfig(TypedDict):
     """Configuration for PositionManager component."""
