@@ -1,14 +1,11 @@
 """Test memory-mapped storage integration with RealtimeDataManager."""
 
-import asyncio
 from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 
-from project_x_py import ProjectX
 from project_x_py.realtime_data_manager import RealtimeDataManager
 from project_x_py.types.config_types import DataManagerConfig
 
@@ -219,7 +216,7 @@ class TestMMapIntegration:
 
         # Check overflow happened
         stats = manager.get_memory_stats()
-        if "overflow_stats" in stats and stats["overflow_stats"]:
+        if stats.get("overflow_stats"):
             assert stats["overflow_stats"]["total_bars_overflowed"] > 0
 
     @pytest.mark.asyncio

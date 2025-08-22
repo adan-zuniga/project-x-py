@@ -17,14 +17,17 @@ Key Features:
     - JWT token authentication and refresh handling
     - Event-driven callback system for custom processing
     - Thread-safe operations with proper error handling
-    - Connection health monitoring and statistics
+    - **Real-time connection health monitoring with heartbeat mechanism**
+    - **Latency tracking and performance metrics**
+    - **Automatic reconnection based on health thresholds**
 
 Real-time Capabilities:
     - User Hub: Account, position, order, and trade events
     - Market Hub: Quote, trade, and market depth data
     - Event forwarding to registered managers
     - Subscription management for specific contracts
-    - Connection health monitoring and statistics
+    - **Comprehensive health monitoring and performance tracking**
+    - **Health-based automatic reconnection triggers**
 
 Note:
     While this module provides direct access to the real-time client, for most
@@ -91,6 +94,22 @@ See Also:
     - `realtime.subscriptions.SubscriptionsMixin`
 """
 
+from project_x_py.realtime.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerError,
+    CircuitBreakerMetrics,
+    CircuitBreakerMixin,
+    CircuitState,
+)
 from project_x_py.realtime.core import ProjectXRealtimeClient
 
-__all__ = ["ProjectXRealtimeClient"]
+__all__ = [
+    "ProjectXRealtimeClient",
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitBreakerError",
+    "CircuitBreakerMixin",
+    "CircuitBreakerMetrics",
+    "CircuitState",
+]

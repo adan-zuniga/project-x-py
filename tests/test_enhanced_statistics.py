@@ -12,10 +12,8 @@ Tests the EnhancedStatsTrackingMixin and StatisticsAggregator for:
 """
 
 import asyncio
-import sys
-from collections import deque
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -383,7 +381,6 @@ async def test_integration_stats_during_reconnection():
     """Test that statistics remain accurate during WebSocket reconnections."""
     # This would be an integration test with actual components
     # Included here as a placeholder for comprehensive testing
-    pass
 
 
 @pytest.mark.asyncio

@@ -420,6 +420,9 @@ class ComponentCollector(BaseStatisticsTracker):
             # Get overflow statistics if available
             overflow_stats = base_stats.get("overflow_stats", {})
 
+            # Get lock optimization statistics if available
+            lock_optimization_stats = base_stats.get("lock_optimization_stats", {})
+
             stats: RealtimeDataManagerStats = {
                 "bars_processed": int(bars_processed),
                 "ticks_processed": int(ticks_processed),
@@ -439,6 +442,8 @@ class ComponentCollector(BaseStatisticsTracker):
                 "connection_interruptions": int(connection_interruptions),
                 "recovery_attempts": int(recovery_attempts),
                 "overflow_stats": overflow_stats,
+                "buffer_overflow_stats": overflow_stats,  # Add missing field
+                "lock_optimization_stats": lock_optimization_stats,
             }
 
             # Record collection timing

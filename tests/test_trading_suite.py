@@ -103,7 +103,10 @@ async def test_trading_suite_create():
                     stats = await suite.get_stats()
                     # Note: With new StatisticsAggregator, connection status depends on component status
                     # In test environment with mocks, connection status is determined by component health
-                    assert stats["connected"] in [True, False]  # Accept either based on component status
+                    assert stats["connected"] in [
+                        True,
+                        False,
+                    ]  # Accept either based on component status
                     assert stats["instrument"] is not None  # Returns instrument object
                     # realtime_connected may be mocked value in test environment
                     assert "realtime_connected" in stats
@@ -202,14 +205,18 @@ async def test_trading_suite_with_features():
                         assert suite.orderbook is not None
                         assert suite.orderbook == mock_orderbook
 
-                        # Verify stats structure and basic functionality  
+                        # Verify stats structure and basic functionality
                         stats = await suite.get_stats()
                         # With new StatisticsAggregator, components may be filtered based on available statistics
                         # The important thing is that core components are tracked and the system works
                         assert "components" in stats
-                        assert len(stats["components"]) >= 1  # At least some components should be present
+                        assert (
+                            len(stats["components"]) >= 1
+                        )  # At least some components should be present
                         # Verify we can access registered components directly
-                        registered_components = await suite._stats_aggregator.get_registered_components()
+                        registered_components = (
+                            await suite._stats_aggregator.get_registered_components()
+                        )
                         assert "orderbook" in registered_components
 
 

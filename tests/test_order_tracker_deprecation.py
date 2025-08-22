@@ -3,8 +3,6 @@
 import warnings
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from project_x_py.order_tracker import OrderChainBuilder, OrderTracker
 
 

@@ -105,7 +105,7 @@ import polars as pl
 def calculate_correlation_matrix(
     data: pl.DataFrame,
     columns: list[str] | None = None,
-    method: str = "pearson",
+    _method: str = "pearson",
 ) -> pl.DataFrame:
     """
     Calculate correlation matrix for specified columns.

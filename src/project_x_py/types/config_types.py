@@ -169,6 +169,10 @@ class DataManagerConfig(TypedDict):
     historical_data_cache: NotRequired[bool]
     cache_expiry_hours: NotRequired[int]
 
+    # Dynamic resource management
+    enable_dynamic_limits: NotRequired[bool]
+    resource_config: NotRequired[dict[str, Any]]
+
 
 class OrderbookConfig(TypedDict):
     """Configuration for OrderBook component."""

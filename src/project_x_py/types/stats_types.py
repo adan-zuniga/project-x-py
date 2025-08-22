@@ -226,8 +226,11 @@ class RealtimeDataManagerStats(TypedDict):
     connection_interruptions: int
     recovery_attempts: int
 
-    # Overflow statistics (optional)
-    overflow_stats: NotRequired[dict[str, Any]]
+    # Overflow handling
+    overflow_stats: dict[str, Any]
+    buffer_overflow_stats: dict[str, Any]
+    # Lock optimization
+    lock_optimization_stats: dict[str, Any]
 
 
 class OrderbookStats(TypedDict):

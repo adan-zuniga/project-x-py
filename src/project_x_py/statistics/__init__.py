@@ -31,6 +31,13 @@ Example:
 
 from project_x_py.statistics.aggregator import StatisticsAggregator
 from project_x_py.statistics.base import BaseStatisticsTracker, StatisticsProvider
+from project_x_py.statistics.bounded_statistics import (
+    BoundedCounter,
+    BoundedStatisticsMixin,
+    BoundedStatisticsProvider,
+    CircularBuffer,
+    CleanupScheduler,
+)
 from project_x_py.statistics.collector import ComponentCollector
 from project_x_py.statistics.export import StatsExporter
 from project_x_py.statistics.health import HealthMonitor
@@ -42,6 +49,12 @@ __all__ = [
     "StatisticsAggregator",
     "HealthMonitor",
     "StatsExporter",
+    # Bounded statistics components
+    "BoundedCounter",
+    "BoundedStatisticsMixin",
+    "BoundedStatisticsProvider",
+    "CircularBuffer",
+    "CleanupScheduler",
 ]
 
 __version__ = "3.3.0"

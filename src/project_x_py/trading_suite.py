@@ -154,6 +154,13 @@ class TradingSuiteConfig:
             "enable_level2_data": Features.ORDERBOOK in self.features,
             "data_validation": True,
             "auto_cleanup": True,
+            "enable_dynamic_limits": True,  # Enable dynamic resource limits by default
+            "resource_config": {
+                "memory_target_percent": 15.0,  # Use 15% of available memory
+                "memory_pressure_threshold": 0.8,  # Scale down at 80% memory usage
+                "cpu_pressure_threshold": 0.8,  # Scale down at 80% CPU usage
+                "monitoring_interval": 30.0,  # Monitor every 30 seconds
+            },
         }
 
     def get_orderbook_config(self) -> OrderbookConfig:

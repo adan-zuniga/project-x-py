@@ -105,10 +105,6 @@ See Also:
     - `utils`: Utility functions and calculations
 """
 
-from typing import Any
-
-from project_x_py.client.base import ProjectXBase
-
 __version__ = "3.3.1"
 __author__ = "TexasCoding"
 
@@ -208,7 +204,6 @@ from project_x_py.types import (
     OrderManagerConfig,
     # Core types
     OrderSide,
-    OrderStatsResponse,
     OrderStatus,
     OrderType,
     PerformanceStatsResponse,

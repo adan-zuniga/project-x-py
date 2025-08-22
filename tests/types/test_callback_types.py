@@ -8,8 +8,6 @@ Date: 2025-08-17
 from datetime import datetime
 from typing import get_type_hints
 
-import pytest
-
 from project_x_py.models import Order, Position
 from project_x_py.types.callback_types import (
     AccountUpdateData,

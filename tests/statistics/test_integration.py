@@ -29,19 +29,16 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from project_x_py.event_bus import EventBus, EventType
-from project_x_py.models import Order, Position
+from project_x_py.event_bus import EventBus
 from project_x_py.order_manager import OrderManager
 from project_x_py.orderbook import OrderBook
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime_data_manager import RealtimeDataManager
 from project_x_py.risk_manager import RiskManager
 from project_x_py.statistics.aggregator import StatisticsAggregator
-from project_x_py.statistics.collector import ComponentCollector
 from project_x_py.statistics.export import StatsExporter
 from project_x_py.statistics.health import HealthMonitor
 from project_x_py.trading_suite import TradingSuite
-from project_x_py.types.stats_types import ComponentStats, TradingSuiteStats
 
 
 class TestStatisticsSystemIntegration:
