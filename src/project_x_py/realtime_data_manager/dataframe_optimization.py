@@ -101,28 +101,25 @@ See Also:
     - `realtime_data_manager.memory_management.MemoryManagementMixin`
 """
 
-import asyncio
 import gc
 import logging
 import time
 from collections import defaultdict, deque
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
-from weakref import WeakValueDictionary
+from typing import TYPE_CHECKING, Any, Union
 
 import polars as pl
 
 if TYPE_CHECKING:
     from asyncio import Lock
-    from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 # Type aliases for better readability
-LazyOperation = Tuple[str, Any]  # (operation_name, parameters)
-QueryBatch = List[Tuple[str, List[LazyOperation]]]  # [(timeframe, operations)]
+LazyOperation = tuple[str, Any]  # (operation_name, parameters)
+QueryBatch = list[tuple[str, list[LazyOperation]]]  # [(timeframe, operations)]
 CacheKey = str
-OptimizationHint = Dict[str, Any]
+OptimizationHint = dict[str, Any]
 
 
 class QueryOptimizer:
@@ -134,12 +131,12 @@ class QueryOptimizer:
     """
 
     def __init__(self) -> None:
-        self.optimization_stats: Dict[str, int] = defaultdict(int)
-        self.query_patterns: Dict[str, List[str]] = {}
+        self.optimization_stats: dict[str, int] = defaultdict(int)
+        self.query_patterns: dict[str, list[str]] = {}
 
     def optimize_operations(
-        self, operations: List[LazyOperation]
-    ) -> List[LazyOperation]:
+        self, operations: list[LazyOperation]
+    ) -> list[LazyOperation]:
         """
         Optimize a sequence of DataFrame operations.
 
@@ -174,7 +171,7 @@ class QueryOptimizer:
 
         return optimized
 
-    def _combine_filters(self, operations: List[LazyOperation]) -> List[LazyOperation]:
+    def _combine_filters(self, operations: list[LazyOperation]) -> list[LazyOperation]:
         """Combine consecutive filter operations into a single operation."""
         if len(operations) < 2:
             return operations
@@ -212,8 +209,8 @@ class QueryOptimizer:
         return optimized
 
     def _move_filters_early(
-        self, operations: List[LazyOperation]
-    ) -> List[LazyOperation]:
+        self, operations: list[LazyOperation]
+    ) -> list[LazyOperation]:
         """Move filter operations earlier in the pipeline for better performance."""
         filters = []
         other_ops = []
@@ -230,8 +227,8 @@ class QueryOptimizer:
         return operations
 
     def _combine_with_columns(
-        self, operations: List[LazyOperation]
-    ) -> List[LazyOperation]:
+        self, operations: list[LazyOperation]
+    ) -> list[LazyOperation]:
         """Combine consecutive with_columns operations."""
         optimized = []
         i = 0
@@ -269,7 +266,7 @@ class QueryOptimizer:
 
         return optimized
 
-    def _optimize_selects(self, operations: List[LazyOperation]) -> List[LazyOperation]:
+    def _optimize_selects(self, operations: list[LazyOperation]) -> list[LazyOperation]:
         """Optimize select operations by moving them early when beneficial."""
         # If we have a select operation followed by operations that don't need all columns,
         # we can potentially move the select earlier
@@ -306,16 +303,16 @@ class LazyQueryCache:
         self.default_ttl = default_ttl
 
         # Cache storage with expiration times
-        self._cache: Dict[CacheKey, pl.DataFrame] = {}
-        self._expiry_times: Dict[CacheKey, float] = {}
-        self._access_times: Dict[CacheKey, float] = {}
+        self._cache: dict[CacheKey, pl.DataFrame] = {}
+        self._expiry_times: dict[CacheKey, float] = {}
+        self._access_times: dict[CacheKey, float] = {}
 
         # Cache statistics
         self.hits = 0
         self.misses = 0
         self.evictions = 0
 
-    def get(self, key: CacheKey) -> Optional[pl.DataFrame]:
+    def get(self, key: CacheKey) -> pl.DataFrame | None:
         """Get cached result if available and not expired."""
         current_time = time.time()
 
@@ -332,9 +329,7 @@ class LazyQueryCache:
         self.misses += 1
         return None
 
-    def set(
-        self, key: CacheKey, value: pl.DataFrame, ttl: Optional[float] = None
-    ) -> None:
+    def set(self, key: CacheKey, value: pl.DataFrame, ttl: float | None = None) -> None:
         """Cache a DataFrame result with TTL."""
         if ttl is None:
             ttl = self.default_ttl
@@ -361,7 +356,7 @@ class LazyQueryCache:
         if not self._access_times:
             return
 
-        lru_key = min(self._access_times.keys(), key=self._access_times.get)
+        lru_key = min(self._access_times.keys(), key=lambda k: self._access_times[k])
         self._remove_entry(lru_key)
         self.evictions += 1
 
@@ -375,7 +370,7 @@ class LazyQueryCache:
         for key in expired_keys:
             self._remove_entry(key)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache performance statistics."""
         total_requests = self.hits + self.misses
         hit_rate = self.hits / total_requests if total_requests > 0 else 0.0
@@ -415,14 +410,17 @@ class LazyDataFrameMixin:
 
     # Type hints for mypy - these attributes are provided by the main class
     if TYPE_CHECKING:
+        from project_x_py.utils.lock_optimization import AsyncRWLock
+
         logger: logging.Logger
         data_lock: Lock
-        data: Dict[str, pl.DataFrame]
+        data_rw_lock: AsyncRWLock
+        data: dict[str, pl.DataFrame]
         timezone: Any
 
         # Optional attributes from other mixins
         async def increment(
-            self, metric: str, value: Union[int, float] = 1
+            self, _metric: str, _value: Union[int, float] = 1
         ) -> None: ...
 
     def __init__(self) -> None:
@@ -447,7 +445,7 @@ class LazyDataFrameMixin:
             "batch_operations_executed": 0,
         }
 
-    async def get_lazy_data(self, timeframe: str) -> Optional[pl.LazyFrame]:
+    async def get_lazy_data(self, timeframe: str) -> pl.LazyFrame | None:
         """
         Get LazyFrame for a specific timeframe to enable lazy operations.
 
@@ -475,9 +473,9 @@ class LazyDataFrameMixin:
     async def apply_lazy_operations(
         self,
         lazy_df: pl.LazyFrame,
-        operations: List[LazyOperation],
+        operations: list[LazyOperation],
         optimize: bool = True,
-    ) -> Optional[pl.DataFrame]:
+    ) -> pl.DataFrame | None:
         """
         Apply a sequence of operations to a LazyFrame with optimization.
 
@@ -528,7 +526,7 @@ class LazyDataFrameMixin:
 
     def _apply_single_lazy_operation(
         self, lazy_df: pl.LazyFrame, operation: str, params: Any
-    ) -> Optional[pl.LazyFrame]:
+    ) -> pl.LazyFrame | None:
         """Apply a single operation to a LazyFrame."""
         try:
             if operation == "filter":
@@ -541,9 +539,7 @@ class LazyDataFrameMixin:
                 else:
                     return lazy_df.with_columns([params])
             elif operation == "sort":
-                if isinstance(params, str):
-                    return lazy_df.sort(params)
-                elif isinstance(params, list):
+                if isinstance(params, str | list):
                     return lazy_df.sort(params)
                 else:
                     return lazy_df.sort(**params)
@@ -576,7 +572,7 @@ class LazyDataFrameMixin:
 
     async def execute_batch_queries(
         self, batch: QueryBatch, use_cache: bool = True
-    ) -> Dict[str, Optional[pl.DataFrame]]:
+    ) -> dict[str, pl.DataFrame | None]:
         """
         Execute multiple queries in a batch for improved performance.
 
@@ -587,8 +583,8 @@ class LazyDataFrameMixin:
         Returns:
             Dictionary mapping timeframe to query results
         """
-        results: Dict[str, Optional[pl.DataFrame]] = {}
-        cache_keys: Dict[str, CacheKey] = {}
+        results: dict[str, pl.DataFrame | None] = {}
+        cache_keys: dict[str, CacheKey] = {}
 
         # Generate cache keys for each query
         if use_cache:
@@ -635,20 +631,20 @@ class LazyDataFrameMixin:
         return results
 
     def _generate_cache_key(
-        self, timeframe: str, operations: List[LazyOperation]
+        self, timeframe: str, operations: list[LazyOperation]
     ) -> CacheKey:
         """Generate a cache key for a query."""
         # Create a deterministic string representation of the query
-        ops_str = "_".join([f"{op}:{str(params)}" for op, params in operations])
+        ops_str = "_".join([f"{op}:{params!s}" for op, params in operations])
         return f"{timeframe}:{hash(ops_str)}"
 
     async def get_optimized_bars(
         self,
         timeframe: str,
-        bars: Optional[int] = None,
-        columns: Optional[List[str]] = None,
-        filters: Optional[List[pl.Expr]] = None,
-    ) -> Optional[pl.DataFrame]:
+        bars: int | None = None,
+        columns: list[str] | None = None,
+        filters: list[pl.Expr] | None = None,
+    ) -> pl.DataFrame | None:
         """
         Get bars with optimized lazy operations.
 
@@ -661,7 +657,7 @@ class LazyDataFrameMixin:
         Returns:
             Optimized DataFrame result
         """
-        operations: List[LazyOperation] = []
+        operations: list[LazyOperation] = []
 
         # Build operation sequence
         if filters:
@@ -683,10 +679,10 @@ class LazyDataFrameMixin:
     async def get_aggregated_data(
         self,
         timeframe: str,
-        group_by: Union[str, List[str]],
-        aggregations: List[pl.Expr],
-        filters: Optional[List[pl.Expr]] = None,
-    ) -> Optional[pl.DataFrame]:
+        group_by: Union[str, list[str]],
+        aggregations: list[pl.Expr],
+        filters: list[pl.Expr] | None = None,
+    ) -> pl.DataFrame | None:
         """
         Get aggregated data using lazy operations.
 
@@ -699,7 +695,7 @@ class LazyDataFrameMixin:
         Returns:
             Aggregated DataFrame result
         """
-        operations: List[LazyOperation] = []
+        operations: list[LazyOperation] = []
 
         # Apply filters first
         if filters:
@@ -718,7 +714,7 @@ class LazyDataFrameMixin:
 
         return await self.apply_lazy_operations(lazy_df, operations)
 
-    async def profile_memory_usage(self) -> Dict[str, Any]:
+    async def profile_memory_usage(self) -> dict[str, Any]:
         """
         Profile memory usage of DataFrame operations.
 
@@ -754,7 +750,7 @@ class LazyDataFrameMixin:
             "gc_objects": len(gc.get_objects()),
         }
 
-    def get_optimization_stats(self) -> Dict[str, Any]:
+    def get_optimization_stats(self) -> dict[str, Any]:
         """
         Get DataFrame optimization performance statistics.
 
@@ -861,10 +857,10 @@ class LazyDataFrameMixin:
 
         return False
 
-    @lru_cache(maxsize=32)
+    @lru_cache(maxsize=32)  # noqa: B019
     def _get_common_query_pattern(
         self, operation_signature: str
-    ) -> Optional[List[LazyOperation]]:
+    ) -> list[LazyOperation] | None:
         """
         Get cached common query patterns for optimization.
 

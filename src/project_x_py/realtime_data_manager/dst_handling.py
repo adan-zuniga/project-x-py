@@ -74,9 +74,12 @@ Trading Considerations:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytz
+
+if TYPE_CHECKING:
+    from pytz.tzinfo import BaseTzInfo
 
 
 class DSTHandlingMixin:
@@ -104,7 +107,17 @@ class DSTHandlingMixin:
     _dst_cache: ClassVar[dict[str, Any]] = {}
     _dst_cache_expiry: ClassVar[dict[str, datetime]] = {}
 
-    def __init__(self, *args, **kwargs):
+    # Type declarations for attributes expected from main class
+    if TYPE_CHECKING:
+        timezone: BaseTzInfo | None
+
+        def _calculate_bar_time(
+            self, _timestamp: datetime, _interval: int, _unit: int
+        ) -> datetime:
+            """Expected method from main class for bar time calculation."""
+            ...
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize DST handling with timezone configuration."""
         super().__init__(*args, **kwargs)
 
@@ -139,20 +152,23 @@ class DSTHandlingMixin:
         if not hasattr(self, "timezone") or self.timezone is None:
             return False
 
+        tz = self.timezone  # Type checker now knows this is not None
+
         # Ensure timestamp is timezone-aware
         if timestamp.tzinfo is None:
-            timestamp = self.timezone.localize(timestamp)
+            timestamp = tz.localize(timestamp)
 
         # Convert to target timezone if needed
-        if timestamp.tzinfo != self.timezone:
-            timestamp = timestamp.astimezone(self.timezone)
+        if timestamp.tzinfo != tz:
+            timestamp = timestamp.astimezone(tz)
 
         # Check cache first (valid for 1 hour)
         cache_key = f"{timestamp.date()}_{timestamp.hour}"
         cache_expiry = self._dst_cache_expiry.get(cache_key)
 
         if cache_expiry and datetime.now() < cache_expiry:
-            return self._dst_cache.get(cache_key, False)
+            cached_result: bool = self._dst_cache.get(cache_key, False)
+            return cached_result
 
         # Perform DST transition check
         is_transition = self._check_dst_transition(timestamp)
@@ -176,6 +192,8 @@ class DSTHandlingMixin:
         try:
             # Get the date for this timestamp (for potential future use)
             # date = timestamp.date()
+            if self.timezone is None:
+                return False
 
             # Check if this timezone observes DST
             if not hasattr(self.timezone, "zone") or self.timezone.zone in [
@@ -220,6 +238,9 @@ class DSTHandlingMixin:
 
             while current <= dec31:
                 try:
+                    if self.timezone is None:
+                        continue
+
                     # Localize to timezone and get UTC offset
                     localized = self.timezone.localize(current)
                     current_offset = localized.utcoffset()
@@ -230,6 +251,9 @@ class DSTHandlingMixin:
                         transition_start = current - timedelta(hours=1)
                         transition_end = current + timedelta(hours=1)
                         transitions.append((transition_start, transition_end))
+
+                        if current_offset is None:
+                            continue
 
                         transition_type = (
                             "Spring Forward"
@@ -286,12 +310,16 @@ class DSTHandlingMixin:
             datetime: DST-aware bar time, or None if time should be skipped
         """
         if not hasattr(self, "timezone") or self.timezone is None:
-            # Fallback to standard calculation
-            return self._calculate_bar_time(timestamp, interval, unit)
+            # Fallback to standard calculation - need to check if this method exists
+            if hasattr(self, "_calculate_bar_time"):
+                return self._calculate_bar_time(timestamp, interval, unit)
+            else:
+                return timestamp  # Simple fallback
 
+        tz = self.timezone
         # Ensure timestamp is timezone-aware
         if timestamp.tzinfo is None:
-            timestamp = self.timezone.localize(timestamp)
+            timestamp = tz.localize(timestamp)
 
         # Check if we're in a DST transition period
         if not self.is_dst_transition_period(timestamp):
@@ -340,7 +368,10 @@ class DSTHandlingMixin:
             try:
                 # Try to localize the time to check if it exists
                 if bar_time.tzinfo is None:
-                    validated = self.timezone.localize(bar_time)
+                    if hasattr(self, "timezone") and self.timezone is not None:
+                        validated = self.timezone.localize(bar_time)
+                    else:
+                        validated = bar_time
                 else:
                     validated = bar_time
 
@@ -355,7 +386,10 @@ class DSTHandlingMixin:
 
             except pytz.AmbiguousTimeError:
                 # Fall back - time exists twice, use DST=False (standard time)
-                validated = self.timezone.localize(bar_time, is_dst=False)
+                if hasattr(self, "timezone") and self.timezone is not None:
+                    validated = self.timezone.localize(bar_time, is_dst=False)
+                else:
+                    validated = bar_time
                 self.dst_logger.info(
                     f"Using standard time for ambiguous DST fall back time: {bar_time}"
                 )
@@ -435,6 +469,7 @@ class DSTHandlingMixin:
         if not hasattr(self, "timezone") or self.timezone is None:
             return None
 
+        tz = self.timezone
         try:
             current_time = datetime.now()
             current_year = current_time.year
@@ -450,14 +485,17 @@ class DSTHandlingMixin:
                         after = transition_end + timedelta(hours=1)
 
                         try:
-                            before_offset = self.timezone.localize(before).utcoffset()
-                            after_offset = self.timezone.localize(after).utcoffset()
+                            before_offset = tz.localize(before).utcoffset()
+                            after_offset = tz.localize(after).utcoffset()
 
-                            transition_type = (
-                                "SPRING_FORWARD"
-                                if after_offset > before_offset
-                                else "FALL_BACK"
-                            )
+                            if before_offset is not None and after_offset is not None:
+                                transition_type = (
+                                    "SPRING_FORWARD"
+                                    if after_offset > before_offset
+                                    else "FALL_BACK"
+                                )
+                            else:
+                                transition_type = "UNKNOWN"
                             return (transition_start, transition_type)
 
                         except Exception:

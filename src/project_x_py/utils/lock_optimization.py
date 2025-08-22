@@ -94,12 +94,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from threading import RLock
-from typing import Any, Generic, TypeVar
+from typing import Any
 from weakref import WeakSet
 
 from project_x_py.utils import ProjectXLogger
-
-T = TypeVar("T")
 
 logger = ProjectXLogger.get_logger(__name__)
 
@@ -338,7 +336,7 @@ class AsyncRWLock:
         return self._reader_count
 
 
-class LockFreeBuffer(Generic[T]):
+class LockFreeBuffer[T]:
     """
     Lock-free circular buffer for high-frequency data operations.
 
@@ -457,10 +455,7 @@ class LockFreeBuffer(Generic[T]):
             List of oldest items (oldest first)
         """
         with self._lock:
-            if count is None:
-                items = list(self._buffer)
-            else:
-                items = list(self._buffer)[:count]
+            items = list(self._buffer) if count is None else list(self._buffer)[:count]
 
             self._total_reads += 1
             return items

@@ -44,7 +44,7 @@ Key Metrics:
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 import polars as pl
 
@@ -53,7 +53,6 @@ from project_x_py.utils.lock_optimization import (
     AsyncRWLock,
     LockFreeBuffer,
     LockProfiler,
-    get_global_lock_profiler,
 )
 
 logger = ProjectXLogger.get_logger(__name__)
@@ -123,7 +122,7 @@ class LockBenchmarker:
 
     def __init__(self):
         self.profiler = LockProfiler()
-        self.results: List[BenchmarkResult] = []
+        self.results: list[BenchmarkResult] = []
 
     async def benchmark_regular_lock(
         self,
@@ -242,10 +241,12 @@ class LockBenchmarker:
             p99_latency = latencies[int(len(latencies) * 0.99)]
 
             # Calculate contention (operations taking >5ms considered contended)
-            contended_ops = len([l for l in latencies if l > 5.0])
+            contended_ops = len([latency for latency in latencies if latency > 5.0])
             contention_rate = (contended_ops / len(latencies)) * 100
 
-            total_wait_time = sum([max(0, l - operation_delay_ms) for l in latencies])
+            total_wait_time = sum(
+                [max(0, latency - operation_delay_ms) for latency in latencies]
+            )
         else:
             avg_latency = min_latency = max_latency = p95_latency = p99_latency = 0.0
             contention_rate = total_wait_time = 0.0
@@ -437,7 +438,7 @@ class LockBenchmarker:
             f"Benchmarking LockFreeBuffer: {writer_count}W/{reader_count}R for {duration_seconds}s"
         )
 
-        buffer = LockFreeBuffer[Dict[str, Any]](max_size=buffer_size)
+        buffer = LockFreeBuffer[dict[str, Any]](max_size=buffer_size)
         operations = []
         start_time = time.time()
         errors = 0
@@ -838,7 +839,7 @@ if __name__ == "__main__":
     async def main():
         results = await run_full_benchmark_suite()
         print(results["report"])
-        print(f"\nSummary:")
+        print("\nSummary:")
         print(
             f"- Lock Optimization Improvement: {results['summary']['throughput_improvement']:.2f}x"
         )

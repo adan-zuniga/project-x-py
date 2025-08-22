@@ -523,17 +523,28 @@ class DataAccessMixin:
             ...     # Safe to start trading logic
             ...     strategy.start()
         """
-        async with self.data_lock:
-            if timeframe:
-                # Check specific timeframe
-                if timeframe not in self.data:
-                    return False
-                return len(self.data[timeframe]) >= min_bars
-            else:
-                # Check all timeframes
-                if not self.data:
-                    return False
-                return all(len(df) >= min_bars for df in self.data.values())
+        # Handle both Lock and AsyncRWLock types
+        from project_x_py.utils.lock_optimization import AsyncRWLock
+
+        if isinstance(self.data_lock, AsyncRWLock):
+            async with self.data_lock.read_lock():
+                return await self._check_data_readiness(timeframe, min_bars)
+        else:
+            async with self.data_lock:
+                return await self._check_data_readiness(timeframe, min_bars)
+
+    async def _check_data_readiness(self, timeframe: str | None, min_bars: int) -> bool:
+        """Check if data is ready for trading."""
+        if timeframe:
+            # Check specific timeframe
+            if timeframe not in self.data:
+                return False
+            return len(self.data[timeframe]) >= min_bars
+        else:
+            # Check all timeframes
+            if not self.data:
+                return False
+            return all(len(df) >= min_bars for df in self.data.values())
 
     async def get_bars_since(
         self,

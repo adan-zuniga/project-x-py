@@ -470,7 +470,7 @@ class RealtimeDataManagerProtocol(Protocol):
     last_bar_times: dict[str, datetime.datetime]
 
     # Synchronization
-    data_lock: asyncio.Lock
+    data_lock: "asyncio.Lock | Any"  # Can be Lock or AsyncRWLock
     is_running: bool
     indicator_cache: defaultdict[str, dict[str, Any]]
 

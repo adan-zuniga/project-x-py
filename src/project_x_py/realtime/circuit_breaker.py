@@ -333,7 +333,7 @@ class CircuitBreaker:
     async def call(
         self,
         event_type: str,
-        func: Callable[..., Coroutine[Any, Any, None]],
+        func: Callable[..., Coroutine[Any, Any, Any]],
         *args: Any,
         **kwargs: Any,
     ) -> Any:
@@ -368,6 +368,10 @@ class CircuitBreaker:
             result = await asyncio.wait_for(
                 func(*args, **kwargs), timeout=self.config.timeout_seconds
             )
+
+            if result is None:
+                # Handle case where function doesn't return a value
+                pass
 
             response_time = time.time() - start_time
 
@@ -449,7 +453,7 @@ class CircuitBreaker:
             f"Recovery timeout: {self._get_recovery_timeout():.1f}s"
         )
 
-    async def _handle_failure(self, event_type: str, error: str) -> None:
+    async def _handle_failure(self, _event_type: str, _error: str) -> None:
         """Handle a failure and potentially trip the circuit."""
         self.last_failure_time = time.time()
 
@@ -582,7 +586,7 @@ class CircuitBreakerMixin(TaskManagerMixin):
         callbacks: dict[str, list[Callable[..., Any]]]
 
         async def _trigger_callbacks(
-            self, event_type: str, data: dict[str, Any]
+            self, _event_type: str, _data: dict[str, Any]
         ) -> None: ...
 
     def __init__(self) -> None:
@@ -615,7 +619,7 @@ class CircuitBreakerMixin(TaskManagerMixin):
         max_recovery_time: float = 300.0,
         slow_call_threshold: float = 2.0,
         enable_global_circuit: bool = True,
-        enable_per_event_circuits: bool = True,
+        _enable_per_event_circuits: bool = True,
     ) -> None:
         """
         Configure circuit breaker settings.
@@ -825,7 +829,7 @@ class CircuitBreakerMixin(TaskManagerMixin):
 
     async def get_all_circuit_breaker_metrics(self) -> dict[str, Any]:
         """Get metrics for all circuit breakers."""
-        metrics = {
+        metrics: dict[str, Any] = {
             "enabled": self._circuit_breaker_enabled,
             "global": None,
             "per_event": {},

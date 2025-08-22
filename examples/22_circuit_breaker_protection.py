@@ -22,11 +22,9 @@ import asyncio
 import logging
 from typing import Any
 
-from project_x_py import TradingSuite
 from project_x_py.realtime.circuit_breaker import (
     CircuitBreakerError,
     CircuitBreakerMixin,
-    CircuitState,
 )
 from project_x_py.realtime.event_handling import EventHandlingMixin
 
@@ -129,15 +127,15 @@ async def setup_fallback_handlers(handler: ProtectedEventHandler) -> None:
     in a simplified way when the main processing is failing.
     """
 
-    async def quote_fallback(*args, **kwargs) -> None:
+    async def quote_fallback(*_args, **_kwargs) -> None:
         """Fallback handler for quote updates - just log the event."""
         logger.info("FALLBACK: Quote update processed with minimal logging")
 
-    async def order_fallback(*args, **kwargs) -> None:
+    async def order_fallback(*_args, **_kwargs) -> None:
         """Fallback handler for order updates - cache for later processing."""
         logger.info("FALLBACK: Order update cached for later processing")
 
-    async def position_fallback(*args, **kwargs) -> None:
+    async def position_fallback(*_args, **_kwargs) -> None:
         """Fallback handler for position updates - send alert only."""
         logger.warning("FALLBACK: Position update - sending alert to monitoring system")
 
@@ -253,9 +251,9 @@ async def demonstrate_circuit_breaker() -> None:
     logger.info(f"Final Success Rate: {stats['success_rate']:.1f}%")
 
     # Show detailed circuit breaker metrics
-    if "global" in all_metrics and all_metrics["global"]:
-        global_metrics = all_metrics["global"]
-        logger.info(f"Circuit Breaker Metrics:")
+    global_metrics = all_metrics.get("global")
+    if global_metrics:
+        logger.info("Circuit Breaker Metrics:")
         logger.info(f"  - Total Calls: {global_metrics.get('total_calls', 0)}")
         logger.info(f"  - Total Failures: {global_metrics.get('total_failures', 0)}")
         logger.info(f"  - Total Timeouts: {global_metrics.get('total_timeouts', 0)}")
@@ -284,7 +282,6 @@ async def demonstrate_per_event_circuits() -> None:
         failure_threshold=2,
         time_window_seconds=10.0,
         enable_global_circuit=False,
-        enable_per_event_circuits=True,
     )
 
     logger.info("Configured per-event circuit breakers")
@@ -334,7 +331,7 @@ async def demonstrate_per_event_circuits() -> None:
         )
 
 
-async def demonstrate_real_world_integration() -> None:
+async def demonstrate_real_world_integration():
     """
     Demonstrate how circuit breaker would integrate with TradingSuite.
 
@@ -392,7 +389,7 @@ async def demonstrate_real_world_integration() -> None:
     )
 
     # Set up fallback for position updates
-    async def position_fallback(event_type: str, data: dict[str, Any]) -> None:
+    async def position_fallback(_event_type: str, data: dict[str, Any]) -> None:
         logger.warning(f"FALLBACK: Position update queued for retry: {data}")
 
     await handler.set_circuit_breaker_fallback("position_update", position_fallback)
@@ -421,7 +418,7 @@ async def demonstrate_real_world_integration() -> None:
     logger.info(f"Position updates processed: {len(handler.position_updates)}")
     logger.info(f"Order updates processed: {len(handler.order_updates)}")
 
-    metrics = await handler.get_all_circuit_breaker_metrics()
+    await handler.get_all_circuit_breaker_metrics()
     logger.info("Real-world integration demo completed!")
 
     return handler

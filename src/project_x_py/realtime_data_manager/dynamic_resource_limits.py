@@ -88,11 +88,10 @@ See Also:
 import asyncio
 import logging
 import os
-import sys
 import time
-from collections import defaultdict, deque
+from collections import deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 try:
     import psutil
@@ -102,11 +101,15 @@ except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
 
+import contextlib
+
 from project_x_py.utils.task_management import TaskManagerMixin
 
 if TYPE_CHECKING:
     from asyncio import Lock
-    from typing import Callable
+    from collections.abc import Callable
+
+    from project_x_py.utils.lock_optimization import AsyncRWLock
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +179,8 @@ class ResourceConfig:
     pressure_history_size: int = 10  # Number of pressure readings to keep
 
     # Manual overrides
-    manual_overrides: Dict[str, Any] = field(default_factory=dict)
-    override_expiry: Optional[float] = None  # Override expiry timestamp
+    manual_overrides: dict[str, Any] = field(default_factory=dict)
+    override_expiry: float | None = None  # Override expiry timestamp
 
 
 class DynamicResourceMixin(TaskManagerMixin):
@@ -195,11 +198,9 @@ class DynamicResourceMixin(TaskManagerMixin):
         max_bars_per_timeframe: int
         tick_buffer_size: int
         memory_stats: dict[str, Any]
-        data_lock: Lock
+        data_lock: "Lock | AsyncRWLock"
+        data_rw_lock: AsyncRWLock
         is_running: bool
-
-        # Optional callback for resource limit changes
-        _resource_change_callbacks: list[Callable[[ResourceLimits], None]]
 
     def __init__(self) -> None:
         """Initialize dynamic resource management."""
@@ -207,9 +208,9 @@ class DynamicResourceMixin(TaskManagerMixin):
 
         # Resource monitoring
         self._resource_config = ResourceConfig()
-        self._current_limits: Optional[ResourceLimits] = None
-        self._system_resources: Optional[SystemResources] = None
-        self._monitoring_task: Optional[asyncio.Task] = None
+        self._current_limits: ResourceLimits | None = None
+        self._system_resources: SystemResources | None = None
+        self._monitoring_task: asyncio.Task[None] | None = None
 
         # Resource history for trend analysis
         self._memory_pressure_history: deque[float] = deque(
@@ -233,7 +234,9 @@ class DynamicResourceMixin(TaskManagerMixin):
         self._resource_change_callbacks: list[Callable[[ResourceLimits], None]] = []
 
         # Process reference for monitoring
-        self._process = psutil.Process() if PSUTIL_AVAILABLE else None
+        self._process = (
+            psutil.Process() if PSUTIL_AVAILABLE and psutil is not None else None
+        )
 
         # Fallback system info if psutil unavailable
         if not PSUTIL_AVAILABLE:
@@ -244,10 +247,10 @@ class DynamicResourceMixin(TaskManagerMixin):
 
     def configure_dynamic_resources(
         self,
-        memory_target_percent: Optional[float] = None,
-        memory_pressure_threshold: Optional[float] = None,
-        cpu_pressure_threshold: Optional[float] = None,
-        monitoring_interval: Optional[float] = None,
+        memory_target_percent: float | None = None,
+        memory_pressure_threshold: float | None = None,
+        cpu_pressure_threshold: float | None = None,
+        monitoring_interval: float | None = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -301,6 +304,9 @@ class DynamicResourceMixin(TaskManagerMixin):
             return await self._get_fallback_resources()
 
         try:
+            if not PSUTIL_AVAILABLE or psutil is None:
+                raise ImportError("psutil not available")
+
             # System memory
             memory = psutil.virtual_memory()
 
@@ -309,9 +315,13 @@ class DynamicResourceMixin(TaskManagerMixin):
             cpu_percent = psutil.cpu_percent(interval=0.1) or 0.0
 
             # Process-specific resources
-            process_info = self._process.memory_info()
-            process_memory_mb = process_info.rss / (1024 * 1024)
-            process_cpu_percent = self._process.cpu_percent() or 0.0
+            if self._process is not None:
+                process_info = self._process.memory_info()
+                process_memory_mb = process_info.rss / (1024 * 1024)
+                process_cpu_percent = self._process.cpu_percent() or 0.0
+            else:
+                process_memory_mb = 0.0
+                process_cpu_percent = 0.0
 
             return SystemResources(
                 total_memory_mb=memory.total / (1024 * 1024),
@@ -619,7 +629,7 @@ class DynamicResourceMixin(TaskManagerMixin):
         )
 
     async def override_resource_limits(
-        self, overrides: Dict[str, Any], duration_seconds: Optional[float] = None
+        self, overrides: dict[str, Any], duration_seconds: float | None = None
     ) -> None:
         """
         Manually override resource limits for production tuning.
@@ -675,7 +685,7 @@ class DynamicResourceMixin(TaskManagerMixin):
         if callback in self._resource_change_callbacks:
             self._resource_change_callbacks.remove(callback)
 
-    async def get_resource_stats(self) -> Dict[str, Any]:
+    async def get_resource_stats(self) -> dict[str, Any]:
         """
         Get comprehensive resource management statistics.
 
@@ -761,9 +771,7 @@ class DynamicResourceMixin(TaskManagerMixin):
         """Stop the background resource monitoring task."""
         if self._monitoring_task and not self._monitoring_task.done():
             self._monitoring_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitoring_task
-            except asyncio.CancelledError:
-                pass
             self._monitoring_task = None
             self.logger.info("Stopped dynamic resource monitoring")

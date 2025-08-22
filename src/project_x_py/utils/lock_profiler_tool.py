@@ -48,10 +48,9 @@ import argparse
 import ast
 import asyncio
 import json
-import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from project_x_py.utils import ProjectXLogger
 from project_x_py.utils.lock_optimization import (
@@ -75,14 +74,14 @@ class LockAnalyzer:
             "self.orderbook_lock": "Orderbook access lock",
             "self._callback_lock": "Callback registration lock",
             "async with": "Context manager lock usage",
-            "await.*\.acquire()": "Manual lock acquisition",
+            r"await.*\.acquire()": "Manual lock acquisition",
             "Lock()": "Lock instantiation",
         }
 
-    def analyze_file(self, file_path: Path) -> Dict[str, Any]:
+    def analyze_file(self, file_path: Path) -> dict[str, Any]:
         """Analyze a single Python file for lock usage."""
         try:
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 content = f.read()
 
             # Parse AST to find lock-related patterns
@@ -113,9 +112,8 @@ class LockAnalyzer:
                     if isinstance(node.func, ast.Attribute):
                         if node.func.attr == "Lock":
                             lock_creation_count += 1
-                    elif isinstance(node.func, ast.Name):
-                        if node.func.id == "Lock":
-                            lock_creation_count += 1
+                    elif isinstance(node.func, ast.Name) and node.func.id == "Lock":
+                        lock_creation_count += 1
 
             return {
                 "file": str(file_path.relative_to(self.base_path)),
@@ -129,7 +127,7 @@ class LockAnalyzer:
             logger.error(f"Error analyzing {file_path}: {e}")
             return {"file": str(file_path.relative_to(self.base_path)), "error": str(e)}
 
-    def analyze_directory(self) -> Dict[str, Any]:
+    def analyze_directory(self) -> dict[str, Any]:
         """Analyze entire directory for lock usage patterns."""
         results = []
         python_files = list(self.base_path.rglob("*.py"))
@@ -181,7 +179,7 @@ class LockContentionSimulator:
         duration_seconds: float = 30,
         reader_count: int = 10,
         writer_count: int = 2,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Simulate read-heavy workload to compare lock performance."""
 
         logger.info(f"Simulating read-heavy workload for {duration_seconds}s")
@@ -203,7 +201,7 @@ class LockContentionSimulator:
 
         start_time = time.time()
 
-        async def regular_lock_reader(reader_id: int):
+        async def regular_lock_reader(_reader_id: int):
             """Simulate reader using regular lock."""
             operations = 0
             while time.time() - start_time < duration_seconds:
@@ -224,7 +222,7 @@ class LockContentionSimulator:
 
             regular_lock_stats["total_operations"] += operations
 
-        async def regular_lock_writer(writer_id: int):
+        async def regular_lock_writer(_writer_id: int):
             """Simulate writer using regular lock."""
             while time.time() - start_time < duration_seconds:
                 op_start = time.time()
@@ -241,7 +239,7 @@ class LockContentionSimulator:
 
                 await asyncio.sleep(0.1)  # 100ms between writes
 
-        async def rw_lock_reader(reader_id: int):
+        async def rw_lock_reader(_reader_id: int):
             """Simulate reader using RW lock."""
             operations = 0
             while time.time() - start_time < duration_seconds:
@@ -262,7 +260,7 @@ class LockContentionSimulator:
 
             rw_lock_stats["read_operations"] += operations
 
-        async def rw_lock_writer(writer_id: int):
+        async def rw_lock_writer(_writer_id: int):
             """Simulate writer using RW lock."""
             operations = 0
             while time.time() - start_time < duration_seconds:
@@ -351,7 +349,7 @@ class OptimizationRecommendations:
     """Generates optimization recommendations based on analysis."""
 
     @staticmethod
-    def analyze_lock_patterns(analysis_results: Dict[str, Any]) -> List[Dict[str, str]]:
+    def analyze_lock_patterns(analysis_results: dict[str, Any]) -> list[dict[str, str]]:
         """Generate optimization recommendations from static analysis."""
         recommendations = []
 
@@ -397,8 +395,8 @@ class OptimizationRecommendations:
 
     @staticmethod
     def analyze_contention_stats(
-        contention_stats: Dict[str, Any],
-    ) -> List[Dict[str, str]]:
+        contention_stats: dict[str, Any],
+    ) -> list[dict[str, str]]:
         """Generate recommendations from runtime contention statistics."""
         recommendations = []
 
@@ -439,7 +437,7 @@ class OptimizationRecommendations:
         return recommendations
 
 
-async def profile_locks(duration: float = 60) -> Dict[str, Any]:
+async def profile_locks(duration: float = 60) -> dict[str, Any]:
     """Profile lock usage in the application."""
     logger.info(f"Profiling locks for {duration} seconds...")
 
@@ -466,7 +464,7 @@ async def profile_locks(duration: float = 60) -> Dict[str, Any]:
     }
 
 
-def analyze_codebase(path: Path) -> Dict[str, Any]:
+def analyze_codebase(path: Path) -> dict[str, Any]:
     """Analyze codebase for lock usage patterns."""
     logger.info(f"Analyzing codebase at {path}")
 
@@ -481,7 +479,7 @@ def analyze_codebase(path: Path) -> Dict[str, Any]:
     return {"analysis_results": analysis_results, "recommendations": recommendations}
 
 
-async def generate_report(output_path: Path | None = None) -> Dict[str, Any]:
+async def generate_report(output_path: Path | None = None) -> dict[str, Any]:
     """Generate comprehensive lock optimization report."""
     logger.info("Generating comprehensive lock optimization report...")
 
@@ -534,7 +532,7 @@ async def generate_report(output_path: Path | None = None) -> Dict[str, Any]:
     return report
 
 
-def print_report_summary(report: Dict[str, Any]) -> None:
+def print_report_summary(report: dict[str, Any]) -> None:
     """Print a human-readable summary of the report."""
     print("\n" + "=" * 60)
     print("LOCK CONTENTION ANALYSIS REPORT")

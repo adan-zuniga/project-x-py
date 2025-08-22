@@ -212,6 +212,16 @@ class DataValidationMixin:
     enhances the existing ValidationMixin with comprehensive sanity checks.
     """
 
+    # Type hints for methods that may be provided by other mixins
+    if TYPE_CHECKING:
+
+        def _parse_and_validate_quote_payload(
+            self, _quote_data: Any
+        ) -> dict[str, Any] | None: ...
+        def _parse_and_validate_trade_payload(
+            self, _trade_data: Any
+        ) -> dict[str, Any] | None: ...
+
     def __init__(self) -> None:
         """Initialize enhanced data validation system."""
         super().__init__()
@@ -410,9 +420,10 @@ class DataValidationMixin:
 
             # Validate individual prices
             for price, name in [(bid_price, "bid"), (ask_price, "ask"), (last, "last")]:
-                if price is not None:
-                    if not await self._validate_price_value(price, name):
-                        return False
+                if price is not None and not await self._validate_price_value(
+                    price, name
+                ):
+                    return False
 
             # Validate bid/ask relationship
             if bid_price is not None and ask_price is not None:
@@ -676,7 +687,7 @@ class DataValidationMixin:
             logger.warning(f"Timestamp validation error: {e}")
             return False
 
-    async def _validate_spread(self, quote_data: dict[str, Any]) -> bool:
+    async def _validate_spread(self, _quote_data: dict[str, Any]) -> bool:
         """Validate bid/ask spread for reasonableness."""
         if not self._validation_config.enable_spread_validation:
             return True

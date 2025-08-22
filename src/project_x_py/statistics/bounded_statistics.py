@@ -56,6 +56,7 @@ See Also:
 """
 
 import asyncio
+import contextlib
 import math
 import time
 from collections import defaultdict, deque
@@ -545,17 +546,13 @@ class CleanupScheduler:
         # Cancel tasks
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
 
         if self._memory_task and not self._memory_task.done():
             self._memory_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._memory_task
-            except asyncio.CancelledError:
-                pass
 
         self.logger.info("Cleanup scheduler stopped")
 
@@ -854,7 +851,7 @@ class BoundedStatisticsMixin:
         # Counter memory usage
         async with self._counter_lock:
             counter_bytes = 0
-            for name, counter in self._bounded_counters.items():
+            for _name, counter in self._bounded_counters.items():
                 counter_stats = await counter.get_statistics()
                 counter_bytes += counter_stats.get("memory_usage_bytes", 0)
             component_usage["counters"] = counter_bytes
@@ -863,7 +860,7 @@ class BoundedStatisticsMixin:
         # Timing buffer memory usage
         async with self._timing_lock:
             timing_bytes = 0
-            for name, buffer in self._timing_buffers.items():
+            for _name, buffer in self._timing_buffers.items():
                 timing_stats = await buffer.get_statistics()
                 timing_bytes += timing_stats.get("memory_usage_bytes", 0)
             component_usage["timing"] = timing_bytes
@@ -872,7 +869,7 @@ class BoundedStatisticsMixin:
         # Gauge memory usage
         async with self._gauge_lock:
             gauge_bytes = 0
-            for name, buffer in self._bounded_gauges.items():
+            for _name, buffer in self._bounded_gauges.items():
                 gauge_stats = await buffer.get_statistics()
                 gauge_bytes += gauge_stats.get("memory_usage_bytes", 0)
             component_usage["gauges"] = gauge_bytes

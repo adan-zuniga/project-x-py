@@ -229,6 +229,8 @@ class RealtimeDataManagerStats(TypedDict):
     # Overflow handling
     overflow_stats: dict[str, Any]
     buffer_overflow_stats: dict[str, Any]
+    # Lock optimization
+    lock_optimization_stats: dict[str, Any]
 
 
 class OrderbookStats(TypedDict):

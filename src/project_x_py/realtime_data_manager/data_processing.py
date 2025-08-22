@@ -104,6 +104,8 @@ if TYPE_CHECKING:
 
     from pytz import BaseTzInfo
 
+    from project_x_py.utils.lock_optimization import AsyncRWLock
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,9 +132,11 @@ class DataProcessingMixin:
     # Type hints for mypy - these attributes are provided by the main class
     tick_size: float
     if TYPE_CHECKING:
+        from project_x_py.utils.lock_optimization import AsyncRWLock
+
         logger: logging.Logger
         timezone: BaseTzInfo
-        data_lock: Lock
+        data_lock: "Lock | AsyncRWLock"
         current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         timeframes: dict[str, dict[str, Any]]
         data: dict[str, pl.DataFrame]
@@ -142,26 +146,35 @@ class DataProcessingMixin:
 
         # Methods from other mixins/main class
         def _parse_and_validate_quote_payload(
-            self, quote_data: Any
+            self, _quote_data: Any
         ) -> dict[str, Any] | None: ...
         def _parse_and_validate_trade_payload(
-            self, trade_data: Any
+            self, _trade_data: Any
         ) -> dict[str, Any] | None: ...
-        def _symbol_matches_instrument(self, symbol: str) -> bool: ...
+        def handle_dst_bar_time(
+            self, _timestamp: datetime, _interval: int, _unit: int
+        ) -> datetime | None: ...
+        def log_dst_event(
+            self, _event_type: str, _timestamp: datetime, _message: str
+        ) -> None: ...
+        def _symbol_matches_instrument(self, _symbol: str) -> bool: ...
         async def _trigger_callbacks(
-            self, event_type: str, data: dict[str, Any]
+            self, _event_type: str, _data: dict[str, Any]
         ) -> None: ...
         async def _cleanup_old_data(self) -> None: ...
         async def track_error(
-            self, error: Exception, context: str, details: dict[str, Any] | None = None
+            self,
+            _error: Exception,
+            _context: str,
+            _details: dict[str, Any] | None = None,
         ) -> None: ...
-        async def increment(self, metric: str, value: int | float = 1) -> None: ...
-        async def track_bar_created(self, timeframe: str) -> None: ...
-        async def track_bar_updated(self, timeframe: str) -> None: ...
+        async def increment(self, _metric: str, _value: int | float = 1) -> None: ...
+        async def track_bar_created(self, _timeframe: str) -> None: ...
+        async def track_bar_updated(self, _timeframe: str) -> None: ...
         async def track_quote_processed(self) -> None: ...
         async def track_trade_processed(self) -> None: ...
         async def track_tick_processed(self) -> None: ...
-        async def record_timing(self, metric: str, duration_ms: float) -> None: ...
+        async def record_timing(self, _metric: str, _duration_ms: float) -> None: ...
 
     def __init__(self) -> None:
         """Initialize data processing with fine-grained locking."""
@@ -405,8 +418,17 @@ class DataProcessingMixin:
             self._last_update_times["global"] = current_time
 
             # Add to current tick data for get_current_price() (global lock for this)
-            async with self.data_lock:
-                self.current_tick_data.append(tick)
+            # Handle both Lock and AsyncRWLock types
+            from project_x_py.utils.lock_optimization import AsyncRWLock
+
+            if isinstance(self.data_lock, AsyncRWLock):
+                # AsyncRWLock - use write_lock for modifying data
+                async with self.data_lock.write_lock():
+                    self.current_tick_data.append(tick)
+            else:
+                # Regular Lock - use directly
+                async with self.data_lock:
+                    self.current_tick_data.append(tick)
 
             # Process each timeframe with fine-grained locking and atomic operations
             successful_updates = []
@@ -445,7 +467,7 @@ class DataProcessingMixin:
                 )
 
             # Trigger callbacks for data updates (outside the locks, non-blocking)
-            asyncio.create_task(  # noqa: RUF006
+            asyncio.create_task(
                 self._trigger_callbacks(
                     "data_update",
                     {"timestamp": timestamp, "price": price, "volume": volume},
@@ -454,8 +476,7 @@ class DataProcessingMixin:
 
             # Trigger any new bar events (outside the locks, non-blocking)
             for event in events_to_trigger:
-                asyncio.create_task(self._trigger_callbacks("new_bar", event))  # noqa: RUF006
-
+                asyncio.create_task(self._trigger_callbacks("new_bar", event))
             # Update memory stats and periodic cleanup
             self.memory_stats["ticks_processed"] += 1
             await self._cleanup_old_data()
