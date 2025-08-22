@@ -22,7 +22,6 @@ Usage:
 
 import asyncio
 import logging
-from decimal import Decimal
 
 from project_x_py import TradingSuite
 from project_x_py.exceptions import ProjectXOrderError
@@ -42,7 +41,7 @@ async def demonstrate_bracket_order_recovery():
             initial_days=1,
         )
 
-        print(f"   ✓ Connected to MNQ")
+        print("   ✓ Connected to MNQ")
         print(f"   ✓ Current price: ${await suite.data.get_current_price():.2f}\n")
 
         # Get current price for realistic order placement
@@ -72,7 +71,7 @@ async def demonstrate_bracket_order_recovery():
             )
 
             if bracket_response.success:
-                print(f"   ✓ Bracket order placed successfully!")
+                print("   ✓ Bracket order placed successfully!")
                 print(f"     Entry Order ID: {bracket_response.entry_order_id}")
                 print(f"     Stop Order ID: {bracket_response.stop_order_id}")
                 print(f"     Target Order ID: {bracket_response.target_order_id}")
@@ -143,7 +142,7 @@ async def demonstrate_position_order_recovery():
             initial_days=1,
         )
 
-        print(f"Connected to MES")
+        print("Connected to MES")
         current_price = await suite.data.get_current_price()
         print(f"Current price: ${current_price:.2f}\n")
 
@@ -162,7 +161,7 @@ async def demonstrate_position_order_recovery():
                 suite.instrument_id
             )
 
-            print(f"   Cancellation results:")
+            print("   Cancellation results:")
             print(f"     Entry orders: {cancel_results.get('entry', 0)}")
             print(f"     Stop orders: {cancel_results.get('stop', 0)}")
             print(f"     Target orders: {cancel_results.get('target', 0)}")

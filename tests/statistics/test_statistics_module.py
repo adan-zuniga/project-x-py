@@ -22,7 +22,7 @@ import asyncio
 import json
 import time
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -31,17 +31,13 @@ from project_x_py.statistics.base import (
     BaseStatisticsTracker,
     ErrorInfo,
     PerformanceMetrics,
-    StatisticsProvider,
 )
 from project_x_py.statistics.collector import ComponentCollector
 from project_x_py.statistics.export import StatsExporter
 from project_x_py.statistics.health import (
     AlertLevel,
-    HealthAlert,
     HealthMonitor,
-    HealthThresholds,
 )
-from project_x_py.types.stats_types import ComponentStats
 
 
 class TestErrorInfo:

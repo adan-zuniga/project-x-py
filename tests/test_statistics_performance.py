@@ -8,8 +8,6 @@ to ensure it meets the < 2% CPU overhead and < 5% memory overhead targets.
 import asyncio
 import gc
 import time
-from datetime import datetime
-from typing import Any
 
 import pytest
 
@@ -169,7 +167,7 @@ class TestStatisticsPerformance:
 
         # Execute many more operations than buffer size (default 1000)
         for i in range(5000):
-            await component.track_operation(f"buffer_test", float(i % 100))
+            await component.track_operation("buffer_test", float(i % 100))
 
         # Check memory after many operations
         mid_stats = await component.get_enhanced_memory_stats()
@@ -177,7 +175,7 @@ class TestStatisticsPerformance:
 
         # Execute many more operations
         for i in range(5000, 10000):
-            await component.track_operation(f"buffer_test", float(i % 100))
+            await component.track_operation("buffer_test", float(i % 100))
 
         # Check final memory
         final_stats = await component.get_enhanced_memory_stats()
@@ -249,7 +247,7 @@ class TestStatisticsPerformance:
 
         suite = MockSuite()
         aggregator = StatisticsAggregator()
-        
+
         # Register components with the aggregator
         await aggregator.register_component("orders", suite.orders)
         await aggregator.register_component("positions", suite.positions)
@@ -288,7 +286,7 @@ class TestStatisticsPerformance:
 
         # Fill up statistics
         for i in range(1000):
-            await component.track_operation(f"cleanup_test", float(i))
+            await component.track_operation("cleanup_test", float(i))
             if i % 10 == 0:
                 await component.track_error(Exception(f"Error {i}"), f"context_{i}")
 

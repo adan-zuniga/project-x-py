@@ -1,10 +1,9 @@
 """Simplified tests for the authentication module of ProjectX client."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock
 
-import jwt
 import pytest
 
 from project_x_py.client.auth import AuthenticationMixin

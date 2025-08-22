@@ -99,6 +99,7 @@ from typing import TYPE_CHECKING, Any
 
 from project_x_py.realtime.connection_management import ConnectionManagementMixin
 from project_x_py.realtime.event_handling import EventHandlingMixin
+from project_x_py.realtime.health_monitoring import HealthMonitoringMixin
 from project_x_py.realtime.subscriptions import SubscriptionsMixin
 from project_x_py.types.base import HubConnection
 from project_x_py.utils.task_management import TaskManagerMixin
@@ -110,6 +111,7 @@ if TYPE_CHECKING:
 class ProjectXRealtimeClient(
     ConnectionManagementMixin,
     EventHandlingMixin,
+    HealthMonitoringMixin,
     SubscriptionsMixin,
     TaskManagerMixin,
 ):
@@ -128,18 +130,22 @@ class ProjectXRealtimeClient(
         - **Deadlock Prevention**: Timeout-based token refresh with state recovery
         - **Memory Leak Protection**: WeakSet-based task tracking prevents accumulation
         - **Connection Recovery**: Automatic rollback to stable state on failures
+        - **Health Monitoring**: Comprehensive connection health tracking and automatic recovery
 
     Features:
         - Async SignalR WebSocket connections to ProjectX Gateway hubs
         - Event forwarding to registered async managers
         - Automatic reconnection with exponential backoff
         - JWT token refresh and reconnection with deadlock prevention
-        - Connection health monitoring
+        - **Real-time connection health monitoring with heartbeat mechanism**
+        - **Latency tracking and performance metrics**
+        - **Automatic reconnection based on health thresholds**
         - Async event callbacks
         - Thread-safe event processing and callback execution
         - Comprehensive connection statistics and health tracking
         - **NEW**: Centralized task management prevents memory leaks
         - **NEW**: Connection state recovery on failures
+        - **NEW**: Health-based automatic reconnection triggers
 
     Architecture:
         - Pure event forwarding (no business logic)
@@ -156,10 +162,13 @@ class ProjectXRealtimeClient(
     Connection Management:
         - Dual-hub SignalR connections with automatic reconnection
         - JWT token authentication via URL query parameter (required by ProjectX Gateway)
-        - Connection health monitoring and error handling
+        - **Real-time health monitoring with heartbeat latency tracking**
+        - **Automatic health-based reconnection when performance degrades**
+        - Connection error handling and performance metrics
         - Thread-safe operations with proper lock management
         - **NEW**: Timeout-based operations prevent indefinite blocking
         - **NEW**: Connection state recovery preserves subscriptions
+        - **NEW**: Health thresholds trigger automatic recovery
 
     Event Processing:
         - Cross-thread event scheduling for asyncio compatibility
@@ -184,6 +193,19 @@ class ProjectXRealtimeClient(
         >>> task_stats = suite.realtime_client.get_task_stats()
         >>> print(f"Active tasks: {task_stats['pending_tasks']}")
         >>> print(f"Failed tasks: {task_stats['failed_tasks']}")
+        >>>
+        >>> # V3.3.1: Health monitoring (NEW)
+        >>> health_status = await suite.realtime_client.get_health_status()
+        >>> print(f"Health Score: {health_status['health_score']}/100")
+        >>> print(f"User Hub Latency: {health_status['user_hub_latency_ms']}ms")
+        >>> print(f"Market Hub Latency: {health_status['market_hub_latency_ms']}ms")
+        >>>
+        >>> # V3.3.1: Configure health monitoring
+        >>> await suite.realtime_client.configure_health_monitoring(
+        ...     heartbeat_interval=5.0,  # Check every 5 seconds
+        ...     health_threshold=75.0,  # Reconnect if health < 75
+        ...     latency_threshold_ms=1000,  # Alert if latency > 1000ms
+        ... )
         >>>
         >>> # V3.1: Register callbacks via suite's event bus
         >>> from project_x_py import EventType

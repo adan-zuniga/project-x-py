@@ -118,7 +118,10 @@ class DataAccessMixin:
 
     # Type stubs - these attributes are expected to be provided by the class using this mixin
     if TYPE_CHECKING:
-        data_lock: "asyncio.Lock"
+        from project_x_py.utils.lock_optimization import AsyncRWLock
+
+        data_lock: "asyncio.Lock | AsyncRWLock"
+        data_rw_lock: "AsyncRWLock"
         data: dict[str, pl.DataFrame]
         current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         tick_size: float
@@ -191,7 +194,22 @@ class DataAccessMixin:
             - The returned DataFrame is a copy of the internal data and can be modified safely
             - For memory efficiency, specify the 'bars' parameter to limit the result size
         """
-        async with self.data_lock:
+        # Check for optimized read lock (AsyncRWLock) and use it for better parallelism
+        if hasattr(self, "data_rw_lock"):
+            from project_x_py.utils.lock_optimization import AsyncRWLock
+
+            if isinstance(self.data_rw_lock, AsyncRWLock):
+                async with self.data_rw_lock.read_lock():
+                    if timeframe not in self.data:
+                        return None
+
+                    df = self.data[timeframe]
+                    if bars is not None and len(df) > bars:
+                        return df.tail(bars)
+                    return df
+
+        # Fallback to regular data_lock for backward compatibility
+        async with self.data_lock:  # type: ignore
             if timeframe not in self.data:
                 return None
 
@@ -254,7 +272,19 @@ class DataAccessMixin:
             return align_price_to_tick(raw_price, self.tick_size)
 
         # Fallback to most recent bar close (already aligned)
-        async with self.data_lock:
+        # Use optimized read lock if available
+        if hasattr(self, "data_rw_lock"):
+            from project_x_py.utils.lock_optimization import AsyncRWLock
+
+            if isinstance(self.data_rw_lock, AsyncRWLock):
+                async with self.data_rw_lock.read_lock():
+                    for tf_key in ["1min", "5min", "15min"]:  # Check common timeframes
+                        if tf_key in self.data and not self.data[tf_key].is_empty():
+                            return float(self.data[tf_key]["close"][-1])
+                return None
+
+        # Fallback to regular lock
+        async with self.data_lock:  # type: ignore
             for tf_key in ["1min", "5min", "15min"]:  # Check common timeframes
                 if tf_key in self.data and not self.data[tf_key].is_empty():
                     return float(self.data[tf_key]["close"][-1])
@@ -273,7 +303,16 @@ class DataAccessMixin:
             >>> for tf, data in mtf_data.items():
             ...     print(f"{tf}: {len(data)} bars")
         """
-        async with self.data_lock:
+        # Use optimized read lock if available
+        if hasattr(self, "data_rw_lock"):
+            from project_x_py.utils.lock_optimization import AsyncRWLock
+
+            if isinstance(self.data_rw_lock, AsyncRWLock):
+                async with self.data_rw_lock.read_lock():
+                    return {tf: df.clone() for tf, df in self.data.items()}
+
+        # Fallback to regular lock
+        async with self.data_lock:  # type: ignore
             return {tf: df.clone() for tf, df in self.data.items()}
 
     async def get_latest_bars(

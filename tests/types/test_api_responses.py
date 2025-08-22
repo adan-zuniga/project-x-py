@@ -5,12 +5,9 @@ Author: @TexasCoding
 Date: 2025-08-17
 """
 
-from typing import NotRequired, TypedDict, get_args, get_origin, get_type_hints
-
-import pytest
+from typing import get_type_hints
 
 from project_x_py.types.api_responses import (
-    AccountListResponse,
     AccountResponse,
     AccountUpdatePayload,
     AuthLoginResponse,
@@ -18,12 +15,8 @@ from project_x_py.types.api_responses import (
     BarDataResponse,
     ErrorResponse,
     InstrumentResponse,
-    InstrumentSearchResponse,
     MarketDepthLevel,
     MarketDepthResponse,
-    MarketDepthUpdatePayload,
-    MarketTradePayload,
-    OrderPlacementResponse,
     OrderResponse,
     OrderSearchResponse,
     OrderUpdatePayload,
@@ -31,7 +24,6 @@ from project_x_py.types.api_responses import (
     PositionSearchResponse,
     PositionUpdatePayload,
     QuoteData,
-    QuoteUpdatePayload,
     TradeExecutionPayload,
     TradeResponse,
     TradeSearchResponse,

@@ -73,7 +73,7 @@ class MemoryMappedStorage:
 
             self.fp = cast(
                 BufferedRandom | BufferedReader, open(self.filename, self.mode)
-            )  # noqa: SIM115
+            )
             # Note: open() either succeeds or raises an exception, so fp is never None
 
             # Get file size

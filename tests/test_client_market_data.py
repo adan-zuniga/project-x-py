@@ -1,15 +1,14 @@
 """Tests for the market data module of ProjectX client."""
 
-import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock
 
 import polars as pl
 import pytest
 import pytz
 
 from project_x_py.client.market_data import MarketDataMixin
-from project_x_py.exceptions import ProjectXDataError, ProjectXInstrumentError
+from project_x_py.exceptions import ProjectXInstrumentError
 from project_x_py.models import Instrument
 
 

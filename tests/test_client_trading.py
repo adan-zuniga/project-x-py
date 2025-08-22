@@ -2,14 +2,14 @@
 
 import datetime
 from datetime import timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytz
 
 from project_x_py.client.trading import TradingMixin
 from project_x_py.exceptions import ProjectXError
-from project_x_py.models import Account, Position, Trade
+from project_x_py.models import Account
 
 
 class MockTradingClient(TradingMixin):

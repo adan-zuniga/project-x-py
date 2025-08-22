@@ -1,7 +1,6 @@
 """Tests for the batched WebSocket message handler."""
 
 import asyncio
-import time
 
 import pytest
 

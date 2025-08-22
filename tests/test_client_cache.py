@@ -1,10 +1,8 @@
 """Tests for the cache module of ProjectX client."""
 
-import io
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch
+from datetime import datetime
+from unittest.mock import patch
 
-import lz4.frame
 import polars as pl
 import pytest
 import pytz

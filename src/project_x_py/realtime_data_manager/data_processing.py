@@ -629,8 +629,25 @@ class DataProcessingMixin:
             interval = self.timeframes[tf_key]["interval"]
             unit = self.timeframes[tf_key]["unit"]
 
-            # Calculate the bar time for this timeframe
-            bar_time = self._calculate_bar_time(timestamp, interval, unit)
+            # Calculate the bar time for this timeframe with DST handling
+            if hasattr(self, "handle_dst_bar_time"):
+                bar_time = self.handle_dst_bar_time(timestamp, interval, unit)
+                if bar_time is None:
+                    # Skip this bar during DST transitions (e.g., spring forward)
+                    if hasattr(self, "log_dst_event"):
+                        self.log_dst_event(
+                            "BAR_SKIPPED",
+                            timestamp,
+                            f"Non-existent time during DST transition for {tf_key}",
+                        )
+                    else:
+                        self.logger.warning(
+                            f"Skipping bar for {tf_key} during DST transition at {timestamp}"
+                        )
+                    return None
+            else:
+                # Fallback to standard bar time calculation
+                bar_time = self._calculate_bar_time(timestamp, interval, unit)
 
             # Get current data for this timeframe
             if tf_key not in self.data:

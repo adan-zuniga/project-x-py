@@ -131,10 +131,19 @@ from project_x_py.models import Instrument
 from project_x_py.realtime_data_manager.callbacks import CallbackMixin
 from project_x_py.realtime_data_manager.data_access import DataAccessMixin
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
+from project_x_py.realtime_data_manager.dataframe_optimization import LazyDataFrameMixin
+from project_x_py.realtime_data_manager.dst_handling import DSTHandlingMixin
+from project_x_py.realtime_data_manager.dynamic_resource_limits import (
+    DynamicResourceMixin,
+)
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 from project_x_py.realtime_data_manager.mmap_overflow import MMapOverflowMixin
-from project_x_py.realtime_data_manager.validation import ValidationMixin
+from project_x_py.realtime_data_manager.validation import (
+    DataValidationMixin,
+    ValidationMixin,
+)
 from project_x_py.statistics.base import BaseStatisticsTracker
+from project_x_py.statistics.bounded_statistics import BoundedStatisticsMixin
 from project_x_py.types.config_types import DataManagerConfig
 from project_x_py.types.stats_types import ComponentStats, RealtimeDataManagerStats
 from project_x_py.utils import (
@@ -144,6 +153,12 @@ from project_x_py.utils import (
     ProjectXLogger,
     format_error_message,
     handle_errors,
+)
+from project_x_py.utils.lock_optimization import (
+    AsyncRWLock,
+    LockFreeBuffer,
+    LockOptimizationMixin,
+    get_global_lock_profiler,
 )
 
 if TYPE_CHECKING:
@@ -164,11 +179,17 @@ class _DummyEventBus:
 class RealtimeDataManager(
     DataProcessingMixin,
     MemoryManagementMixin,
+    DynamicResourceMixin,
     MMapOverflowMixin,
     CallbackMixin,
     DataAccessMixin,
+    LazyDataFrameMixin,
     ValidationMixin,
+    DataValidationMixin,
+    BoundedStatisticsMixin,
     BaseStatisticsTracker,
+    LockOptimizationMixin,
+    DSTHandlingMixin,
 ):
     """
     Async optimized real-time OHLCV data manager for efficient multi-timeframe trading data.
@@ -352,8 +373,17 @@ class RealtimeDataManager(
         # Store configuration with defaults
         self.config = config or {}
 
-        # Create data lock needed by mixins
-        self.data_lock: asyncio.Lock = asyncio.Lock()
+        # Initialize lock optimization first (required by LockOptimizationMixin)
+        LockOptimizationMixin.__init__(self)
+
+        # Replace single data_lock with optimized read/write lock for DataFrame operations
+        self.data_rw_lock = AsyncRWLock(f"data_manager_{instrument}")
+
+        # Keep backward compatibility - data_lock alias for mixins
+        self.data_lock = self.data_rw_lock
+
+        # Lock-free buffer for high-frequency tick data
+        self.tick_buffer = LockFreeBuffer[dict[str, Any]](max_size=10000)
 
         # Initialize timeframes needed by mixins
         self.timeframes: dict[str, dict[str, Any]] = {}
@@ -364,8 +394,34 @@ class RealtimeDataManager(
         # Apply defaults which sets max_bars_per_timeframe etc.
         self._apply_config_defaults()
 
+        # Check if bounded statistics are enabled
+        self.use_bounded_statistics = (
+            config.get("use_bounded_statistics", True) if config else True
+        )
+
         # Initialize all mixins (they may need the above attributes)
         super().__init__()
+
+        # Initialize bounded statistics if enabled
+        if self.use_bounded_statistics:
+            BoundedStatisticsMixin.__init__(
+                self,
+                max_recent_metrics=config.get("max_recent_metrics", 3600)
+                if config
+                else 3600,
+                hourly_retention_hours=config.get("hourly_retention_hours", 24)
+                if config
+                else 24,
+                daily_retention_days=config.get("daily_retention_days", 30)
+                if config
+                else 30,
+                timing_buffer_size=config.get("timing_buffer_size", 1000)
+                if config
+                else 1000,
+                cleanup_interval_minutes=config.get("cleanup_interval_minutes", 5.0)
+                if config
+                else 5.0,
+            )
 
         # Initialize v3.3.0 statistics system using inheritance (for backward compatibility)
         BaseStatisticsTracker.__init__(
@@ -459,6 +515,18 @@ class RealtimeDataManager(
         # Background bar timer task for low-volume periods
         self._bar_timer_task: asyncio.Task[None] | None = None
 
+        # Initialize dynamic resource management
+        self._enable_dynamic_limits = (
+            config.get("enable_dynamic_limits", True) if config else True
+        )
+        if self._enable_dynamic_limits:
+            # Configure dynamic resource management with defaults
+            resource_config = config.get("resource_config", {}) if config else {}
+            self.configure_dynamic_resources(**resource_config)
+            self.logger.info("Dynamic resource limits enabled")
+        else:
+            self.logger.info("Dynamic resource limits disabled")
+
         self.logger.info(
             "RealtimeDataManager initialized", extra={"instrument": instrument}
         )
@@ -514,6 +582,19 @@ class RealtimeDataManager(
         if hasattr(self, "get_overflow_stats"):
             overflow_stats = self.get_overflow_stats()
 
+        # Add lock optimization stats
+        lock_stats = {}
+        if hasattr(self, "data_rw_lock"):
+            try:
+                # Get lock stats asynchronously - this is a sync method so we can't await
+                # We'll provide basic stats synchronously
+                lock_stats = {
+                    "reader_count": getattr(self.data_rw_lock, "reader_count", 0),
+                    "lock_name": getattr(self.data_rw_lock, "name", "unknown"),
+                }
+            except Exception:
+                lock_stats = {"error": "Failed to get lock stats"}
+
         # Return structure that matches RealtimeDataManagerStats TypedDict
         result: RealtimeDataManagerStats = {
             "bars_processed": self.memory_stats["bars_processed"],
@@ -539,9 +620,37 @@ class RealtimeDataManager(
             "recovery_attempts": self.memory_stats["recovery_attempts"],
             "overflow_stats": overflow_stats,
             "buffer_overflow_stats": overflow_stats.get("buffer_stats", {}),
+            "lock_optimization_stats": lock_stats,
         }
 
         return result
+
+    async def get_resource_stats(self) -> dict[str, Any]:
+        """
+        Get comprehensive resource management statistics.
+
+        Returns:
+            Dictionary with resource statistics and current state
+        """
+        if self._enable_dynamic_limits and hasattr(self, "_current_limits"):
+            # Get resource stats from the DynamicResourceMixin
+            return await super().get_resource_stats()
+        else:
+            # Return basic resource information when dynamic limits are disabled
+            return {
+                "dynamic_limits_enabled": False,
+                "static_limits": {
+                    "max_bars_per_timeframe": self.max_bars_per_timeframe,
+                    "tick_buffer_size": self.tick_buffer_size,
+                },
+                "memory_usage": {
+                    "total_bars": sum(len(df) for df in self.data.values()),
+                    "tick_buffer_utilization": len(self.current_tick_data)
+                    / self.tick_buffer_size
+                    if self.tick_buffer_size > 0
+                    else 0.0,
+                },
+            }
 
     def _apply_config_defaults(self) -> None:
         """Apply default values for configuration options."""
@@ -850,6 +959,10 @@ class RealtimeDataManager(
             # Start bar timer task for low-volume periods
             self._start_bar_timer_task()
 
+            # Start dynamic resource monitoring if enabled
+            if self._enable_dynamic_limits:
+                self.start_resource_monitoring()
+
             self.logger.debug(
                 LogMessages.DATA_SUBSCRIBE,
                 extra={"status": "feed_started", "instrument": self.instrument},
@@ -872,6 +985,10 @@ class RealtimeDataManager(
             # Cancel background tasks first
             await self.stop_cleanup_task()
             await self._stop_bar_timer_task()
+
+            # Stop dynamic resource monitoring if enabled
+            if self._enable_dynamic_limits:
+                await self.stop_resource_monitoring()
 
             # Unsubscribe from market data and remove callbacks
             if self.contract_id:
@@ -900,6 +1017,13 @@ class RealtimeDataManager(
             >>> await manager.cleanup()
         """
         await self.stop_realtime_feed()
+
+        # Cleanup bounded statistics if enabled
+        if self.use_bounded_statistics:
+            try:
+                await self.cleanup_bounded_statistics()
+            except Exception as e:
+                self.logger.error(f"Error cleaning up bounded statistics: {e}")
 
         async with self.data_lock:
             self.data.clear()
@@ -1075,26 +1199,47 @@ class RealtimeDataManager(
 
     async def track_tick_processed(self) -> None:
         """Track a tick being processed."""
-        await self.increment("ticks_processed", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("ticks_processed", 1)
+        else:
+            await self.increment("ticks_processed", 1)
+
         # Update legacy stats for backward compatibility
         self.memory_stats["ticks_processed"] += 1
 
     async def track_quote_processed(self) -> None:
         """Track a quote being processed."""
-        await self.increment("quotes_processed", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("quotes_processed", 1)
+        else:
+            await self.increment("quotes_processed", 1)
+
         # Update legacy stats for backward compatibility
         self.memory_stats["quotes_processed"] += 1
 
     async def track_trade_processed(self) -> None:
         """Track a trade being processed."""
-        await self.increment("trades_processed", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("trades_processed", 1)
+        else:
+            await self.increment("trades_processed", 1)
+
         # Update legacy stats for backward compatibility
         self.memory_stats["trades_processed"] += 1
 
     async def track_bar_created(self, timeframe: str) -> None:
         """Track a bar being created for a specific timeframe."""
-        await self.increment("bars_created", 1)
-        await self.increment(f"bars_created_{timeframe}", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("bars_created", 1)
+            await self.increment_bounded(f"bars_created_{timeframe}", 1)
+        else:
+            await self.increment("bars_created", 1)
+            await self.increment(f"bars_created_{timeframe}", 1)
+
         # Update legacy stats for backward compatibility
         self.memory_stats["bars_processed"] += 1
         if timeframe in self.memory_stats["timeframe_stats"]:
@@ -1102,28 +1247,50 @@ class RealtimeDataManager(
 
     async def track_bar_updated(self, timeframe: str) -> None:
         """Track a bar being updated for a specific timeframe."""
-        await self.increment("bars_updated", 1)
-        await self.increment(f"bars_updated_{timeframe}", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("bars_updated", 1)
+            await self.increment_bounded(f"bars_updated_{timeframe}", 1)
+        else:
+            await self.increment("bars_updated", 1)
+            await self.increment(f"bars_updated_{timeframe}", 1)
+
         # Update legacy stats for backward compatibility
         if timeframe in self.memory_stats["timeframe_stats"]:
             self.memory_stats["timeframe_stats"][timeframe]["updates"] += 1
 
     async def track_data_latency(self, latency_ms: float) -> None:
         """Track data processing latency."""
-        await self.record_timing("data_processing", latency_ms)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.record_timing_bounded("data_processing", latency_ms)
+        else:
+            await self.record_timing("data_processing", latency_ms)
+
         # Update legacy stats for backward compatibility
         self.memory_stats["data_latency_ms"] = latency_ms
 
     async def track_connection_interruption(self) -> None:
         """Track a connection interruption."""
-        await self.increment("connection_interruptions", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("connection_interruptions", 1)
+        else:
+            await self.increment("connection_interruptions", 1)
+
         await self.set_status("disconnected")
+
         # Update legacy stats for backward compatibility
         self.memory_stats["connection_interruptions"] += 1
 
     async def track_recovery_attempt(self) -> None:
         """Track a recovery attempt."""
-        await self.increment("recovery_attempts", 1)
+        # Use bounded statistics if enabled, otherwise use base statistics
+        if self.use_bounded_statistics:
+            await self.increment_bounded("recovery_attempts", 1)
+        else:
+            await self.increment("recovery_attempts", 1)
+
         # Update legacy stats for backward compatibility
         self.memory_stats["recovery_attempts"] += 1
 
@@ -1190,3 +1357,106 @@ class RealtimeDataManager(
     async def set_status(self, status: str) -> None:
         """Set component status."""
         await super().set_status(status)
+
+    async def get_bounded_statistics(self) -> dict[str, Any] | None:
+        """
+        Get bounded statistics if enabled.
+
+        Returns:
+            Dictionary with bounded statistics or None if not enabled
+        """
+        if not self.use_bounded_statistics:
+            return None
+
+        try:
+            return await self.get_all_bounded_stats()
+        except Exception as e:
+            self.logger.error(f"Error getting bounded statistics: {e}")
+            return None
+
+    def is_bounded_statistics_enabled(self) -> bool:
+        """Check if bounded statistics are enabled."""
+        return self.use_bounded_statistics
+
+    async def get_lock_optimization_stats(self) -> dict[str, Any]:
+        """Get detailed lock optimization statistics."""
+        stats = await super().get_lock_optimization_stats()
+
+        # Add data manager specific lock stats
+        if hasattr(self, "data_rw_lock"):
+            data_lock_stats = await self.data_rw_lock.get_stats()
+            stats["data_rw_lock"] = {
+                "name": self.data_rw_lock.name,
+                "total_acquisitions": data_lock_stats.total_acquisitions,
+                "total_wait_time_ms": data_lock_stats.total_wait_time_ms,
+                "max_wait_time_ms": data_lock_stats.max_wait_time_ms,
+                "min_wait_time_ms": data_lock_stats.min_wait_time_ms,
+                "concurrent_readers": data_lock_stats.concurrent_readers,
+                "max_concurrent_readers": data_lock_stats.max_concurrent_readers,
+                "timeouts": data_lock_stats.timeouts,
+                "contentions": data_lock_stats.contentions,
+                "current_reader_count": self.data_rw_lock.reader_count,
+                "avg_wait_time_ms": (
+                    data_lock_stats.total_wait_time_ms
+                    / data_lock_stats.total_acquisitions
+                    if data_lock_stats.total_acquisitions > 0
+                    else 0.0
+                ),
+            }
+
+        # Add tick buffer stats
+        if hasattr(self, "tick_buffer"):
+            stats["tick_buffer"] = self.tick_buffer.get_stats()
+
+        return stats
+
+    async def optimize_data_access_patterns(self) -> dict[str, Any]:
+        """Analyze and optimize data access patterns based on usage."""
+        optimization_results = {
+            "analysis": {},
+            "optimizations_applied": [],
+            "performance_improvements": {},
+        }
+
+        # Analyze lock contention
+        if hasattr(self, "data_rw_lock"):
+            lock_stats = await self.data_rw_lock.get_stats()
+
+            # Calculate metrics
+            if lock_stats.total_acquisitions > 0:
+                avg_wait = lock_stats.total_wait_time_ms / lock_stats.total_acquisitions
+                contention_rate = (
+                    lock_stats.contentions / lock_stats.total_acquisitions * 100
+                )
+
+                optimization_results["analysis"] = {
+                    "avg_wait_time_ms": avg_wait,
+                    "contention_rate_percent": contention_rate,
+                    "max_concurrent_readers": lock_stats.max_concurrent_readers,
+                    "timeout_rate_percent": (
+                        lock_stats.timeouts / lock_stats.total_acquisitions * 100
+                        if lock_stats.total_acquisitions > 0
+                        else 0
+                    ),
+                }
+
+                # Suggest optimizations
+                if contention_rate > 10.0:  # >10% contention
+                    optimization_results["optimizations_applied"].append(
+                        "High contention detected - consider using lock-free operations for reads"
+                    )
+
+                if avg_wait > 5.0:  # >5ms average wait
+                    optimization_results["optimizations_applied"].append(
+                        "High wait times detected - consider fine-grained locking per timeframe"
+                    )
+
+                if lock_stats.max_concurrent_readers > 20:
+                    optimization_results["optimizations_applied"].append(
+                        "High reader concurrency - R/W lock is optimal for this pattern"
+                    )
+                    optimization_results["performance_improvements"]["parallelism"] = (
+                        f"Allows {lock_stats.max_concurrent_readers} concurrent readers"
+                    )
+
+        return optimization_results
