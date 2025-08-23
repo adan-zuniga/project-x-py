@@ -404,8 +404,6 @@ async def position_statistics():
 
 ### PositionManagerConfig
 
-::: project_x_py.types.config_types.PositionManagerConfig
-
 ```python
 from project_x_py.types import PositionManagerConfig
 
