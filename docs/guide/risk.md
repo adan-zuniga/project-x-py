@@ -652,7 +652,7 @@ Start with basic risk limits and position sizing, then gradually implement more 
 
 ## See Also
 
-- [ManagedTrade API](../api/risk-manager.md) - Detailed risk manager API
+
 - [Position Management](positions.md) - Portfolio risk monitoring
 - [Order Management](orders.md) - Risk-aware order placement
 - [Statistics](../api/statistics.md) - Risk metrics and analytics

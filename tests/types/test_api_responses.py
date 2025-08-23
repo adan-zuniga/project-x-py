@@ -39,24 +39,24 @@ class TestAPIResponseTypes:
 
         # Required fields
         assert "jwt" in hints
-        assert hints["jwt"] == str
+        assert hints["jwt"] is str
         assert "expiresIn" in hints
-        assert hints["expiresIn"] == int
+        assert hints["expiresIn"] is int
         assert "accountId" in hints
-        assert hints["accountId"] == int
+        assert hints["accountId"] is int
 
     def test_account_response_structure(self):
         """Test AccountResponse has correct fields."""
         hints = get_type_hints(AccountResponse, include_extras=True)
 
         assert "id" in hints
-        assert hints["id"] == int
+        assert hints["id"] is int
         assert "name" in hints
-        assert hints["name"] == str
+        assert hints["name"] is str
         assert "balance" in hints
-        assert hints["balance"] == float
+        assert hints["balance"] is float
         assert "canTrade" in hints
-        assert hints["canTrade"] == bool
+        assert hints["canTrade"] is bool
 
     def test_instrument_response_structure(self):
         """Test InstrumentResponse has correct fields."""
@@ -64,14 +64,14 @@ class TestAPIResponseTypes:
 
         # Required fields
         assert "id" in hints
-        assert hints["id"] == str
+        assert hints["id"] is str
         assert "name" in hints
         assert "tickSize" in hints
-        assert hints["tickSize"] == float
+        assert hints["tickSize"] is float
         assert "tickValue" in hints
-        assert hints["tickValue"] == float
+        assert hints["tickValue"] is float
         assert "activeContract" in hints
-        assert hints["activeContract"] == bool
+        assert hints["activeContract"] is bool
 
         # Optional fields should be NotRequired
         assert "symbolId" in hints
@@ -83,18 +83,18 @@ class TestAPIResponseTypes:
 
         # Core fields
         assert "id" in hints
-        assert hints["id"] == int
+        assert hints["id"] is int
         assert "accountId" in hints
         assert "contractId" in hints
-        assert hints["contractId"] == str
+        assert hints["contractId"] is str
         assert "status" in hints
-        assert hints["status"] == int
+        assert hints["status"] is int
         assert "type" in hints
-        assert hints["type"] == int
+        assert hints["type"] is int
         assert "side" in hints
-        assert hints["side"] == int
+        assert hints["side"] is int
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
 
         # Optional price fields
         assert "limitPrice" in hints
@@ -106,30 +106,30 @@ class TestAPIResponseTypes:
         hints = get_type_hints(PositionResponse, include_extras=True)
 
         assert "id" in hints
-        assert hints["id"] == int
+        assert hints["id"] is int
         assert "accountId" in hints
         assert "contractId" in hints
         assert "type" in hints
-        assert hints["type"] == int  # 0=UNDEFINED, 1=LONG, 2=SHORT
+        assert hints["type"] is int  # 0=UNDEFINED, 1=LONG, 2=SHORT
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
         assert "averagePrice" in hints
-        assert hints["averagePrice"] == float
+        assert hints["averagePrice"] is float
 
     def test_trade_response_structure(self):
         """Test TradeResponse has correct fields."""
         hints = get_type_hints(TradeResponse, include_extras=True)
 
         assert "id" in hints
-        assert hints["id"] == int
+        assert hints["id"] is int
         assert "price" in hints
-        assert hints["price"] == float
+        assert hints["price"] is float
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
         assert "side" in hints
-        assert hints["side"] == int
+        assert hints["side"] is int
         assert "fees" in hints
-        assert hints["fees"] == float
+        assert hints["fees"] is float
 
         # Optional P&L (None for half-turn trades)
         assert "profitAndLoss" in hints
@@ -140,41 +140,41 @@ class TestAPIResponseTypes:
 
         # OHLCV fields
         assert "timestamp" in hints
-        assert hints["timestamp"] == str
+        assert hints["timestamp"] is str
         assert "open" in hints
-        assert hints["open"] == float
+        assert hints["open"] is float
         assert "high" in hints
-        assert hints["high"] == float
+        assert hints["high"] is float
         assert "low" in hints
-        assert hints["low"] == float
+        assert hints["low"] is float
         assert "close" in hints
-        assert hints["close"] == float
+        assert hints["close"] is float
         assert "volume" in hints
-        assert hints["volume"] == int
+        assert hints["volume"] is int
 
     def test_quote_data_structure(self):
         """Test QuoteData market quote structure."""
         hints = get_type_hints(QuoteData, include_extras=True)
 
         assert "contractId" in hints
-        assert hints["contractId"] == str
+        assert hints["contractId"] is str
         assert "bid" in hints
-        assert hints["bid"] == float
+        assert hints["bid"] is float
         assert "bidSize" in hints
-        assert hints["bidSize"] == int
+        assert hints["bidSize"] is int
         assert "ask" in hints
-        assert hints["ask"] == float
+        assert hints["ask"] is float
         assert "askSize" in hints
-        assert hints["askSize"] == int
+        assert hints["askSize"] is int
 
     def test_market_depth_level_structure(self):
         """Test MarketDepthLevel structure."""
         hints = get_type_hints(MarketDepthLevel, include_extras=True)
 
         assert "price" in hints
-        assert hints["price"] == float
+        assert hints["price"] is float
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
         assert "orders" in hints  # Optional
 
     def test_websocket_payload_structures(self):
@@ -229,9 +229,9 @@ class TestAPIResponseTypes:
         hints = get_type_hints(ErrorResponse, include_extras=True)
 
         assert "errorCode" in hints
-        assert hints["errorCode"] == int
+        assert hints["errorCode"] is int
         assert "errorMessage" in hints
-        assert hints["errorMessage"] == str
+        assert hints["errorMessage"] is str
         assert "details" in hints  # Optional
 
     def test_real_world_response_creation(self):

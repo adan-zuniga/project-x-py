@@ -72,7 +72,7 @@ class TestPerformanceMemory:
             execution_times.append(time.perf_counter() - start)
 
         # Add multiple callbacks
-        for i in range(10):
+        for _i in range(10):
             await client.add_callback("test_event", test_callback)
 
         # Trigger callbacks

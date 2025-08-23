@@ -112,15 +112,15 @@ class TestOrderModel:
 
 class TestPositionModel:
     def make_position(self, **overrides) -> Position:
-        base = dict(
-            id=42,
-            accountId=10,
-            contractId="CON.F.US.MGC.M25",
-            creationTimestamp="2024-01-01T00:00:00Z",
-            type=1,  # LONG
-            size=2,
-            averagePrice=2050.0,
-        )
+        base = {
+            "id": 42,
+            "accountId": 10,
+            "contractId": "CON.F.US.MGC.M25",
+            "creationTimestamp": "2024-01-01T00:00:00Z",
+            "type": 1,  # LONG
+            "size": 2,
+            "averagePrice": 2050.0,
+        }
         base.update(overrides)
         return Position(**base)
 

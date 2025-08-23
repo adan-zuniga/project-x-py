@@ -8,7 +8,7 @@ import pytest
 import pytz
 
 from project_x_py.client.market_data import MarketDataMixin
-from project_x_py.exceptions import ProjectXInstrumentError
+from project_x_py.exceptions import ProjectXAPIError, ProjectXInstrumentError
 from project_x_py.models import Instrument
 
 
