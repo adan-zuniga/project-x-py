@@ -99,7 +99,7 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    psutil = None
+    psutil = None  # type: ignore[assignment]
 
 import contextlib
 

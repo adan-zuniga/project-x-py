@@ -213,7 +213,9 @@ class PositionReportingMixin:
             - Empty list returned if no history exists
         """
         async with self.position_lock:
-            history = self.position_history.get(contract_id, [])
+            history: list[dict[str, Any]] = list(
+                self.position_history.get(contract_id, [])
+            )
             return history[-limit:] if history else []
 
     async def export_portfolio_report(

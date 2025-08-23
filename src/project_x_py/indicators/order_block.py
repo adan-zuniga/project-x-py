@@ -150,10 +150,10 @@ class OrderBlock(BaseIndicator):
         # Initialize order block columns
         ob_bullish = [False] * len(result)
         ob_bearish = [False] * len(result)
-        ob_top = [None] * len(result)
-        ob_bottom = [None] * len(result)
-        ob_volume = [None] * len(result)
-        ob_strength = [None] * len(result)
+        ob_top: list[float | None] = [None] * len(result)
+        ob_bottom: list[float | None] = [None] * len(result)
+        ob_volume: list[float | None] = [None] * len(result)
+        ob_strength: list[float | None] = [None] * len(result)
 
         # Convert to dict for easier access
         data_dict = result.to_dict()
@@ -271,23 +271,28 @@ class OrderBlock(BaseIndicator):
             for row in ob_indices.iter_rows(named=True):
                 ob_idx = row["_row_idx"]
                 is_bullish = row["ob_bullish"]
-                ob_top = row["ob_top"]
-                ob_bottom = row["ob_bottom"]
-                ob_size = ob_top - ob_bottom
+                top_value = row["ob_top"]
+                bottom_value = row["ob_bottom"]
+
+                # Skip if top_value or bottom_value is None
+                if top_value is None or bottom_value is None:
+                    continue
+
+                ob_size = top_value - bottom_value
                 mitigation_amount = ob_size * mitigation_threshold
 
                 # Look at subsequent candles for mitigation
                 future_data = result.filter(pl.col("_row_idx") > ob_idx)
 
                 if is_bullish:
-                    # Bullish OB is mitigated when price goes below ob_bottom + mitigation_amount
-                    mitigation_level = ob_bottom + mitigation_amount
+                    # Bullish OB is mitigated when price goes below bottom_value + mitigation_amount
+                    mitigation_level = bottom_value + mitigation_amount
                     mitigated_rows = future_data.filter(
                         pl.col(low_column) <= mitigation_level
                     )
                 else:
-                    # Bearish OB is mitigated when price goes above ob_top - mitigation_amount
-                    mitigation_level = ob_top - mitigation_amount
+                    # Bearish OB is mitigated when price goes above top_value - mitigation_amount
+                    mitigation_level = top_value - mitigation_amount
                     mitigated_rows = future_data.filter(
                         pl.col(high_column) >= mitigation_level
                     )

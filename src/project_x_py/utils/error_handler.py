@@ -145,7 +145,7 @@ def handle_errors(
                 logger = logging.getLogger(func.__module__)
 
             try:
-                return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
+                return await func(*args, **kwargs)  # type: ignore[misc]
             except ProjectXError as e:
                 # Already a ProjectX error, just add context
                 logger.error(
@@ -273,7 +273,7 @@ def retry_on_network_error(
 
             for attempt in range(max_attempts):
                 try:
-                    return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
+                    return await func(*args, **kwargs)  # type: ignore[misc]
                 except retry_on as e:
                     last_exception = e
 
@@ -382,7 +382,7 @@ def handle_rate_limit(
                 logger = logging.getLogger(func.__module__)
 
             try:
-                return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
+                return await func(*args, **kwargs)  # type: ignore[misc]
             except ProjectXRateLimitError as e:
                 # Check if we have a reset time in the response
                 reset_time = None
@@ -416,7 +416,7 @@ def handle_rate_limit(
                 await asyncio.sleep(delay)
 
                 # Retry once after waiting
-                return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
+                return await func(*args, **kwargs)  # type: ignore[misc]
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> T:
@@ -472,7 +472,7 @@ def validate_response(
                         f"{', '.join(missing_fields)}"
                     )
 
-            return result  # type: ignore[no-any-return]
+            return result
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> T:

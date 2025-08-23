@@ -169,7 +169,7 @@ class LockAnalyzer:
 class LockContentionSimulator:
     """Simulates lock contention for testing optimization improvements."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.regular_lock = asyncio.Lock()
         self.rw_lock = AsyncRWLock("simulation")
         self.profiler = LockProfiler()
@@ -201,7 +201,7 @@ class LockContentionSimulator:
 
         start_time = time.time()
 
-        async def regular_lock_reader(_reader_id: int):
+        async def regular_lock_reader(_reader_id: int) -> None:
             """Simulate reader using regular lock."""
             operations = 0
             while time.time() - start_time < duration_seconds:
@@ -222,7 +222,7 @@ class LockContentionSimulator:
 
             regular_lock_stats["total_operations"] += operations
 
-        async def regular_lock_writer(_writer_id: int):
+        async def regular_lock_writer(_writer_id: int) -> None:
             """Simulate writer using regular lock."""
             while time.time() - start_time < duration_seconds:
                 op_start = time.time()
@@ -239,7 +239,7 @@ class LockContentionSimulator:
 
                 await asyncio.sleep(0.1)  # 100ms between writes
 
-        async def rw_lock_reader(_reader_id: int):
+        async def rw_lock_reader(_reader_id: int) -> None:
             """Simulate reader using RW lock."""
             operations = 0
             while time.time() - start_time < duration_seconds:
@@ -260,7 +260,7 @@ class LockContentionSimulator:
 
             rw_lock_stats["read_operations"] += operations
 
-        async def rw_lock_writer(_writer_id: int):
+        async def rw_lock_writer(_writer_id: int) -> None:
             """Simulate writer using RW lock."""
             operations = 0
             while time.time() - start_time < duration_seconds:
@@ -349,7 +349,7 @@ class OptimizationRecommendations:
     """Generates optimization recommendations based on analysis."""
 
     @staticmethod
-    def analyze_lock_patterns(analysis_results: dict[str, Any]) -> list[dict[str, str]]:
+    def analyze_lock_patterns(analysis_results: dict[str, Any]) -> list[dict[str, Any]]:
         """Generate optimization recommendations from static analysis."""
         recommendations = []
 
@@ -603,7 +603,7 @@ def print_report_summary(report: dict[str, Any]) -> None:
     print("5. Implement FineGrainedLockManager for resource-specific locks")
 
 
-async def main():
+async def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Lock contention profiler for project-x-py SDK"

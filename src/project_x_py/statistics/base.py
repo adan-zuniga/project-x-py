@@ -470,7 +470,7 @@ class BaseStatisticsTracker:
         # Check cache first
         cached_stats = await self._get_cached_value("component_stats")
         if cached_stats is not None:
-            return cached_stats  # type: ignore[no-any-return]
+            return cached_stats
 
         # Get metrics that don't require lock first
         uptime = await self.get_uptime()

@@ -68,15 +68,13 @@ jobs:
         uv run ruff check src/
         uv run ruff format --check src/
 
-    # TODO: Re-enable mypy after fixing type issues
-    # - name: Run mypy
-    #   run: |
-    #     uv run mypy src/
+    - name: Run mypy
+      run: |
+        uv run mypy src/ --exclude src/project_x_py/utils/lock_benchmarker.py
 
-    # TODO: Re-enable async compliance check after fixing sync methods in async classes
-    # - name: Check async compliance
-    #   run: |
-    #     uv run python scripts/check_async.py src/project_x_py/**/*.py
+    - name: Check async compliance
+      run: |
+        uv run python scripts/check_async.py src/project_x_py/**/*.py
 
   security:
     runs-on: ubuntu-latest

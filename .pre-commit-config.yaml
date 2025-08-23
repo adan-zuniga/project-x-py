@@ -15,28 +15,29 @@ repos:
       - id: ruff-format
         exclude: ^(tests/|examples/|benchmarks/|scripts/)
 
-  # MyPy - Type checking (src only, not tests) - TEMPORARILY DISABLED
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.9.0
-  #   hooks:
-  #     - id: mypy
-  #       args: [--config-file, pyproject.toml, --ignore-missing-imports]
-  #       additional_dependencies:
-  #         - types-requests
-  #         - types-pytz
-  #         - types-pyyaml
-  #         - types-deprecated
-  #       files: ^src/
-  #       exclude: ^tests/
+  # MyPy - Type checking (src only, not tests)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.9.0
+    hooks:
+      - id: mypy
+        args: [--config-file, pyproject.toml, --ignore-missing-imports]
+        additional_dependencies:
+          - types-requests
+          - types-pytz
+          - types-pyyaml
+          - types-deprecated
+          - types-psutil
+        files: ^src/
+        exclude: ^(tests/|src/project_x_py/utils/lock_benchmarker\.py)
 
-  # Bandit - Security linter (src only) - TEMPORARILY DISABLED
-  # - repo: https://github.com/PyCQA/bandit
-  #   rev: 1.8.0
-  #   hooks:
-  #     - id: bandit
-  #       args: [-ll, -s, B301,B324]  # Skip pickle and MD5 warnings (used for caching)
-  #       files: ^src/
-  #       exclude: ^(tests/|examples/|benchmarks/|scripts/)
+  # Bandit - Security linter (src only)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: [-ll]  # Low level issues
+        files: ^src/
+        exclude: ^(tests/|examples/|benchmarks/|scripts/)
 
   # Detect Secrets
   - repo: https://github.com/Yelp/detect-secrets

@@ -94,7 +94,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import httpx
 import polars as pl
-from cachetools import TTLCache  # type: ignore
+from cachetools import TTLCache
 
 from project_x_py.types.base import HubConnection
 from project_x_py.types.response_types import (

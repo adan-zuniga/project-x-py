@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import lz4.frame
 import polars as pl
-from cachetools import TTLCache  # type: ignore
+from cachetools import TTLCache
 
 from project_x_py.models import Instrument
 

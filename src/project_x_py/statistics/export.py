@@ -329,8 +329,10 @@ class StatsExporter:
         # If no rows were generated from standard stats, handle custom structures
         if not rows:
             # Flatten any custom dictionary structure
-            def flatten_dict(d, parent_key="", sep="_"):
-                items = []
+            def flatten_dict(
+                d: dict[str, Any], parent_key: str = "", sep: str = "_"
+            ) -> dict[str, Any]:
+                items: list[tuple[str, Any]] = []
                 for k, v in d.items():
                     new_key = f"{parent_key}{sep}{k}" if parent_key else k
                     if isinstance(v, dict):
@@ -339,7 +341,7 @@ class StatsExporter:
                         items.append((new_key, v))
                 return dict(items)
 
-            flat_stats = flatten_dict(stats)
+            flat_stats = flatten_dict(dict(stats))
             for key, value in flat_stats.items():
                 # Split the key to get category and name
                 parts = key.split("_", 1)
@@ -575,7 +577,7 @@ class StatsExporter:
             return dict(stats)
 
         # Process standard ComprehensiveStats structure
-        result = {}
+        result: dict[str, Any] = {}
 
         health_stats = stats.get("health")
         if health_stats:

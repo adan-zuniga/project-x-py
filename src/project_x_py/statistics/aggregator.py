@@ -239,7 +239,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
             cached_stats = await self._get_cached_value("comprehensive_stats")
             if cached_stats is not None:
                 await self.increment("cache_hits")
-                return cached_stats  # type: ignore[no-any-return]
+                return cached_stats
 
             # Collect from all components in parallel
             component_stats = await self._collect_all_components()
@@ -322,7 +322,7 @@ class StatisticsAggregator(BaseStatisticsTracker):
             cached_stats = await self._get_cached_value("suite_stats")
             if cached_stats is not None:
                 await self.increment("cache_hits")
-                return cached_stats  # type: ignore[no-any-return]
+                return cached_stats
 
             # Collect component data
             component_stats = await self._collect_all_components()

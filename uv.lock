@@ -2474,6 +2474,7 @@ dev = [
     { name = "semgrep" },
     { name = "twine" },
     { name = "types-deprecated" },
+    { name = "types-psutil" },
     { name = "types-pytz" },
     { name = "types-pyyaml" },
     { name = "types-requests" },
@@ -2577,6 +2578,7 @@ dev = [
     { name = "semgrep", specifier = ">=1.85.0" },
     { name = "twine", specifier = ">=6.1.0" },
     { name = "types-deprecated", specifier = ">=1.2.15.20250304" },
+    { name = "types-psutil", specifier = ">=7.0.0.20250822" },
     { name = "types-pytz", specifier = ">=2025.2.0.20250516" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250516" },
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
@@ -3653,6 +3655,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0e/67/eeefaaabb03b288aad85483d410452c8bbcbf8b2bd876b0e467ebd97415b/types_deprecated-1.2.15.20250304.tar.gz", hash = "sha256:c329030553029de5cc6cb30f269c11f4e00e598c4241290179f63cda7d33f719", size = 8015 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/e3/c18aa72ab84e0bc127a3a94e93be1a6ac2cb281371d3a45376ab7cfdd31c/types_deprecated-1.2.15.20250304-py3-none-any.whl", hash = "sha256:86a65aa550ea8acf49f27e226b8953288cd851de887970fbbdf2239c116c3107", size = 8553 },
+]
+
+[[package]]
+name = "types-psutil"
+version = "7.0.0.20250822"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6d/aa/09699c829d7cc4624138d3ae67eecd4de9574e55729b1c63ca3e5a657f86/types_psutil-7.0.0.20250822.tar.gz", hash = "sha256:226cbc0c0ea9cc0a50b8abcc1d91a26c876dcb40be238131f697883690419698", size = 20358 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/46/45006309e20859e12c024d91bb913e6b89a706cd6f9377031c9f7e274ece/types_psutil-7.0.0.20250822-py3-none-any.whl", hash = "sha256:81c82f01aba5a4510b9d8b28154f577b780be75a08954aed074aa064666edc09", size = 23110 },
 ]
 
 [[package]]

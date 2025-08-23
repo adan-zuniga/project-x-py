@@ -44,7 +44,7 @@ Key Metrics:
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 
@@ -120,7 +120,7 @@ class LockBenchmarker:
     detailed comparison reports between baseline and optimized implementations.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.profiler = LockProfiler()
         self.results: list[BenchmarkResult] = []
 
@@ -142,13 +142,13 @@ class LockBenchmarker:
         lock = asyncio.Lock()
 
         # Metrics tracking
-        operations = []
+        operations: list[dict[str, Any]] = []
         start_time = time.time()
         concurrent_ops = 0
         max_concurrent_ops = 0
         errors = 0
 
-        async def reader_task(reader_id: int):
+        async def reader_task(reader_id: int) -> None:
             nonlocal concurrent_ops, max_concurrent_ops, errors
 
             while time.time() - start_time < duration_seconds:
@@ -159,7 +159,8 @@ class LockBenchmarker:
 
                     async with lock:
                         # Simulate DataFrame read operation
-                        _ = shared_data["dataframe"].select(pl.col("value")).sum()
+                        df = cast(pl.DataFrame, shared_data["dataframe"])
+                        _ = df.select(pl.col("value")).sum()
                         _ = shared_data["counter"]
                         await asyncio.sleep(operation_delay_ms / 1000)
 
@@ -182,7 +183,7 @@ class LockBenchmarker:
                 # Brief pause between operations
                 await asyncio.sleep(0.01)
 
-        async def writer_task(writer_id: int):
+        async def writer_task(writer_id: int) -> None:
             nonlocal concurrent_ops, max_concurrent_ops, errors
 
             while time.time() - start_time < duration_seconds:
@@ -193,10 +194,9 @@ class LockBenchmarker:
 
                     async with lock:
                         # Simulate DataFrame write operation
-                        shared_data["counter"] += 1
-                        shared_data["dataframe"] = shared_data[
-                            "dataframe"
-                        ].with_columns(pl.col("value") + 1)
+                        shared_data["counter"] = cast(int, shared_data["counter"]) + 1
+                        df = cast(pl.DataFrame, shared_data["dataframe"])
+                        shared_data["dataframe"] = df.with_columns(pl.col("value") + 1)
                         await asyncio.sleep(
                             operation_delay_ms * 2 / 1000
                         )  # Writes take longer
@@ -231,7 +231,7 @@ class LockBenchmarker:
 
         # Calculate metrics
         if operations:
-            latencies = [op["duration_ms"] for op in operations]
+            latencies = [float(op["duration_ms"]) for op in operations]
             latencies.sort()
 
             avg_latency = sum(latencies) / len(latencies)
@@ -292,13 +292,13 @@ class LockBenchmarker:
         rw_lock = AsyncRWLock("benchmark_lock")
 
         # Metrics tracking
-        operations = []
+        operations: list[dict[str, Any]] = []
         start_time = time.time()
         concurrent_readers = 0
         max_concurrent_readers = 0
         errors = 0
 
-        async def reader_task(reader_id: int):
+        async def reader_task(reader_id: int) -> None:
             nonlocal concurrent_readers, max_concurrent_readers, errors
 
             while time.time() - start_time < duration_seconds:
@@ -311,7 +311,8 @@ class LockBenchmarker:
                         )
 
                         # Simulate DataFrame read operation
-                        _ = shared_data["dataframe"].select(pl.col("value")).sum()
+                        df = cast(pl.DataFrame, shared_data["dataframe"])
+                        _ = df.select(pl.col("value")).sum()
                         _ = shared_data["counter"]
                         await asyncio.sleep(operation_delay_ms / 1000)
 
@@ -335,7 +336,7 @@ class LockBenchmarker:
                 # Brief pause between operations
                 await asyncio.sleep(0.01)
 
-        async def writer_task(writer_id: int):
+        async def writer_task(writer_id: int) -> None:
             nonlocal errors
 
             while time.time() - start_time < duration_seconds:
@@ -343,10 +344,9 @@ class LockBenchmarker:
                 try:
                     async with rw_lock.write_lock():
                         # Simulate DataFrame write operation
-                        shared_data["counter"] += 1
-                        shared_data["dataframe"] = shared_data[
-                            "dataframe"
-                        ].with_columns(pl.col("value") + 1)
+                        shared_data["counter"] = cast(int, shared_data["counter"]) + 1
+                        df = cast(pl.DataFrame, shared_data["dataframe"])
+                        shared_data["dataframe"] = df.with_columns(pl.col("value") + 1)
                         await asyncio.sleep(
                             operation_delay_ms * 2 / 1000
                         )  # Writes take longer
@@ -382,7 +382,7 @@ class LockBenchmarker:
 
         # Calculate metrics
         if operations:
-            latencies = [op["duration_ms"] for op in operations]
+            latencies = [float(op["duration_ms"]) for op in operations]
             latencies.sort()
 
             avg_latency = sum(latencies) / len(latencies)
@@ -439,11 +439,11 @@ class LockBenchmarker:
         )
 
         buffer = LockFreeBuffer[dict[str, Any]](max_size=buffer_size)
-        operations = []
+        operations: list[dict[str, Any]] = []
         start_time = time.time()
         errors = 0
 
-        async def writer_task(writer_id: int):
+        async def writer_task(writer_id: int) -> None:
             nonlocal errors
 
             counter = 0
@@ -480,7 +480,7 @@ class LockBenchmarker:
                 # High frequency - minimal delay
                 await asyncio.sleep(0.001)
 
-        async def reader_task(reader_id: int):
+        async def reader_task(reader_id: int) -> None:
             nonlocal errors
 
             while time.time() - start_time < duration_seconds:
@@ -520,7 +520,7 @@ class LockBenchmarker:
 
         # Calculate metrics
         if operations:
-            latencies = [op["duration_ms"] for op in operations]
+            latencies = [float(op["duration_ms"]) for op in operations]
             latencies.sort()
 
             avg_latency = sum(latencies) / len(latencies)
@@ -836,7 +836,7 @@ if __name__ == "__main__":
     # Run benchmarks when called directly
     import asyncio
 
-    async def main():
+    async def main() -> None:
         results = await run_full_benchmark_suite()
         print(results["report"])
         print("\nSummary:")

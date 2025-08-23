@@ -176,7 +176,9 @@ class BaseIndicator(ABC):
         # Create hash from DataFrame shape, column names, and last few rows
         data_bytes = data.tail(5).to_numpy().tobytes()
         data_str = f"{data.shape}{list(data.columns)}"
-        data_hash = hashlib.md5(data_str.encode() + data_bytes).hexdigest()
+        data_hash = hashlib.md5(
+            data_str.encode() + data_bytes, usedforsecurity=False
+        ).hexdigest()
 
         # Include parameters in the key
         params_str = "_".join(f"{k}={v}" for k, v in sorted(kwargs.items()))

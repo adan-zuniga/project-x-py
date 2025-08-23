@@ -153,7 +153,7 @@ class MemoryMappedStorage:
 
             # Convert to bytes
             data_bytes = data.tobytes()
-            metadata_bytes = pickle.dumps(metadata)
+            metadata_bytes = pickle.dumps(metadata)  # nosec B301 - internal data only
 
             # Write metadata size (4 bytes), metadata, then data
             size_bytes = len(metadata_bytes).to_bytes(4, "little")
@@ -196,7 +196,7 @@ class MemoryMappedStorage:
 
                 # Read metadata
                 metadata_bytes = self.mmap[offset + 4 : offset + 4 + metadata_size]
-                metadata = pickle.loads(metadata_bytes)
+                metadata = pickle.loads(metadata_bytes)  # nosec B301 - internal data only
 
                 # Calculate data size
                 dtype = np.dtype(metadata["dtype"])
@@ -222,7 +222,7 @@ class MemoryMappedStorage:
             if metadata_file.exists():
                 try:
                     with open(metadata_file, "rb") as f:
-                        self._metadata = pickle.load(f)
+                        self._metadata = pickle.load(f)  # nosec B301 - internal data only
                 except (pickle.UnpicklingError, EOFError):
                     logger.exception(
                         "Could not load metadata from %s, file might be corrupt.",
@@ -237,7 +237,7 @@ class MemoryMappedStorage:
         with tempfile.NamedTemporaryFile(
             "wb", delete=False, dir=metadata_file.parent
         ) as tmp_f:
-            pickle.dump(self._metadata, tmp_f)
+            pickle.dump(self._metadata, tmp_f)  # nosec B301 - internal data only
             tmp_path = Path(tmp_f.name)
 
         tmp_path.rename(metadata_file)

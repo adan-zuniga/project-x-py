@@ -205,7 +205,7 @@ class OrderBookBase(BaseStatisticsTracker):
         self.memory_manager = MemoryManager(self, self.memory_config)
 
         # Level 2 orderbook storage with Polars DataFrames
-        self.orderbook_bids = pl.DataFrame(
+        self.orderbook_bids: pl.DataFrame = pl.DataFrame(
             {
                 "price": [],
                 "volume": [],
@@ -218,7 +218,7 @@ class OrderBookBase(BaseStatisticsTracker):
             },
         )
 
-        self.orderbook_asks = pl.DataFrame(
+        self.orderbook_asks: pl.DataFrame = pl.DataFrame(
             {
                 "price": [],
                 "volume": [],
@@ -232,7 +232,7 @@ class OrderBookBase(BaseStatisticsTracker):
         )
 
         # Trade flow storage (Type 5 - actual executions)
-        self.recent_trades = pl.DataFrame(
+        self.recent_trades: pl.DataFrame = pl.DataFrame(
             {
                 "price": [],
                 "volume": [],

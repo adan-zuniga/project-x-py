@@ -52,10 +52,10 @@ import asyncio
 import logging
 import time
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any, cast
 
-from cachetools import TTLCache  # type: ignore
+from cachetools import TTLCache
 
 from project_x_py.utils.deprecation import deprecated
 
@@ -79,7 +79,6 @@ class OrderTrackingMixin:
     # Type hints for mypy - these attributes are provided by the main class
     if TYPE_CHECKING:
         from asyncio import Lock
-        from typing import Any
 
         from project_x_py.realtime import ProjectXRealtimeClient
 
@@ -241,7 +240,7 @@ class OrderTrackingMixin:
         return self.oco_groups.get(order_id)
 
     def _create_managed_task(
-        self, coro: Any, name: str = "background_task"
+        self, coro: Coroutine[Any, Any, Any], name: str = "background_task"
     ) -> asyncio.Task[Any] | None:
         """
         Create a background task with proper exception handling and lifecycle management.
@@ -1345,9 +1344,9 @@ class OrderTrackingMixin:
 
         # Clear task monitoring data if they exist
         if hasattr(self, "_task_results"):
-            self._task_results.clear()  # type: ignore[attr-defined]
+            self._task_results.clear()
         if hasattr(self, "_cancellation_failures"):
-            self._cancellation_failures.clear()  # type: ignore[attr-defined]
+            self._cancellation_failures.clear()
 
         # Reset statistics
         self._memory_stats.update(
