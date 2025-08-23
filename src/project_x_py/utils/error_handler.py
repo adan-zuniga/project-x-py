@@ -472,7 +472,7 @@ def validate_response(
                         f"{', '.join(missing_fields)}"
                     )
 
-            return result
+            return cast(T, result)
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> T:
@@ -494,7 +494,7 @@ def validate_response(
                         f"{', '.join(missing_fields)}"
                     )
 
-            return result
+            return cast(T, result)  # type: ignore[redundant-cast]
 
         # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):

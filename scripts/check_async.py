@@ -25,14 +25,27 @@ class AsyncChecker(ast.NodeVisitor):
         # Check if class has any async methods
         has_async = any(isinstance(item, ast.AsyncFunctionDef) for item in node.body)
 
-        # Check if it's a manager or client class
-        is_async_class = (
-            "Manager" in node.name
-            or "Client" in node.name
-            or "Suite" in node.name
-            or "Realtime" in node.name
-            or has_async
-        )
+        # Explicitly exclude utility classes that don't need to be async
+        excluded_classes = [
+            "ConfigManager",  # Configuration management - sync utility
+            "ErrorContext",   # Error context manager - has async context but methods can be sync
+            "Deprecation",    # Deprecation utilities
+            "Logger",         # Logging utilities
+        ]
+
+        if node.name in excluded_classes:
+            is_async_class = False
+        else:
+            # Check if it's a class that should be async based on patterns
+            is_async_class = (
+                ("Manager" in node.name and node.name != "ConfigManager")  # Managers except ConfigManager
+                or "Client" in node.name
+                or "Suite" in node.name
+                or "Realtime" in node.name
+                or "OrderBook" in node.name  # OrderBook is async
+                or "DataManager" in node.name  # Data managers are async
+                or has_async  # Any class with async methods
+            )
 
         old_in_async = self.in_async_class
         if is_async_class:
@@ -71,33 +84,82 @@ class AsyncChecker(ast.NodeVisitor):
         self.generic_visit(node)
 
     def _has_io_operations(self, node: ast.FunctionDef) -> bool:
-        """Check if function has I/O operations."""
+        """Check if function has actual I/O operations."""
+        # Skip simple getter methods that just return values
+        if node.name.startswith("get_") and self._is_simple_getter(node):
+            return False
+
         for item in ast.walk(node):
             if isinstance(item, ast.Call):
                 if isinstance(item.func, ast.Attribute):
-                    # Check for common I/O operations
-                    if item.func.attr in [
-                        "get",
-                        "post",
-                        "put",
-                        "delete",
-                        "patch",  # HTTP
-                        "connect",
-                        "send",
-                        "recv",
-                        "close",  # Socket
-                        "read",
-                        "write",
-                        "open",  # File I/O
-                        "execute",
-                        "fetch",
-                        "commit",  # Database
-                    ]:
+                    # Check for actual I/O operations on known I/O objects
+                    attr_name = item.func.attr
+
+                    # Get the object being called on
+                    if isinstance(item.func.value, ast.Name):
+                        obj_name = item.func.value.id
+
+                        # Check for known I/O objects and their methods
+                        if obj_name in ["httpx", "aiohttp", "requests", "urllib"]:
+                            if attr_name in ["get", "post", "put", "delete", "patch", "request"]:
+                                return True
+                        elif obj_name in ["socket", "websocket", "ws"]:
+                            if attr_name in ["connect", "send", "recv", "close"]:
+                                return True
+                        elif obj_name in ["file", "f", "fp"]:
+                            if attr_name in ["read", "write", "seek", "tell"]:
+                                return True
+                        elif obj_name in ["db", "database", "conn", "connection", "cursor"]:
+                            if attr_name in ["execute", "fetch", "commit", "rollback"]:
+                                return True
+
+                    # Check for self.client or self.http calls (common in SDK)
+                    if isinstance(item.func.value, ast.Attribute):
+                        if hasattr(item.func.value, "attr"):
+                            obj_attr = item.func.value.attr
+                            if obj_attr in ["client", "http", "session", "api", "_client", "_http"]:
+                                if attr_name in ["get", "post", "put", "delete", "patch", "request", "fetch"]:
+                                    return True
+
+                    # Check for common async I/O patterns that should be async
+                    if attr_name in ["request", "fetch_data", "api_call", "send_request",
+                                    "make_request", "http_get", "http_post"]:
                         return True
+
                 elif isinstance(item.func, ast.Name):
                     # Check for built-in I/O functions
-                    if item.func.id in ["open", "print"]:
+                    if item.func.id in ["open", "print", "input"]:
                         return True
+                    # Check for common I/O function names
+                    if item.func.id in ["fetch", "request", "download", "upload"]:
+                        return True
+
+        return False
+
+    def _is_simple_getter(self, node: ast.FunctionDef) -> bool:
+        """Check if a method is a simple getter that doesn't perform I/O."""
+        # Simple getters typically have a single return statement or simple logic
+        if len(node.body) == 1 and isinstance(node.body[0], ast.Return):
+            return True
+
+        # Check for simple property-like getters with basic logic
+        has_io_call = False
+        for item in ast.walk(node):
+            if isinstance(item, ast.Call):
+                # Check if any calls might be I/O
+                if isinstance(item.func, ast.Attribute):
+                    if item.func.attr in ["request", "fetch", "api_call", "http_get", "http_post"]:
+                        has_io_call = True
+                        break
+                elif isinstance(item.func, ast.Name):
+                    if item.func.id in ["open", "fetch", "request"]:
+                        has_io_call = True
+                        break
+
+        # If no I/O calls and the method is short, it's likely a simple getter
+        if not has_io_call and len(node.body) <= 10:
+            return True
+
         return False
 
 
