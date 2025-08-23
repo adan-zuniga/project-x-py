@@ -49,7 +49,7 @@ Start trading::
    import asyncio
    from project_x_py import TradingSuite
    from project_x_py.indicators import RSI, SMA, MACD
-   
+
    async def main():
        # V3.1: Use unified TradingSuite for simplified initialization
        suite = await TradingSuite.create(
@@ -57,24 +57,24 @@ Start trading::
            timeframes=["1min", "5min"],
            features=["orderbook", "risk_manager"]
        )
-       
+
        # Get market data with technical analysis
        data = await suite.client.get_bars('MNQ', days=30, interval=60)
        data = RSI(data, period=14)         # Add RSI
        data = SMA(data, period=20)         # Add moving average
        data = MACD(data)                   # Add MACD
-       
+
        # Place an order using the integrated order manager
        response = await suite.orders.place_limit_order(
-           contract_id=suite.instrument_id, 
-           side=0, 
-           size=1, 
+           contract_id=suite.instrument_id,
+           side=0,
+           size=1,
            limit_price=21050.0
        )
-       
+
        # Clean up when done
        await suite.disconnect()
-   
+
    # Run the async function
    asyncio.run(main())
 
@@ -195,4 +195,4 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search` 
+* :ref:`search`

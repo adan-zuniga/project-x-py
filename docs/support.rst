@@ -18,7 +18,7 @@ To report a bug or request a feature:
 
 1. Check if the issue already exists on GitHub
 2. Create a new issue with:
-   
+
    - Clear title and description
    - Steps to reproduce (for bugs)
    - Expected vs actual behavior

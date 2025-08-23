@@ -51,4 +51,4 @@ jobs:
         run: |
           VERSION=$(python -c "from src.project_x_py import __version__; print(__version__)")
           git tag "v$VERSION" || echo "Tag v$VERSION already exists"
-          git push origin "v$VERSION" || echo "Tag v$VERSION already pushed" 
+          git push origin "v$VERSION" || echo "Tag v$VERSION already pushed"

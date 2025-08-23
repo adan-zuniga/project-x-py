@@ -100,7 +100,7 @@ Environment Variables
        async with ProjectX.from_env() as client:
            # Authenticate
            await client.authenticate()
-           
+
            # Verify authentication
            print(f"Authenticated as: {client.account_info.name}")
 
@@ -116,7 +116,7 @@ If you have multiple accounts:
    async def select_account():
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           
+
            # List all available accounts
            accounts = await client.list_accounts()
            for account in accounts:
@@ -168,7 +168,7 @@ You can check session status:
    async def check_session():
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           
+
            # Check session health
            health = await client.get_health_status()
            print(f"Authenticated: {health['authenticated']}")
@@ -287,12 +287,12 @@ Example: Production Setup
                raise ValueError("PROJECT_X_API_KEY environment variable not set")
            if not os.getenv('PROJECT_X_USERNAME'):
                raise ValueError("PROJECT_X_USERNAME environment variable not set")
-           
+
            # Note: This function should not be used with async context manager
            # Instead, use ProjectX.from_env() directly with async with
            # This is shown here for demonstration purposes only
            return ProjectX.from_env()
-           
+
        except ProjectXAuthenticationError as e:
            print(f"Authentication failed: {e}")
            raise
@@ -318,4 +318,4 @@ Once authentication is working:
 
 1. :doc:`Configure the client <configuration>`
 2. :doc:`Try the quickstart guide <quickstart>`
-3. :doc:`Explore the API reference <api/client>` 
+3. :doc:`Explore the API reference <api/client>`

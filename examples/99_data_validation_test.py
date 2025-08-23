@@ -27,8 +27,6 @@ async def test_data_validation():
     # Import validation components
     from project_x_py.realtime_data_manager.validation import (
         DataValidationMixin,
-        ValidationConfig,
-        ValidationMetrics,
     )
 
     # Create a test validation instance
@@ -181,7 +179,7 @@ async def test_validation_config():
         timestamp_tolerance_seconds=10.0,  # Stricter timestamp ordering
     )
 
-    print(f"\nHFT Config:")
+    print("\nHFT Config:")
     print(f"  Price range multiplier: {hft_config.price_range_multiplier}x")
     print(f"  Volume spike threshold: {hft_config.volume_spike_threshold}x")
     print(f"  Max spread: {hft_config.max_spread_percent}%")

@@ -28,7 +28,7 @@ Wraps methods to catch and log errors consistently:
 .. code-block:: python
 
    from project_x_py.utils import handle_errors
-   
+
    @handle_errors("fetch market data")
    async def get_market_data(self):
        # Method implementation
@@ -49,7 +49,7 @@ Automatically retries network operations with exponential backoff:
 .. code-block:: python
 
    from project_x_py.utils import retry_on_network_error
-   
+
    @retry_on_network_error(max_attempts=3, initial_delay=1.0)
    async def make_api_call(self):
        # API call implementation
@@ -70,7 +70,7 @@ Manages API rate limits with automatic backoff:
 .. code-block:: python
 
    from project_x_py.utils import handle_rate_limit
-   
+
    @handle_rate_limit()
    async def api_method(self):
        # Rate-limited API call
@@ -84,7 +84,7 @@ Validates API response structure:
 .. code-block:: python
 
    from project_x_py.utils import validate_response
-   
+
    @validate_response(required_fields=["orderId", "status"])
    async def place_order(self):
        # Returns response that must contain orderId and status
@@ -101,7 +101,7 @@ Factory for creating configured loggers:
 .. code-block:: python
 
    from project_x_py.utils import ProjectXLogger
-   
+
    logger = ProjectXLogger.get_logger(__name__)
    logger.info("Starting operation")
 
@@ -113,7 +113,7 @@ Context manager for adding structured context to logs:
 .. code-block:: python
 
    from project_x_py.utils import LogContext, LogMessages
-   
+
    with LogContext(logger, operation="place_order", symbol="MGC", size=1):
        logger.info(LogMessages.ORDER_PLACE)
        # All logs within this context include the extra fields
@@ -126,7 +126,7 @@ Use predefined log messages for consistency:
 .. code-block:: python
 
    from project_x_py.utils import LogMessages
-   
+
    logger.info(LogMessages.AUTH_START)
    logger.info(LogMessages.ORDER_PLACED, extra={"order_id": "12345"})
    logger.error(LogMessages.DATA_ERROR, extra={"error": str(e)})
@@ -143,13 +143,13 @@ Configure logging for your entire application:
 
    from project_x_py.utils import configure_sdk_logging
    import logging
-   
+
    # Development configuration
    configure_sdk_logging(
        level=logging.DEBUG,
        format_json=False,  # Human-readable format
    )
-   
+
    # Production configuration
    configure_sdk_logging(
        level=logging.INFO,
@@ -208,11 +208,11 @@ Example: Complete Error Handling
        LogMessages,
        ProjectXLogger,
    )
-   
+
    class TradingStrategy:
        def __init__(self):
            self.logger = ProjectXLogger.get_logger(__name__)
-       
+
        @handle_errors("execute trade")
        @retry_on_network_error(max_attempts=3)
        @validate_response(required_fields=["orderId"])
@@ -224,7 +224,7 @@ Example: Complete Error Handling
                size=size
            ):
                self.logger.info(LogMessages.ORDER_PLACE)
-               
+
                # Place order
                response = await self.client.place_order(
                    contract_id=symbol,
@@ -233,12 +233,12 @@ Example: Complete Error Handling
                    size=size,
                    limit_price=current_price
                )
-               
+
                self.logger.info(
                    LogMessages.ORDER_PLACED,
                    extra={"order_id": response.orderId}
                )
-               
+
                return response
 
 Production Monitoring

@@ -22,7 +22,7 @@ import gc
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any
 
 import polars as pl
 import psutil
@@ -30,8 +30,6 @@ from pytz import timezone
 
 from project_x_py.realtime_data_manager.dataframe_optimization import (
     LazyDataFrameMixin,
-    LazyQueryCache,
-    QueryOptimizer,
 )
 
 # Setup logging
@@ -44,7 +42,7 @@ class BenchmarkDataManager(LazyDataFrameMixin):
 
     def __init__(self):
         super().__init__()
-        self.data: Dict[str, pl.DataFrame] = {}
+        self.data: dict[str, pl.DataFrame] = {}
         self.data_lock = asyncio.Lock()
         self.logger = logger
 
@@ -116,7 +114,7 @@ def get_memory_usage() -> float:
 
 async def benchmark_basic_operations(
     manager: BenchmarkDataManager, df: pl.DataFrame
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark basic DataFrame operations."""
 
     logger.info("Benchmarking basic operations...")
@@ -182,7 +180,7 @@ async def benchmark_basic_operations(
 
 async def benchmark_batch_operations(
     manager: BenchmarkDataManager, df: pl.DataFrame
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark batch query operations."""
 
     logger.info("Benchmarking batch operations...")
@@ -233,7 +231,7 @@ async def benchmark_batch_operations(
 
 async def benchmark_cache_performance(
     manager: BenchmarkDataManager, df: pl.DataFrame
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark cache performance."""
 
     logger.info("Benchmarking cache performance...")
@@ -270,7 +268,7 @@ async def benchmark_cache_performance(
 
 async def benchmark_optimization_effectiveness(
     manager: BenchmarkDataManager, df: pl.DataFrame
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark query optimization effectiveness."""
 
     logger.info("Benchmarking optimization effectiveness...")
@@ -331,7 +329,7 @@ async def benchmark_optimization_effectiveness(
 
 async def benchmark_memory_optimization(
     manager: BenchmarkDataManager, large_df: pl.DataFrame
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Benchmark memory optimization features."""
 
     logger.info("Benchmarking memory optimization...")
@@ -382,7 +380,7 @@ async def benchmark_memory_optimization(
     }
 
 
-def print_benchmark_results(results: Dict[str, Any]) -> None:
+def print_benchmark_results(results: dict[str, Any]) -> None:
     """Print formatted benchmark results."""
 
     print("\n" + "=" * 80)
@@ -433,7 +431,7 @@ async def run_benchmarks():
     medium_dataset = create_sample_data(10000, "1min")  # 10K rows
     large_dataset = create_sample_data(50000, "1sec")  # 50K rows
 
-    print(f"Created datasets:")
+    print("Created datasets:")
     print(f"  Small: {len(small_dataset):,} rows")
     print(f"  Medium: {len(medium_dataset):,} rows")
     print(f"  Large: {len(large_dataset):,} rows")
@@ -486,15 +484,15 @@ async def run_benchmarks():
         time_improvement = opt_data.get("time_improvement_percent", 0)
         memory_improvement = opt_data.get("memory_improvement_percent", 0)
 
-        print(f"\nPerformance Improvements:")
+        print("\nPerformance Improvements:")
         print(f"  Query time improvement: {time_improvement:.1f}%")
         print(f"  Memory usage improvement: {memory_improvement:.1f}%")
 
-    print(f"\nTarget Improvements Achieved:")
-    print(f"  ✓ 30% memory reduction through lazy evaluation")
-    print(f"  ✓ 40% faster queries via operation batching")
-    print(f"  ✓ Reduced GC pressure through efficient operations")
-    print(f"  ✓ Better handling of large datasets")
+    print("\nTarget Improvements Achieved:")
+    print("  ✓ 30% memory reduction through lazy evaluation")
+    print("  ✓ 40% faster queries via operation batching")
+    print("  ✓ Reduced GC pressure through efficient operations")
+    print("  ✓ Better handling of large datasets")
 
 
 if __name__ == "__main__":

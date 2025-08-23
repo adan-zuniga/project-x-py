@@ -44,7 +44,7 @@ Step 2: Create Your First Client
        async with ProjectX.from_env() as client:
            # Authenticate
            await client.authenticate()
-           
+
            # Get account information
            print(f"Account: {client.account_info.name}")
            print(f"Balance: ${client.account_info.balance:,.2f}")
@@ -60,7 +60,7 @@ Step 3: Get Market Data
    async def get_market_data():
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           
+
            # Get historical data for Micro E-mini NASDAQ futures (V3: actual symbol)
            data = await client.get_bars('MNQ', days=5, interval=15)
            print(f"Retrieved {len(data)} bars of data")
@@ -86,7 +86,7 @@ Step 4: Place Your First Order
    async def place_order():
        # V3.1: Use TradingSuite for simplified initialization
        suite = await TradingSuite.create("MNQ")
-       
+
        # Place a limit order using the integrated order manager
        response = await suite.orders.place_limit_order(
            contract_id=suite.instrument_id,  # Use instrument ID
@@ -99,7 +99,7 @@ Step 4: Place Your First Order
            print(f"Order placed! Order ID: {response.orderId}")
        else:
            print(f"Order failed: {response}")
-       
+
        await suite.disconnect()
 
    asyncio.run(place_order())
@@ -114,7 +114,7 @@ Step 5: Monitor Positions
    async def monitor_positions():
        # V3.1: Use TradingSuite for all components
        suite = await TradingSuite.create("MNQ")
-       
+
        # Get all open positions using integrated position manager
        positions = await suite.positions.get_all_positions()
        for position in positions:
@@ -124,7 +124,7 @@ Step 5: Monitor Positions
        # Get portfolio metrics
        portfolio = await suite.positions.get_portfolio_pnl()
        print(f"Total positions: {portfolio['position_count']}")
-       
+
        await suite.disconnect()
 
    asyncio.run(monitor_positions())
@@ -151,7 +151,7 @@ Step 6: Real-time Data (Optional)
        # Access live data (automatically initialized)
        live_data = await suite.data.get_data('5min')
        print(f"Live data: {len(live_data)} bars")
-       
+
        # Keep running for 60 seconds to collect data
        await asyncio.sleep(60)
        await suite.disconnect()
@@ -171,7 +171,7 @@ Basic Trading Workflow
    async def trading_workflow():
        # V3.1: Use TradingSuite for simplified initialization
        suite = await TradingSuite.create('MNQ')
-       
+
        # All managers are automatically initialized and connected
        # suite.client - Authenticated ProjectX client
        # suite.orders - Order manager
@@ -203,7 +203,7 @@ Basic Trading Workflow
 
        if bracket.success:
            print("Bracket order placed successfully!")
-       
+
        await suite.disconnect()
 
    asyncio.run(trading_workflow())
@@ -218,7 +218,7 @@ Market Analysis with Technical Indicators
    async def analyze_market():
        async with ProjectX.from_env() as client:
            await client.authenticate()
-           
+
            # Get data
            data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
 
@@ -242,7 +242,7 @@ Market Analysis with Technical Indicators
            price = latest['close'].item()
            sma_20 = latest['sma_20'].item()
            sma_50 = latest['sma_50'].item()
-           
+
            if rsi_val < 30 and price > sma_20 > sma_50:
                print("🟢 Potential BUY signal: Oversold RSI + Uptrend")
            elif rsi_val > 70 and price < sma_20 < sma_50:
@@ -261,26 +261,26 @@ Error Handling
        try:
            # V3.1: Use TradingSuite for all trading operations
            suite = await TradingSuite.create('MNQ')
-           
+
            # Attempt to place order using integrated order manager
            response = await suite.orders.place_limit_order(
-               contract_id=suite.instrument_id, 
-               side=0, 
-               size=1, 
+               contract_id=suite.instrument_id,
+               side=0,
+               size=1,
                limit_price=21050.0  # Realistic MNQ price
            )
-           
+
            if response.success:
                print(f"Order placed: {response.orderId}")
-           
+
            await suite.disconnect()
-               
+
        except ProjectXOrderError as e:
            print(f"Order error: {e}")
-           
+
        except ProjectXError as e:
            print(f"API error: {e}")
-           
+
        except Exception as e:
            print(f"Unexpected error: {e}")
 
@@ -318,4 +318,4 @@ If you run into issues:
 * Check the :doc:`troubleshooting section <installation>`
 * Browse the :doc:`examples directory <examples/basic_usage>`
 * Review the :doc:`API documentation <api/client>`
-* Open an issue on `GitHub <https://github.com/TexasCoding/project-x-py/issues>`_ 
+* Open an issue on `GitHub <https://github.com/TexasCoding/project-x-py/issues>`_

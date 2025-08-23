@@ -230,7 +230,7 @@ async def setup_trading():
         timeframes=["1min", "5min"],
         features=["orderbook"]
     )
-    
+
     # Everything is ready - client authenticated, realtime connected
     return suite
 ```
@@ -304,7 +304,7 @@ Optional configuration:
 
 ### Optimized DataFrame Operations
 - **Chained operations** reduce intermediate DataFrame creation by 30-40%
-- **Lazy evaluation** with Polars for better memory efficiency  
+- **Lazy evaluation** with Polars for better memory efficiency
 - **Efficient datetime parsing** with cached timezone objects
 - **Vectorized operations** in orderbook analysis
 
@@ -314,15 +314,15 @@ Use async built-in methods to monitor performance:
 # Client performance stats (async)
 async with ProjectX.from_env() as client:
     await client.authenticate()
-    
+
     # Check performance metrics
     stats = await client.get_performance_stats()
     print(f"API calls: {stats['api_calls']}")
     print(f"Cache hits: {stats['cache_hits']}")
-    
+
     # Health check
     health = await client.get_health_status()
-    
+
     # Memory usage monitoring
     orderbook_stats = await orderbook.get_memory_stats()
     data_manager_stats = await data_manager.get_memory_stats()
@@ -403,17 +403,17 @@ async def main():
         features=["orderbook", "risk_manager"],
         initial_days=5
     )
-    
+
     # All managers are integrated and ready
     # No need to call start() - already connected
-    
+
     # Access individual managers
     order = await suite.orders.place_market_order(
         contract_id=suite.instrument_info.id,
         side=0,  # Buy
         size=1
     )
-    
+
     position = await suite.positions.get_position("MNQ")
     bars = await suite.data.get_data("1min")
 ```
@@ -424,22 +424,22 @@ async def main():
 async with ProjectX.from_env() as client:
     await client.authenticate()
     bars = await client.get_bars("MNQ", days=5)
-    
+
 # Real-time data with TradingSuite
 async def stream_data():
     suite = await TradingSuite.create(
         "MNQ",
         timeframes=["1min", "5min"]
     )
-    
+
     # Register event handlers
     from project_x_py import EventType
-    
+
     async def handle_bar(event):
         print(f"New bar: {event.data}")
-    
+
     await suite.on(EventType.NEW_BAR, handle_bar)
-    
+
     # Data is already streaming
     # Access current data
     current_price = await suite.data.get_current_price()

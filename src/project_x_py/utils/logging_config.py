@@ -167,7 +167,7 @@ class StructuredFormatter(logging.Formatter):
             )
         else:
             # For production, use JSON format
-            return orjson.dumps(log_data, default=str).decode("utf-8")
+            return str(orjson.dumps(log_data, default=str).decode("utf-8"))
 
 
 class ProjectXLogger:

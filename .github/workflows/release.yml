@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PYTHON_VERSION: "3.12"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --dev
+
+    - name: Verify version
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        PACKAGE_VERSION=$(uv run python -c "from project_x_py import __version__; print(__version__)")
+        if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+          echo "Error: Tag version ($TAG_VERSION) doesn't match package version ($PACKAGE_VERSION)"
+          exit 1
+        fi
+
+    - name: Build package
+      run: |
+        uv build
+
+    - name: Check package
+      run: |
+        uv run twine check dist/*
+
+    - name: Generate changelog
+      run: |
+        uv run python scripts/generate_changelog.py > RELEASE_NOTES.md
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/*
+        body_path: RELEASE_NOTES.md
+        generate_release_notes: true
+
+    - name: Publish to Test PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      run: |
+        uv run twine upload --repository testpypi dist/*
+
+    - name: Test installation from Test PyPI
+      run: |
+        uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ project-x-py==${GITHUB_REF#refs/tags/v}
+        python -c "from project_x_py import TradingSuite; print('Installation test passed')"
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        uv run twine upload dist/*

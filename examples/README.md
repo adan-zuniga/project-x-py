@@ -28,7 +28,7 @@ Or set environment variables manually:
 
 ```bash
 export PROJECT_X_API_KEY="your_api_key"
-export PROJECT_X_USERNAME="your_username"  
+export PROJECT_X_USERNAME="your_username"
 export PROJECT_X_ACCOUNT_NAME="your_account_name"
 
 uv run examples/01_basic_client_connection.py

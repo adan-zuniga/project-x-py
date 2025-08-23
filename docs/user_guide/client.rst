@@ -49,11 +49,11 @@ Using TradingSuite (Simplified)
    async def main():
        # TradingSuite handles client creation and authentication
        suite = await TradingSuite.create("MNQ")
-       
+
        # Access client through suite
        account = suite.client.account_info
        print(f"Account: {account.name}")
-       
+
        await suite.disconnect()
 
    asyncio.run(main())
@@ -68,12 +68,12 @@ Account Information
 
    async with ProjectX.from_env() as client:
        await client.authenticate()
-       
+
        # Get account info
        account = client.account_info
        print(f"Balance: ${account.balance:,.2f}")
        print(f"Can Trade: {account.can_trade}")
-       
+
        # List all accounts
        accounts = await client.list_accounts()
        for acc in accounts:
@@ -90,7 +90,7 @@ Instrument Search
        print(f"{inst.name}: {inst.description}")
        print(f"  Tick size: {inst.tick_size}")
        print(f"  Contract ID: {inst.id}")
-   
+
    # Get specific instrument
    mnq = await client.get_instrument("MNQ")
    print(f"MNQ Contract: {mnq.id}")
@@ -103,15 +103,15 @@ Market Data
    # Get historical bars
    data = await client.get_bars("MNQ", days=5, interval=15)
    print(f"Retrieved {len(data)} bars")
-   
+
    # With specific time range (v3.1.5+)
    from datetime import datetime
-   
+
    start = datetime(2025, 1, 1, 9, 30)
    end = datetime(2025, 1, 10, 16, 0)
    data = await client.get_bars(
-       "MNQ", 
-       start_time=start, 
+       "MNQ",
+       start_time=start,
        end_time=end,
        interval=60
    )
@@ -161,7 +161,7 @@ Error Handling
        async with ProjectX.from_env() as client:
            await client.authenticate()
            # Operations
-           
+
    except ProjectXAuthenticationError as e:
        print(f"Auth failed: {e}")
    except ProjectXRateLimitError as e:

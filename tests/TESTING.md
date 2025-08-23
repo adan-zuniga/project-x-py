@@ -42,7 +42,7 @@ We use fixtures to mock HTTP responses and clients to avoid making real network 
 - `mock_response`: Factory for creating HTTP responses with specific status codes and data
 - `mock_httpx_client`: Mocked `httpx.AsyncClient` for intercepting API calls
 - `mock_auth_response`: Standard authentication response sequence
-- `mock_instrument`: Sample instrument data 
+- `mock_instrument`: Sample instrument data
 - `mock_bars_data`: Sample OHLCV market data
 - `mock_positions_data`: Sample position data
 - `mock_trades_data`: Sample trade execution data

@@ -18,10 +18,8 @@ Date: 2025-08-22
 
 import asyncio
 import time
-from decimal import Decimal
 
 from project_x_py import TradingSuite
-from project_x_py.client import ProjectX
 
 
 async def monitor_resource_usage(suite: TradingSuite, duration_seconds: int = 60):
@@ -157,7 +155,7 @@ async def demonstrate_manual_overrides(suite: TradingSuite):
     print(
         f"✅ Override applied: {current_limits.get('max_bars_per_timeframe', 'N/A'):,}"
     )
-    print(f"⏰ Override will expire in 30 seconds...")
+    print("⏰ Override will expire in 30 seconds...")
 
     # Wait for override to expire
     await asyncio.sleep(35)
@@ -203,7 +201,7 @@ async def main():
         resource_stats = await suite.data.get_resource_stats()
         config = resource_stats.get("configuration", {})
 
-        print(f"\n⚙️  Resource Configuration:")
+        print("\n⚙️  Resource Configuration:")
         print(f"   Memory Target: {config.get('memory_target_percent', 0):.1f}%")
         print(
             f"   Pressure Threshold: {config.get('memory_pressure_threshold', 0):.1f}"
@@ -218,7 +216,7 @@ async def main():
         resource_stats = await suite.data.get_resource_stats()
         if resource_stats.get("current_limits"):
             current_limits = resource_stats["current_limits"]
-            print(f"\n📊 Initial Resource Limits:")
+            print("\n📊 Initial Resource Limits:")
             print(
                 f"   Buffer Size: {current_limits.get('max_bars_per_timeframe', 'N/A'):,}"
             )

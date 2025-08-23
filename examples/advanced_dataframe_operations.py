@@ -26,11 +26,10 @@ Usage:
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta
 
 import polars as pl
 
-from project_x_py import EventType, TradingSuite
+from project_x_py import TradingSuite
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -75,7 +74,7 @@ async def demonstrate_lazy_operations(suite: TradingSuite) -> None:
             f"  Filtered {len(data_5m)} → {len(filtered_data) if filtered_data else 0} bars"
         )
         print(f"  Execution time: {execution_time:.2f} ms")
-        print(f"  Memory efficient: Only loaded selected columns")
+        print("  Memory efficient: Only loaded selected columns")
     else:
         print("  Lazy operations not available (using fallback)")
         filtered_data = data_5m.filter(
@@ -334,7 +333,7 @@ async def demonstrate_performance_monitoring(suite: TradingSuite) -> None:
         # Cache performance
         cache_stats = opt_stats.get("cache_stats", {})
         if cache_stats:
-            print(f"\nCache Performance:")
+            print("\nCache Performance:")
             print(f"  Cache hits: {cache_stats.get('hits', 0)}")
             print(f"  Cache misses: {cache_stats.get('misses', 0)}")
             print(f"  Hit rate: {cache_stats.get('hit_rate', 0):.1%}")
@@ -343,7 +342,7 @@ async def demonstrate_performance_monitoring(suite: TradingSuite) -> None:
         # Optimizer statistics
         optimizer_stats = opt_stats.get("optimizer_stats", {})
         if optimizer_stats:
-            print(f"\nQuery Optimizer:")
+            print("\nQuery Optimizer:")
             print(f"  Queries optimized: {optimizer_stats.get('queries_optimized', 0)}")
             print(f"  Filters combined: {optimizer_stats.get('filters_combined', 0)}")
             print(
@@ -353,7 +352,7 @@ async def demonstrate_performance_monitoring(suite: TradingSuite) -> None:
         # Memory profiling
         if hasattr(suite.data, "profile_memory_usage"):
             memory_profile = await suite.data.profile_memory_usage()
-            print(f"\nMemory Usage:")
+            print("\nMemory Usage:")
             print(
                 f"  Current memory: {memory_profile.get('current_memory_mb', 0):.2f} MB"
             )
@@ -415,7 +414,7 @@ async def main():
             await demonstrate_performance_monitoring(suite)
 
         # Show final statistics
-        print(f"\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("Final Statistics")
         print("=" * 60)
 

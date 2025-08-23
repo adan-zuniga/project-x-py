@@ -29,7 +29,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 
 Since v3.1.1, this project maintains:
 - ✅ Backward compatibility between minor versions
-- ✅ Deprecation warnings for at least 2 minor versions before removal  
+- ✅ Deprecation warnings for at least 2 minor versions before removal
 - ✅ Breaking changes only in major releases (4.0.0+)
 - ✅ Strict semantic versioning (MAJOR.MINOR.PATCH)
 
@@ -118,30 +118,30 @@ from project_x_py import TradingSuite
 
 async def main():
     suite = await TradingSuite.create(\"MNQ\")
-    
+
     print(f\"Connected to account: {suite.client.account_info.name}\")
-    
+
     # Get instrument info if needed
     instrument = await suite.client.get_instrument(suite.instrument_id or \"MNQ\")
     print(f\"Trading {instrument.name} - Tick size: ${instrument.tickSize}\")
-    
+
     data = await suite.client.get_bars(\"MNQ\", days=5)
     print(f\"Retrieved {len(data)} bars\")
-    
+
     positions = await suite.positions.get_all_positions()
     for position in positions:
         print(f\"Position: {position.size} @ ${position.averagePrice}\")
-    
+
     # New v3.3.0: Get comprehensive statistics (async-first API)
     stats = await suite.get_stats()
     print(f\"System Health: {stats['health_score']:.1f}/100\")
     print(f\"Total API Calls: {stats['total_api_calls']}\")
     print(f\"Memory Usage: {stats['memory_usage_mb']:.1f} MB\")
-    
+
     # Export statistics to multiple formats
     prometheus_metrics = await suite.export_stats(\"prometheus\")
     csv_data = await suite.export_stats(\"csv\")
-    
+
     await suite.disconnect()
 
 if __name__ == \"__main__\":
@@ -162,25 +162,25 @@ async def main():
         timeframes=[\"5min\", \"15min\", \"1hr\"],
         features=[\"orderbook\", \"risk_manager\"]
     )
-    
+
     # Register event handlers
     async def on_new_bar(event):
         # Access bar data directly from event
         print(f\"New {event.data['timeframe']} bar: {event.data['data']['close']}\")
-    
+
     async def on_trade(event):
         print(f\"Trade: {event.data['size']} @ {event.data['price']}\")
-    
+
     # Register the handlers
     await suite.on(EventType.NEW_BAR, on_new_bar)
     await suite.on(EventType.TRADE_TICK, on_trade)
-    
+
     # Access components
     data = await suite.data.get_data(\"5min\")
     orderbook = suite.orderbook  # Available since feature enabled
     order_manager = suite.orders
     position_manager = suite.positions
-    
+
     await suite.disconnect()
 
 if __name__ == \"__main__\":
@@ -199,12 +199,12 @@ async def on_tick(event):
 
 async def main():
     suite = await TradingSuite.create(\"MNQ\")
-    
+
     # Register tick callback
     await suite.data.add_callback(\"tick\", on_tick)
-    
+
     current_price = await suite.data.get_current_price()
-    
+
     response = await suite.orders.place_bracket_order(
         contract_id=suite.instrument_id,
         side=0,  # Buy
@@ -213,9 +213,9 @@ async def main():
         stop_loss_price=current_price - 10,
         take_profit_price=current_price + 15
     )
-    
+
     print(f\"Order placed: {response}\")
-    
+
     await asyncio.sleep(60)
     await suite.disconnect()
 

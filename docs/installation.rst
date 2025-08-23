@@ -25,7 +25,7 @@ Or with pip if you prefer::
 This will install the core package with all required dependencies:
 
 * ``polars`` - Fast DataFrames for market data
-* ``requests`` - HTTP client for API calls  
+* ``requests`` - HTTP client for API calls
 * ``pytz`` - Timezone handling
 
 Optional Dependencies
@@ -124,7 +124,7 @@ Next Steps
 After installation:
 
 1. :doc:`Set up authentication <authentication>`
-2. :doc:`Configure the client <configuration>` 
+2. :doc:`Configure the client <configuration>`
 3. :doc:`Try the quickstart guide <quickstart>`
 
 Troubleshooting
@@ -158,4 +158,4 @@ Getting Help
 
 * Check the :doc:`API documentation <api/client>`
 * Browse :doc:`examples <examples/basic_usage>`
-* Open an issue on `GitHub <https://github.com/TexasCoding/project-x-py/issues>`_ 
+* Open an issue on `GitHub <https://github.com/TexasCoding/project-x-py/issues>`_

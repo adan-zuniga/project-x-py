@@ -50,7 +50,7 @@ Trading Suite
    :members:
    :undoc-members:
    :show-inheritance:
-   
+
    The TradingSuite is the primary interface for trading operations, combining all managers
    into a unified interface. Use the async :meth:`create` class method to initialize.
 
@@ -91,4 +91,4 @@ Account Models
 .. autoclass:: project_x_py.models.Trade
    :members:
    :undoc-members:
-   :show-inheritance: 
+   :show-inheritance:

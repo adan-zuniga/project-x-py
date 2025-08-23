@@ -271,7 +271,7 @@ async def main():
         if bar_counter["count"] == 10 and not bar_counter["export_prompted"]:
             bar_counter["export_prompted"] = True
             # Run the prompt in a separate task to avoid blocking
-            asyncio.create_task(prompt_for_csv_export(suite, TIMEFRAME))  # noqa: RUF006
+            asyncio.create_task(prompt_for_csv_export(suite, TIMEFRAME))
 
         # Reset the prompt flag after 20 bars so it can prompt again
         if bar_counter["count"] >= 20:

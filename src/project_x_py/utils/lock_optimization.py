@@ -94,7 +94,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from threading import RLock
-from typing import Any
+from typing import Any, Generic, TypeVar
 from weakref import WeakSet
 
 from project_x_py.utils import ProjectXLogger
@@ -336,7 +336,10 @@ class AsyncRWLock:
         return self._reader_count
 
 
-class LockFreeBuffer[T]:
+T = TypeVar("T")
+
+
+class LockFreeBuffer(Generic[T]):
     """
     Lock-free circular buffer for high-frequency data operations.
 

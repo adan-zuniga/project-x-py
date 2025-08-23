@@ -198,16 +198,16 @@ uv run python -m build       # Alternative build command
 async def setup_trading():
     async with ProjectX.from_env() as client:
         await client.authenticate()
-        
+
         # Create managers with async patterns
         realtime_client = await create_realtime_client(
-            client.jwt_token, 
+            client.jwt_token,
             str(client.account_id)
         )
-        
+
         order_manager = create_order_manager(client, realtime_client)
         position_manager = create_position_manager(client, realtime_client)
-        
+
         # Or use the all-in-one factory
         suite = await create_trading_suite(
             instrument="MNQ",
@@ -215,7 +215,7 @@ async def setup_trading():
             jwt_token=client.jwt_token,
             account_id=client.account_id
         )
-        
+
         return suite
 ```
 
@@ -288,7 +288,7 @@ Optional configuration:
 
 ### Optimized DataFrame Operations
 - **Chained operations** reduce intermediate DataFrame creation by 30-40%
-- **Lazy evaluation** with Polars for better memory efficiency  
+- **Lazy evaluation** with Polars for better memory efficiency
 - **Efficient datetime parsing** with cached timezone objects
 - **Vectorized operations** in orderbook analysis
 
@@ -298,15 +298,15 @@ Use async built-in methods to monitor performance:
 # Client performance stats (async)
 async with ProjectX.from_env() as client:
     await client.authenticate()
-    
+
     # Check performance metrics
     stats = await client.get_performance_stats()
     print(f"API calls: {stats['api_calls']}")
     print(f"Cache hits: {stats['cache_hits']}")
-    
+
     # Health check
     health = await client.get_health_status()
-    
+
     # Memory usage monitoring
     orderbook_stats = await orderbook.get_memory_stats()
     data_manager_stats = await data_manager.get_memory_stats()
@@ -336,7 +336,7 @@ async with ProjectX.from_env() as client:
 
 ### v2.0.2 - Pattern Recognition Indicators
 - Added Fair Value Gap (FVG) indicator for price imbalance detection
-- Added Order Block indicator for institutional zone identification  
+- Added Order Block indicator for institutional zone identification
 - Added Waddah Attar Explosion for volatility-based trend strength
 - All indicators support async data processing
 
@@ -352,24 +352,24 @@ async with ProjectX.from_env() as client:
 async with ProjectX.from_env() as client:
     await client.authenticate()
     bars = await client.get_bars("MNQ", days=5)
-    
+
 # Real-time data
 async def stream_data():
     async with ProjectX.from_env() as client:
         await client.authenticate()
-        
+
         realtime = await create_realtime_client(
             client.jwt_token,
             str(client.account_id)
         )
-        
+
         data_manager = create_realtime_data_manager(
             "MNQ", client, realtime
         )
-        
+
         # Set up callbacks
         data_manager.on_bar_received = handle_bar
-        
+
         # Start streaming
         await realtime.connect()
         await data_manager.start_realtime_feed()

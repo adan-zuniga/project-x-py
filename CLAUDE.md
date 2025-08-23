@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## CRITICAL: Testing and Running Examples
 
-**ALWAYS use `./test.sh` to run tests and examples.** The environment variables are not set globally, but test.sh handles this automatically. 
+**ALWAYS use `./test.sh` to run tests and examples.** The environment variables are not set globally, but test.sh handles this automatically.
 
 ```bash
 # CORRECT - Always use test.sh:
 ./test.sh examples/01_basic_client_connection.py
-./test.sh examples/21_statistics_usage.py  
+./test.sh examples/21_statistics_usage.py
 ./test.sh /tmp/test_script.py
 
 # WRONG - Never use these directly:
@@ -195,7 +195,7 @@ Example scenarios:
 # When implementing a new feature:
 1. python-developer: Implement the feature
 2. code-standards-enforcer: Verify compliance
-3. code-documenter: Add documentation  
+3. code-documenter: Add documentation
 4. code-reviewer: Final review before commit
 ```
 
@@ -218,7 +218,7 @@ Example scenarios:
 **code-standards-enforcer**:
 - `mcp__ide__getDiagnostics` - **CHECK FIRST** - IDE diagnostics
 - `uv run ruff check .` - Lint code
-- `uv run ruff format .` - Format code  
+- `uv run ruff format .` - Format code
 - `uv run mypy src/` - Type checking
 - `uv run pytest --cov` - Coverage reports
 
@@ -239,13 +239,13 @@ Example scenarios:
 1. python-developer:
    - Edit src/project_x_py/new_feature.py
    - ./test.sh tests/test_new_feature.py
-   
+
 2. code-standards-enforcer:
    - mcp__ide__getDiagnostics  # ALWAYS CHECK FIRST
    - uv run ruff check src/
    - uv run mypy src/
    - Fix any issues found
-   
+
 3. code-reviewer:
    - mcp__ide__getDiagnostics  # Verify no issues remain
    - git diff
@@ -329,7 +329,7 @@ This catches issues that mypy might miss, such as:
        content="## Bracket Order Implementation\n..."
    )
 
-# code-debugger agent workflow  
+# code-debugger agent workflow
 1. Analyze problem:
    await mcp__waldzellai_clear_thought__clear_thought(
        operation="debugging_approach",
@@ -548,7 +548,7 @@ async def setup_trading():
         timeframes=["1min", "5min"],
         features=["orderbook"]
     )
-    
+
     # Everything is ready - client authenticated, realtime connected
     return suite
 ```
@@ -640,7 +640,7 @@ Maps component relationships and data flow:
 # Map trading system relationships
 await mcp__itseasy_21_mcp_knowledge_graph__create_entities(
     entities=[
-        {"name": "TradingSuite", "entityType": "Core", 
+        {"name": "TradingSuite", "entityType": "Core",
          "observations": ["Central orchestrator", "Manages all components"]},
         {"name": "OrderManager", "entityType": "Manager",
          "observations": ["Handles order lifecycle", "Supports bracket orders"]}
@@ -737,7 +737,7 @@ await mcp__tavily_mcp__tavily_extract(
 
 ### Optimized DataFrame Operations
 - **Chained operations** reduce intermediate DataFrame creation by 30-40%
-- **Lazy evaluation** with Polars for better memory efficiency  
+- **Lazy evaluation** with Polars for better memory efficiency
 - **Efficient datetime parsing** with cached timezone objects
 - **Vectorized operations** in orderbook analysis
 
@@ -747,15 +747,15 @@ Use async built-in methods to monitor performance:
 # Client performance stats (async)
 async with ProjectX.from_env() as client:
     await client.authenticate()
-    
+
     # Check performance metrics
     stats = await client.get_performance_stats()
     print(f"API calls: {stats['api_calls']}")
     print(f"Cache hits: {stats['cache_hits']}")
-    
+
     # Health check
     health = await client.get_health_status()
-    
+
     # Memory usage monitoring
     orderbook_stats = await orderbook.get_memory_stats()
     data_manager_stats = await data_manager.get_memory_stats()
@@ -844,7 +844,7 @@ async with ProjectX.from_env() as client:
   - Prevents invalid prices (e.g., $23,927.62 for NQ now snaps to $23,927.50)
 - **Documented**: ProjectX volume data limitation (platform-specific, not full exchange volume)
 
-### v3.1.8 - Previous Release  
+### v3.1.8 - Previous Release
 - **Fixed**: Real-time data processing for E-mini contracts (NQ/ES) that resolve to different symbols
 - **Added**: Bar timer mechanism to create empty bars during low-volume periods
 - **Improved**: Symbol matching to handle contract resolution (e.g., NQ→ENQ)
@@ -909,17 +909,17 @@ async def main():
         features=["orderbook", "risk_manager"],  # Optional features
         initial_days=5
     )
-    
+
     # All managers are integrated and ready
     # No need to call start() - already connected
-    
+
     # Access individual managers
     order = await suite.orders.place_market_order(
         contract_id=suite.instrument_info.id,
         side=0,  # Buy
         size=1
     )
-    
+
     position = await suite.positions.get_position("MNQ")
     bars = await suite.data.get_data("1min")
 ```
@@ -930,22 +930,22 @@ async def main():
 async with ProjectX.from_env() as client:
     await client.authenticate()
     bars = await client.get_bars("MNQ", days=5)
-    
+
 # Real-time data with TradingSuite
 async def stream_data():
     suite = await TradingSuite.create(
         "MNQ",
         timeframes=["1min", "5min"]
     )
-    
+
     # Register event handlers
     from project_x_py import EventType
-    
+
     async def handle_bar(event):
         print(f"New bar: {event.data}")
-    
+
     await suite.on(EventType.NEW_BAR, handle_bar)
-    
+
     # Data is already streaming
     # Access current data
     current_price = await suite.data.get_current_price()

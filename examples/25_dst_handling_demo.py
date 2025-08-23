@@ -24,7 +24,6 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from project_x_py import EventType, TradingSuite
 from project_x_py.realtime_data_manager.dst_handling import DSTHandlingMixin
 
 # Configure logging to show DST events
@@ -55,7 +54,7 @@ class DSTDemoManager(DSTHandlingMixin):
             minutes = (timestamp.minute // interval) * interval
             bar_time = timestamp.replace(minute=minutes, second=0, microsecond=0)
         else:
-            raise ValueError(f"Demo only supports minute intervals")
+            raise ValueError("Demo only supports minute intervals")
 
         return bar_time
 
@@ -110,7 +109,7 @@ async def demo_spring_forward_handling():
     # Start 30 minutes before transition
     base_time = datetime(2025, 3, 9, 1, 30, 0)
 
-    print(f"\nProcessing 5-minute bars around transition:")
+    print("\nProcessing 5-minute bars around transition:")
     print(f"{'Tick Time':<20} {'Bar Time':<20} {'Status'}")
     print("-" * 60)
 
@@ -131,9 +130,7 @@ async def demo_spring_forward_handling():
             print(f"{tick_time_str:<20} {bar_time_str:<20} {status}")
 
         except Exception as e:
-            print(
-                f"{tick_time.strftime('%Y-%m-%d %H:%M:%S'):<20} {'ERROR':<20} {str(e)}"
-            )
+            print(f"{tick_time.strftime('%Y-%m-%d %H:%M:%S'):<20} {'ERROR':<20} {e!s}")
 
 
 async def demo_fall_back_handling():
@@ -151,7 +148,7 @@ async def demo_fall_back_handling():
     # Start before transition
     base_time = datetime(2025, 11, 2, 0, 30, 0)
 
-    print(f"\nProcessing 5-minute bars around transition:")
+    print("\nProcessing 5-minute bars around transition:")
     print(f"{'Tick Time':<20} {'Bar Time':<20} {'DST':<5} {'Status'}")
     print("-" * 65)
 
@@ -188,7 +185,7 @@ async def demo_fall_back_handling():
 
         except Exception as e:
             print(
-                f"{tick_time.strftime('%Y-%m-%d %H:%M:%S'):<20} {'ERROR':<20} {'N/A':<5} {str(e)}"
+                f"{tick_time.strftime('%Y-%m-%d %H:%M:%S'):<20} {'ERROR':<20} {'N/A':<5} {e!s}"
             )
 
 

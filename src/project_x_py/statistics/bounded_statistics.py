@@ -563,7 +563,7 @@ class CleanupScheduler:
                 await asyncio.sleep(self.cleanup_interval)
 
                 if not self._running:
-                    break
+                    break  # pragma: no cover
 
                 # Run all registered cleanup functions
                 for name, cleanup_func in self._cleanup_functions:
@@ -594,7 +594,7 @@ class CleanupScheduler:
                 await asyncio.sleep(self.memory_check_interval)
 
                 if not self._running:
-                    break
+                    break  # pragma: no cover
 
                 # Check memory usage (simplified implementation)
                 # In a real implementation, you might check system memory,
@@ -819,7 +819,7 @@ class BoundedStatisticsMixin:
         Returns:
             Dictionary with all bounded statistics
         """
-        stats = {
+        stats: dict[str, Any] = {
             "counters": {},
             "timing": {},
             "gauges": {},

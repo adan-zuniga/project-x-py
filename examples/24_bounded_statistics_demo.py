@@ -146,7 +146,7 @@ async def demonstrate_bounded_counters():
 
     # Show final statistics
     stats = await counter.get_statistics()
-    print(f"\nFinal Statistics:")
+    print("\nFinal Statistics:")
     print(f"  Current count: {stats['current_count']}")
     print(f"  Current sum: {stats['current_sum']:.0f}")
     print(f"  Current avg: {stats['current_avg']:.1f}")
@@ -154,7 +154,7 @@ async def demonstrate_bounded_counters():
     print(f"  Memory usage: {stats['memory_usage_bytes']} bytes")
 
     # Demonstrate TTL expiration
-    print(f"\nWaiting 12 seconds for TTL expiration...")
+    print("\nWaiting 12 seconds for TTL expiration...")
     await asyncio.sleep(12)
 
     expired_count = await counter.get_current_count()
@@ -184,7 +184,7 @@ async def demonstrate_circular_buffers():
 
     # Show statistics
     stats = await buffer.get_statistics()
-    print(f"\nBuffer Statistics:")
+    print("\nBuffer Statistics:")
     print(f"  Count: {stats['count']}")
     print(f"  Sum: {stats['sum']:.0f}")
     print(f"  Average: {stats['avg']:.1f}")
@@ -219,7 +219,7 @@ async def demonstrate_high_frequency_performance():
     total_duration = end_time - start_time
     final_rate = num_updates / total_duration
 
-    print(f"\nPerformance Results:")
+    print("\nPerformance Results:")
     print(f"  Total updates: {num_updates:,}")
     print(f"  Total time: {total_duration:.2f} seconds")
     print(f"  Average rate: {final_rate:.0f} operations/second")
@@ -233,12 +233,12 @@ async def demonstrate_high_frequency_performance():
     timing_stats = await component.get_bounded_timing_stats("operation_time")
 
     if counter_stats:
-        print(f"\nFinal Counter Stats:")
+        print("\nFinal Counter Stats:")
         print(f"  Stored count: {counter_stats['current_count']:,}")
         print(f"  Total lifetime: {counter_stats['total_lifetime_count']:,}")
 
     if timing_stats:
-        print(f"\nFinal Timing Stats:")
+        print("\nFinal Timing Stats:")
         print(f"  Stored measurements: {timing_stats['count']:,}")
         print(f"  Average time: {timing_stats['avg']:.1f}ms")
 
@@ -308,7 +308,7 @@ async def demonstrate_memory_bounded_operation():
         print(f"  Active timing ops: {memory_info['num_timing_operations']}")
         print(f"  Active gauges: {memory_info['num_gauges']}")
 
-    print(f"\nMemory Usage Summary:")
+    print("\nMemory Usage Summary:")
     print(f"  Initial: {memory_measurements[0]:.2f}MB")
     print(f"  Final: {memory_measurements[-1]:.2f}MB")
     print(f"  Peak: {max(memory_measurements):.2f}MB")

@@ -61,21 +61,21 @@ Getting Statistics
 .. code-block:: python
 
    from project_x_py import TradingSuite
-   
+
    async def get_comprehensive_statistics():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Get comprehensive system statistics (async-first API)
        stats = await suite.get_stats()
-       
+
        # Health scoring (0-100) with intelligent monitoring
        print(f"System Health: {stats['health_score']:.1f}/100")
-       
+
        # Performance metrics with enhanced tracking
        print(f"API Calls: {stats['total_api_calls']}")
        print(f"Success Rate: {stats['api_success_rate']:.1%}")
        print(f"Memory Usage: {stats['memory_usage_mb']:.1f} MB")
-       
+
        await suite.disconnect()
 
 Component-Specific Statistics
@@ -85,20 +85,20 @@ Component-Specific Statistics
 
    async def component_statistics():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Component-specific statistics (all async for consistency)
        order_stats = await suite.orders.get_stats()
        print(f"Fill Rate: {order_stats['fill_rate']:.1%}")
        print(f"Average Fill Time: {order_stats['avg_fill_time_ms']:.0f}ms")
-       
+
        position_stats = await suite.positions.get_stats()
        print(f"Win Rate: {position_stats.get('win_rate', 0):.1%}")
-       
+
        # OrderBook statistics (if enabled)
        if suite.orderbook:
            orderbook_stats = await suite.orderbook.get_stats()
            print(f"Depth Updates: {orderbook_stats['depth_updates']}")
-       
+
        await suite.disconnect()
 
 Export Capabilities
@@ -111,20 +111,20 @@ Multi-format Export
 
    async def export_statistics():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Multi-format export capabilities
        prometheus_metrics = await suite.export_stats("prometheus")
        csv_data = await suite.export_stats("csv")
        datadog_metrics = await suite.export_stats("datadog")
        json_data = await suite.export_stats("json")
-       
+
        # Save to files
        with open("metrics.prom", "w") as f:
            f.write(prometheus_metrics)
-       
+
        with open("stats.csv", "w") as f:
            f.write(csv_data)
-       
+
        await suite.disconnect()
 
 Health Monitoring
@@ -137,18 +137,18 @@ Real-time Health Scoring
 
    async def monitor_health():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Real-time health monitoring with degradation detection
        health_score = await suite.get_health_score()
        if health_score < 70:
            print("⚠️ System health degraded - check components")
-           
+
            # Get detailed component health
            component_health = await suite.get_component_health()
            for name, health in component_health.items():
                if health['error_count'] > 0:
                    print(f"  {name}: {health['error_count']} errors")
-       
+
        await suite.disconnect()
 
 Health Thresholds
@@ -157,7 +157,7 @@ Health Thresholds
 .. code-block:: python
 
    from project_x_py.statistics.health import HealthThresholds, HealthMonitor
-   
+
    async def custom_health_monitoring():
        # Configure custom health thresholds
        thresholds = HealthThresholds(
@@ -166,7 +166,7 @@ Health Thresholds
            response_time_warning=500, # 500ms response time warning
            memory_usage_warning=80.0  # 80% memory usage warning
        )
-       
+
        # Custom category weights
        weights = {
            "errors": 0.30,         # Emphasize error tracking
@@ -175,17 +175,17 @@ Health Thresholds
            "resources": 0.15,      # Resource usage
            "data_quality": 0.10,   # Data quality
        }
-       
+
        # Initialize custom health monitor
        monitor = HealthMonitor(thresholds=thresholds, weights=weights)
-       
+
        # Use with aggregator
        suite = await TradingSuite.create("MNQ")
        stats = await suite.get_stats()
        health_score = await monitor.calculate_health(stats)
-       
+
        print(f"Custom Health Score: {health_score:.1f}/100")
-       
+
        await suite.disconnect()
 
 Data Types
@@ -283,48 +283,48 @@ Example: Production Monitoring
 
    import asyncio
    from project_x_py import TradingSuite
-   
+
    async def production_monitoring():
        """Complete production monitoring example."""
        suite = await TradingSuite.create(
            "MNQ",
            features=["orderbook", "risk_manager"]
        )
-       
+
        # Run monitoring loop
        while True:
            try:
                # Get comprehensive statistics
                stats = await suite.get_stats()
-               
+
                # Check system health
                health = stats.get('health_score', 0)
                if health < 80:
                    print(f"⚠️ Health Alert: {health:.1f}/100")
-                   
+
                    # Get component breakdown
                    component_health = await suite.get_component_health()
                    for name, metrics in component_health.items():
                        if metrics['error_count'] > 5:
                            print(f"  {name}: {metrics['error_count']} errors")
-               
+
                # Export metrics for monitoring system
                prometheus_data = await suite.export_stats("prometheus")
-               
+
                # Save to monitoring endpoint (example)
                # await send_to_monitoring_system(prometheus_data)
-               
+
                # Performance metrics
                print(f"API Success Rate: {stats.get('api_success_rate', 0):.1%}")
                print(f"Memory Usage: {stats.get('memory_usage_mb', 0):.1f} MB")
-               
+
                # Wait before next check
                await asyncio.sleep(30)  # Check every 30 seconds
-               
+
            except Exception as e:
                print(f"Monitoring error: {e}")
                await asyncio.sleep(60)  # Longer wait on error
-   
+
    # Run monitoring
    asyncio.run(production_monitoring())
 
@@ -338,23 +338,23 @@ Prometheus Integration
 
    async def prometheus_integration():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Export Prometheus metrics
        metrics = await suite.export_stats("prometheus")
-       
+
        # Example Prometheus metrics format:
        # # HELP projectx_api_calls_total Total API calls
        # # TYPE projectx_api_calls_total counter
        # projectx_api_calls_total 1234
-       # 
+       #
        # # HELP projectx_health_score Current health score
-       # # TYPE projectx_health_score gauge  
+       # # TYPE projectx_health_score gauge
        # projectx_health_score 85.5
-       
+
        # Send to Prometheus pushgateway
-       # requests.post('http://pushgateway:9091/metrics/job/projectx', 
+       # requests.post('http://pushgateway:9091/metrics/job/projectx',
        #               data=metrics)
-       
+
        await suite.disconnect()
 
 Datadog Integration
@@ -364,20 +364,20 @@ Datadog Integration
 
    async def datadog_integration():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Export Datadog-compatible metrics
        metrics = await suite.export_stats("datadog")
-       
+
        # Example: Send to Datadog (requires datadog library)
        # from datadog import api
-       # 
+       #
        # for metric in metrics:
        #     api.Metric.send(
        #         metric='projectx.health_score',
        #         points=metric['value'],
        #         tags=['environment:production']
        #     )
-       
+
        await suite.disconnect()
 
 CSV Analytics
@@ -387,19 +387,19 @@ CSV Analytics
 
    async def csv_analytics():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Export CSV for analytics
        csv_data = await suite.export_stats("csv")
-       
+
        # Save for analysis
        with open("trading_stats.csv", "w") as f:
            f.write(csv_data)
-       
+
        # Example: Load with pandas for analysis
        # import pandas as pd
        # df = pd.read_csv("trading_stats.csv")
        # print(df.describe())
-       
+
        await suite.disconnect()
 
 Troubleshooting
@@ -427,11 +427,11 @@ Debugging
 
    async def debug_statistics():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Enable debug logging
        import logging
        logging.getLogger("project_x_py.statistics").setLevel(logging.DEBUG)
-       
+
        # Get raw component statistics
        for component_name in ["orders", "positions", "data"]:
            if hasattr(suite, component_name):
@@ -439,7 +439,7 @@ Debugging
                if hasattr(component, "get_stats"):
                    stats = await component.get_stats()
                    print(f"{component_name}: {stats}")
-       
+
        await suite.disconnect()
 
 Examples
@@ -456,6 +456,6 @@ See Also
 --------
 
 - :doc:`trading` - Order and position management
-- :doc:`data` - Real-time data management  
+- :doc:`data` - Real-time data management
 - :doc:`orderbook` - Level 2 orderbook analysis
 - :doc:`utilities` - Utility functions and helpers

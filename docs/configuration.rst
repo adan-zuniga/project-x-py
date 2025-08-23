@@ -105,7 +105,7 @@ Set configuration via environment variables:
    # Required credentials
    export PROJECT_X_API_KEY='your_api_key'
    export PROJECT_X_USERNAME='your_username'
-   
+
    # Optional configuration
    export PROJECTX_API_URL='https://api.topstepx.com/api'
    export PROJECT_X_TIMEOUT='60'
@@ -208,7 +208,7 @@ Handle multiple accounts:
        async with ProjectX.from_env() as client:
            await client.authenticate()
            accounts = await client.list_accounts()
-           
+
            for account in accounts:
                print(f"Account: {account['name']} (ID: {account['id']})")
 
@@ -233,7 +233,7 @@ Environment-Specific Configs
    else:
        config = ProjectXConfig(
            api_url="https://sandbox-api.topstepx.com/api",
-           websocket_url="wss://sandbox-api.topstepx.com", 
+           websocket_url="wss://sandbox-api.topstepx.com",
            timeout_seconds=60,
            retry_attempts=5
        )
@@ -310,7 +310,7 @@ Monitoring
 ~~~~~~~~~~
 
 1. **Enable logging** appropriate for your environment
-2. **Monitor API usage** to avoid rate limits  
+2. **Monitor API usage** to avoid rate limits
 3. **Set up alerts** for connection failures
 4. **Track performance metrics**
 
@@ -408,4 +408,4 @@ Once your configuration is working:
 
 1. :doc:`Try the quickstart guide <quickstart>`
 2. :doc:`Explore trading features <user_guide/trading>`
-3. :doc:`Set up real-time data <user_guide/real_time>` 
+3. :doc:`Set up real-time data <user_guide/real_time>`

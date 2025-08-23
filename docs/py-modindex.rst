@@ -77,4 +77,4 @@ Search and Indices
 ------------------
 
 * :ref:`genindex` - General index of all symbols
-* :ref:`search` - Search documentation 
+* :ref:`search` - Search documentation

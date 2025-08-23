@@ -28,7 +28,7 @@ Thank you for considering contributing to the ProjectX Python SDK! This document
    ```bash
    # Install UV if you haven't already
    curl -sSf https://install.determinate.systems/uv | python3 -
-   
+
    # Install development dependencies
    uv sync
    ```
@@ -57,7 +57,7 @@ This project follows strict code style guidelines to maintain consistency and qu
   ```bash
   # Format code
   uv run ruff format .
-  
+
   # Lint code (with safe auto-fix)
   uv run ruff check --fix .
   ```
@@ -88,7 +88,7 @@ Use the centralized error handling system:
 1. **Use Error Handling Decorators**
    ```python
    from project_x_py.utils import handle_errors, retry_on_network_error
-   
+
    @handle_errors("operation name")
    @retry_on_network_error(max_attempts=3)
    async def my_method(self, ...):
@@ -98,9 +98,9 @@ Use the centralized error handling system:
 2. **Use Structured Logging**
    ```python
    from project_x_py.utils import ProjectXLogger, LogMessages, LogContext
-   
+
    logger = ProjectXLogger.get_logger(__name__)
-   
+
    with LogContext(logger, operation="fetch_data", symbol="MGC"):
        logger.info(LogMessages.DATA_FETCH)
    ```
@@ -108,7 +108,7 @@ Use the centralized error handling system:
 3. **Use Standardized Error Messages**
    ```python
    from project_x_py.utils import ErrorMessages, format_error_message
-   
+
    raise ProjectXError(
        format_error_message(ErrorMessages.ORDER_NOT_FOUND, order_id=order_id)
    )
@@ -222,7 +222,7 @@ Good documentation is essential for this project:
    ```python
    import warnings
    from typing import deprecated
-   
+
    @deprecated("Use new_method() instead. Will be removed in v4.0.0")
    def old_method(self):
        warnings.warn(
@@ -256,15 +256,15 @@ The SDK uses a modular architecture where large components are split into multi-
   - `market_data.py`: Market data operations
   - `trading.py`: Trading operations
   - `base.py`: Base class combining mixins
-  
+
 - **Trading Modules**:
   - `order_manager/`: Order lifecycle management (10 modules)
   - `position_manager/`: Portfolio and risk management (12 modules)
-  
+
 - **Real-time Modules**:
   - `realtime/`: WebSocket client functionality (8 modules)
   - `realtime_data_manager/`: Real-time OHLCV data (9 modules)
-  
+
 - **Utilities** (`utils/`): Shared utilities (10 modules)
   - Trading calculations, portfolio analytics, pattern detection
   - Market microstructure, formatting, environment handling

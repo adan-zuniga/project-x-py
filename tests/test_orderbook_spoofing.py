@@ -5,10 +5,9 @@ Tests the spoofing detection algorithm including memory bounds,
 performance optimizations, and tick size configuration.
 """
 
-import asyncio
 from collections import deque
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
 import polars as pl

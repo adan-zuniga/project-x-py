@@ -123,4 +123,4 @@ Trading Exceptions
 .. autoclass:: ProjectXPositionError
    :members:
    :undoc-members:
-   :show-inheritance: 
+   :show-inheritance:

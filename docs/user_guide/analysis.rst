@@ -66,10 +66,10 @@ Function-Style Interface
 
    async def apply_indicators():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Get historical data
        data = await suite.client.get_bars("MNQ", days=30, interval=60)
-       
+
        # Apply indicators using pipe
        data = (data
            .pipe(RSI, period=14)
@@ -78,13 +78,13 @@ Function-Style Interface
            .pipe(MACD, fast_period=12, slow_period=26, signal_period=9)
            .pipe(BBANDS, period=20, std_dev=2.0)
        )
-       
+
        # Access indicator values
        latest = data.tail(1)
        print(f"RSI: {latest['rsi_14'][0]:.2f}")
        print(f"SMA(20): {latest['sma_20'][0]:.2f}")
        print(f"Upper Band: {latest['bb_upper_20'][0]:.2f}")
-       
+
        await suite.disconnect()
 
    asyncio.run(apply_indicators())
@@ -99,17 +99,17 @@ Class-Based Interface
    async def class_based_indicators():
        suite = await TradingSuite.create("ES")
        data = await suite.client.get_bars("ES", days=20, interval=15)
-       
+
        # Create indicator instances
        rsi = RSI(period=14)
        bb = BollingerBands(period=20, std_dev=2.0)
        macd_indicator = MACD()
-       
+
        # Calculate indicators
        data = rsi.calculate(data)
        data = bb.calculate(data)
        data = macd_indicator.calculate(data)
-       
+
        # Get signals
        rsi_signals = rsi.get_signals(data)
        print(f"RSI Signal: {rsi_signals.tail(1)['signal'][0]}")
@@ -129,7 +129,7 @@ Identifies price imbalances that may act as support/resistance:
    async def detect_fvg():
        suite = await TradingSuite.create("MNQ")
        data = await suite.client.get_bars("MNQ", days=5, interval=15)
-       
+
        # Detect Fair Value Gaps
        data_with_fvg = FVG(
            data,
@@ -137,12 +137,12 @@ Identifies price imbalances that may act as support/resistance:
            check_mitigation=True,    # Track if gaps are filled
            use_shadows=True          # Include wicks in analysis
        )
-       
+
        # Find recent gaps
        gaps = data_with_fvg.filter(
            pl.col("fvg_bullish") | pl.col("fvg_bearish")
        )
-       
+
        for row in gaps.tail(5).iter_rows(named=True):
            gap_type = "Bullish" if row['fvg_bullish'] else "Bearish"
            print(f"{row['timestamp']}: {gap_type} FVG")
@@ -163,7 +163,7 @@ Identifies institutional order zones:
    async def find_order_blocks():
        suite = await TradingSuite.create("ES")
        data = await suite.client.get_bars("ES", days=10, interval=60)
-       
+
        # Detect order blocks
        ob = OrderBlock(
            lookback=10,              # Bars to look back
@@ -171,14 +171,14 @@ Identifies institutional order zones:
            use_wicks=True,           # Include wicks
            filter_overlap=True       # Remove overlapping blocks
        )
-       
+
        data_with_blocks = ob.calculate(data)
-       
+
        # Find active order blocks
        blocks = data_with_blocks.filter(
            pl.col("orderblock_bullish") | pl.col("orderblock_bearish")
        )
-       
+
        for row in blocks.tail(3).iter_rows(named=True):
            block_type = "Bullish" if row['orderblock_bullish'] else "Bearish"
            print(f"{block_type} Order Block:")
@@ -198,7 +198,7 @@ Detects strong trends and breakouts:
    async def waddah_attar():
        suite = await TradingSuite.create("MNQ")
        data = await suite.client.get_bars("MNQ", days=5, interval=5)
-       
+
        # Apply WAE indicator
        data_with_wae = WAE(
            data,
@@ -208,12 +208,12 @@ Detects strong trends and breakouts:
            channel_period=20,     # Bollinger Band period
            channel_mult=2.0       # BB multiplier
        )
-       
+
        # Find explosion signals
        explosions = data_with_wae.filter(
            pl.col("wae_explosion") > pl.col("wae_dead_zone")
        )
-       
+
        for row in explosions.tail(5).iter_rows(named=True):
            trend = "Bullish" if row['wae_trend'] == 1 else "Bearish"
            print(f"{row['timestamp']}: {trend} Explosion")
@@ -230,10 +230,10 @@ Multi-Indicator Strategy
 
    async def multi_indicator_strategy():
        suite = await TradingSuite.create("ES")
-       
+
        # Get data and apply indicators
        data = await suite.client.get_bars("ES", days=20, interval=30)
-       
+
        data = (data
            .pipe(RSI, period=14)
            .pipe(MACD)
@@ -242,10 +242,10 @@ Multi-Indicator Strategy
            .pipe(BBANDS, period=20)
            .pipe(ATR, period=14)
        )
-       
+
        # Generate signals
        latest = data.tail(1).to_dict(as_series=False)
-       
+
        rsi = latest['rsi_14'][0]
        macd = latest['macd'][0]
        signal = latest['macd_signal'][0]
@@ -255,7 +255,7 @@ Multi-Indicator Strategy
        bb_upper = latest['bb_upper_20'][0]
        bb_lower = latest['bb_lower_20'][0]
        atr = latest['atr_14'][0]
-       
+
        # Trading logic
        buy_signal = (
            rsi < 30 and                    # Oversold
@@ -263,14 +263,14 @@ Multi-Indicator Strategy
            price > sma20 > sma50 and        # Uptrend
            price <= bb_lower                # At lower band
        )
-       
+
        sell_signal = (
            rsi > 70 and                     # Overbought
            macd < signal and                 # MACD bearish
            price < sma20 < sma50 and        # Downtrend
            price >= bb_upper                 # At upper band
        )
-       
+
        if buy_signal:
            print("BUY Signal Generated")
            print(f"Entry: ${price:.2f}")
@@ -286,20 +286,20 @@ Backtesting Support
 
    async def backtest_strategy():
        suite = await TradingSuite.create("MNQ")
-       
+
        # Get historical data
        data = await suite.client.get_bars("MNQ", days=60, interval=60)
-       
+
        # Apply indicators
        data = (data
            .pipe(RSI, period=14)
            .pipe(SMA, period=20)
        )
-       
+
        # Simulate trades
        trades = []
        position = None
-       
+
        for row in data.iter_rows(named=True):
            if position is None:
                # Check entry
@@ -317,12 +317,12 @@ Backtesting Support
                    position['pnl'] = row['close'] - position['entry_price']
                    trades.append(position)
                    position = None
-       
+
        # Calculate statistics
        if trades:
            total_pnl = sum(t['pnl'] for t in trades)
            win_rate = sum(1 for t in trades if t['pnl'] > 0) / len(trades)
-           
+
            print(f"Total trades: {len(trades)}")
            print(f"Win rate: {win_rate:.1%}")
            print(f"Total P&L: ${total_pnl:.2f}")
@@ -336,27 +336,27 @@ Creating Custom Indicators
 .. code-block:: python
 
    import polars as pl
-   
+
    def custom_momentum_indicator(
        data: pl.DataFrame,
        period: int = 10,
        smoothing: int = 3
    ) -> pl.DataFrame:
        """Custom momentum indicator with smoothing."""
-       
+
        # Calculate raw momentum
        momentum = data.with_columns([
            (pl.col("close") - pl.col("close").shift(period))
            .alias(f"momentum_{period}")
        ])
-       
+
        # Apply smoothing
        momentum = momentum.with_columns([
            pl.col(f"momentum_{period}")
            .rolling_mean(window_size=smoothing)
            .alias(f"momentum_smooth_{period}")
        ])
-       
+
        # Generate signals
        momentum = momentum.with_columns([
            pl.when(pl.col(f"momentum_smooth_{period}") > 0)
@@ -366,20 +366,20 @@ Creating Custom Indicators
            .otherwise(0)
            .alias("momentum_signal")
        ])
-       
+
        return momentum
-   
+
    async def use_custom_indicator():
        suite = await TradingSuite.create("ES")
        data = await suite.client.get_bars("ES", days=10, interval=15)
-       
+
        # Apply custom indicator
        data = custom_momentum_indicator(data, period=10, smoothing=3)
-       
+
        # Check signals
        latest = data.tail(1)
        signal = latest['momentum_signal'][0]
-       
+
        if signal == 1:
            print("Bullish momentum")
        elif signal == -1:

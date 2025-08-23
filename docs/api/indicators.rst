@@ -24,24 +24,24 @@ Quick Start
    import asyncio
    from project_x_py.indicators import RSI, SMA, MACD, BBANDS
    from project_x_py import ProjectX
-   
+
    async def analyze_market():
        # Get market data
        async with ProjectX.from_env() as client:
            await client.authenticate()
            data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
-       
+
        # Class-based interface
        rsi = RSI()
        data_with_rsi = rsi.calculate(data, period=14)
-       
+
        # TA-Lib style functions (direct usage)
        data = RSI(data, period=14)        # Add RSI
        data = SMA(data, period=20)        # Add 20-period SMA
        data = BBANDS(data, period=20)     # Add Bollinger Bands
-       
+
        return data
-   
+
    # Run the analysis
    data = asyncio.run(analyze_market())
 
@@ -285,24 +285,24 @@ Basic Usage
    import asyncio
    from project_x_py.indicators import RSI, SMA, MACD
    from project_x_py import ProjectX
-   
+
    async def basic_analysis():
        # Load your data (Polars DataFrame with OHLCV columns)
        async with ProjectX.from_env() as client:
            await client.authenticate()
            data = await client.get_bars('MNQ', days=30, interval=60)  # V3: actual symbol
-       
+
        # Add indicators using TA-Lib style functions
        data = RSI(data, period=14)
        data = SMA(data, period=20)
-       data = SMA(data, period=50) 
+       data = SMA(data, period=50)
        data = MACD(data, fast_period=12, slow_period=26, signal_period=9)
-       
+
        # Check latest values
        latest = data.tail(1)
        print(f"RSI: {latest['rsi_14'].item():.2f}")
        print(f"SMA(20): ${latest['sma_20'].item():.2f}")
-   
+
    asyncio.run(basic_analysis())
 
 Class-Based Interface
@@ -311,12 +311,12 @@ Class-Based Interface
 .. code-block:: python
 
    from project_x_py.indicators import RSI, SMA, BBANDS
-   
+
    # Create indicator instances
    rsi = RSI()
    sma = SMA()
    bb = BBANDS()
-   
+
    # Calculate indicators
    data_with_rsi = rsi.calculate(data, period=14)
    data_with_sma = sma.calculate(data_with_rsi, period=20)
@@ -331,13 +331,13 @@ Multi-Indicator Strategy
    import polars as pl
    from project_x_py.indicators import *
    from project_x_py import ProjectX
-   
+
    async def multi_indicator_analysis():
        # Get data
        async with ProjectX.from_env() as client:
            await client.authenticate()
            data = await client.get_bars('MNQ', days=60, interval=60)  # V3: actual symbol
-       
+
        # Comprehensive technical analysis
        analysis = (
            data
@@ -346,28 +346,28 @@ Multi-Indicator Strategy
            .pipe(SMA, period=50)
            .pipe(EMA, period=21)
            .pipe(BBANDS, period=20, std_dev=2.0)
-           
-           # Momentum indicators  
+
+           # Momentum indicators
            .pipe(RSI, period=14)
            .pipe(MACD, fast_period=12, slow_period=26, signal_period=9)
            .pipe(STOCH, k_period=14, d_period=3)
-           
+
            # Volatility indicators
            .pipe(ATR, period=14)
            .pipe(ADX, period=14)
-           
+
            # Volume indicators
            .pipe(OBV)
            .pipe(VWAP, period=20)
-           
+
            # Pattern recognition
            .pipe(FVG, min_gap_size=0.001, check_mitigation=True)
            .pipe(ORDERBLOCK, min_volume_percentile=70)
            .pipe(WAE, sensitivity=150)
        )
-       
+
        return analysis
-   
+
    # Run the strategy
    result = asyncio.run(multi_indicator_analysis())
 
@@ -377,7 +377,7 @@ Pattern Recognition Examples
 .. code-block:: python
 
    from project_x_py.indicators import FVG, OrderBlock, WAE
-   
+
    # Fair Value Gap Detection
    fvg = FVG()
    data_with_fvg = fvg.calculate(
@@ -386,7 +386,7 @@ Pattern Recognition Examples
        check_mitigation=True,  # Track if gaps get filled
        mitigation_threshold=0.5  # 50% fill threshold
    )
-   
+
    # Order Block Identification
    ob = OrderBlock()
    data_with_ob = ob.calculate(
@@ -395,7 +395,7 @@ Pattern Recognition Examples
        lookback_periods=3,  # Look for 3-candle patterns
        use_wicks=True  # Consider wicks in patterns
    )
-   
+
    # Waddah Attar Explosion
    wae = WAE()
    data_with_wae = wae.calculate(
@@ -404,7 +404,7 @@ Pattern Recognition Examples
        dead_zone_period=100,  # ATR period for filtering
        dead_zone_mult=3.6  # Dead zone multiplier
    )
-   
+
    # Confluence Trading: Combine all three
    confluence_data = (
        data
@@ -412,11 +412,11 @@ Pattern Recognition Examples
        .pipe(ORDERBLOCK, min_volume_percentile=80)
        .pipe(WAE, sensitivity=150)
    )
-   
+
    # Find strong signals where patterns align
    strong_bullish = confluence_data.filter(
-       (pl.col("fvg_bullish") == True) & 
-       (pl.col("ob_bullish") == True) & 
+       (pl.col("fvg_bullish") == True) &
+       (pl.col("ob_bullish") == True) &
        (pl.col("wae_explosion_up") > 0)
    )
 
@@ -426,16 +426,16 @@ Indicator Discovery
 .. code-block:: python
 
    from project_x_py.indicators import get_all_indicators, get_indicator_groups
-   
+
    # List all available indicators
    all_indicators = get_all_indicators()
    print(f"Total indicators: {len(all_indicators)}")
-   
+
    # Get indicators by category
    groups = get_indicator_groups()
    for category, indicators in groups.items():
        print(f"{category}: {indicators}")
-   
+
    # Get information about specific indicator
    rsi_info = get_indicator_info('RSI')
    print(f"RSI: {rsi_info}")
@@ -446,13 +446,13 @@ Error Handling
 .. code-block:: python
 
    from project_x_py.indicators import IndicatorError
-   
+
    try:
        # This will raise an error if the column doesn't exist
        data_with_rsi = RSI(data, column='nonexistent_column', period=14)
    except IndicatorError as e:
        print(f"Indicator error: {e}")
-   
+
    try:
        # This will raise an error if period is too large
        data_with_sma = SMA(data, period=1000)  # More than available data
@@ -475,7 +475,7 @@ Performance Tips
        async with ProjectX.from_env() as client:
            await client.authenticate()
            data = await client.get_bars('MNQ', days=30)  # V3: actual symbol
-       
+
        # Efficient: Chain multiple indicators
        data = (
            data
@@ -483,12 +483,12 @@ Performance Tips
            .pipe(SMA, period=20)
            .pipe(MACD)
        )
-       
+
        # Less efficient: Separate calculations
        # data = RSI(data, period=14)
-       # data = SMA(data, period=20) 
+       # data = SMA(data, period=20)
        # data = MACD(data)
-       
+
        return data
 
 TA-Lib Compatibility
@@ -522,4 +522,4 @@ Exception Classes
 .. autoclass:: IndicatorError
    :members:
    :undoc-members:
-   :show-inheritance: 
+   :show-inheritance:

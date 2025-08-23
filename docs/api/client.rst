@@ -55,4 +55,4 @@ Utility Functions
 
 .. autofunction:: get_version
 .. autofunction:: quick_start
-.. autofunction:: check_setup 
+.. autofunction:: check_setup

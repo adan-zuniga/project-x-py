@@ -5,7 +5,7 @@
 **IMPORTANT**: This project has reached stable production status. When making changes:
 
 1. **Maintain Backward Compatibility**: Keep existing APIs functional with deprecation warnings
-2. **Deprecation Policy**: Mark deprecated features with warnings, remove after 2 minor versions  
+2. **Deprecation Policy**: Mark deprecated features with warnings, remove after 2 minor versions
 3. **Semantic Versioning**: Follow semver strictly (MAJOR.MINOR.PATCH)
 4. **Migration Paths**: Provide clear migration guides for breaking changes
 5. **Modern Patterns**: Use the latest Python patterns while maintaining compatibility

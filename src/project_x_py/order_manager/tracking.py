@@ -60,6 +60,7 @@ from cachetools import TTLCache  # type: ignore
 from project_x_py.utils.deprecation import deprecated
 
 if TYPE_CHECKING:
+    from project_x_py.event_bus import EventBus
     from project_x_py.types import OrderManagerProtocol
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ class OrderTrackingMixin:
         order_lock: Lock
         realtime_client: ProjectXRealtimeClient | None
         _realtime_enabled: bool
-        event_bus: Any  # EventBus instance
+        event_bus: EventBus | None
 
         async def cancel_order(
             self, _order_id: int, _account_id: int | None = None
@@ -1061,6 +1062,9 @@ class OrderTrackingMixin:
             "order_expired": EventType.ORDER_EXPIRED,
             "order_modified": EventType.ORDER_MODIFIED,
         }
+
+        if self.event_bus is None:
+            return
 
         if event_type in event_mapping:
             await self.event_bus.emit(

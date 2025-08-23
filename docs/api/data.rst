@@ -25,8 +25,8 @@ Orderbook Analysis
 ------------------
 
 .. note::
-   **Level 2 OrderBook API**: For comprehensive Level 2 orderbook analysis including 
-   iceberg detection, market imbalance analysis, and institutional-grade market 
+   **Level 2 OrderBook API**: For comprehensive Level 2 orderbook analysis including
+   iceberg detection, market imbalance analysis, and institutional-grade market
    microstructure tools, see the dedicated :doc:`orderbook` module.
 
 .. autoclass:: OrderBook
@@ -49,8 +49,8 @@ Instrument Models
    :show-inheritance:
 
 .. note::
-   **Technical Indicators**: For comprehensive technical analysis with 55+ indicators, 
-   see the :doc:`indicators` module which provides TA-Lib compatible indicators 
+   **Technical Indicators**: For comprehensive technical analysis with 55+ indicators,
+   see the :doc:`indicators` module which provides TA-Lib compatible indicators
    optimized for Polars DataFrames.
 
 Data Utilities
@@ -59,4 +59,4 @@ Data Utilities
 .. autofunction:: project_x_py.utils.create_data_snapshot
 .. autofunction:: project_x_py.utils.convert_timeframe_to_seconds
 .. autofunction:: project_x_py.utils.get_market_session_info
-.. autofunction:: project_x_py.utils.is_market_hours 
+.. autofunction:: project_x_py.utils.is_market_hours

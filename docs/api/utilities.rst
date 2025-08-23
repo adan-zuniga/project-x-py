@@ -64,4 +64,4 @@ Rate Limiting
 .. autoclass:: RateLimiter
    :members:
    :undoc-members:
-   :show-inheritance: 
+   :show-inheritance:

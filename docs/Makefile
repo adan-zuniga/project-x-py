@@ -36,4 +36,4 @@ coverage:
 
 spelling:
 	@$(SPHINXBUILD) -b spelling "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-	@echo "Testing of spelling finished. The results are in $(BUILDDIR)/spelling." 
+	@echo "Testing of spelling finished. The results are in $(BUILDDIR)/spelling."

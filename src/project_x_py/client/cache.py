@@ -21,7 +21,7 @@ import io
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-import lz4.frame  # type: ignore
+import lz4.frame
 import polars as pl
 from cachetools import TTLCache  # type: ignore
 
