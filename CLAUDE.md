@@ -87,7 +87,7 @@ The standardized deprecation utilities provide:
 
 Claude Code includes specialized agents that should be used PROACTIVELY for specific development tasks. Each agent has specialized knowledge and tools optimized for their domain.
 
-### When to Use Each Agent
+### Core Development Agents
 
 #### **python-developer**
 Use for project-x-py SDK development tasks:
@@ -95,24 +95,31 @@ Use for project-x-py SDK development tasks:
 - Implementing financial indicators with Polars DataFrames
 - Optimizing real-time data processing and WebSocket connections
 - Creating new TradingSuite features
-- Ensuring 100% async architecture compliance
-- Handling Decimal price precision requirements
+- Performance profiling with memory_profiler and py-spy
+- Integration testing with mock market data generators
+- Benchmark suite management for performance tracking
+- WebSocket load testing and stress testing
 
 Example scenarios:
 - "Implement a new technical indicator"
 - "Add WebSocket reconnection logic"
 - "Create async order placement methods"
+- "Profile memory usage in real-time data manager"
+
+Enhanced capabilities:
+- Memory profiling: `mprof run ./test.sh examples/04_realtime_data.py`
+- Async profiling: `py-spy record -o profile.svg -- ./test.sh examples/00_trading_suite_demo.py`
+- Benchmark tests: `uv run pytest tests/benchmarks/ --benchmark-only`
 
 #### **code-standards-enforcer**
 Use PROACTIVELY for maintaining SDK standards:
 - **ALWAYS check IDE diagnostics first** via `mcp__ide__getDiagnostics`
-- Before committing changes (enforce standards)
-- PR review checks
-- Release validation
+- Automated pre-commit hook setup and validation
+- Performance regression detection with benchmarks
+- Memory leak detection via tracemalloc
+- Security vulnerability scanning with bandit
+- Dependency audit with pip-audit
 - Verifying 100% async architecture
-- Checking TradingSuite patterns compliance
-- Ensuring Polars-only DataFrames usage
-- Validating deprecation compliance
 - Type safety with TypedDict/Protocol
 
 Example scenarios:
@@ -121,27 +128,35 @@ Example scenarios:
 - When refactoring existing code
 - **After any code changes** - check IDE diagnostics immediately
 
+Enhanced tools:
+- Security scanning: `uv run bandit -r src/`
+- Dependency audit: `uv run pip-audit`
+- Pre-commit validation: `pre-commit run --all-files`
+
 #### **code-refactor**
 Use PROACTIVELY for architecture improvements:
+- AST-based code analysis for safe refactoring
+- Dependency graph visualization with pydeps
+- API migration script generation
+- Performance impact analysis
 - Migrating to TradingSuite patterns
 - Optimizing Polars operations
 - Consolidating WebSocket handling
 - Modernizing async patterns
-- Monolithic to modular transitions
-- Event system optimization
-- Memory management improvements
 
 Example scenarios:
 - "Refactor OrderManager to use EventBus"
 - "Optimize DataFrame operations in indicators"
 - "Migrate legacy sync code to async"
+- "Visualize component dependencies"
 
 #### **code-documenter**
 Use PROACTIVELY for documentation tasks:
-- Documenting new TradingSuite APIs
-- Writing indicator function docs
-- Explaining WebSocket events
-- Creating migration guides
+- Interactive API documentation with mkdocs-material
+- Automated changelog generation from commits
+- Example notebook generation with papermill
+- API reference auto-generation with mkdocstrings
+- Writing migration guides
 - Maintaining README and examples/
 - Writing deprecation notices
 - Updating docstrings
@@ -150,36 +165,192 @@ Example scenarios:
 - After adding new features
 - When changing APIs
 - Creating example scripts
+- Generating interactive documentation
+
+Enhanced documentation:
+- Build docs: `mkdocs build`
+- Serve locally: `mkdocs serve`
+- Generate notebooks: `papermill template.ipynb output.ipynb`
 
 #### **code-debugger**
 Use PROACTIVELY for troubleshooting:
-- WebSocket disconnection issues
+- Production log analysis with structured logging
+- Distributed tracing with OpenTelemetry
+- Async debugging with aiomonitor
+- Memory leak detection with objgraph and tracemalloc
+- WebSocket packet analysis and replay
 - Order lifecycle failures
 - Real-time data gaps
 - Event deadlocks
-- Price precision errors
-- Memory leaks
-- AsyncIO debugging
-- SignalR tracing
 
 Example scenarios:
 - "Debug why orders aren't filling"
 - "Fix WebSocket reconnection issues"
 - "Trace event propagation problems"
+- "Analyze production memory leaks"
+
+Enhanced debugging:
+- Async monitor: `aiomonitor` on port 50101
+- Memory analysis: `objgraph.show_growth()`
+- Distributed tracing with OpenTelemetry
 
 #### **code-reviewer**
 Use PROACTIVELY for code review:
+- Security-focused review with semgrep
+- Complexity analysis with radon
+- Test coverage delta reporting
+- Breaking change detection
+- Performance benchmark comparison
 - Reviewing async patterns
-- Checking real-time performance
 - Validating financial data integrity
 - Ensuring API stability
-- Before releases
-- PR reviews
 
 Example scenarios:
 - Before merging pull requests
 - After completing features
 - Before version releases
+- Security audit reviews
+
+Enhanced review tools:
+- Complexity analysis: `radon cc src/ -s`
+- Security patterns: `semgrep --config=auto src/`
+- Coverage delta: `diff-cover coverage.xml`
+
+### Specialized Performance & Testing Agents
+
+#### **performance-optimizer**
+Use PROACTIVELY for performance tuning:
+- Memory profiling and optimization
+- Async performance tuning
+- Cache optimization strategies
+- WebSocket message batching
+- DataFrame operation optimization
+- Benchmark management and comparison
+- Resource utilization analysis
+
+Example scenarios:
+- "Optimize tick processing latency"
+- "Reduce memory usage in orderbook"
+- "Improve DataFrame aggregation performance"
+- "Profile async event loop bottlenecks"
+
+#### **integration-tester**
+Use for end-to-end testing with market simulation:
+- Mock market data generation
+- Order lifecycle simulation
+- WebSocket stress testing
+- Multi-timeframe backtesting
+- Paper trading validation
+- Market replay testing
+- Cross-component integration testing
+
+Example scenarios:
+- "Test order execution under volatile conditions"
+- "Validate indicator calculations with real data"
+- "Stress test WebSocket with 1000+ ticks/second"
+- "Simulate market gaps and disconnections"
+
+#### **security-auditor**
+Use PROACTIVELY for security and compliance:
+- API key security validation
+- WebSocket authentication audit
+- Data encryption verification
+- PII handling compliance
+- Dependency vulnerability scanning
+- Secret scanning in codebase
+- Input validation checks
+- Rate limiting verification
+
+Example scenarios:
+- Before releases
+- After adding authentication features
+- When handling sensitive data
+- Regular security audits
+
+#### **release-manager**
+Use for release preparation and deployment:
+- Semantic versioning validation
+- Breaking change detection
+- Migration script generation
+- Release notes compilation
+- PyPI deployment automation
+- Git tag management
+- Pre-release testing coordination
+- Rollback procedure planning
+
+Example scenarios:
+- Preparing version releases
+- Creating migration guides
+- Automating deployment pipeline
+- Managing release branches
+
+#### **data-analyst**
+Use for market data analysis and validation:
+- Indicator accuracy testing against TA-Lib
+- Market microstructure analysis
+- Order flow pattern detection
+- Statistical validation of calculations
+- Backtest result analysis
+- Performance attribution
+- Volume profile analysis
+- Data quality verification
+
+Example scenarios:
+- "Validate MACD implementation"
+- "Analyze order flow imbalances"
+- "Compare indicator outputs with TA-Lib"
+- "Statistical validation of backtest results"
+
+### Agent Collaboration Patterns
+
+#### Pattern 1: Feature Development
+```
+1. data-analyst: Analyze requirements and validate approach
+2. python-developer: Implement the feature
+3. integration-tester: Create comprehensive tests
+4. code-standards-enforcer: Ensure compliance
+5. performance-optimizer: Optimize if needed
+6. code-documenter: Create documentation
+7. code-reviewer: Final review
+8. release-manager: Prepare for release
+```
+
+#### Pattern 2: Bug Investigation
+```
+1. code-debugger: Investigate and identify root cause
+2. integration-tester: Reproduce with test case
+3. python-developer: Implement fix
+4. code-standards-enforcer: Verify fix quality
+5. code-reviewer: Review the fix
+```
+
+#### Pattern 3: Performance Issue
+```
+1. performance-optimizer: Profile and identify bottlenecks
+2. code-refactor: Plan optimization strategy
+3. python-developer: Implement optimizations
+4. integration-tester: Verify performance improvements
+5. code-reviewer: Review changes
+```
+
+#### Pattern 4: Security Audit
+```
+1. security-auditor: Comprehensive security scan
+2. code-debugger: Investigate vulnerabilities
+3. python-developer: Implement fixes
+4. code-standards-enforcer: Verify secure coding
+5. integration-tester: Test security measures
+```
+
+#### Pattern 5: Release Preparation
+```
+1. code-standards-enforcer: Pre-release compliance check
+2. security-auditor: Security validation
+3. integration-tester: Full regression testing
+4. performance-optimizer: Performance regression check
+5. code-documenter: Update documentation
+6. release-manager: Coordinate release
+```
 
 ### Agent Selection Best Practices
 
@@ -187,16 +358,38 @@ Example scenarios:
 2. **Be specific** in task descriptions for agents
 3. **Choose the right agent** based on the task type, not just keywords
 4. **Use PROACTIVELY** - don't wait for user to request specific agents
-5. **Combine agents** for complex tasks (e.g., refactor → standards → review)
+5. **Combine agents** for complex tasks using collaboration patterns
+6. **Leverage specialized agents** for their unique capabilities
+7. **Follow patterns** for common workflows to ensure comprehensive coverage
 
-### Example Multi-Agent Workflow
+### Example Multi-Agent Workflows
 
+#### Implementing a New Trading Feature
 ```python
-# When implementing a new feature:
-1. python-developer: Implement the feature
-2. code-standards-enforcer: Verify compliance
-3. code-documenter: Add documentation
-4. code-reviewer: Final review before commit
+# Concurrent agent execution for new feature
+1. Launch simultaneously:
+   - data-analyst: Validate market data requirements
+   - performance-optimizer: Baseline current performance
+   - security-auditor: Review security implications
+
+2. python-developer: Implement based on analysis results
+
+3. Launch simultaneously:
+   - integration-tester: Create test suite
+   - code-standards-enforcer: Check compliance
+   - code-documenter: Write documentation
+
+4. code-reviewer: Final review before merge
+```
+
+#### Debugging Production Issue
+```python
+# Sequential debugging workflow
+1. code-debugger: Analyze logs and identify issue
+2. performance-optimizer: Check for performance degradation
+3. python-developer: Implement fix
+4. integration-tester: Verify fix with reproduction test
+5. code-reviewer: Review and approve fix
 ```
 
 ### Agent Command Requirements
