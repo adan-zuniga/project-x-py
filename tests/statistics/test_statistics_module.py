@@ -421,12 +421,42 @@ class TestComponentCollector:
         """Test collecting statistics from all components."""
         mock_suite = Mock()
 
-        # Mock order manager
+        # Mock order manager - get_order_statistics returns a dict/TypedDict
         mock_suite.orders = Mock()
         mock_suite.orders.get_order_statistics.return_value = {
             "orders_placed": 10,
             "orders_filled": 8,
+            "orders_cancelled": 1,
+            "orders_rejected": 1,
+            "orders_modified": 2,
             "fill_rate": 0.8,
+            "avg_fill_time_ms": 150.0,
+            "total_volume_traded": 1000,
+            "total_commission": 25.0,
+            "api_calls": 20,
+            "cached_responses": 5,
+            "realtime_connected": True,
+            "active_orders": 2,
+            "pending_orders": 1,
+            "position_orders": 3,
+            "bracket_orders": 1,
+            "oco_orders": 0,
+            "avg_order_size": 50,
+            "max_order_size": 100,
+            "min_order_size": 10,
+            "cancel_rate": 0.1,
+            "reject_rate": 0.1,
+            "modify_rate": 0.2,
+            "avg_slippage": 0.5,
+            "positive_slippage_rate": 0.3,
+            "order_latency_p50": 100.0,
+            "order_latency_p95": 200.0,
+            "order_latency_p99": 300.0,
+            "memory_usage_mb": 5.2,
+            "error_count": 0,
+            "last_order_time": None,
+            "last_fill_time": None,
+            "tracking_accuracy": 0.95,
         }
 
         # Mock position manager
@@ -438,12 +468,14 @@ class TestComponentCollector:
             }
         )
 
-        # Mock data manager
+        # Mock data manager - get_memory_stats is async
         mock_suite.data = Mock()
-        mock_suite.data.get_memory_stats.return_value = {
-            "bars_processed": 1000,
-            "memory_usage_mb": 5.2,
-        }
+        mock_suite.data.get_memory_stats = AsyncMock(
+            return_value={
+                "bars_processed": 1000,
+                "memory_usage_mb": 5.2,
+            }
+        )
 
         # Mock components that don't exist
         mock_suite.orderbook = None

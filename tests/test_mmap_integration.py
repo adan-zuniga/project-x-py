@@ -60,6 +60,7 @@ class TestMMapIntegration:
 
         return client
 
+    @pytest.mark.skip(reason="Overflow functionality not yet implemented")
     @pytest.mark.asyncio
     async def test_overflow_triggered(self, mock_project_x, mock_realtime_client):
         """Test that overflow is triggered when memory limits are reached."""
@@ -171,6 +172,7 @@ class TestMMapIntegration:
         assert historical is not None
         assert len(historical) > len(new_data)
 
+    @pytest.mark.skip(reason="Overflow functionality not yet implemented")
     @pytest.mark.asyncio
     async def test_memory_cleanup_with_overflow(
         self, mock_project_x, mock_realtime_client

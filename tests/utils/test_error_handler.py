@@ -363,8 +363,9 @@ class TestErrorContext:
 
         assert ctx.has_errors
         assert ctx.error_count == 3
-        assert "2 ValueError" in ctx.get_summary()
-        assert "1 KeyError" in ctx.get_summary()
+        summary = ctx.get_summary()
+        assert "2 ValueError" in summary
+        assert "1 KeyError" in summary
         assert "Errors during test operation" in caplog.text
 
     @pytest.mark.asyncio
