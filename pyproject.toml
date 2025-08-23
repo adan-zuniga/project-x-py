@@ -79,10 +79,16 @@ test = [
 
 # Documentation dependencies
 docs = [
-    "sphinx>=6.0.0",
-    "sphinx-rtd-theme>=1.2.0",
-    "myst-parser>=1.0.0",
-    "sphinx-autodoc-typehints>=1.22.0",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-jupyter>=0.24.0",
+    "pymdown-extensions>=10.0",
+    "mkdocs-autorefs>=0.5.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
+    "mkdocs-section-index>=0.3.0",
+    "mike>=2.0.0",  # For versioned docs
 ]
 
 # All optional dependencies
@@ -90,7 +96,7 @@ all = ["project-x-py[realtime,dev,test,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/TexasCoding/project-x-py"
-Documentation = "https://project-x-py.readthedocs.io/en/latest/"
+Documentation = "https://texascoding.github.io/project-x-py/"
 Repository = "https://github.com/TexasCoding/project-x-py.git"
 "Bug Tracker" = "https://github.com/TexasCoding/project-x-py/issues"
 Changelog = "https://github.com/TexasCoding/project-x-py/blob/main/CHANGELOG.md"
@@ -393,6 +399,12 @@ dev = [
     "pydeps>=3.0.1",
     "detect-secrets>=1.5.0",
     "types-deprecated>=1.2.15.20250304",
+    "pymdown-extensions>=10.16.1",
+    "mkdocs-autorefs>=1.4.2",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.2",
+    "mkdocs-section-index>=0.3.10",
+    "mike>=2.1.3",
 ]
 test = [
     "pytest>=8.4.1",

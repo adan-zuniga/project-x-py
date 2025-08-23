@@ -1,168 +1,196 @@
-# Documentation for project-x-py
+# ProjectX Python SDK Documentation
 
-This directory contains the Sphinx documentation for the project-x-py package.
+This directory contains the MkDocs-based documentation for the ProjectX Python SDK.
 
-## Building the Documentation
+## Setup
 
-### Prerequisites
-
-Install the documentation dependencies:
+### Install Dependencies
 
 ```bash
-# With uv (recommended)
-uv sync --extra docs
+# Using UV (recommended)
+uv add --dev mkdocs mkdocs-material mkdocstrings[python] mkdocs-jupyter pymdown-extensions
 
-# Or with pip
-pip install -e .[docs]
+# Or using pip
+pip install mkdocs mkdocs-material mkdocstrings[python] mkdocs-jupyter pymdown-extensions
 ```
 
-### Building HTML Documentation
+## Local Development
 
-**Linux/macOS:**
-```bash
-make html
-```
-
-**Windows:**
-```bash
-make.bat html
-```
-
-The built documentation will be in `_build/html/`. Open `_build/html/index.html` in your browser.
-
-### Live Reload Development
-
-For development with automatic rebuilding:
+### Serve Documentation Locally
 
 ```bash
-# With uv
-uv add --dev sphinx-autobuild
-make livehtml
+# Using the helper script
+./scripts/serve-docs.sh
 
-# Or with pip
-pip install sphinx-autobuild
-make livehtml
+# Or directly with MkDocs
+mkdocs serve
+
+# View at http://localhost:8000
 ```
 
-This will start a local server with live reload at http://localhost:8000
+### Build Documentation
 
-### Other Build Targets
+```bash
+# Build static site
+mkdocs build
 
-- `make clean` - Clean build directory
-- `make linkcheck` - Check for broken links
-- `make coverage` - Check documentation coverage
-- `make latex` - Build LaTeX documentation
-- `make epub` - Build EPUB documentation
+# Output will be in site/ directory
+```
+
+## Deployment
+
+### GitHub Pages
+
+The documentation is automatically deployed to GitHub Pages when changes are pushed to the main branch.
+
+URL: https://texascoding.github.io/project-x-py/
+
+### Manual Deployment
+
+```bash
+# Deploy specific version
+./scripts/deploy-docs.sh 3.3.4 latest
+
+# Deploy without alias
+./scripts/deploy-docs.sh 3.3.4
+```
 
 ## Documentation Structure
 
 ```
 docs/
-├── conf.py                 # Sphinx configuration
-├── index.rst              # Main documentation page
-├── installation.rst       # Installation guide
-├── quickstart.rst         # Quick start tutorial
-├── authentication.rst     # Authentication setup
-├── configuration.rst      # Configuration guide
-├── api/                   # API reference
-│   ├── client.rst         # Client API documentation
-│   ├── trading.rst        # Trading API documentation
-│   ├── data.rst           # Data API documentation
-│   ├── models.rst         # Models and exceptions
-│   └── utilities.rst      # Utility functions
-├── user_guide/           # User guides
-├── examples/             # Examples and tutorials
-├── advanced/             # Advanced topics
-├── _static/              # Static files (CSS, images)
-├── _templates/           # Custom Sphinx templates
-└── _build/               # Built documentation (ignored by git)
+├── index.md                    # Home page
+├── getting-started/            # Installation, setup, quickstart
+│   ├── installation.md
+│   ├── quickstart.md
+│   ├── authentication.md
+│   └── configuration.md
+├── guide/                      # User guides
+│   ├── trading-suite.md       # Main trading suite guide
+│   ├── orders.md              # Order management
+│   ├── positions.md           # Position tracking
+│   ├── realtime.md            # Real-time data
+│   ├── indicators.md          # Technical indicators
+│   ├── risk.md               # Risk management
+│   └── orderbook.md          # Level 2 data
+├── api/                       # API reference
+│   ├── client.md             # Core client
+│   ├── trading-suite.md      # TradingSuite API
+│   ├── order-manager.md      # OrderManager API
+│   ├── position-manager.md   # PositionManager API
+│   ├── data-manager.md       # DataManager API
+│   ├── indicators.md         # Indicators API
+│   ├── statistics.md         # Statistics API
+│   └── models.md             # Data models
+├── examples/                  # Code examples
+│   ├── basic.md              # Basic usage
+│   ├── advanced.md           # Advanced strategies
+│   ├── realtime.md           # Real-time processing
+│   ├── backtesting.md        # Backtesting
+│   └── notebooks/            # Jupyter notebooks
+├── development/               # Development docs
+│   ├── contributing.md       # Contribution guide
+│   ├── testing.md           # Testing guide
+│   ├── agents.md            # AI agents docs
+│   └── architecture.md      # System architecture
+├── migration/                # Migration guides
+│   ├── v3-to-v4.md         # v3 to v4 migration
+│   └── breaking-changes.md  # Breaking changes
+└── changelog.md             # Version changelog
 ```
 
 ## Writing Documentation
 
-### RestructuredText (RST)
+### Markdown Features
 
-Most documentation files use RST format. Key syntax:
+MkDocs Material supports enhanced markdown features:
 
-```rst
-Title
-=====
+- **Admonitions**: `!!! note`, `!!! warning`, `!!! danger`, `!!! tip`
+- **Code blocks**: With syntax highlighting and line numbers
+- **Tabs**: For alternative code examples
+- **Tables**: Standard markdown tables
+- **Task lists**: `- [ ]` and `- [x]`
+- **Emojis**: `:smile:`, `:warning:`
+- **Icons**: Material Design icons
 
-Subtitle
---------
+### Code Examples
 
-**Bold text**
-*Italic text*
+Always use async/await patterns:
 
-Code blocks::
-
-    code here
-
-.. code-block:: python
-
-   print("Python code")
-
-.. warning::
-   This is a warning box
-
-.. note::
-   This is a note box
+```python
+async def example():
+    suite = await TradingSuite.create("MNQ")
+    # Your code here
+    await suite.disconnect()
 ```
 
 ### API Documentation
 
-API documentation is automatically generated using Sphinx autodoc. The source code docstrings are parsed to create the API reference.
+We use mkdocstrings for auto-generated API docs, but currently most references are removed due to compatibility issues. Future work includes:
 
-### Adding New Pages
+1. Fixing module imports for mkdocstrings
+2. Adding proper docstrings to all public APIs
+3. Enabling auto-generated API documentation
 
-1. Create a new `.rst` file in the appropriate directory
-2. Add the file to the appropriate `toctree` directive in `index.rst` or parent file
-3. Rebuild the documentation
+## Style Guide
 
-## Deployment
+### Headers
 
-The documentation is automatically built and deployed to ReadTheDocs when changes are pushed to the main branch.
+- Use `#` for page title
+- Use `##` for main sections
+- Use `###` for subsections
+- Avoid going deeper than `####`
 
-- **Live documentation**: https://project-x-py.readthedocs.io
-- **ReadTheDocs project**: https://readthedocs.org/projects/project-x-py/
+### Code
+
+- Use `python` for code blocks
+- Include imports in examples
+- Show error handling
+- Add comments for clarity
+
+### Safety Warnings
+
+Always include safety warnings for trading examples:
+
+```markdown
+!!! warning "Live Trading Risk"
+    This example places real orders on the market. Always test with paper trading first.
+```
 
 ## Contributing
 
-When contributing to documentation:
+1. Make changes in the `docs/` directory
+2. Test locally with `mkdocs serve`
+3. Ensure build passes with `mkdocs build --strict`
+4. Submit PR with documentation changes
 
-1. Follow the existing structure and style
-2. Use clear, concise language
-3. Include code examples where appropriate
-4. Test that documentation builds without errors
-5. Check for broken links with `make linkcheck`
+## Migration from Sphinx
 
-### Style Guide
+This documentation was migrated from Sphinx (ReadTheDocs) to MkDocs. Key changes:
 
-- Use present tense ("returns" not "will return")
-- Use active voice when possible
-- Include type hints in code examples
-- Add docstring examples for all public functions
-- Keep line length under 80 characters in RST files
+- `.rst` files converted to `.md`
+- Sphinx directives replaced with MkDocs equivalents
+- Auto-generated API docs temporarily disabled
+- GitHub Pages deployment instead of ReadTheDocs
 
-## Troubleshooting
+## Known Issues
 
-### Common Issues
+1. **mkdocstrings**: Some API references are commented out due to import issues
+2. **Encoding**: Some files had UTF-8 encoding issues (fixed with iconv)
+3. **Missing diagrams**: Architecture diagrams need to be recreated
 
-**Build errors:**
-- Check that all dependencies are installed: `uv sync --extra docs` (or `pip install -e .[docs]`)
-- Verify Python path is correct in `conf.py`
-- Check for syntax errors in RST files
+## Future Improvements
 
-**Missing modules:**
-- Ensure the package is installed in development mode: `uv sync` (or `pip install -e .`)
-- Check that `sys.path` is configured correctly in `conf.py`
+- [ ] Fix mkdocstrings integration for auto-generated API docs
+- [ ] Add architecture diagrams using Mermaid
+- [ ] Create interactive examples with embedded code runners
+- [ ] Add search functionality enhancements
+- [ ] Implement versioned documentation with Mike
+- [ ] Add API playground for testing
 
-**Broken links:**
-- Run `make linkcheck` to identify broken external links
-- Update or remove outdated links
+## Resources
 
-### Getting Help
-
-- Sphinx documentation: https://www.sphinx-doc.org/
-- ReadTheDocs guides: https://docs.readthedocs.io/
-- Project issues: https://github.com/TexasCoding/project-x-py/issues
+- [MkDocs Documentation](https://www.mkdocs.org/)
+- [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)
+- [mkdocstrings](https://mkdocstrings.github.io/)
+- [Mike (versioning)](https://github.com/jimporter/mike)

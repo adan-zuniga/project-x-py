@@ -1,0 +1,67 @@
+/* Custom styles for ProjectX Python SDK documentation */
+
+/* Brand colors */
+:root {
+  --md-primary-fg-color: #1976d2;
+  --md-primary-fg-color--light: #42a5f5;
+  --md-primary-fg-color--dark: #0d47a1;
+  --md-accent-fg-color: #ff6f00;
+}
+
+/* Code blocks */
+.highlight pre {
+  border-radius: 0.4rem;
+}
+
+/* API reference styling */
+.doc-object-name {
+  font-family: var(--md-code-font-family);
+  font-weight: 600;
+}
+
+/* Warning and info boxes */
+.admonition.warning {
+  border-left-color: #ff9800;
+}
+
+.admonition.info {
+  border-left-color: #2196f3;
+}
+
+/* Table styling */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* Improve readability */
+.md-typeset {
+  line-height: 1.6;
+}
+
+/* Custom badges */
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.4em;
+  font-size: 75%;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+.badge-async {
+  background-color: #4caf50;
+  color: white;
+}
+
+.badge-deprecated {
+  background-color: #f44336;
+  color: white;
+}
+
+.badge-new {
+  background-color: #2196f3;
+  color: white;
+}

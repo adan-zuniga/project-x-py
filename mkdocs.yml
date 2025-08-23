@@ -109,6 +109,7 @@ nav:
     - Order Manager: api/order-manager.md
     - Position Manager: api/position-manager.md
     - Data Manager: api/data-manager.md
+    - Statistics & Analytics: api/statistics.md
     - Indicators: api/indicators.md
     - Models: api/models.md
   - Examples:
