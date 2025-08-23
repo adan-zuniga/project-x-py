@@ -8,7 +8,7 @@ import pytest
 import pytz
 
 from project_x_py.client.market_data import MarketDataMixin
-from project_x_py.exceptions import ProjectXAPIError, ProjectXInstrumentError
+from project_x_py.exceptions import ProjectXError, ProjectXInstrumentError
 from project_x_py.models import Instrument
 
 
@@ -131,7 +131,7 @@ class TestMarketDataMixin:
         mock_response = {"success": False, "error": "API Error"}
         market_client._make_request.return_value = mock_response
 
-        with pytest.raises(ProjectXAPIError):  # Will be wrapped by handle_errors
+        with pytest.raises(ProjectXError):  # Will be wrapped by handle_errors
             await market_client.get_instrument("MNQ")
 
     @pytest.mark.asyncio
