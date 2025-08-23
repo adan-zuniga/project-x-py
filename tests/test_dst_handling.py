@@ -47,7 +47,7 @@ class MockDSTManager(DSTHandlingMixin):
 
     def _calculate_bar_time(self, timestamp, interval, unit):
         """Mock standard bar time calculation."""
-        if timestamp.tzinfo is None:
+        if timestamp.tzinfo is None and self.timezone is not None:
             timestamp = self.timezone.localize(timestamp)
 
         if unit == 1:  # Seconds
@@ -162,7 +162,10 @@ class TestDSTHandling:
 
     def test_dst_cache_management(self, chicago_manager):
         """Test DST cache functionality."""
-        # Initial cache should be empty
+        # Clear any existing cache first (class-level cache may have data from other tests)
+        chicago_manager.clear_dst_cache()
+
+        # Initial cache should be empty after clearing
         assert len(chicago_manager._dst_cache) == 0
 
         # Check a time to populate cache

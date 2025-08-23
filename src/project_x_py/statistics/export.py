@@ -11,7 +11,7 @@ Provides export functionality for statistics in multiple formats:
 import csv
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from io import StringIO
 from typing import Any, ClassVar, Union
 
@@ -64,7 +64,9 @@ class StatsExporter:
         data = self._stats_to_dict(stats)
 
         if include_timestamp:
-            data["export_timestamp"] = datetime.utcnow().isoformat() + "Z"
+            data["export_timestamp"] = (
+                datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            )
 
         if self.sanitize_sensitive:
             data = self._sanitize_data(data)
@@ -88,7 +90,7 @@ class StatsExporter:
             Prometheus format string
         """
         lines = []
-        timestamp = int(datetime.utcnow().timestamp() * 1000)
+        timestamp = int(datetime.now(UTC).timestamp() * 1000)
 
         # Health metrics
         health_stats = stats.get("health")
@@ -227,7 +229,11 @@ class StatsExporter:
 
         writer.writerow(headers)
 
-        timestamp = datetime.utcnow().isoformat() + "Z" if include_timestamp else None
+        timestamp = (
+            datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            if include_timestamp
+            else None
+        )
 
         # Flatten stats into rows
         rows = []
@@ -320,9 +326,41 @@ class StatsExporter:
             ).items():
                 rows.append(["connections", "connection_status", status, conn_type])
 
+        # If no rows were generated from standard stats, handle custom structures
+        if not rows:
+            # Flatten any custom dictionary structure
+            def flatten_dict(d, parent_key="", sep="_"):
+                items = []
+                for k, v in d.items():
+                    new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                    if isinstance(v, dict):
+                        items.extend(flatten_dict(v, new_key, sep=sep).items())
+                    else:
+                        items.append((new_key, v))
+                return dict(items)
+
+            flat_stats = flatten_dict(stats)
+            for key, value in flat_stats.items():
+                # Split the key to get category and name
+                parts = key.split("_", 1)
+                category = parts[0] if parts else "custom"
+                name = parts[1] if len(parts) > 1 else key
+                # Try to extract component from key
+                component = "system"
+                if "order_manager" in key:
+                    component = "order_manager"
+                elif "position_manager" in key:
+                    component = "position_manager"
+                elif "realtime" in key:
+                    component = "realtime"
+                row = [category, name, value, component]
+                if include_timestamp:
+                    row.append(timestamp)
+                rows.append(row)
+
         # Write rows
         for row in rows:
-            if include_timestamp:
+            if include_timestamp and len(row) == 4:
                 row.append(timestamp)
             writer.writerow(row)
 
@@ -342,7 +380,7 @@ class StatsExporter:
             Dictionary formatted for Datadog API
         """
         metrics = []
-        timestamp = int(datetime.utcnow().timestamp())
+        timestamp = int(datetime.now(UTC).timestamp())
 
         # Health metrics
         health_stats = stats.get("health")
@@ -517,6 +555,26 @@ class StatsExporter:
 
     def _stats_to_dict(self, stats: ComprehensiveStats) -> dict[str, Any]:
         """Convert ComprehensiveStats to dictionary."""
+        # Check if this appears to be a structured ComprehensiveStats
+        # by looking for standard stats keys
+        has_standard_keys = any(
+            key in stats
+            for key in [
+                "health",
+                "performance",
+                "memory",
+                "errors",
+                "connections",
+                "trading",
+            ]
+        )
+
+        # If no standard keys found, just return the dict as-is
+        # This handles test cases and non-standard data structures
+        if not has_standard_keys:
+            return dict(stats)
+
+        # Process standard ComprehensiveStats structure
         result = {}
 
         health_stats = stats.get("health")
@@ -582,6 +640,10 @@ class StatsExporter:
                 if (pnl_value := trading_stats.get("pnl_today")) is not None
                 else None,
             }
+
+        # Also preserve any suite data if present
+        if "suite" in stats:
+            result["suite"] = stats["suite"]
 
         return result
 

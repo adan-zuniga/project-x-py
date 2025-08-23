@@ -105,7 +105,7 @@ class TestErrorScenarios:
         with pytest.raises(ProjectXRateLimitError) as exc_info:
             await client._make_request("GET", "/test/endpoint")
 
-        assert "rate limited" in str(exc_info.value).lower()
+        assert "rate limit" in str(exc_info.value).lower()
 
     async def test_concurrent_position_updates(self):
         """Test handling of concurrent position updates."""

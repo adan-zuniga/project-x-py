@@ -378,11 +378,15 @@ class TimeSeriesStorage(MemoryMappedStorage):
         self.row_size = (len(self.columns) + 1) * self.dtype.itemsize
         self.current_size = 0
 
-        # Determine current size from existing file
+        # Load metadata to get actual data size if file exists
         if self.filename.exists():
             self.open()  # open() is idempotent and thread-safe
-            if self._data_file_size > 0 and self.row_size > 0:
-                self.current_size = self._data_file_size // self.row_size
+            self._load_metadata()
+            # Get current_size from metadata if available
+            if "_timeseries_meta" in self._metadata:
+                self.current_size = self._metadata["_timeseries_meta"].get(
+                    "current_size", 0
+                )
 
     def append_data(self, timestamp: float, values: dict[str, float]) -> bool:
         """
@@ -424,6 +428,10 @@ class TimeSeriesStorage(MemoryMappedStorage):
                     self.mmap[offset : offset + self.row_size] = row.tobytes()
                     self.mmap.flush()
                 self.current_size += 1
+
+                # Update metadata with current size
+                self._metadata["_timeseries_meta"] = {"current_size": self.current_size}
+                self._save_metadata()
 
                 return True
 

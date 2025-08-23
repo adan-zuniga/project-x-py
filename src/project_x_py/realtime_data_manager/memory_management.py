@@ -101,10 +101,10 @@ from project_x_py.utils.task_management import TaskManagerMixin
 if TYPE_CHECKING:
     from project_x_py.types.stats_types import RealtimeDataManagerStats
 
+import polars as pl
+
 if TYPE_CHECKING:
     from asyncio import Lock
-
-    import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -392,58 +392,71 @@ class MemoryManagementMixin(TaskManagerMixin):
         if current_time - self.last_cleanup < self.cleanup_interval:
             return
 
-        async with self.data_lock:
-            total_bars_before = 0
-            total_bars_after = 0
+        # Import here to avoid circular dependency
+        from project_x_py.utils.lock_optimization import AsyncRWLock
 
-            # Cleanup each timeframe's data
-            for tf_key in self.timeframes:
-                if tf_key in self.data and not self.data[tf_key].is_empty():
-                    initial_count = len(self.data[tf_key])
-                    total_bars_before += initial_count
+        # Use appropriate lock method based on lock type
+        if isinstance(self.data_lock, AsyncRWLock):
+            async with self.data_lock.write_lock():
+                await self._perform_cleanup()
+        else:
+            async with self.data_lock:
+                await self._perform_cleanup()
 
-                    # Check for buffer overflow first
-                    is_overflow, utilization = await self._check_buffer_overflow(tf_key)
-                    if is_overflow:
-                        await self._handle_buffer_overflow(tf_key, utilization)
-                        total_bars_after += len(self.data[tf_key])
-                        continue
+    async def _perform_cleanup(self) -> None:
+        """Perform the actual cleanup logic (extracted for lock handling)."""
+        total_bars_before = 0
+        total_bars_after = 0
 
-                    # Check if overflow is needed (if mixin is available)
-                    if hasattr(
-                        self, "_check_overflow_needed"
-                    ) and await self._check_overflow_needed(tf_key):
-                        await self._overflow_to_disk(tf_key)
-                        # Data has been overflowed, update count
-                        total_bars_after += len(self.data[tf_key])
-                        continue
+        # Cleanup each timeframe's data
+        for tf_key in self.timeframes:
+            if tf_key in self.data and not self.data[tf_key].is_empty():
+                initial_count = len(self.data[tf_key])
+                total_bars_before += initial_count
 
-                    # Keep only the most recent bars (sliding window)
-                    if initial_count > self.max_bars_per_timeframe:
-                        self.data[tf_key] = self.data[tf_key].tail(
-                            self.max_bars_per_timeframe
-                        )
-
+                # Check for buffer overflow first
+                is_overflow, utilization = await self._check_buffer_overflow(tf_key)
+                if is_overflow:
+                    await self._handle_buffer_overflow(tf_key, utilization)
                     total_bars_after += len(self.data[tf_key])
+                    continue
 
-            # Cleanup tick buffer - deque handles its own cleanup with maxlen
-            # No manual cleanup needed for deque with maxlen
+                # Check if overflow is needed (if mixin is available)
+                if hasattr(
+                    self, "_check_overflow_needed"
+                ) and await self._check_overflow_needed(tf_key):
+                    await self._overflow_to_disk(tf_key)
+                    # Data has been overflowed, update count
+                    total_bars_after += len(self.data[tf_key])
+                    continue
 
-            # Update stats
-            self.last_cleanup = current_time
-            self.memory_stats["bars_cleaned"] += total_bars_before - total_bars_after
-            self.memory_stats["total_bars"] = total_bars_after
-            self.memory_stats["last_cleanup"] = current_time
+                # Keep only the most recent bars (sliding window)
+                if initial_count > self.max_bars_per_timeframe:
+                    self.data[tf_key] = self.data[tf_key].tail(
+                        self.max_bars_per_timeframe
+                    )
 
-            # Log cleanup if significant
-            if total_bars_before != total_bars_after:
-                self.logger.debug(
-                    f"DataManager cleanup - Bars: {total_bars_before}→{total_bars_after}, "
-                    f"Ticks: {len(self.current_tick_data)}"
-                )
+                total_bars_after += len(self.data[tf_key])
 
-                # Force garbage collection after cleanup
-                gc.collect()
+        # Cleanup tick buffer - deque handles its own cleanup with maxlen
+        # No manual cleanup needed for deque with maxlen
+
+        # Update stats
+        current_time = time.time()
+        self.last_cleanup = current_time
+        self.memory_stats["bars_cleaned"] += total_bars_before - total_bars_after
+        self.memory_stats["total_bars"] = total_bars_after
+        self.memory_stats["last_cleanup"] = current_time
+
+        # Log cleanup if significant
+        if total_bars_before != total_bars_after:
+            self.logger.debug(
+                f"DataManager cleanup - Bars: {total_bars_before}→{total_bars_after}, "
+                f"Ticks: {len(self.current_tick_data)}"
+            )
+
+            # Force garbage collection after cleanup
+            gc.collect()
 
     async def _periodic_cleanup(self) -> None:
         """Background task for periodic cleanup."""

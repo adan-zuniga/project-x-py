@@ -377,14 +377,28 @@ class MMapOverflowMixin:
                     # Take the requested number of bars from the end
                     restore_df = overflow_df.tail(bars)
 
-                    async with self.data_lock:
-                        # Prepend to current data
-                        if timeframe in self.data:
-                            self.data[timeframe] = pl.concat(
-                                [restore_df, self.data[timeframe]]
-                            )
-                        else:
-                            self.data[timeframe] = restore_df
+                    # Import here to avoid circular dependency
+                    from project_x_py.utils.lock_optimization import AsyncRWLock
+
+                    # Use appropriate lock method based on lock type
+                    if isinstance(self.data_lock, AsyncRWLock):
+                        async with self.data_lock.write_lock():
+                            # Prepend to current data
+                            if timeframe in self.data:
+                                self.data[timeframe] = pl.concat(
+                                    [restore_df, self.data[timeframe]]
+                                )
+                            else:
+                                self.data[timeframe] = restore_df
+                    else:
+                        async with self.data_lock:
+                            # Prepend to current data
+                            if timeframe in self.data:
+                                self.data[timeframe] = pl.concat(
+                                    [restore_df, self.data[timeframe]]
+                                )
+                            else:
+                                self.data[timeframe] = restore_df
 
                     logger.info(
                         f"Restored {len(restore_df)} bars for {timeframe} from overflow"

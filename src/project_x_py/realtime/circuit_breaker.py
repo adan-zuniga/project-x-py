@@ -620,7 +620,7 @@ class CircuitBreakerMixin(TaskManagerMixin):
         max_recovery_time: float = 300.0,
         slow_call_threshold: float = 2.0,
         enable_global_circuit: bool = True,
-        _enable_per_event_circuits: bool = True,
+        enable_per_event_circuits: bool = True,
     ) -> None:
         """
         Configure circuit breaker settings.

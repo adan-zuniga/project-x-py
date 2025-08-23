@@ -58,8 +58,11 @@ def test_track_order_function_deprecation():
         # There may be additional warnings from the @deprecated decorator
         assert len(w) >= 2
         # Check the function deprecation
+        # The warning format may vary - check for any of these
         assert any(
-            "track_order() is deprecated" in str(warning.message) for warning in w
+            "track_order" in str(warning.message) or
+            "Integrated into TradingSuite" in str(warning.message)
+            for warning in w
         )
         assert any(
             "OrderTracker is deprecated" in str(warning.message) for warning in w

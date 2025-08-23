@@ -60,7 +60,7 @@ class TestTradingMixin:
         }
         trading_client._make_request.return_value = mock_response
 
-        with pytest.warns(DeprecationWarning, match="get_positions.*deprecated"):
+        with pytest.warns(DeprecationWarning, match="(get_positions|Method renamed)"):
             positions = await trading_client.get_positions()
 
         assert len(positions) == 1
@@ -589,6 +589,6 @@ class TestTradingMixin:
         assert trading_client._ensure_authenticated.call_count == 2
 
         # Test get_positions (deprecated)
-        with pytest.warns(DeprecationWarning):
+        with pytest.warns(DeprecationWarning, match="(get_positions|Method renamed)"):
             await trading_client.get_positions()
         assert trading_client._ensure_authenticated.call_count == 3

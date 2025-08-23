@@ -95,5 +95,5 @@ class TestMarketAnalyticsStaticMethods:
             }
         )
 
-        with pytest.raises(KeyError):  # Should raise when columns don't exist
+        with pytest.raises(ValueError):  # Should raise when columns don't exist
             MarketAnalytics.analyze_dataframe_spread(data)
