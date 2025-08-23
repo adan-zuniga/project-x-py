@@ -346,7 +346,7 @@ class TestStatisticsSystemIntegration:
         assert "data_quality" in breakdown
 
         # All numeric scores should be valid (skip non-numeric keys)
-        for key, score in breakdown.items():
+        for _key, score in breakdown.items():
             if isinstance(score, (int, float)):
                 assert 0 <= score <= 100
 
@@ -717,7 +717,7 @@ class TestStatisticsSystemIntegration:
 
         # 1. Place multiple orders with timing
         order_times = [125.5, 89.3, 156.7, 201.2, 98.1]
-        for i, timing in enumerate(order_times):
+        for _i, timing in enumerate(order_times):
             await order_manager.record_timing("place_order", timing)
             await order_manager.increment("orders_placed")
 

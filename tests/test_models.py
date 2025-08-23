@@ -47,17 +47,17 @@ class TestInstrumentAndAccount:
 
 class TestOrderModel:
     def make_order(self, **overrides) -> Order:
-        base = dict(
-            id=1,
-            accountId=10,
-            contractId="CON.F.US.MNQ.H25",
-            creationTimestamp="2024-01-01T00:00:00Z",
-            updateTimestamp="2024-01-01T00:00:10Z",
-            status=1,  # OPEN
-            type=1,  # LIMIT
-            side=0,  # BUY
-            size=5,
-        )
+        base = {
+            "id": 1,
+            "accountId": 10,
+            "contractId": "CON.F.US.MNQ.H25",
+            "creationTimestamp": "2024-01-01T00:00:00Z",
+            "updateTimestamp": "2024-01-01T00:00:10Z",
+            "status": 1,  # OPEN
+            "type": 1,  # LIMIT
+            "side": 0,  # BUY
+            "size": 5,
+        }
         base.update(overrides)
         return Order(**base)
 

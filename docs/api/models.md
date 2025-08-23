@@ -618,6 +618,5 @@ except ProjectXOrderError as e:
 
 ## See Also
 
-- [Type System](../development/types.md) - Complete type system overview
 - [Configuration](../getting-started/configuration.md) - Configuration options
 - [Trading Guide](../guide/orders.md) - Using models in trading operations

@@ -131,7 +131,7 @@ class TestMarketDataMixin:
         mock_response = {"success": False, "error": "API Error"}
         market_client._make_request.return_value = mock_response
 
-        with pytest.raises(Exception):  # Will be wrapped by handle_errors
+        with pytest.raises(ProjectXAPIError):  # Will be wrapped by handle_errors
             await market_client.get_instrument("MNQ")
 
     @pytest.mark.asyncio
@@ -447,7 +447,7 @@ class TestMarketDataMixin:
         # Test get_instrument
         try:
             await market_client.get_instrument("MNQ")
-        except:
+        except Exception:
             pass
         market_client._ensure_authenticated.assert_called()
 
@@ -464,6 +464,6 @@ class TestMarketDataMixin:
         # Test get_bars (will fail but that's ok)
         try:
             await market_client.get_bars("MNQ")
-        except:
+        except Exception:
             pass
         market_client._ensure_authenticated.assert_called()

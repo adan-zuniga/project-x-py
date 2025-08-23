@@ -528,7 +528,7 @@ class TestPerformanceAndMemory:
         # Time high-frequency updates
         start_time = time.time()
 
-        for i in range(1000):
+        for _i in range(1000):
             await counter.increment(1.0)
 
         end_time = time.time()
@@ -582,7 +582,7 @@ async def test_integration_with_cleanup_scheduler():
     )
 
     # Add some data
-    for i in range(50):
+    for _i in range(50):
         await component.increment_bounded("test_metric", 1.0)
 
     initial_stats = await component.get_bounded_counter_stats("test_metric")
