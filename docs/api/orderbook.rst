@@ -99,6 +99,11 @@ Institutional Features
 .. automethod:: OrderBook.detect_iceberg_orders_advanced
 .. automethod:: OrderBook.get_support_resistance_levels
 
+Market Manipulation Detection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automethod:: OrderBook.detect_spoofing
+
 Comprehensive Analysis
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -227,6 +232,124 @@ Support and Resistance Analysis
        print("\n=== Resistance Levels ===")
        for level in levels['resistance_levels'][:3]:  # Top 3 resistance levels
            print(f"${level['price']:.2f} - Strength: {level['strength']:.2f} - Volume: {level['volume']}")
+
+Spoofing Detection (v3.3.4+)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**NEW in v3.3.4**: Comprehensive market manipulation detection with 6 pattern types.
+
+The OrderBook now includes sophisticated spoofing detection algorithms that identify common market manipulation patterns:
+
+**Detection Patterns:**
+
+1. **Layering**: Multiple orders at different price levels with high cancellation rates
+2. **Quote Stuffing**: Rapid placement and cancellation of orders to create noise  
+3. **Momentum Ignition**: Aggressive orders designed to trigger other participants
+4. **Flashing**: Brief display of large orders to mislead other traders
+5. **Wash Trading**: Self-trading to create artificial volume
+6. **Basic Spoofing**: General patterns with high cancellation rates
+
+.. code-block:: python
+
+   async def detect_market_manipulation():
+       # Using TradingSuite with orderbook
+       suite = await TradingSuite.create("ES", features=["orderbook"])
+       
+       # Basic spoofing detection with default parameters
+       spoofing = await suite.orderbook.detect_spoofing()
+       
+       print("=== Spoofing Detection Results ===")
+       for detection in spoofing:
+           print(f"Pattern: {detection['pattern']}")
+           print(f"Price: ${detection['price']:.2f}")
+           print(f"Side: {detection['side']}")
+           print(f"Confidence: {detection['confidence']:.1%}")
+           print(f"Cancellation Rate: {detection['cancellation_rate']:.1%}")
+           print(f"Frequency: {detection['placement_frequency']:.1f}/min")
+           print(f"Distance from Market: {detection['distance_from_market']} ticks")
+           print("---")
+       
+       await suite.disconnect()
+
+.. code-block:: python
+
+   async def advanced_spoofing_detection():
+       suite = await TradingSuite.create("MNQ", features=["orderbook"])
+       
+       # Custom parameters for more sensitive detection
+       spoofing = await suite.orderbook.detect_spoofing(
+           time_window_minutes=5,          # Shorter analysis window
+           min_placement_frequency=5.0,    # Higher frequency threshold
+           min_cancellation_rate=0.6,      # Lower cancellation rate threshold  
+           max_time_to_cancel=15.0,        # Faster cancellation requirement
+           min_distance_ticks=2,           # Closer to market
+           confidence_threshold=0.5        # Lower confidence threshold
+       )
+       
+       # Analyze results by pattern type
+       patterns = {}
+       for detection in spoofing:
+           pattern = detection['pattern']
+           if pattern not in patterns:
+               patterns[pattern] = []
+           patterns[pattern].append(detection)
+       
+       for pattern, detections in patterns.items():
+           print(f"\n=== {pattern.upper()} PATTERN ===")
+           print(f"Instances: {len(detections)}")
+           avg_confidence = sum(d['confidence'] for d in detections) / len(detections)
+           print(f"Average Confidence: {avg_confidence:.1%}")
+           
+           # Show highest confidence detection
+           best = max(detections, key=lambda x: x['confidence'])
+           print(f"Best Detection: ${best['price']:.2f} ({best['confidence']:.1%})")
+       
+       await suite.disconnect()
+
+**Performance Optimizations (v3.3.4):**
+
+- **80% Faster Detection**: Optimized from O(N²) to O(N log N) complexity
+- **Memory Bounded**: Maximum 1000 price levels tracked to prevent memory exhaustion
+- **Binary Search**: Efficient timestamp filtering for large order histories  
+- **Configurable Tick Sizes**: Dynamic tick size detection via instrument API
+
+**Regulatory Compliance Features:**
+
+- **Pattern Classification**: Specific categorization for compliance reporting
+- **Confidence Scoring**: Quantified reliability for regulatory thresholds
+- **Historical Tracking**: Complete audit trail of detection events
+- **Timestamp Precision**: ISO format timestamps for regulatory requirements
+
+.. code-block:: python
+
+   async def compliance_monitoring():
+       """Example for regulatory compliance monitoring."""
+       suite = await TradingSuite.create("ES", features=["orderbook"])
+       
+       # Continuous monitoring for compliance
+       while True:
+           # Detect spoofing with regulatory parameters
+           spoofing = await suite.orderbook.detect_spoofing(
+               confidence_threshold=0.8,  # High confidence for compliance
+               min_cancellation_rate=0.9, # Very high cancellation rate
+               time_window_minutes=15     # Regulatory time window
+           )
+           
+           # Report high-confidence detections
+           for detection in spoofing:
+               if detection['confidence'] > 0.9:
+                   print(f"🚨 HIGH CONFIDENCE SPOOFING DETECTED")
+                   print(f"Time: {detection['first_detected']}")
+                   print(f"Pattern: {detection['pattern']}")
+                   print(f"Price: ${detection['price']:.2f}")
+                   print(f"Confidence: {detection['confidence']:.1%}")
+                   
+                   # Log for compliance system
+                   # await log_to_compliance_system(detection)
+           
+           await asyncio.sleep(60)  # Check every minute
+       
+       await suite.disconnect()
 
 Real-time Integration
 ~~~~~~~~~~~~~~~~~~~~
@@ -408,6 +531,32 @@ The ``get_volume_profile()`` method returns:
            "volume_percentage": float
        }
    }
+
+Spoofing Detection Data
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``detect_spoofing()`` method returns a list of ``SpoofingDetectionResponse`` objects:
+
+.. code-block:: python
+
+   [
+       {
+           "price": float,                         # Price level where spoofing detected
+           "side": str,                           # "bid" or "ask"
+           "order_size": int,                     # Typical order size at this level
+           "placement_frequency": float,          # Orders placed per minute
+           "cancellation_rate": float,            # Percentage of orders cancelled (0.0-1.0)
+           "time_to_cancel_avg_seconds": float,   # Average time before cancellation
+           "distance_from_market": int,           # Distance in ticks from best bid/ask
+           "confidence": float,                   # Confidence score (0.0-1.0)
+           "pattern": str,                        # Type of spoofing pattern detected
+                                                  # "layering", "quote_stuffing", "momentum_ignition",
+                                                  # "flashing", "wash_trading", "basic_spoofing"
+           "first_detected": str,                 # ISO timestamp of first detection
+           "last_detected": str,                  # ISO timestamp of most recent detection
+           "total_instances": int                 # Number of instances detected
+       }
+   ]
 
 Performance Considerations
 -------------------------

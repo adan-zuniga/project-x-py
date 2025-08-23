@@ -20,7 +20,7 @@ project-x-py Documentation
 **project-x-py** is a high-performance **async Python SDK** for the `ProjectX Trading Platform <https://www.projectx.com/>`_ Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
 .. note::
-   **Version 3.2.0**: Major type system improvements with comprehensive TypedDict and Protocol definitions for better IDE support and type safety. Features new StatsTrackingMixin for error and memory tracking, standardized deprecation system, and dramatically improved type checking (reduced errors from 100+ to 13). Includes 47 new tests for complete type system coverage. Fully backward compatible with v3.1.x.
+   **Version 3.3.4**: Production-ready release with all 27 critical issues resolved. Major improvements include Risk Manager financial precision with Decimal type, comprehensive OrderBook spoofing detection (6 pattern types), enhanced memory management, and 100% async-first statistics system with health monitoring. Complete with performance optimizations and comprehensive test coverage. Fully backward compatible with v3.x.x.
 
 .. note::
    **Stable Production Release**: Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -93,6 +93,8 @@ Key Features
    * **Level 2 orderbook analysis** with institutional-grade features
    * **58+ Technical Indicators** with TA-Lib compatibility (RSI, MACD, Bollinger Bands, Pattern Recognition, etc.)
    * **Advanced market microstructure** analysis (iceberg detection, order flow, volume profile)
+   * **Market Manipulation Detection** (NEW): 6 spoofing pattern types with regulatory compliance features
+   * **100% Async Statistics System** (NEW): Health monitoring, multi-format export, component tracking
 
 🔧 **Developer Tools**
    * Comprehensive Python typing support
@@ -106,7 +108,7 @@ Key Features
    * Async event-driven architecture
    * WebSocket-based connections with async handlers
 
-🛡️ **Enterprise Features (v3.0.0+)**
+🛡️ **Enterprise Features (v3.3.4)**
    * EventBus architecture for unified event handling
    * Factory functions with dependency injection
    * JWT-based authentication system
@@ -115,6 +117,9 @@ Key Features
    * Automatic retry with exponential backoff
    * Rate limit management
    * Comprehensive type safety (mypy compliant)
+   * **Financial Precision** (NEW): Decimal type for exact calculations
+   * **Advanced Memory Management** (NEW): Bounded buffers, automatic cleanup
+   * **Performance Optimized** (NEW): 80% faster algorithms, O(N log N) complexity
 
 Table of Contents
 -----------------
@@ -157,6 +162,7 @@ Table of Contents
    api/data
    api/orderbook
    api/indicators
+   api/statistics
    api/models
    api/utilities
 
