@@ -543,7 +543,7 @@ class ErrorContext:
         """Get the number of errors collected."""
         return len(self.errors)
 
-    def get_summary(self) -> str:
+    async def get_summary(self) -> str:
         """Get a summary of all errors."""
         if not self.errors:
             return "No errors"

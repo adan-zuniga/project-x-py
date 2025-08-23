@@ -467,10 +467,10 @@ class StatisticsAggregator(BaseStatisticsTracker):
                 except (AttributeError, TypeError):
                     pass
 
-            # Try sync get_memory_stats()
+            # Try async get_memory_stats()
             if hasattr(component, "get_memory_stats"):
                 try:
-                    result = component.get_memory_stats()
+                    result = await component.get_memory_stats()
                     if result:
                         await self.record_timing(
                             f"{name}_collection", (time.time() - start_time) * 1000

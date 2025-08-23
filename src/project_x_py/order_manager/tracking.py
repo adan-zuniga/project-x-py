@@ -227,7 +227,9 @@ class OrderTrackingMixin:
             self.oco_groups.pop(order_id, None)
             return None
 
-    def get_oco_linked_order(self: "OrderManagerProtocol", order_id: int) -> int | None:
+    async def get_oco_linked_order(
+        self: "OrderManagerProtocol", order_id: int
+    ) -> int | None:
         """
         Get the order ID linked to the given order in an OCO relationship.
 
@@ -1343,10 +1345,12 @@ class OrderTrackingMixin:
         self._completed_orders.clear()
 
         # Clear task monitoring data if they exist
-        if hasattr(self, "_task_results"):
-            self._task_results.clear()
-        if hasattr(self, "_cancellation_failures"):
-            self._cancellation_failures.clear()
+        task_results = getattr(self, "_task_results", None)
+        if task_results is not None:
+            task_results.clear()
+        cancellation_failures = getattr(self, "_cancellation_failures", None)
+        if cancellation_failures is not None:
+            cancellation_failures.clear()
 
         # Reset statistics
         self._memory_stats.update(

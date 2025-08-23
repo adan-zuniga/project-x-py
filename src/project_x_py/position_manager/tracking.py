@@ -623,6 +623,6 @@ class PositionTrackingMixin:
             "add_callback is deprecated. Use TradingSuite.on() with EventType enum instead."
         )
 
-    def get_position_history_size(self, contract_id: str) -> int:
+    async def get_position_history_size(self, contract_id: str) -> int:
         """Get the current size of position history for a contract."""
         return len(self.position_history.get(contract_id, deque()))

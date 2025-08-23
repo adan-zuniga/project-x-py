@@ -63,7 +63,7 @@ if TYPE_CHECKING:
 class PositionReportingMixin:
     """Mixin for statistics, history, and report generation."""
 
-    def get_position_statistics(
+    async def get_position_statistics(
         self: "PositionManagerProtocol",
     ) -> "PositionManagerStats":
         """

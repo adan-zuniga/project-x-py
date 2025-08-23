@@ -355,7 +355,7 @@ class PositionOrderMixin:
 
             logger.debug(f"Untracked order {order_id}")
 
-    def get_position_orders(
+    async def get_position_orders(
         self: "OrderManagerProtocol", contract_id: str
     ) -> dict[str, list[int]]:
         """
@@ -408,7 +408,7 @@ class PositionOrderMixin:
         if order_types is None:
             order_types = ["entry", "stop", "target"]
 
-        position_orders = self.get_position_orders(contract_id)
+        position_orders = await self.get_position_orders(contract_id)
         # Track successful cancellations by type
         success_counts = {"entry": 0, "stop": 0, "target": 0, "failed": 0}
         error_messages: list[str] = []
@@ -503,7 +503,7 @@ class PositionOrderMixin:
         # TODO: Implement multi-account support using account_id parameter
         _ = account_id  # Unused for now, reserved for future multi-account support
 
-        position_orders = self.get_position_orders(contract_id)
+        position_orders = await self.get_position_orders(contract_id)
         results: dict[str, Any] = {"modified": 0, "failed": 0, "errors": []}
 
         # Update stop and target orders

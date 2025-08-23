@@ -487,15 +487,15 @@ class OrderBook(OrderBookBase):
         return await self.profile.get_spread_analysis(window_minutes)
 
     # Delegate memory methods
-    def get_memory_stats(self) -> dict[str, Any]:
+    async def get_memory_stats(self) -> dict[str, Any]:
         """
         Get comprehensive memory usage statistics.
 
         Delegates to MemoryManager.get_memory_stats().
         See MemoryManager.get_memory_stats() for complete documentation.
         """
-        # Call the synchronous memory manager method - matches base class signature
-        stats = self.memory_manager.get_memory_stats()
+        # Call the async memory manager method
+        stats = await self.memory_manager.get_memory_stats()
         return dict(stats) if stats else {}
 
     async def cleanup(self) -> None:

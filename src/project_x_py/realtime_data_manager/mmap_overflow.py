@@ -319,7 +319,7 @@ class MMapOverflowMixin:
             with suppress(Exception):
                 storage.close()
 
-    def get_overflow_stats(self) -> dict[str, Any]:
+    async def get_overflow_stats(self) -> dict[str, Any]:
         """
         Get statistics about overflow storage.
 

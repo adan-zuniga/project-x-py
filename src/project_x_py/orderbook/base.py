@@ -890,30 +890,13 @@ class OrderBookBase(BaseStatisticsTracker):
 
         return base_memory + bids_memory + asks_memory + trades_memory + history_memory
 
-    def get_memory_stats(self) -> dict[str, Any]:
+    async def get_memory_stats(self) -> dict[str, Any]:
         """
-        Get comprehensive memory and statistics (synchronous for backward compatibility).
+        Get comprehensive memory and statistics.
 
         Returns orderbook-specific statistics compatible with the collector expectations.
         """
-        import asyncio
-
-        # For backward compatibility, run async methods in a new event loop if needed
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're in an async context, we can't use async methods synchronously
-                # Return basic memory stats only
-                return self._get_basic_memory_stats()
-        except RuntimeError:
-            pass
-
-        # If no loop is running, we can create one
-        try:
-            return asyncio.run(self._get_comprehensive_stats())
-        except RuntimeError:
-            # Fallback to basic stats if async operations fail
-            return self._get_basic_memory_stats()
+        return await self._get_comprehensive_stats()
 
     def _get_basic_memory_stats(self) -> dict[str, Any]:
         """Get basic memory stats without async operations."""

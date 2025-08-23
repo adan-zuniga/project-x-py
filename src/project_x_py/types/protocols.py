@@ -96,6 +96,7 @@ import httpx
 import polars as pl
 from cachetools import TTLCache
 
+from project_x_py.models import BracketOrderResponse
 from project_x_py.types.base import HubConnection
 from project_x_py.types.response_types import (
     PerformanceStatsResponse,
@@ -277,6 +278,27 @@ class OrderManagerProtocol(Protocol):
         account_id: int | None = None,
     ) -> "OrderPlaceResponse": ...
 
+    async def place_bracket_order(
+        self,
+        contract_id: str,
+        side: int,
+        size: int,
+        entry_price: float,
+        stop_loss_price: float,
+        take_profit_price: float,
+        entry_type: str = "limit",
+        account_id: int | None = None,
+    ) -> BracketOrderResponse: ...
+
+    async def place_trailing_stop_order(
+        self,
+        contract_id: str,
+        side: int,
+        size: int,
+        trail_price: float,
+        account_id: int | None = None,
+    ) -> "OrderPlaceResponse": ...
+
     async def get_order_by_id(self, order_id: int) -> "Order | None": ...
 
     async def cancel_order(
@@ -317,7 +339,7 @@ class OrderManagerProtocol(Protocol):
 
     def untrack_order(self, order_id: int) -> None: ...
 
-    def get_position_orders(self, contract_id: str) -> dict[str, list[int]]: ...
+    async def get_position_orders(self, contract_id: str) -> dict[str, list[int]]: ...
 
     async def _on_order_update(
         self, order_data: dict[str, Any] | list[Any]
@@ -348,6 +370,14 @@ class OrderManagerProtocol(Protocol):
 
     async def on_position_closed(
         self, contract_id: str, account_id: int | None = None
+    ) -> None: ...
+
+    async def on_position_changed(
+        self,
+        contract_id: str,
+        old_size: int,
+        new_size: int,
+        account_id: int | None = None,
     ) -> None: ...
 
     async def _setup_realtime_callbacks(self) -> None: ...
@@ -443,7 +473,7 @@ class PositionManagerProtocol(Protocol):
         account_id: int | None = None,
     ) -> "PortfolioMetricsResponse": ...
     async def get_risk_metrics(self) -> "RiskAnalysisResponse": ...
-    def get_position_statistics(
+    async def get_position_statistics(
         self,
     ) -> "PositionManagerStats": ...
     async def _monitoring_loop(self, refresh_interval: int) -> None: ...

@@ -568,10 +568,9 @@ class RealtimeDataManager(
         # These will be tracked using the new BaseStatisticsTracker async methods
         # Called during __init__ but actual counter setup happens async
 
-    def get_memory_stats(self) -> "RealtimeDataManagerStats":
-        """Get comprehensive memory usage statistics (synchronous for backward compatibility)."""
-        # This method remains synchronous to maintain backward compatibility
-        # but pulls data from both legacy stats and new statistics system
+    async def get_memory_stats(self) -> "RealtimeDataManagerStats":
+        """Get comprehensive memory usage statistics."""
+        # Async method for proper I/O handling and new statistics system compatibility
 
         # Update current statistics from data structures
         timeframe_stats = {}
@@ -612,7 +611,13 @@ class RealtimeDataManager(
         # Add overflow stats if available
         overflow_stats = {}
         if hasattr(self, "get_overflow_stats"):
-            overflow_stats = self.get_overflow_stats()
+            try:
+                method = self.get_overflow_stats
+                if callable(method):
+                    # Method is always async now
+                    overflow_stats = await method()
+            except Exception:
+                overflow_stats = {}
 
         # Add lock optimization stats
         lock_stats = {}

@@ -332,7 +332,7 @@ class MemoryManager:
         # Delta history - deque handles its own cleanup with maxlen
         # No manual cleanup needed for deque with maxlen
 
-    def get_memory_stats(self) -> OrderbookStats:
+    async def get_memory_stats(self) -> OrderbookStats:
         """
         Get comprehensive memory usage statistics.
 
@@ -341,8 +341,6 @@ class MemoryManager:
         configuration settings. It's useful for monitoring memory usage over time,
         debugging memory issues, and validating that the cleanup strategies are working
         as expected.
-
-        Note: This is a synchronous method that computes stats immediately.
 
         Returns:
             Dict containing comprehensive memory statistics including:

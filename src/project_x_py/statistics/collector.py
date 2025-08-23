@@ -379,10 +379,10 @@ class ComponentCollector(BaseStatisticsTracker):
             start_time = time.time()
             data_manager = self.trading_suite.data
 
-            # Get memory statistics (synchronous method)
+            # Get memory statistics (async method)
             base_stats: dict[str, Any] = {}
             if hasattr(data_manager, "get_memory_stats"):
-                result = data_manager.get_memory_stats()
+                result = await data_manager.get_memory_stats()
                 # Convert TypedDict to regular dict
                 base_stats = dict(result) if result else {}
 
@@ -478,10 +478,10 @@ class ComponentCollector(BaseStatisticsTracker):
             start_time = time.time()
             orderbook = self.trading_suite.orderbook
 
-            # Get memory statistics (synchronous method)
+            # Get memory statistics (async method)
             base_stats: dict[str, Any] = {}
             if hasattr(orderbook, "get_memory_stats"):
-                result = orderbook.get_memory_stats()
+                result = await orderbook.get_memory_stats()
                 # Result is already a dict from the orderbook implementation
                 base_stats = result if result else {}
 

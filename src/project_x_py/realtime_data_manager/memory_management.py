@@ -156,7 +156,7 @@ class MemoryManagementMixin(TaskManagerMixin):
         # Optional methods from overflow mixin
         async def _check_overflow_needed(self, _timeframe: str) -> bool: ...
         async def _overflow_to_disk(self, _timeframe: str) -> None: ...
-        def get_overflow_stats(self) -> dict[str, Any]: ...
+        async def get_overflow_stats(self) -> dict[str, Any]: ...
 
     def __init__(self) -> None:
         """Initialize memory management attributes."""
@@ -350,7 +350,7 @@ class MemoryManagementMixin(TaskManagerMixin):
         if callback in self._overflow_alert_callbacks:
             self._overflow_alert_callbacks.remove(callback)
 
-    def get_buffer_stats(self) -> dict[str, Any]:
+    async def get_buffer_stats(self) -> dict[str, Any]:
         """
         Get comprehensive buffer utilization statistics.
 
@@ -478,7 +478,7 @@ class MemoryManagementMixin(TaskManagerMixin):
                 self.logger.error(f"Runtime error in periodic cleanup: {e}")
                 # Don't re-raise runtime errors to keep the cleanup task running
 
-    def get_memory_stats(self) -> "RealtimeDataManagerStats":
+    async def get_memory_stats(self) -> "RealtimeDataManagerStats":
         """
         Get comprehensive memory usage statistics for the real-time data manager.
 
@@ -486,7 +486,7 @@ class MemoryManagementMixin(TaskManagerMixin):
             Dict with memory and performance statistics
 
         Example:
-            >>> stats = manager.get_memory_stats()
+            >>> stats = await manager.get_memory_stats()
             >>> print(f"Total bars in memory: {stats['total_bars']}")
             >>> print(f"Ticks processed: {stats['ticks_processed']}")
         """
@@ -519,10 +519,16 @@ class MemoryManagementMixin(TaskManagerMixin):
         # Add overflow stats if available
         overflow_stats = {}
         if hasattr(self, "get_overflow_stats"):
-            overflow_stats = self.get_overflow_stats()
+            try:
+                method = self.get_overflow_stats
+                if callable(method):
+                    # Method is always async now
+                    overflow_stats = await method()
+            except Exception:
+                overflow_stats = {}
 
         # Add buffer overflow stats
-        buffer_stats = self.get_buffer_stats()
+        buffer_stats = await self.get_buffer_stats()
 
         return {
             "bars_processed": self.memory_stats["bars_processed"],
