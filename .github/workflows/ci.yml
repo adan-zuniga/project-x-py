@@ -38,9 +38,13 @@ jobs:
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
+      if: always()  # Always run coverage upload even if tests fail
       with:
         file: ./coverage.xml
-        fail_ci_if_error: true
+        fail_ci_if_error: false  # Don't fail if codecov is down
+        token: ${{ secrets.CODECOV_TOKEN }}  # Required for public repos
+        verbose: true  # Optional: for debugging
+        name: codecov-${{ matrix.python-version }}  # Optional: name per Python version
 
   lint:
     runs-on: ubuntu-latest
