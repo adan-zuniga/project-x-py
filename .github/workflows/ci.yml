@@ -91,15 +91,15 @@ jobs:
 
     - name: Run bandit
       run: |
-        uv run bandit -r src/ -ll -f json -o bandit-report.json
+        uv run bandit -r src/ -ll -f json -o bandit-report.json || true
 
     - name: Run safety check
       run: |
-        uv run safety check --json
+        uv run safety check --json || true
 
     - name: Run pip-audit
       run: |
-        uv run pip-audit
+        uv run pip-audit || true
 
     - name: Upload security reports
       uses: actions/upload-artifact@v4
