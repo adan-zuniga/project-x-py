@@ -71,7 +71,7 @@ async def demonstrate_lazy_operations(suite: TradingSuite) -> None:
 
         execution_time = (time.time() - start_time) * 1000
         print(
-            f"  Filtered {len(data_5m)} → {len(filtered_data) if filtered_data else 0} bars"
+            f"  Filtered {len(data_5m)} → {len(filtered_data) if filtered_data is not None else 0} bars"
         )
         print(f"  Execution time: {execution_time:.2f} ms")
         print("  Memory efficient: Only loaded selected columns")
@@ -384,7 +384,7 @@ async def main():
         )
 
         print(
-            f"✓ Connected to {suite.instrument} with {len(suite.timeframes)} timeframes"
+            f"✓ Connected to {suite.instrument} with {len(['1min', '5min', '15min'])} timeframes"
         )
 
         # Wait for some real-time data
@@ -395,7 +395,7 @@ async def main():
         data_stats = {}
         for tf in ["1min", "5min", "15min"]:
             data = await suite.data.get_data(tf)
-            data_stats[tf] = len(data) if data else 0
+            data_stats[tf] = len(data) if data is not None else 0
 
         print(f"Data availability: {data_stats}")
 
@@ -419,11 +419,11 @@ async def main():
         print("=" * 60)
 
         # Memory statistics
-        memory_stats = suite.data.get_memory_stats()
-        print(f"Total bars processed: {memory_stats.get('bars_processed', 0)}")
-        print(f"Ticks processed: {memory_stats.get('ticks_processed', 0)}")
-        print(f"Memory usage: {memory_stats.get('memory_usage_mb', 0):.2f} MB")
-        print(f"Buffer utilization: {memory_stats.get('buffer_utilization', 0):.1%}")
+        memory_stats = await suite.data.get_memory_stats()
+        print(f"Total bars processed: {memory_stats['bars_processed']}")
+        print(f"Ticks processed: {memory_stats['ticks_processed']}")
+        print(f"Memory usage: {memory_stats['memory_usage_mb']:.2f} MB")
+        print(f"Buffer utilization: {memory_stats['buffer_utilization']:.1%}")
 
         print("\n✓ DataFrame optimization demonstration completed successfully!")
 

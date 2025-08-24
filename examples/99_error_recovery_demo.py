@@ -48,6 +48,9 @@ async def demonstrate_bracket_order_recovery():
         current_price = await suite.data.get_current_price()
         tick_size = 0.25  # NQ tick size
 
+        if current_price is None:
+            raise ValueError("Current price is None")
+
         # Calculate bracket order prices
         entry_price = float(current_price - 20 * tick_size)  # Enter below market
         stop_loss_price = float(current_price - 30 * tick_size)  # Risk: $25
@@ -59,6 +62,9 @@ async def demonstrate_bracket_order_recovery():
         print(f"   Take Profit: ${take_profit_price:.2f}")
 
         try:
+            if suite.instrument_id is None:
+                raise ValueError("Instrument ID is None")
+
             # Place a normal bracket order
             bracket_response = await suite.orders.place_bracket_order(
                 contract_id=suite.instrument_id,
@@ -81,7 +87,8 @@ async def demonstrate_bracket_order_recovery():
                 cancel_results = await suite.orders.cancel_position_orders(
                     suite.instrument_id
                 )
-                print(f"   ✓ Cancelled {sum(cancel_results.values())} orders\n")
+                total_cancelled = sum(v for v in [cancel_results.get(key, 0) for key in ['entry', 'stop', 'target']] if isinstance(v, int))
+                print(f"   ✓ Cancelled {total_cancelled} orders\n")
 
             else:
                 print(f"   ✗ Bracket order failed: {bracket_response.error_message}\n")
@@ -149,12 +156,18 @@ async def demonstrate_position_order_recovery():
         # Demonstrate enhanced cancellation with error tracking
         print("1. Testing enhanced position order cancellation...")
 
+        if suite.instrument_id is None:
+            raise ValueError("Instrument ID is None")
+
         # First, check if there are any existing orders
-        position_orders = suite.orders.get_position_orders(suite.instrument_id)
+        position_orders = await suite.orders.get_position_orders(suite.instrument_id)
         total_orders = sum(len(orders) for orders in position_orders.values())
 
         if total_orders > 0:
             print(f"   Found {total_orders} existing orders")
+
+            if suite.instrument_id is None:
+                raise ValueError("Instrument ID is None")
 
             # Cancel with enhanced error tracking
             cancel_results = await suite.orders.cancel_position_orders(
@@ -167,9 +180,10 @@ async def demonstrate_position_order_recovery():
             print(f"     Target orders: {cancel_results.get('target', 0)}")
             print(f"     Failed: {cancel_results.get('failed', 0)}")
 
-            if cancel_results.get("errors"):
-                print(f"     Errors: {len(cancel_results['errors'])}")
-                for error in cancel_results["errors"][:3]:  # Show first 3 errors
+            errors = cancel_results.get("errors")
+            if errors and isinstance(errors, list):
+                print(f"     Errors: {len(errors)}")
+                for error in errors[:3]:  # Show first 3 errors
                     print(f"       - {error}")
         else:
             print("   No existing orders found")

@@ -1394,7 +1394,19 @@ class OrderTrackingMixin:
     async def _wait_for_order_fill(
         self: "OrderManagerProtocol", order_id: int, timeout_seconds: int = 30
     ) -> bool:
-        """Waits for an order to fill using an event-driven approach."""
+        """Waits for an order to fill using an event-driven approach.
+
+        First checks if the order is already filled (for market orders that fill immediately),
+        then waits for fill events if needed.
+        """
+        # First check if order is already filled in our cache
+        cached_order = await self.get_tracked_order_status(
+            str(order_id), wait_for_cache=True
+        )
+        if cached_order and cached_order.get("status") == 2:  # 2 = FILLED
+            logger.info(f"Order {order_id} already filled (found in cache)")
+            return True
+
         fill_event = asyncio.Event()
         is_filled = False
 
@@ -1449,9 +1461,17 @@ class OrderTrackingMixin:
             nonlocal is_filled
             try:
                 event_order_id = _safe_extract_event_order_id(event)
+                logger.debug(
+                    f"Fill handler: extracted order_id={event_order_id} (type={type(event_order_id)}), waiting for order_id={order_id} (type={type(order_id)})"
+                )
                 if event_order_id == order_id:
+                    logger.info(f"✅ Order {order_id} fill detected!")
                     is_filled = True
                     fill_event.set()
+                elif event_order_id is not None:
+                    logger.debug(
+                        f"Fill event for different order: {event_order_id} != {order_id}"
+                    )
             except Exception as e:
                 logger.debug(f"Error in fill_handler: {e}")
 

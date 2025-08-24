@@ -47,6 +47,9 @@ class DSTDemoManager(DSTHandlingMixin):
 
     def _calculate_bar_time(self, timestamp, interval, unit):
         """Standard bar time calculation for demo."""
+        if self.timezone is None:
+            raise ValueError("Timezone is not set")
+
         if timestamp.tzinfo is None:
             timestamp = self.timezone.localize(timestamp)
 
@@ -158,12 +161,17 @@ async def demo_fall_back_handling():
         try:
             # First, try to localize the time
             try:
+                if manager.timezone is None:
+                    raise ValueError("Timezone is not set")
                 localized_time = manager.timezone.localize(tick_time)
                 is_dst = localized_time.dst() != timedelta(0)
                 dst_str = "Yes" if is_dst else "No"
                 status = "OK"
             except pytz.AmbiguousTimeError:
                 # Duplicate time - use standard time (DST=False)
+                if manager.timezone is None:
+                    continue
+
                 localized_time = manager.timezone.localize(tick_time, is_dst=False)
                 dst_str = "Ambig"
                 status = "DISAMBIGUATED"

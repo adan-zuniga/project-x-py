@@ -97,7 +97,7 @@ async def display_memory_stats(data_manager: "RealtimeDataManager") -> None:
     """Display memory usage statistics asynchronously."""
     try:
         # get_memory_stats is synchronous in async data manager
-        stats = data_manager.get_memory_stats()
+        stats = await data_manager.get_memory_stats()
         print("\n💾 Memory Statistics:")
         print(f"   Total Bars Stored: {stats.get('total_bars_stored', 0):,}")
         print(f"   Ticks Processed: {stats.get('ticks_processed', 0):,}")

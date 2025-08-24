@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.3.5] - 2025-01-24
+
+### Fixed
+- **🚨 CRITICAL: Bracket Order Fill Detection**
+  - Fixed race condition where market orders that fill immediately were not detected
+  - Added cache check in `_wait_for_order_fill` to detect already-filled orders
+  - Prevents bracket order operations from hanging on fast-filling market orders
+  - Ensures proper stop loss and take profit order placement after entry fills
+  - Critical fix for automated trading strategies using bracket orders
+
+### Improved
+- **Order Tracking Debug Logging**
+  - Enhanced debug logging in fill event handlers for better troubleshooting
+  - Added detailed order ID extraction and comparison logging
+  - Improved visibility into event processing for order lifecycle monitoring
+
 ## [3.3.4] - 2025-01-23
 
 ### Fixed

@@ -129,6 +129,9 @@ async def benchmark_basic_operations(
     start_memory = get_memory_usage()
 
     lazy_df = await manager.get_lazy_data("1min")
+    if lazy_df is None:
+        raise ValueError("Lazy DataFrame is None")
+
     filtered = await manager.apply_lazy_operations(
         lazy_df, [("filter", pl.col("volume") > 1500)]
     )
@@ -147,6 +150,9 @@ async def benchmark_basic_operations(
     start_memory = get_memory_usage()
 
     lazy_df = await manager.get_lazy_data("1min")
+    if lazy_df is None:
+        raise ValueError("Lazy DataFrame is None")
+
     complex_result = await manager.apply_lazy_operations(
         lazy_df,
         [
@@ -287,6 +293,8 @@ async def benchmark_optimization_effectiveness(
     ]
 
     lazy_df = await manager.get_lazy_data("1min")
+    if lazy_df is None:
+        raise ValueError("Lazy DataFrame is None")
 
     # Without optimization
     start_time = time.time()
@@ -299,6 +307,9 @@ async def benchmark_optimization_effectiveness(
 
     # With optimization
     lazy_df = await manager.get_lazy_data("1min")
+    if lazy_df is None:
+        raise ValueError("Lazy DataFrame is None")
+
     start_time = time.time()
     start_memory = get_memory_usage()
     result_opt = await manager.apply_lazy_operations(lazy_df, operations, optimize=True)
@@ -346,6 +357,9 @@ async def benchmark_memory_optimization(
 
     # Execute memory-intensive operations
     lazy_df = await manager.get_lazy_data("1sec")
+    if lazy_df is None:
+        raise ValueError("Lazy DataFrame is None")
+
     result = await manager.apply_lazy_operations(
         lazy_df,
         [

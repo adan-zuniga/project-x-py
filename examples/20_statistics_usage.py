@@ -166,7 +166,7 @@ async def main():
         # Get data manager statistics (v3.3.0 - sync API for data manager)
         if hasattr(suite.data, "get_memory_stats"):
             data_stats = (
-                suite.data.get_memory_stats()
+                await suite.data.get_memory_stats()
             )  # Note: sync method for data manager
             print("\n📊 Data Manager Statistics:")
             print(f"  Bars processed: {data_stats.get('total_bars', 0)}")

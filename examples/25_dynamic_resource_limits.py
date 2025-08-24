@@ -41,7 +41,7 @@ async def monitor_resource_usage(suite: TradingSuite, duration_seconds: int = 60
 
         # Get current resource statistics
         resource_stats = await suite.data.get_resource_stats()
-        memory_stats = suite.data.get_memory_stats()
+        memory_stats = await suite.data.get_memory_stats()
 
         print(f"\n📈 Iteration {iteration} ({time.time() - start_time:.1f}s elapsed)")
         print("-" * 40)

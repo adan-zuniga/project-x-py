@@ -47,7 +47,7 @@ async def main():
 
     # Get stats
     print("\n=== Suite Statistics ===")
-    stats = suite.get_stats()
+    stats = await suite.get_stats()
     print(f"Stats: {stats}")
 
     # Clean disconnect

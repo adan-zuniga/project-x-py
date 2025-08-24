@@ -420,7 +420,7 @@ async def demonstrate_comprehensive_stats(orderbook: OrderBook):
         print(f"   Session Low: ${stats.get('session_low', 0):,.2f}")
 
         # Performance
-        memory = orderbook.get_memory_stats()
+        memory = await orderbook.get_memory_stats()
         print("\n⚡ Performance:")
         print(f"   Updates Processed: {stats.get('level2_update_count', 0):,}")
         print(f"   Memory Cleanups: {memory.get('memory_cleanups', 0)}")

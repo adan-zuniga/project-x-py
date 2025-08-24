@@ -206,7 +206,20 @@ class DSTHandlingMixin:
             transitions = self._get_dst_transitions(timestamp.year)
 
             for transition_start, transition_end in transitions:
-                if transition_start <= timestamp <= transition_end:
+                # Ensure all datetimes are timezone-aware for comparison
+                try:
+                    if transition_start.tzinfo is None:
+                        transition_start = self.timezone.localize(transition_start)
+                    if transition_end.tzinfo is None:
+                        transition_end = self.timezone.localize(transition_end)
+                    if timestamp.tzinfo is None:
+                        timestamp = self.timezone.localize(timestamp)
+
+                    if transition_start <= timestamp <= transition_end:
+                        return True
+                except (pytz.AmbiguousTimeError, pytz.NonExistentTimeError):
+                    # During DST transitions, some times may be ambiguous or non-existent
+                    # In these cases, we're already in a transition period
                     return True
 
             return False
