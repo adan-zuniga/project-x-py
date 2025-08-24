@@ -137,10 +137,25 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
         try:
             if hasattr(position_manager, "get_risk_metrics"):
                 risk_check = await position_manager.get_risk_metrics()
-                if risk_check and risk_check.get("within_limits"):
+                # Check if we're within daily loss limits and position limits
+                within_daily_loss = risk_check["daily_loss"] <= risk_check["daily_loss_limit"]
+                within_position_limit = risk_check["position_count"] <= risk_check["position_limit"]
+                within_risk_limits = risk_check["current_risk"] <= risk_check["max_risk"]
+
+                if within_daily_loss and within_position_limit and within_risk_limits:
                     print("✅ All positions within risk limits")
                 else:
-                    print("❌ Risk limit violations detected")
+                    violations = []
+                    if not within_daily_loss:
+                        violations.append(f"Daily loss: ${risk_check['daily_loss']:.2f} / ${risk_check['daily_loss_limit']:.2f}")
+                    if not within_position_limit:
+                        violations.append(f"Position count: {risk_check['position_count']} / {risk_check['position_limit']}")
+                    if not within_risk_limits:
+                        violations.append(f"Current risk: ${risk_check['current_risk']:.2f} / ${risk_check['max_risk']:.2f}")
+                    if violations:
+                        print(f"⚠️  Risk limit violations: {', '.join(violations)}")
+                    else:
+                        print("✅ All positions within risk limits")
             else:
                 print("Risk limits check not available")
 
@@ -148,10 +163,14 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
                 risk_summary = await position_manager.get_risk_metrics()
                 print("\nRisk Summary:")
                 print(
-                    f"  Total Exposure: ${risk_summary.get('total_exposure', 0):,.2f}"
+                    f"  Current Risk: ${risk_summary.get('current_risk', 0):,.2f}"
                 )
-                print(f"  Max Drawdown: {risk_summary.get('max_drawdown', 0):.1%}")
-                print(f"  Risk Score: {risk_summary.get('risk_score', 0)}/100")
+                print(
+                    f"  Max Risk Allowed: ${risk_summary.get('max_risk', 0):,.2f}"
+                )
+                print(f"  Max Drawdown: {risk_summary.get('max_drawdown', 0)*100:.1f}%")
+                print(f"  Win Rate: {risk_summary.get('win_rate', 0)*100:.1f}%")
+                print(f"  Profit Factor: {risk_summary.get('profit_factor', 0):.2f}")
             else:
                 print("Risk summary not available")
 
@@ -174,65 +193,69 @@ async def monitor_positions(
     start_time = asyncio.get_event_loop().time()
     check_interval = 5  # seconds
 
-    while asyncio.get_event_loop().time() - start_time < duration:
-        elapsed = int(asyncio.get_event_loop().time() - start_time)
-        print(f"\n⏰ Check at {elapsed}s:")
+    try:
+        while asyncio.get_event_loop().time() - start_time < duration:
+            elapsed = int(asyncio.get_event_loop().time() - start_time)
+            print(f"\n⏰ Check at {elapsed}s:")
 
-        # Run checks
-        try:
-            positions = await position_manager.get_all_positions()
+            # Run checks
+            try:
+                positions = await position_manager.get_all_positions()
 
-            if positions:
-                print(f"  Active positions: {len(positions)}")
+                if positions:
+                    print(f"  Active positions: {len(positions)}")
 
-                # Get P&L with current market prices
-                total_pnl = 0.0
-                try:
-                    # Try to calculate real P&L with current prices
-                    if suite and positions:
-                        current_price = await suite.data.get_current_price()
-                        if current_price and suite.instrument:
-                            # Use the instrument already loaded in suite
-                            instrument_info = suite.instrument
-                            point_value = (
-                                instrument_info.tickValue / instrument_info.tickSize
-                            )
-
-                            for position in positions:
-                                pnl_data = (
-                                    await position_manager.calculate_position_pnl(
-                                        position,
-                                        float(current_price),
-                                        point_value=point_value,
-                                    )
-                                )
-                                total_pnl += pnl_data["unrealized_pnl"]
-                    else:
-                        # Fallback to portfolio P&L
-                        pnl = await position_manager.get_portfolio_pnl()
-                        total_pnl = pnl.get("total_pnl", 0)
-                except Exception:
-                    pass
-
-                print(f"  Total P&L: ${total_pnl:,.2f}")
-
-                # Get summary if available
-                if hasattr(position_manager, "get_portfolio_pnl"):
+                    # Get P&L with current market prices
+                    total_pnl = 0.0
                     try:
-                        summary = await position_manager.get_portfolio_pnl()
-                        print(
-                            f"  Win rate: {summary.get('win_rate', 0):.1%} ({summary.get('winning_trades', 0)}/{summary.get('total_trades', 0)})"
-                        )
+                        # Try to calculate real P&L with current prices
+                        if suite and positions:
+                            current_price = await suite.data.get_current_price()
+                            if current_price and suite.instrument:
+                                # Use the instrument already loaded in suite
+                                instrument_info = suite.instrument
+                                point_value = (
+                                    instrument_info.tickValue / instrument_info.tickSize
+                                )
+
+                                for position in positions:
+                                    pnl_data = (
+                                        await position_manager.calculate_position_pnl(
+                                            position,
+                                            float(current_price),
+                                            point_value=point_value,
+                                        )
+                                    )
+                                    total_pnl += pnl_data["unrealized_pnl"]
+                        else:
+                            # Fallback to portfolio P&L
+                            pnl = await position_manager.get_portfolio_pnl()
+                            total_pnl = pnl.get("total_pnl", 0)
                     except Exception:
                         pass
-            else:
-                print("  No active positions")
 
-        except Exception as e:
-            print(f"  Error during monitoring: {e}")
+                    print(f"  Total P&L: ${total_pnl:,.2f}")
 
-        # Sleep until next check
-        await asyncio.sleep(check_interval)
+                    # Get summary if available
+                    if hasattr(position_manager, "get_portfolio_pnl"):
+                        try:
+                            summary = await position_manager.get_portfolio_pnl()
+                            print(
+                                f"  Win rate: {summary.get('win_rate', 0):.1%} ({summary.get('winning_trades', 0)}/{summary.get('total_trades', 0)})"
+                            )
+                        except Exception:
+                            pass
+                else:
+                    print("  No active positions")
+
+            except Exception as e:
+                print(f"  Error during monitoring: {e}")
+
+            # Sleep until next check
+            await asyncio.sleep(check_interval)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("\n⚠️  Monitoring interrupted by user")
+        raise  # Re-raise to trigger cleanup in main
 
 
 async def main() -> bool:
@@ -240,6 +263,9 @@ async def main() -> bool:
     logger = setup_logging(level="INFO")
     print("🚀 Async Position Management Example (v3.0.0)")
     print("=" * 80)
+
+    suite = None
+    cleanup_positions = False
 
     try:
         # Initialize TradingSuite v3
@@ -283,10 +309,14 @@ async def main() -> bool:
                 # Wait for user confirmation
                 try:
                     loop = asyncio.get_event_loop()
-                    response = await loop.run_in_executor(
-                        None,
-                        lambda: input("\n   Place test order? (y/N): ").strip().lower(),
-                    )
+                    try:
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda: input("\n   Place test order? (y/N): ").strip().lower(),
+                        )
+                    except (KeyboardInterrupt, asyncio.CancelledError):
+                        print("\n\n⚠️  Script interrupted by user")
+                        return False
 
                     if response == "y":
                         print("\n   Placing market order...")
@@ -380,10 +410,14 @@ async def main() -> bool:
 
                 try:
                     loop = asyncio.get_event_loop()
-                    response = await loop.run_in_executor(
-                        None,
-                        lambda: input("\nClose all positions? (y/N): ").strip().lower(),
-                    )
+                    try:
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda: input("\nClose all positions? (y/N): ").strip().lower(),
+                        )
+                    except (KeyboardInterrupt, asyncio.CancelledError):
+                        print("\n\n⚠️  Script interrupted by user")
+                        return False
 
                     if response == "y":
                         print("\n🔄 Closing all positions...")
@@ -445,13 +479,71 @@ async def main() -> bool:
         await suite.disconnect()
         return True
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         print("\n⏹️ Example interrupted by user")
+
+        # Ask user if they want to close positions
+        if suite:
+            try:
+                positions = await suite.positions.get_all_positions()
+                if positions:
+                    print(f"\n⚠️  You have {len(positions)} open position(s).")
+                    print("Would you like to close them before exiting?")
+                    try:
+                        # Use a simple default rather than waiting for input on interrupt
+                        print("Auto-closing positions for safety...")
+                        cleanup_positions = True
+                    except:
+                        cleanup_positions = True
+            except:
+                pass
+
         return False
     except Exception as e:
         logger.error(f"Position management example failed: {e}")
         print(f"\n❌ Error: {e}")
+        cleanup_positions = True
         return False
+    finally:
+        # Ensure cleanup happens regardless of how we exit
+        if suite:
+            try:
+                # Check if we need to close positions
+                if cleanup_positions:
+                    print("\n🧹 Performing cleanup...")
+                    positions = await suite.positions.get_all_positions()
+                    if positions:
+                        print(f"  Closing {len(positions)} open position(s)...")
+                        for position in positions:
+                            try:
+                                result = await suite.orders.close_position(
+                                    position.contractId, method="market"
+                                )
+                                if result and result.success:
+                                    print(f"  ✅ Closed {position.contractId}")
+                                else:
+                                    print(f"  ⚠️  Could not close {position.contractId}")
+                            except Exception as e:
+                                print(f"  ❌ Error closing {position.contractId}: {e}")
+
+                        # Wait for orders to process
+                        await asyncio.sleep(2)
+
+                        # Final check
+                        final_positions = await suite.positions.get_all_positions()
+                        if final_positions:
+                            print(f"  ⚠️  {len(final_positions)} position(s) still open")
+                        else:
+                            print("  ✅ All positions closed")
+                    else:
+                        print("  No positions to close")
+
+                # Always disconnect the suite
+                print("  Disconnecting TradingSuite...")
+                await suite.disconnect()
+                print("  ✅ Disconnected")
+            except Exception as e:
+                print(f"  ❌ Cleanup error: {e}")
 
 
 if __name__ == "__main__":

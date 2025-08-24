@@ -445,6 +445,13 @@ class BracketOrderMixin:
                     f"Entry order {entry_order_id} filled (size: {size}). Proceeding with protective orders."
                 )
 
+                # Record entry order success with recovery manager
+                if recovery_manager and operation and entry_ref:
+                    entry_ref.order_id = entry_order_id  # Update with actual order ID
+                    await recovery_manager.record_order_success(
+                        operation, entry_ref, entry_response
+                    )
+
             except Exception as e:
                 error_msg = f"Error during entry order fill processing: {e}"
                 if recovery_manager and operation and entry_ref:

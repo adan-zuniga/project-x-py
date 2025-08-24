@@ -301,15 +301,19 @@ async def main() -> bool:
             print("   Risk/Reward: 1:2 ratio")
 
             if await wait_for_user_confirmation("Place bracket order?"):
-                bracket_response = await order_manager.place_bracket_order(
-                    contract_id=contract_id,
-                    side=0,  # Buy
-                    size=1,
-                    entry_price=float(entry_price),
-                    stop_loss_price=float(stop_loss),
-                    take_profit_price=float(take_profit),
-                    entry_type="limit",
-                )
+                try:
+                    bracket_response = await order_manager.place_bracket_order(
+                        contract_id=contract_id,
+                        side=0,  # Buy
+                        size=1,
+                        entry_price=float(entry_price),
+                        stop_loss_price=float(stop_loss),
+                        take_profit_price=float(take_profit),
+                        entry_type="limit",
+                    )
+                except Exception as e:
+                    print(f"❌ Bracket order failed with exception: {e}")
+                    bracket_response = None
 
                 if bracket_response and bracket_response.success:
                     print("✅ Bracket order placed successfully!")
@@ -503,9 +507,14 @@ async def main() -> bool:
                             print(f"✅ Cancelled order #{order.id}")
                             cancelled_count += 1
                         else:
-                            print(f"❌ Failed to cancel order #{order.id}")
+                            # Order might already be cancelled or filled
+                            print(f"⚠️  Could not cancel order #{order.id} (may be filled or already cancelled)")
                     except Exception as e:
-                        print(f"❌ Error cancelling order #{order.id}: {e}")
+                        # Log but don't fail on individual order cancellation errors
+                        if "already cancelled" in str(e).lower() or "none" in str(e).lower():
+                            print(f"ℹ️  Order #{order.id} was already cancelled or doesn't exist")
+                        else:
+                            print(f"⚠️  Error cancelling order #{order.id}: {e}")
 
                 # Check for positions and close them
                 positions = await suite.client.search_open_positions()
@@ -579,5 +588,9 @@ async def main() -> bool:
 
 
 if __name__ == "__main__":
-    success = asyncio.run(main())
-    exit(0 if success else 1)
+    try:
+        success = asyncio.run(main())
+        exit(0 if success else 1)
+    except KeyboardInterrupt:
+        print("\n⏹️ Example interrupted by user")
+        exit(0)
