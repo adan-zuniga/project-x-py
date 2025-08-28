@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **New Comprehensive Test Files** (100+ additional tests):
 - `tests/order_manager/test_core_advanced.py` - Advanced OrderManager scenarios (circuit breaker, concurrency, health checks)
-- `tests/order_manager/test_position_orders_advanced.py` - Position-based order testing (protective orders, synchronization, edge cases)  
+- `tests/order_manager/test_position_orders_advanced.py` - Position-based order testing (protective orders, synchronization, edge cases)
 - `tests/order_manager/test_tracking_advanced.py` - Order tracking and lifecycle tests (callbacks, cleanup, OCO tracking)
 - `tests/order_manager/conftest_mock.py` - Reusable mock fixtures for consistent testing
 
