@@ -55,6 +55,7 @@ from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
 from project_x_py.risk_manager import ManagedTrade, RiskConfig, RiskManager
+from project_x_py.sessions import SessionConfig, SessionType
 from project_x_py.statistics import StatisticsAggregator
 from project_x_py.types.config_types import (
     DataManagerConfig,
@@ -96,6 +97,7 @@ class TradingSuiteConfig:
         data_manager_config: DataManagerConfig | None = None,
         orderbook_config: OrderbookConfig | None = None,
         risk_config: RiskConfig | None = None,
+        session_config: SessionConfig | None = None,
     ):
         self.instrument = instrument
         self.timeframes = timeframes or ["5min"]
@@ -108,6 +110,7 @@ class TradingSuiteConfig:
         self.data_manager_config = data_manager_config
         self.orderbook_config = orderbook_config
         self.risk_config = risk_config
+        self.session_config = session_config
 
     def get_order_manager_config(self) -> OrderManagerConfig:
         """
@@ -261,6 +264,7 @@ class TradingSuite:
             timezone=config.timezone,
             config=config.get_data_manager_config(),
             event_bus=self.events,
+            session_config=config.session_config,  # Pass session configuration
         )
 
         self.orders = OrderManager(
@@ -324,6 +328,7 @@ class TradingSuite:
         instrument: str,
         timeframes: list[str] | None = None,
         features: list[str] | None = None,
+        session_config: SessionConfig | None = None,
         **kwargs: Any,
     ) -> "TradingSuite":
         """
@@ -372,6 +377,7 @@ class TradingSuite:
             instrument=instrument,
             timeframes=timeframes or ["5min"],
             features=[Features(f) for f in (features or [])],
+            session_config=session_config,
             **kwargs,
         )
 
@@ -878,3 +884,63 @@ class TradingSuite:
 
         # Run the async method
         return loop.run_until_complete(self.get_stats())
+
+    # Session-aware methods
+    async def set_session_type(self, session_type: SessionType) -> None:
+        """
+        Change the active session type for data filtering.
+
+        Args:
+            session_type: Type of session to filter for (RTH/ETH)
+
+        Example:
+            ```python
+            # Switch to RTH-only data
+            await suite.set_session_type(SessionType.RTH)
+            ```
+        """
+        if hasattr(self.data, "set_session_type"):
+            await self.data.set_session_type(session_type)
+            logger.info(f"Session type changed to {session_type}")
+
+    async def get_session_data(
+        self, timeframe: str, session_type: SessionType | None = None
+    ) -> Any:
+        """
+        Get session-filtered market data.
+
+        Args:
+            timeframe: Data timeframe (e.g., "1min", "5min")
+            session_type: Optional session type override
+
+        Returns:
+            Polars DataFrame with session-filtered data
+
+        Example:
+            ```python
+            # Get RTH-only data
+            rth_data = await suite.get_session_data("1min", SessionType.RTH)
+            ```
+        """
+        if hasattr(self.data, "get_session_data"):
+            return await self.data.get_session_data(timeframe, session_type)
+        # Fallback to regular data if no session support
+        return await self.data.get_data(timeframe)
+
+    async def get_session_statistics(self, timeframe: str = "1min") -> dict[str, Any]:
+        """
+        Get session-specific statistics.
+
+        Returns:
+            Dictionary containing session statistics like volume, VWAP, etc.
+
+        Example:
+            ```python
+            stats = await suite.get_session_statistics()
+            print(f"RTH Volume: {stats['rth_volume']}")
+            print(f"ETH Volume: {stats['eth_volume']}")
+            ```
+        """
+        if hasattr(self.data, "get_session_statistics"):
+            return await self.data.get_session_statistics(timeframe)
+        return {}

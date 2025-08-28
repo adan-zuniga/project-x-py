@@ -137,12 +137,15 @@ class DataProcessingMixin:
         logger: logging.Logger
         timezone: BaseTzInfo
         data_lock: "Lock | AsyncRWLock"
+        session_filter: Any
+        session_config: Any
         current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         timeframes: dict[str, dict[str, Any]]
         data: dict[str, pl.DataFrame]
         last_bar_times: dict[str, datetime]
         memory_stats: dict[str, Any]
         is_running: bool
+        instrument: str  # Trading instrument symbol
 
         # Methods from other mixins/main class
         def _parse_and_validate_quote_payload(
@@ -404,6 +407,19 @@ class DataProcessingMixin:
             timestamp = tick["timestamp"]
             price = tick["price"]
             volume = tick.get("volume", 0)
+
+            # Apply session filtering if configured
+            if (
+                hasattr(self, "session_filter")
+                and self.session_filter is not None
+                and hasattr(self, "session_config")
+                and self.session_config is not None
+                and not self.session_filter.is_in_session(
+                    timestamp, self.session_config.session_type, self.instrument
+                )
+            ):
+                # Skip this tick as it's outside the session
+                return
 
             # Collect events to trigger after releasing locks
             events_to_trigger = []
