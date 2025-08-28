@@ -172,9 +172,10 @@ class _DummyEventBus:
         """No-op event registration."""
 
     async def emit(
-        self, _event_type: Any, _data: Any, _source: str | None = None
+        self, _event_type: Any, _data: Any, source: str | None = None
     ) -> None:
         """No-op event emission."""
+        _ = source  # Acknowledge parameter
 
 
 class RealtimeDataManager(
@@ -294,6 +295,7 @@ class RealtimeDataManager(
         timeframes: list[str] | None = None,
         timezone: str = "America/Chicago",
         config: DataManagerConfig | None = None,
+        session_config: Any | None = None,  # SessionConfig type
     ):
         """
         Initialize the optimized real-time OHLCV data manager with dependency injection.
@@ -330,6 +332,10 @@ class RealtimeDataManager(
 
             config: Optional configuration for data manager behavior. If not provided,
                 default values will be used for all configuration options.
+
+            session_config: Optional SessionConfig for filtering data by trading sessions
+                (RTH/ETH). If provided, data will be filtered according to the session type.
+                Default: None (no session filtering, all data included).
 
         Raises:
             ValueError: If an invalid timeframe is provided.
@@ -388,6 +394,17 @@ class RealtimeDataManager(
 
         # Store configuration with defaults
         self.config = config or {}
+
+        # Store session configuration for filtering
+        self.session_config = session_config
+
+        # Initialize session filter if config provided
+        if self.session_config is not None:
+            from project_x_py.sessions import SessionFilterMixin
+
+            self.session_filter = SessionFilterMixin(config=self.session_config)
+        else:
+            self.session_filter = None
 
         # Initialize lock optimization first (required by LockOptimizationMixin)
         LockOptimizationMixin.__init__(self)

@@ -21,9 +21,11 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.3.6 - Comprehensive Testing & Quality Assurance
+## 🚀 v3.4.0 - ETH vs RTH Trading Sessions (Experimental)
 
-**Latest Version**: v3.3.6 - Comprehensive testing initiative with 1,300+ tests, complete code quality compliance (0 type errors, 0 linting issues), and 175+ bugs fixed through strict TDD methodology. All critical components now have extensive test coverage. See [CHANGELOG.md](CHANGELOG.md) for full release history.
+**Latest Version**: v3.4.0 - Introduces ETH (Electronic Trading Hours) vs RTH (Regular Trading Hours) session filtering for futures trading. This feature enables traders to analyze and trade based on specific market sessions, with up to 366% more data available in ETH sessions.
+
+⚠️ **Experimental Feature Warning**: The ETH vs RTH sessions feature is new and has not been thoroughly tested with live market data. Use with caution in production environments. See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
 ### 📦 Production Stability Guarantee
 
@@ -147,6 +149,47 @@ async def main():
 if __name__ == \"__main__\":
     asyncio.run(main())
 ```
+
+### Session Filtering (NEW in v3.4.0 - Experimental)
+
+Filter market data and indicators by trading session (RTH vs ETH):
+
+```python
+import asyncio
+from project_x_py import TradingSuite, SessionConfig, SessionType
+
+async def session_example():
+    # RTH-only trading (9:30 AM - 4:00 PM ET)
+    rth_suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min"],
+        session_config=SessionConfig(session_type=SessionType.RTH)
+    )
+
+    # ETH trading (24-hour excluding maintenance breaks)
+    eth_suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min"],
+        session_config=SessionConfig(session_type=SessionType.ETH)
+    )
+
+    # Compare data availability
+    rth_data = await rth_suite.get_session_data("1min")
+    eth_data = await eth_suite.get_session_data("1min")
+
+    print(f"RTH bars: {len(rth_data):,}")  # ~390 bars per day
+    print(f"ETH bars: {len(eth_data):,}")  # ~1,410 bars per day (366% more)
+
+    await rth_suite.disconnect()
+    await eth_suite.disconnect()
+
+if __name__ == "__main__":
+    asyncio.run(session_example())
+```
+
+⚠️ **Note**: Session filtering is experimental. Test thoroughly in paper trading before production use.
+
+📚 **Full Example**: See `examples/sessions/16_eth_vs_rth_sessions_demo.py` for comprehensive demonstration of all session features.
 
 ### Trading Suite (NEW in v3.0+)
 
@@ -277,6 +320,7 @@ TradingSuite supports optional features that can be enabled during initializatio
 |---------|-------------|-------------|
 | **OrderBook** | `"orderbook"` | Level 2 market depth, bid/ask analysis, iceberg detection |
 | **Risk Manager** | `"risk_manager"` | Position sizing, risk validation, managed trades |
+| **Session Filtering** | Built-in (v3.4.0) | RTH/ETH session filtering (experimental) |
 | **Trade Journal** | `"trade_journal"` | Trade logging and performance tracking (future) |
 | **Performance Analytics** | `"performance_analytics"` | Advanced metrics and analysis (future) |
 | **Auto Reconnect** | `"auto_reconnect"` | Automatic WebSocket reconnection (future) |

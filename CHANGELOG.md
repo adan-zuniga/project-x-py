@@ -14,6 +14,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.4.0] - 2025-08-28
+
+### 🚀 New Feature: ETH vs RTH Trading Sessions (Experimental)
+
+**IMPORTANT**: This is an experimental feature that has not been thoroughly tested with live market data. Use with caution in production environments.
+
+This release introduces comprehensive trading session filtering, allowing you to separate Electronic Trading Hours (ETH) from Regular Trading Hours (RTH) for more precise market analysis and strategy execution.
+
+### ✨ Added
+
+**Trading Sessions Module** (`src/project_x_py/sessions/`):
+- **SessionConfig**: Configure session type (ETH/RTH/BOTH) with product-specific schedules
+- **SessionFilterMixin**: High-performance data filtering with caching and lazy evaluation
+- **Session-Aware Indicators**: Calculate technical indicators on session-specific data
+- **Session Statistics**: Separate performance metrics for ETH vs RTH periods
+- **Maintenance Break Exclusion**: Automatically filters out daily maintenance periods (5-6 PM ET)
+
+**TradingSuite Integration**:
+- New `session_config` parameter for automatic session filtering
+- Seamless integration with existing components (OrderManager, PositionManager, DataManager)
+- Backward compatible - defaults to BOTH sessions when not specified
+
+**Example Usage**:
+```python
+# RTH-only trading (9:30 AM - 4:00 PM ET)
+rth_suite = await TradingSuite.create(
+    "MNQ",
+    timeframes=["1min", "5min"],
+    session_config=SessionConfig(session_type=SessionType.RTH)
+)
+
+# ETH-only analysis (excludes RTH and maintenance breaks)
+eth_suite = await TradingSuite.create(
+    "ES",
+    session_config=SessionConfig(session_type=SessionType.ETH)
+)
+```
+
+### 📚 Documentation & Examples
+
+- New comprehensive example: `examples/sessions/16_eth_vs_rth_sessions_demo.py`
+  - Demonstrates all session filtering capabilities
+  - Shows performance comparisons between ETH and RTH
+  - Includes session-aware technical indicators
+  - Provides backtesting examples with session filters
+
+### ⚠️ Known Limitations (Experimental)
+
+- Session boundaries may need adjustment based on contract specifications
+- Overnight session handling requires further testing
+- Performance impact with large datasets not fully optimized
+- Some futures products may have non-standard session times
+
+### 🔧 Technical Details
+
+- Implemented with Polars DataFrame filtering for performance
+- Caching of session boundaries reduces computation overhead
+- Lazy evaluation prevents unnecessary filtering operations
+- Fully async implementation maintains SDK consistency
+
+### 📝 Related
+
+- PR #59: ETH vs RTH Trading Sessions Feature
+- Issue tracking further improvements and testing needed
+
+---
+
 ## [3.3.6] - 2025-08-28
 
 ### 🎯 Major Quality Assurance Release

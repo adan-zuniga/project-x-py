@@ -105,7 +105,7 @@ See Also:
     - `utils`: Utility functions and calculations
 """
 
-__version__ = "3.3.6"
+__version__ = "3.4.0"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
@@ -195,6 +195,17 @@ from project_x_py.orderbook import (
 from project_x_py.position_manager import PositionManager
 from project_x_py.realtime import ProjectXRealtimeClient as ProjectXRealtimeClient
 from project_x_py.realtime_data_manager import RealtimeDataManager
+
+# Sessions module - Trading session filtering and analytics
+from project_x_py.sessions import (
+    DEFAULT_SESSIONS,
+    SessionAnalytics,
+    SessionConfig,
+    SessionFilterMixin,
+    SessionStatistics,
+    SessionTimes,
+    SessionType,
+)
 from project_x_py.trading_suite import Features, TradingSuite, TradingSuiteConfig
 
 # Type definitions - Import comprehensive type system
@@ -240,6 +251,14 @@ __all__ = [
     "BracketOrderResponse",
     # Configuration
     "ConfigManager",
+    # Sessions - Trading session filtering and analytics
+    "SessionConfig",
+    "SessionTimes",
+    "SessionType",
+    "DEFAULT_SESSIONS",
+    "SessionFilterMixin",
+    "SessionStatistics",
+    "SessionAnalytics",
     # Event System
     "EventBus",
     "EventType",

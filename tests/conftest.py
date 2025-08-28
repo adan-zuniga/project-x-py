@@ -53,15 +53,13 @@ def test_config():
 @pytest.fixture
 def auth_env_vars():
     """Set up authentication environment variables for testing."""
-    with patch.dict(
-        os.environ,
-        {
-            "PROJECT_X_USERNAME": "testuser",
-            "PROJECT_X_API_KEY": "test-api-key",
-            "PROJECT_X_ACCOUNT_NAME": "Test Account",
-        },
-    ):
-        yield
+    env_vars = {
+        "PROJECT_X_USERNAME": "testuser",
+        "PROJECT_X_API_KEY": "test-api-key-1234567890",  # pragma: allowlist secret
+        "PROJECT_X_ACCOUNT_NAME": "Test Account",
+    }
+    with patch.dict(os.environ, env_vars):
+        yield env_vars
 
 
 @pytest.fixture

@@ -126,6 +126,9 @@ class DataAccessMixin:
         current_tick_data: list[dict[str, Any]] | deque[dict[str, Any]]
         tick_size: float
         timezone: "BaseTzInfo"
+        instrument: str
+        session_filter: Any
+        session_config: Any
 
     async def get_data(
         self,
@@ -646,3 +649,133 @@ class DataAccessMixin:
         if data is None or len(data) < min_bars:
             return None
         return data
+
+    async def get_session_data(
+        self, timeframe: str, session_type: Any
+    ) -> pl.DataFrame | None:
+        """
+        Get data filtered by specific trading session (RTH/ETH).
+
+        Args:
+            timeframe: Timeframe to retrieve data for (e.g., "1min", "5min")
+            session_type: SessionType enum value (RTH, ETH, or CUSTOM)
+
+        Returns:
+            DataFrame containing only data from the specified session, or None if no data
+
+        Example:
+            ```python
+            # Get RTH-only data
+            rth_data = await manager.get_session_data("5min", SessionType.RTH)
+
+            # Get ETH data (includes all hours)
+            eth_data = await manager.get_session_data("5min", SessionType.ETH)
+            ```
+        """
+        # Get all data for the timeframe
+        data = await self.get_data(timeframe)
+        if data is None or data.is_empty():
+            return None
+
+        # Apply session filtering if we have a session filter
+        if hasattr(self, "session_filter") and self.session_filter is not None:
+            from project_x_py.sessions import SessionType
+
+            filtered = await self.session_filter.filter_by_session(
+                data, session_type, self.instrument
+            )
+            return filtered if not filtered.is_empty() else None
+
+        # If no session filter configured, return all data for ETH, none for RTH
+        from project_x_py.sessions import SessionType
+
+        if session_type == SessionType.ETH:
+            return data
+        else:
+            # Without a filter, we can't determine RTH hours
+            return None
+
+    async def get_session_statistics(self, timeframe: str) -> dict[str, Any]:
+        """
+        Get session-based statistics for the specified timeframe.
+
+        Args:
+            timeframe: Timeframe to calculate statistics for
+
+        Returns:
+            Dictionary containing session statistics (volume, VWAP, range, etc.)
+
+        Example:
+            ```python
+            stats = await manager.get_session_statistics("5min")
+            print(f"RTH Volume: {stats['rth_volume']}")
+            print(f"RTH VWAP: {stats['rth_vwap']}")
+            ```
+        """
+        # Get data for the timeframe
+        data = await self.get_data(timeframe)
+        if data is None or data.is_empty():
+            return {
+                "rth_volume": 0,
+                "eth_volume": 0,
+                "rth_vwap": 0.0,
+                "eth_vwap": 0.0,
+                "rth_range": 0.0,
+                "eth_range": 0.0,
+            }
+
+        # Use session statistics calculator
+        from project_x_py.sessions import SessionStatistics
+
+        stats_calc = SessionStatistics()
+        return await stats_calc.calculate_session_stats(data, self.instrument)
+
+    async def set_session_type(self, session_type: Any) -> None:
+        """
+        Dynamically change the session type for filtering.
+
+        Args:
+            session_type: New SessionType to use for filtering
+
+        Example:
+            ```python
+            # Switch to RTH-only data
+            await manager.set_session_type(SessionType.RTH)
+
+            # Switch back to all data (ETH)
+            await manager.set_session_type(SessionType.ETH)
+            ```
+        """
+        if hasattr(self, "session_config") and self.session_config is not None:
+            self.session_config.session_type = session_type
+            # Re-initialize the filter with the new config
+            from project_x_py.sessions import SessionFilterMixin
+
+            self.session_filter = SessionFilterMixin(config=self.session_config)
+
+    async def set_session_config(self, session_config: Any) -> None:
+        """
+        Set a new session configuration.
+
+        Args:
+            session_config: New SessionConfig object
+
+        Example:
+            ```python
+            from project_x_py.sessions import SessionConfig, SessionType
+
+            # Create custom config
+            config = SessionConfig(
+                session_type=SessionType.CUSTOM, market_timezone="Europe/London"
+            )
+
+            await manager.set_session_config(config)
+            ```
+        """
+        self.session_config = session_config
+        if session_config is not None:
+            from project_x_py.sessions import SessionFilterMixin
+
+            self.session_filter = SessionFilterMixin(config=session_config)
+        else:
+            self.session_filter = None

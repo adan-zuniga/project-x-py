@@ -49,6 +49,51 @@ async def advanced_setup():
     await suite.disconnect()
 ```
 
+### Session Configuration (v3.4.0+)
+
+!!! warning "Experimental Feature"
+    Session filtering is experimental and not thoroughly tested with live data. Use with caution in production.
+
+```python
+from project_x_py.sessions import SessionConfig, SessionType
+
+async def session_setup():
+    # RTH-only trading (9:30 AM - 4:00 PM ET)
+    rth_suite = await TradingSuite.create(
+        instrument="MNQ",
+        timeframes=["1min", "5min"],
+        session_config=SessionConfig(session_type=SessionType.RTH)
+    )
+
+    # ETH-only analysis (overnight sessions)
+    eth_suite = await TradingSuite.create(
+        instrument="ES",
+        session_config=SessionConfig(session_type=SessionType.ETH)
+    )
+
+    # Custom session times
+    from datetime import time
+    import pytz
+
+    custom_config = SessionConfig(
+        session_type=SessionType.RTH,
+        custom_times=SessionTimes(
+            rth_start=time(9, 0),
+            rth_end=time(15, 30),
+            timezone=pytz.timezone("US/Eastern")
+        )
+    )
+
+    custom_suite = await TradingSuite.create(
+        instrument="CL",
+        session_config=custom_config
+    )
+
+    await rth_suite.disconnect()
+    await eth_suite.disconnect()
+    await custom_suite.disconnect()
+```
+
 ### Configuration File Setup
 
 ```python
@@ -108,6 +153,7 @@ from project_x_py.types import (
     OrderbookConfig
 )
 from project_x_py.risk_manager import RiskConfig
+from project_x_py.sessions import SessionConfig, SessionType
 
 async def custom_configuration():
     # Custom component configurations
@@ -129,11 +175,18 @@ async def custom_configuration():
         max_drawdown_percent=10.0
     )
 
+    # Session configuration (v3.4.0+)
+    session_config = SessionConfig(
+        session_type=SessionType.RTH,
+        product="MNQ"  # Product-specific session times
+    )
+
     suite = await TradingSuite.create(
         "MNQ",
         order_manager_config=order_config,
         position_manager_config=position_config,
-        risk_config=risk_config
+        risk_config=risk_config,
+        session_config=session_config  # New in v3.4.0
     )
 
     await suite.disconnect()
@@ -246,6 +299,37 @@ async def data_access():
     if suite.orderbook:
         depth = await suite.orderbook.get_depth()
         trades = await suite.orderbook.get_recent_trades()
+
+    await suite.disconnect()
+```
+
+### Session-Aware Data Access (v3.4.0+)
+
+```python
+from project_x_py.sessions import SessionType
+
+async def session_data_access():
+    # Create suite with session configuration
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min", "5min"],
+        session_config=SessionConfig(session_type=SessionType.RTH)
+    )
+
+    # Get session-specific data
+    rth_data = await suite.data.get_session_bars("5min", SessionType.RTH)
+    eth_data = await suite.data.get_session_bars("5min", SessionType.ETH)
+
+    # Session trades
+    rth_trades = await suite.data.get_session_trades(SessionType.RTH)
+
+    # Session statistics
+    from project_x_py.sessions import SessionStatistics
+    stats = SessionStatistics(suite)
+    rth_stats = await stats.calculate_session_stats(SessionType.RTH)
+
+    print(f"RTH Volatility: {rth_stats['volatility']:.2%}")
+    print(f"RTH Volume: {rth_stats['total_volume']:,}")
 
     await suite.disconnect()
 ```

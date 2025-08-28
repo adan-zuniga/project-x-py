@@ -56,6 +56,7 @@ See Also:
 
 import datetime
 import re
+from datetime import UTC
 from typing import Any
 
 import polars as pl
@@ -569,3 +570,439 @@ class MarketDataMixin:
         self.cache_market_data(cache_key, data)
 
         return data
+
+    # Session-aware methods
+    async def get_session_bars(
+        self,
+        symbol: str,
+        timeframe: str = "1min",
+        session_type: Any | None = None,
+        session_config: Any | None = None,
+        days: int = 1,
+        **kwargs: Any,
+    ) -> pl.DataFrame:
+        """
+        Get historical bars filtered by trading session.
+
+        Args:
+            symbol: Instrument symbol
+            timeframe: Data timeframe (e.g., "1min", "5min")
+            session_type: Type of session to filter (RTH/ETH)
+            session_config: Optional custom session configuration
+            days: Number of days of data to fetch
+            **kwargs: Additional arguments for get_bars
+
+        Returns:
+            Polars DataFrame with session-filtered bars
+
+        Example:
+            ```python
+            from project_x_py.sessions import SessionType
+
+            # Get RTH-only bars
+            rth_bars = await client.get_session_bars(
+                "MNQ", session_type=SessionType.RTH, days=5
+            )
+            ```
+        """
+        # Parse timeframe to get interval
+        interval = 1
+        if timeframe == "1min":
+            interval = 1
+        elif timeframe == "5min":
+            interval = 5
+        elif timeframe == "15min":
+            interval = 15
+        elif timeframe == "30min":
+            interval = 30
+        elif timeframe == "60min" or timeframe == "1hour":
+            interval = 60
+
+        # Get all bars first
+        bars = await self.get_bars(symbol, days=days, interval=interval, **kwargs)
+
+        # Apply session filtering if requested
+        if session_type is not None or session_config is not None:
+            from project_x_py.sessions import (
+                SessionConfig,
+                SessionFilterMixin,
+            )
+
+            # Use provided config or create one
+            if session_config is None and session_type is not None:
+                session_config = SessionConfig(session_type=session_type)
+
+            if session_config is not None:
+                filter_mixin = SessionFilterMixin(config=session_config)
+                bars = await filter_mixin.filter_by_session(
+                    bars, session_config.session_type, symbol
+                )
+
+        return bars
+
+    async def get_session_market_hours(self, symbol: str) -> dict[str, Any]:
+        """
+        Get market hours for a specific instrument's sessions.
+
+        Args:
+            symbol: Instrument symbol
+
+        Returns:
+            Dictionary with RTH and ETH market hours
+
+        Example:
+            ```python
+            hours = await client.get_session_market_hours("ES")
+            print(f"RTH: {hours['RTH']['open']} - {hours['RTH']['close']}")
+            ```
+        """
+        from project_x_py.sessions import DEFAULT_SESSIONS
+
+        # Get session times from default or custom config
+        session_times = DEFAULT_SESSIONS.get(symbol)
+
+        if session_times:
+            return {
+                "RTH": {
+                    "open": session_times.rth_start.strftime("%H:%M"),
+                    "close": session_times.rth_end.strftime("%H:%M"),
+                    "timezone": "America/New_York",
+                },
+                "ETH": {
+                    "open": session_times.eth_start.strftime("%H:%M")
+                    if session_times.eth_start
+                    else "18:00",
+                    "close": session_times.eth_end.strftime("%H:%M")
+                    if session_times.eth_end
+                    else "17:00",
+                    "timezone": "America/New_York",
+                },
+            }
+
+        # Default hours for unknown instruments
+        return {
+            "RTH": {"open": "09:30", "close": "16:00", "timezone": "America/New_York"},
+            "ETH": {"open": "18:00", "close": "17:00", "timezone": "America/New_York"},
+        }
+
+    async def get_session_volume_profile(
+        self,
+        symbol: str,
+        session_type: Any | None = None,
+        days: int = 1,
+        price_levels: int = 50,
+    ) -> dict[str, Any]:
+        """
+        Calculate volume profile for a specific session.
+
+        Args:
+            symbol: Instrument symbol
+            session_type: Type of session (RTH/ETH)
+            days: Number of days for profile calculation
+            price_levels: Number of price levels for profile
+
+        Returns:
+            Dictionary with price levels and volume distribution
+
+        Example:
+            ```python
+            profile = await client.get_session_volume_profile(
+                "MNQ", session_type=SessionType.RTH
+            )
+            ```
+        """
+        # Get session-filtered bars
+        bars = await self.get_session_bars(
+            symbol, timeframe="1min", session_type=session_type, days=days
+        )
+
+        if bars.is_empty():
+            return {"price_level": [], "volume": [], "session_type": str(session_type)}
+
+        # Calculate price levels
+        low_min = bars["low"].min()
+        high_max = bars["high"].max()
+        price_min = (
+            float(low_min)
+            if low_min is not None and isinstance(low_min, int | float)
+            else 0.0
+        )
+        price_max = (
+            float(high_max)
+            if high_max is not None and isinstance(high_max, int | float)
+            else 0.0
+        )
+        price_step = (price_max - price_min) / price_levels
+
+        # Create price bins
+        price_bins = [price_min + i * price_step for i in range(price_levels + 1)]
+
+        # Calculate volume at each price level
+        volume_profile = []
+        for i in range(len(price_bins) - 1):
+            level_min = price_bins[i]
+            level_max = price_bins[i + 1]
+
+            # Find bars that traded in this price range
+            level_volume = bars.filter(
+                (pl.col("low") <= level_max) & (pl.col("high") >= level_min)
+            )["volume"].sum()
+
+            volume_profile.append(
+                {
+                    "price": (level_min + level_max) / 2,
+                    "volume": int(level_volume) if level_volume else 0,
+                }
+            )
+
+        return {
+            "price_level": [p["price"] for p in volume_profile],
+            "volume": [p["volume"] for p in volume_profile],
+            "session_type": str(session_type) if session_type else "ALL",
+        }
+
+    async def get_session_statistics(
+        self,
+        symbol: str,
+        session_type: Any | None = None,
+        days: int = 1,
+    ) -> dict[str, Any]:
+        """
+        Calculate statistics for a specific trading session.
+
+        Args:
+            symbol: Instrument symbol
+            session_type: Type of session (RTH/ETH)
+            days: Number of days for statistics
+
+        Returns:
+            Dictionary with session statistics
+
+        Example:
+            ```python
+            stats = await client.get_session_statistics(
+                "MNQ", session_type=SessionType.RTH
+            )
+            print(f"Session High: {stats['session_high']}")
+            print(f"Session VWAP: {stats['session_vwap']}")
+            ```
+        """
+        # Get session-filtered bars
+        bars = await self.get_session_bars(
+            symbol, timeframe="1min", session_type=session_type, days=days
+        )
+
+        if bars.is_empty():
+            return {
+                "session_high": None,
+                "session_low": None,
+                "session_volume": 0,
+                "session_vwap": None,
+                "session_range": None,
+            }
+
+        # Calculate statistics
+        high_val = bars["high"].max()
+        low_val = bars["low"].min()
+        session_high = (
+            float(high_val)
+            if high_val is not None and isinstance(high_val, int | float)
+            else 0.0
+        )
+        session_low = (
+            float(low_val)
+            if low_val is not None and isinstance(low_val, int | float)
+            else 0.0
+        )
+        session_volume = int(bars["volume"].sum())
+
+        # Calculate VWAP
+        bars_with_pv = bars.with_columns(
+            [(pl.col("close") * pl.col("volume")).alias("price_volume")]
+        )
+        total_pv = bars_with_pv["price_volume"].sum()
+        total_volume = bars_with_pv["volume"].sum()
+        session_vwap = float(total_pv / total_volume) if total_volume > 0 else None
+
+        return {
+            "session_high": session_high,
+            "session_low": session_low,
+            "session_volume": session_volume,
+            "session_vwap": session_vwap,
+            "session_range": session_high - session_low,
+        }
+
+    async def is_session_open(
+        self,
+        symbol: str,
+        session_type: Any | None = None,
+    ) -> bool:
+        """
+        Check if market is currently open for a specific session.
+
+        Args:
+            symbol: Instrument symbol
+            session_type: Type of session to check (RTH/ETH)
+
+        Returns:
+            True if session is currently open
+
+        Example:
+            ```python
+            if await client.is_session_open("ES", SessionType.RTH):
+                print("Regular trading hours are open")
+            ```
+        """
+        from datetime import datetime
+
+        from project_x_py.sessions import SessionConfig, SessionFilterMixin, SessionType
+
+        # Create session filter
+        config = SessionConfig(
+            session_type=session_type if session_type else SessionType.ETH
+        )
+        filter_mixin = SessionFilterMixin(config=config)
+
+        # Check current time
+        now = datetime.now(UTC)
+        return filter_mixin.is_in_session(now, config.session_type, symbol)
+
+    async def get_next_session_open(
+        self,
+        symbol: str,
+        session_type: Any | None = None,
+    ) -> datetime.datetime | None:
+        """
+        Get the next session open time.
+
+        Args:
+            symbol: Instrument symbol
+            session_type: Type of session (RTH/ETH)
+
+        Returns:
+            Datetime of next session open
+
+        Example:
+            ```python
+            next_open = await client.get_next_session_open("ES", SessionType.RTH)
+            print(f"RTH opens at: {next_open}")
+            ```
+        """
+        from datetime import datetime, timedelta
+
+        import pytz
+
+        from project_x_py.sessions import DEFAULT_SESSIONS, SessionType
+
+        # Get session times
+        session_times = DEFAULT_SESSIONS.get(symbol)
+        if not session_times:
+            return None
+
+        # Get current time in market timezone
+        market_tz = pytz.timezone("America/New_York")
+        now = datetime.now(market_tz)
+
+        # Determine which session time to use
+        if session_type == SessionType.RTH:
+            session_start = session_times.rth_start
+        else:
+            session_start = session_times.eth_start or session_times.rth_start
+
+        # Calculate next open
+        next_open = now.replace(
+            hour=session_start.hour,
+            minute=session_start.minute,
+            second=0,
+            microsecond=0,
+        )
+
+        # If we're past today's open, move to next trading day
+        if now >= next_open:
+            next_open += timedelta(days=1)
+            # Skip weekends
+            while next_open.weekday() >= 5:  # Saturday = 5, Sunday = 6
+                next_open += timedelta(days=1)
+
+        return next_open.astimezone(pytz.UTC)
+
+    async def get_session_trades(
+        self,
+        symbol: str,
+        session_type: Any | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """
+        Get recent trades filtered by session.
+
+        Args:
+            symbol: Instrument symbol
+            session_type: Type of session (RTH/ETH)
+            limit: Maximum number of trades to return
+
+        Returns:
+            List of trade dictionaries
+
+        Note: This is a placeholder for future implementation when
+        trade data API is available.
+        """
+        # Placeholder - would need actual trade data endpoint
+        _ = (symbol, session_type, limit)  # Mark as used
+        return []
+
+    async def get_session_order_flow(
+        self,
+        symbol: str,
+        session_type: Any | None = None,
+        days: int = 1,
+    ) -> dict[str, Any]:
+        """
+        Analyze order flow for a specific session.
+
+        Args:
+            symbol: Instrument symbol
+            session_type: Type of session (RTH/ETH)
+            days: Number of days for analysis
+
+        Returns:
+            Dictionary with order flow metrics
+
+        Note: This is a simplified implementation using bar data.
+        Full implementation would require tick/trade data.
+        """
+        # Get session bars
+        bars = await self.get_session_bars(
+            symbol, timeframe="1min", session_type=session_type, days=days
+        )
+
+        if bars.is_empty():
+            return {
+                "buy_volume": 0,
+                "sell_volume": 0,
+                "net_delta": 0,
+                "total_volume": 0,
+            }
+
+        # Simple approximation: up bars = buying, down bars = selling
+        bars_with_direction = bars.with_columns(
+            [
+                pl.when(pl.col("close") >= pl.col("open"))
+                .then(pl.col("volume"))
+                .otherwise(0)
+                .alias("buy_volume"),
+                pl.when(pl.col("close") < pl.col("open"))
+                .then(pl.col("volume"))
+                .otherwise(0)
+                .alias("sell_volume"),
+            ]
+        )
+
+        buy_volume = int(bars_with_direction["buy_volume"].sum())
+        sell_volume = int(bars_with_direction["sell_volume"].sum())
+
+        return {
+            "buy_volume": buy_volume,
+            "sell_volume": sell_volume,
+            "net_delta": buy_volume - sell_volume,
+            "total_volume": buy_volume + sell_volume,
+        }

@@ -7,8 +7,8 @@
 
 **project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
-!!! note "Version 3.3.4"
-    Production-ready release with all 27 critical issues resolved. Major improvements include Risk Manager financial precision with Decimal type, comprehensive OrderBook spoofing detection (6 pattern types), enhanced memory management, and 100% async-first statistics system with health monitoring. Complete with performance optimizations and comprehensive test coverage. Fully backward compatible with v3.x.x.
+!!! note "Version 3.4.0 - ETH vs RTH Trading Sessions"
+    New experimental feature: Trading session filtering for Electronic Trading Hours (ETH) vs Regular Trading Hours (RTH). Enables precise market analysis by separating overnight and regular session data. Includes session-aware indicators, statistics, and automatic maintenance break exclusion. **Note: This feature is experimental and not thoroughly tested with live data - use with caution in production.**
 
 !!! note "Stable Production Release"
     Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -202,16 +202,21 @@ suite = await TradingSuite.create("MNQ", features=["orderbook", "risk_manager"])
 
 ## Recent Changes
 
-### v3.3.0 - Statistics System Redesign (2025-01-21)
-- **Breaking**: Complete statistics system redesign with 100% async-first architecture
-- **Added**: New statistics module with BaseStatisticsTracker, ComponentCollector, StatisticsAggregator
-- **Added**: Multi-format export (JSON, Prometheus, CSV, Datadog) with data sanitization
-- **Added**: Enhanced health monitoring with 0-100 scoring and configurable thresholds
-- **Added**: TTL caching, parallel collection, and circular buffers for performance optimization
-- **Added**: 45+ new tests covering all aspects of the async statistics system
-- **Fixed**: Eliminated all statistics-related deadlocks with single RW lock per component
-- **Changed**: All statistics methods now require `await` for consistency and performance
-- **Removed**: Legacy statistics mixins (EnhancedStatsTrackingMixin, StatsTrackingMixin)
+### v3.4.0 - ETH vs RTH Trading Sessions (2025-08-28)
+- **Added**: Trading Sessions module for ETH/RTH filtering (EXPERIMENTAL)
+- **Added**: SessionConfig and SessionFilterMixin for session-based data filtering
+- **Added**: Session-aware indicators and statistics calculations
+- **Added**: Automatic maintenance break exclusion (5-6 PM ET daily)
+- **Added**: TradingSuite integration with `session_config` parameter
+- **Added**: Comprehensive example in `examples/sessions/16_eth_vs_rth_sessions_demo.py`
+- **Warning**: This feature is experimental and not thoroughly tested with live data
+
+### v3.3.6 - Major Quality Assurance Release (2025-08-28)
+- **Fixed**: Achieved zero mypy errors, zero linting issues, zero IDE diagnostics
+- **Fixed**: Order Manager module complete overhaul with protocol compliance
+- **Fixed**: TradingSuite duplicate subscription issues
+- **Added**: 100+ new comprehensive tests for edge cases
+- **Improved**: Complete test coverage with all 1,300+ tests passing
 
 See the complete [changelog](changelog.md) for all version history.
 
