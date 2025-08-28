@@ -21,8 +21,23 @@ from project_x_py import TradingSuite
 from project_x_py.indicators import EMA, RSI, SMA, VWAP
 from project_x_py.sessions import SessionConfig, SessionFilterMixin, SessionType
 
+
 # Suppress noisy WebSocket connection errors from SignalR
-logging.getLogger("SignalRCoreClient").setLevel(logging.CRITICAL)
+# These errors occur when background threads try to read from closed connections
+# They are harmless but make the output noisy
+class NullHandler(logging.Handler):
+    """Handler that suppresses all log records."""
+
+    def emit(self, record):
+        pass
+
+
+null_handler = NullHandler()
+for logger_name in ["SignalRCoreClient", "websocket", "signalrcore"]:
+    logger = logging.getLogger(logger_name)
+    logger.handlers = [null_handler]
+    logger.setLevel(logging.CRITICAL)
+    logger.propagate = False
 
 
 async def demonstrate_basic_session_usage():
@@ -60,14 +75,14 @@ async def demonstrate_historical_session_analysis():
         rth_suite = await TradingSuite.create(
             "MNQ",
             timeframes=["1min", "5min"],
-            session_config=SessionConfig(session_type=SessionType.RTH)
+            session_config=SessionConfig(session_type=SessionType.RTH),
         )
         print("✅ RTH TradingSuite created")
 
         eth_suite = await TradingSuite.create(
             "MNQ",
             timeframes=["1min", "5min"],
-            session_config=SessionConfig(session_type=SessionType.ETH)
+            session_config=SessionConfig(session_type=SessionType.ETH),
         )
         print("✅ ETH TradingSuite created")
 
@@ -86,12 +101,16 @@ async def demonstrate_historical_session_analysis():
         print("\nData Comparison (1min):")
         print(f"RTH bars: {len(rth_data_1min):,}")
         print(f"ETH bars: {len(eth_data_1min):,}")
-        print(f"ETH has {len(eth_data_1min) - len(rth_data_1min):,} more bars ({((len(eth_data_1min) / len(rth_data_1min) - 1) * 100):.1f}% more)")
+        print(
+            f"ETH has {len(eth_data_1min) - len(rth_data_1min):,} more bars ({((len(eth_data_1min) / len(rth_data_1min) - 1) * 100):.1f}% more)"
+        )
 
         print("\nData Comparison (5min):")
         print(f"RTH bars: {len(rth_data_5min):,}")
         print(f"ETH bars: {len(eth_data_5min):,}")
-        print(f"ETH has {len(eth_data_5min) - len(rth_data_5min):,} more bars ({((len(eth_data_5min) / len(rth_data_5min) - 1) * 100):.1f}% more)")
+        print(
+            f"ETH has {len(eth_data_5min) - len(rth_data_5min):,} more bars ({((len(eth_data_5min) / len(rth_data_5min) - 1) * 100):.1f}% more)"
+        )
 
         # Analyze time ranges
         if not rth_data_1min.is_empty():
@@ -124,7 +143,7 @@ async def demonstrate_session_indicators():
         suite = await TradingSuite.create(
             "MNQ",
             timeframes=["5min"],
-            session_config=SessionConfig(session_type=SessionType.RTH)
+            session_config=SessionConfig(session_type=SessionType.RTH),
         )
         print("✅ RTH TradingSuite created for indicators")
 
@@ -135,8 +154,8 @@ async def demonstrate_session_indicators():
         if not rth_data.is_empty():
             # Apply multiple indicators to RTH-only data
             print("\nApplying session-aware indicators...")
-            with_indicators = (rth_data
-                .pipe(SMA, period=20)
+            with_indicators = (
+                rth_data.pipe(SMA, period=20)
                 .pipe(EMA, period=12)
                 .pipe(RSI, period=14)
                 .pipe(VWAP)
@@ -173,7 +192,9 @@ async def demonstrate_session_indicators():
                     eth_sma = eth_indicators["sma_20"].drop_nulls()
                     if len(eth_sma) > 0:
                         eth_sma_mean = float(eth_sma.mean())
-                        rth_sma_mean = float(sma_stats.mean()) if len(sma_stats) > 0 else 0
+                        rth_sma_mean = (
+                            float(sma_stats.mean()) if len(sma_stats) > 0 else 0
+                        )
                         print("\nSMA(20) Comparison:")
                         print(f"  RTH Mean: ${rth_sma_mean:.2f}")
                         print(f"  ETH Mean: ${eth_sma_mean:.2f}")
@@ -197,7 +218,9 @@ async def demonstrate_session_statistics():
         suite = await TradingSuite.create(
             "MNQ",
             timeframes=["1min"],
-            session_config=SessionConfig(session_type=SessionType.ETH)  # ETH to get both sessions
+            session_config=SessionConfig(
+                session_type=SessionType.ETH
+            ),  # ETH to get both sessions
         )
         print("✅ ETH TradingSuite created for statistics")
 
@@ -210,8 +233,8 @@ async def demonstrate_session_statistics():
             print(f"RTH Volume: {stats.get('rth_volume', 'N/A'):,}")
             print(f"ETH Volume: {stats.get('eth_volume', 'N/A'):,}")
 
-            if stats.get('rth_volume') and stats.get('eth_volume'):
-                ratio = stats['rth_volume'] / stats['eth_volume']
+            if stats.get("rth_volume") and stats.get("eth_volume"):
+                ratio = stats["rth_volume"] / stats["eth_volume"]
                 print(f"Volume Ratio (RTH/ETH): {ratio:.2f}")
 
             print(f"RTH VWAP: ${stats.get('rth_vwap', 0):.2f}")
@@ -242,7 +265,7 @@ async def demonstrate_realtime_session_filtering():
         suite = await TradingSuite.create(
             "MNQ",
             timeframes=["1min"],
-            session_config=SessionConfig(session_type=SessionType.RTH)
+            session_config=SessionConfig(session_type=SessionType.RTH),
         )
         print("✅ RTH TradingSuite created for real-time demo")
 
@@ -258,10 +281,13 @@ async def demonstrate_realtime_session_filtering():
             if event_counts["new_bar"] % 5 == 0 and event_counts["new_bar"] > 0:
                 data = event.data
                 timestamp = datetime.now().strftime("%H:%M:%S")
-                print(f"[{timestamp}] RTH Bar #{event_counts['new_bar']}: ${data.get('close', 0):.2f}")
+                print(
+                    f"[{timestamp}] RTH Bar #{event_counts['new_bar']}: ${data.get('close', 0):.2f}"
+                )
 
         # Register for RTH-only events
         from project_x_py import EventType
+
         await suite.on(EventType.NEW_BAR, count_rth_events)
         print("✅ Event handlers registered for RTH-only data")
 
@@ -319,7 +345,9 @@ async def demonstrate_session_filtering_direct():
         prices = []
         volumes = []
 
-        base_time = datetime.now(timezone.utc).replace(hour=13, minute=0, second=0, microsecond=0)  # 8 AM ET
+        base_time = datetime.now(timezone.utc).replace(
+            hour=13, minute=0, second=0, microsecond=0
+        )  # 8 AM ET
 
         # Add some sample data across different hours
         for hour_offset in range(12):  # 12 hours of data
@@ -329,14 +357,16 @@ async def demonstrate_session_filtering_direct():
                 prices.append(4800.0 + hour_offset * 2 + minute * 0.1)
                 volumes.append(100 + hour_offset * 10)
 
-        sample_data = pl.DataFrame({
-            "timestamp": timestamps,
-            "open": prices,
-            "high": [p + 1.0 for p in prices],
-            "low": [p - 1.0 for p in prices],
-            "close": prices,
-            "volume": volumes
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": timestamps,
+                "open": prices,
+                "high": [p + 1.0 for p in prices],
+                "low": [p - 1.0 for p in prices],
+                "close": prices,
+                "volume": volumes,
+            }
+        )
 
         print(f"Created sample data: {len(sample_data)} bars")
 
@@ -354,7 +384,9 @@ async def demonstrate_session_filtering_direct():
         print(f"Original data: {len(sample_data)} bars")
         print(f"RTH filtered: {len(rth_filtered)} bars")
         print(f"ETH filtered: {len(eth_filtered)} bars")
-        print(f"RTH is {(len(rth_filtered)/len(sample_data)*100):.1f}% of total data")
+        print(
+            f"RTH is {(len(rth_filtered) / len(sample_data) * 100):.1f}% of total data"
+        )
 
         # Show time ranges
         if not rth_filtered.is_empty():
@@ -383,7 +415,7 @@ async def demonstrate_multi_product_sessions():
         ("ES", "Equity futures (S&P 500)"),
         ("CL", "Energy futures (Crude Oil)"),
         ("GC", "Metal futures (Gold)"),
-        ("ZN", "Treasury futures (10-Year Note)")
+        ("ZN", "Treasury futures (10-Year Note)"),
     ]
 
     print("Session Times by Product Category:")
@@ -394,7 +426,9 @@ async def demonstrate_multi_product_sessions():
     for product, description in products_and_symbols:
         try:
             session_times = config.get_session_times(product)
-            print(f"{product:3} | {description:25} | {session_times.rth_start} - {session_times.rth_end}")
+            print(
+                f"{product:3} | {description:25} | {session_times.rth_start} - {session_times.rth_end}"
+            )
         except Exception as e:
             print(f"{product:3} | {description:25} | Error: {e}")
 
@@ -430,7 +464,9 @@ async def demonstrate_performance_features():
         print(f"Cache size: {len(session_filter._session_boundary_cache)}")
 
         # Demonstrate boundary caching
-        boundaries = session_filter._get_cached_session_boundaries("test_hash", "ES", "RTH")
+        boundaries = session_filter._get_cached_session_boundaries(
+            "test_hash", "ES", "RTH"
+        )
         print(f"Cached boundaries: {boundaries}")
         print(f"Cache size after: {len(session_filter._session_boundary_cache)}")
 
@@ -439,23 +475,27 @@ async def demonstrate_performance_features():
 
         import polars as pl
 
-        small_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc)] * 100,
-            "open": [4800.0] * 100,
-            "high": [4801.0] * 100,
-            "low": [4799.0] * 100,
-            "close": [4800.0] * 100,
-            "volume": [100] * 100
-        })
+        small_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc)] * 100,
+                "open": [4800.0] * 100,
+                "high": [4801.0] * 100,
+                "low": [4799.0] * 100,
+                "close": [4800.0] * 100,
+                "volume": [100] * 100,
+            }
+        )
 
-        large_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc)] * 150_000,
-            "open": [4800.0] * 150_000,
-            "high": [4801.0] * 150_000,
-            "low": [4799.0] * 150_000,
-            "close": [4800.0] * 150_000,
-            "volume": [100] * 150_000
-        })
+        large_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc)] * 150_000,
+                "open": [4800.0] * 150_000,
+                "high": [4801.0] * 150_000,
+                "low": [4799.0] * 150_000,
+                "close": [4800.0] * 150_000,
+                "volume": [100] * 150_000,
+            }
+        )
 
         print("\nTesting optimization strategies:")
         print(f"Small dataset ({len(small_data):,} rows): Standard processing")
@@ -506,6 +546,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Demo error: {e}")
         import traceback
+
         traceback.print_exc()
 
 
