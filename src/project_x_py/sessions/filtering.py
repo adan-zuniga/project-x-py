@@ -13,9 +13,10 @@ from typing import Any
 
 import polars as pl
 import pytz
-from polars.exceptions import ComputeError, InvalidOperationError
 
 from .config import DEFAULT_SESSIONS, SessionConfig, SessionTimes, SessionType
+
+# For broader compatibility, we'll catch ValueError and re-raise with our message
 
 
 class SessionFilterMixin:
@@ -82,7 +83,7 @@ class SessionFilterMixin:
                 data = data.with_columns(
                     pl.col("timestamp").str.to_datetime().dt.replace_time_zone("UTC")
                 )
-            except (ComputeError, InvalidOperationError, ValueError) as e:
+            except (ValueError, Exception) as e:
                 raise ValueError(
                     "Invalid timestamp format - must be datetime or convertible string"
                 ) from e
@@ -101,18 +102,19 @@ class SessionFilterMixin:
         # Filter based on session type
         if session_type == SessionType.ETH:
             # ETH includes all trading hours except maintenance breaks
-            return self._filter_eth_hours(data, session_times, product)
-        elif session_type == SessionType.RTH:
+            return self._filter_eth_hours(data, product)
+        if session_type == SessionType.RTH:
             # Filter to RTH hours only
             return self._filter_rth_hours(data, session_times)
-        elif session_type == SessionType.CUSTOM:
+        if session_type == SessionType.CUSTOM:
             if not custom_session_times:
                 raise ValueError(
                     "Custom session times required for CUSTOM session type"
                 )
             return self._filter_rth_hours(data, custom_session_times)
 
-        return data
+        # Should never reach here with valid SessionType enum
+        raise ValueError(f"Unsupported session type: {session_type}")
 
     def _filter_rth_hours(
         self, data: pl.DataFrame, session_times: SessionTimes
@@ -154,9 +156,7 @@ class SessionFilterMixin:
 
         return filtered
 
-    def _filter_eth_hours(
-        self, data: pl.DataFrame, session_times: SessionTimes, product: str
-    ) -> pl.DataFrame:
+    def _filter_eth_hours(self, data: pl.DataFrame, product: str) -> pl.DataFrame:
         """Filter data to ETH hours excluding maintenance breaks."""
         # ETH excludes maintenance breaks which vary by product
         # Most US futures: maintenance break 5:00 PM - 6:00 PM ET daily
