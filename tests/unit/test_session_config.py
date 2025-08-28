@@ -78,13 +78,13 @@ class TestSessionTimes:
 
     def test_session_times_validation(self):
         """Should validate session times for logical consistency."""
-        # RTH start should be before RTH end (same day)
-        with pytest.raises(ValueError, match="RTH start must be before RTH end"):
+        # ETH start and end must both be provided or both be None
+        with pytest.raises(ValueError, match="ETH start and end must both be provided or both be None"):
             SessionTimes(
-                rth_start=time(16, 0),
-                rth_end=time(9, 30),
+                rth_start=time(9, 30),
+                rth_end=time(16, 0),
                 eth_start=time(18, 0),
-                eth_end=time(17, 0)
+                eth_end=None  # Only one ETH time provided
             )
 
     def test_session_overlap_validation(self):

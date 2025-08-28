@@ -44,9 +44,12 @@ class SessionTimes:
 
     def __post_init__(self) -> None:
         """Validate session times after initialization."""
-        # Validate RTH is before RTH end on same day
-        if self.rth_start >= self.rth_end:
-            raise ValueError("RTH start must be before RTH end")
+        # Note: Allow RTH sessions that cross midnight (e.g., some Asian markets)
+        # Most US futures have RTH within the same day, but global markets may differ
+
+        # Validate that ETH start/end are both provided or both None
+        if (self.eth_start is None) != (self.eth_end is None):
+            raise ValueError("ETH start and end must both be provided or both be None")
 
     def is_rth_within_eth(self) -> bool:
         """Check if RTH session is properly contained within ETH session."""
