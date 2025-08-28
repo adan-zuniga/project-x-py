@@ -14,11 +14,15 @@ Date: 2025-08-28
 """
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 
 from project_x_py import TradingSuite
 from project_x_py.indicators import EMA, RSI, SMA, VWAP
 from project_x_py.sessions import SessionConfig, SessionFilterMixin, SessionType
+
+# Suppress noisy WebSocket connection errors from SignalR
+logging.getLogger("SignalRCoreClient").setLevel(logging.CRITICAL)
 
 
 async def demonstrate_basic_session_usage():
@@ -101,6 +105,7 @@ async def demonstrate_historical_session_analysis():
             print(f"ETH Time Range: {eth_start} to {eth_end}")
 
         await rth_suite.disconnect()
+        await asyncio.sleep(0.1)  # Brief delay to avoid connection cleanup race
         await eth_suite.disconnect()
         print("\n✅ Historical session analysis completed")
 
@@ -175,6 +180,7 @@ async def demonstrate_session_indicators():
                         print(f"  Difference: ${abs(eth_sma_mean - rth_sma_mean):.2f}")
 
         await suite.disconnect()
+        await asyncio.sleep(0.1)  # Brief delay to avoid connection cleanup race
         print("\n✅ Session-aware indicators demonstrated")
 
     except Exception as e:
@@ -218,6 +224,7 @@ async def demonstrate_session_statistics():
             print("This is expected if no recent session data is available")
 
         await suite.disconnect()
+        await asyncio.sleep(0.1)  # Brief delay to avoid connection cleanup race
         print("\n✅ Session statistics demonstrated")
 
     except Exception as e:
@@ -282,6 +289,7 @@ async def demonstrate_realtime_session_filtering():
         print(f"Quotes: {event_counts['quote']}")
 
         await suite.disconnect()
+        await asyncio.sleep(0.1)  # Brief delay to avoid connection cleanup race
         print("\n✅ Real-time session filtering demonstrated")
 
     except Exception as e:
