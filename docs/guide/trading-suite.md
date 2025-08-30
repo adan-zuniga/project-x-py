@@ -1,30 +1,33 @@
 # Trading Suite Guide
 
-The TradingSuite is the recommended entry point for building trading applications with the ProjectX SDK. It provides a unified interface that combines all components (client, order management, position tracking, real-time data, and optional features) into a single, easy-to-use object.
+The TradingSuite is the recommended entry point for building trading applications with the ProjectX SDK. **In v3.5.0, it has been revolutionized with multi-instrument support**, enabling simultaneous management of multiple futures contracts while maintaining full backward compatibility. It provides a unified interface that combines all components (client, order management, position tracking, real-time data, and optional features) into a single, easy-to-use container.
 
 ## Why Use TradingSuite?
 
 The TradingSuite simplifies SDK usage by:
 
 - **One-line initialization** - No complex setup or dependency management
+- **Multi-instrument support (v3.5.0)** - Manage multiple contracts simultaneously
 - **Automatic component wiring** - All components work together seamlessly
 - **Built-in configuration** - Sensible defaults with easy customization
 - **Feature flags** - Enable only what you need
 - **Unified event system** - Single place to handle all trading events
+- **Dictionary-like access** - Intuitive `suite["SYMBOL"]` syntax
+- **Event isolation** - Proper separation between instruments
+- **Parallel processing** - Efficient concurrent operations
 
 ## Quick Start
 
-### Basic Setup
-
-The simplest way to get started:
+### Single Instrument Setup (Backward Compatible)
 
 ```python
 import asyncio
 from project_x_py import TradingSuite
 
 async def main():
-    # One-line setup for MNQ (E-mini Nasdaq) trading
-    suite = await TradingSuite.create("MNQ")
+    # Traditional single instrument (still supported)
+    suite = await TradingSuite.create(["MNQ"])  # List notation recommended
+    mnq = suite["MNQ"]  # Access instrument context
 
     # Everything is ready:
     # - Client authenticated
@@ -32,7 +35,7 @@ async def main():
     # - Order and position managers initialized
 
     # Get current price
-    price = await suite.data.get_current_price()
+    price = await mnq.data.get_current_price()
     print(f"MNQ Current Price: ${price:.2f}")
 
     # Clean shutdown
@@ -41,53 +44,103 @@ async def main():
 asyncio.run(main())
 ```
 
-### With Multiple Timeframes
+### Multi-Instrument Setup (v3.5.0 New)
+
+```python
+async def multi_instrument_main():
+    # Revolutionary multi-instrument support
+    suite = await TradingSuite.create(
+        instruments=["MNQ", "ES", "MGC"],  # Multiple futures
+        timeframes=["1min", "5min"],
+        features=["orderbook", "risk_manager"]
+    )
+
+    print(f"Managing {len(suite)} instruments: {list(suite.keys())}")
+
+    # Dictionary-like access to each instrument
+    mnq_context = suite["MNQ"]
+    es_context = suite["ES"]
+    mgc_context = suite["MGC"]
+
+    # Get prices for all instruments
+    for symbol, context in suite.items():
+        price = await context.data.get_current_price()
+        print(f"{symbol}: ${price:.2f}")
+
+    await suite.disconnect()
+
+asyncio.run(multi_instrument_main())
+```
+
+### Multi-Timeframe Setup
 
 ```python
 async def multi_timeframe_setup():
     # Setup with multiple timeframes for analysis
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        instruments=["MNQ"],  # Single instrument with multiple timeframes
         timeframes=["1min", "5min", "15min"],
         initial_days=10  # Load 10 days of historical data
     )
 
-    # Access different timeframe data
-    bars_1min = await suite.data.get_data("1min")
-    bars_5min = await suite.data.get_data("5min")
-    bars_15min = await suite.data.get_data("15min")
+    mnq = suite["MNQ"]
 
-    print(f"1min bars: {len(bars_1min)}")
-    print(f"5min bars: {len(bars_5min)}")
-    print(f"15min bars: {len(bars_15min)}")
+    # Access different timeframe data
+    bars_1min = await mnq.data.get_data("1min")
+    bars_5min = await mnq.data.get_data("5min")
+    bars_15min = await mnq.data.get_data("15min")
+
+    print(f"MNQ 1min bars: {len(bars_1min)}")
+    print(f"MNQ 5min bars: {len(bars_5min)}")
+    print(f"MNQ 15min bars: {len(bars_15min)}")
+
+    await suite.disconnect()
+
+# Multi-instrument with multiple timeframes
+async def multi_instrument_timeframes():
+    suite = await TradingSuite.create(
+        instruments=["MNQ", "ES"],
+        timeframes=["1min", "5min", "15min"]
+    )
+
+    # Each instrument has all timeframes available
+    for symbol, context in suite.items():
+        bars_5min = await context.data.get_data("5min")
+        print(f"{symbol} 5min bars: {len(bars_5min)}")
 
     await suite.disconnect()
 
 asyncio.run(multi_timeframe_setup())
 ```
 
-### With Optional Features
+### Multi-Instrument with Optional Features
 
 ```python
 async def feature_setup():
-    # Enable optional features
+    # Enable optional features for multiple instruments
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        instruments=["MNQ", "ES"],
         timeframes=["1min", "5min"],
         features=["orderbook", "risk_manager"]
     )
 
-    # Now you have access to:
-    # - Level 2 order book data
-    # - Risk management tools
+    # Each instrument has its own feature instances
+    for symbol, context in suite.items():
+        print(f"\n{symbol} Features:")
 
-    if suite.orderbook:
-        depth = await suite.orderbook.get_depth()
-        print(f"Order book depth: {len(depth.bids)} bids, {len(depth.asks)} asks")
+        # Level 2 order book data (per instrument)
+        if context.orderbook:
+            depth = await context.orderbook.get_depth()
+            print(f"  Order book depth: {len(depth.bids)} bids, {len(depth.asks)} asks")
 
-    if suite.risk_manager:
-        limits = await suite.risk_manager.get_limits()
-        print(f"Max position size: {limits.max_position_size}")
+        # Risk management tools (per instrument)
+        if context.risk_manager:
+            limits = await context.risk_manager.get_limits()
+            print(f"  Max position size: {limits.max_position_size}")
+
+    # Portfolio-level risk management
+    portfolio_risk = await suite.get_portfolio_risk()
+    print(f"\nPortfolio Risk: ${portfolio_risk['total_exposure']:,.2f}")
 
     await suite.disconnect()
 
@@ -226,22 +279,25 @@ async def client_access():
 
 ### Order Management
 
+#### Single Instrument Order Management
+
 ```python
 async def order_management():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq = suite["MNQ"]
 
-    # Access the integrated order manager
-    orders = suite.orders
+    # Access the integrated order manager for MNQ
+    orders = mnq.orders
 
     # Place different order types
     market_order = await orders.place_market_order(
-        contract_id=suite.instrument_id,
+        contract_id=mnq.instrument_id,
         side=0,  # Buy
         size=1
     )
 
     limit_order = await orders.place_limit_order(
-        contract_id=suite.instrument_id,
+        contract_id=mnq.instrument_id,
         side=0,  # Buy
         size=1,
         limit_price=21000.0
@@ -249,7 +305,7 @@ async def order_management():
 
     # Advanced bracket order
     bracket_order = await orders.place_bracket_order(
-        contract_id=suite.instrument_id,
+        contract_id=mnq.instrument_id,
         side=0,  # Buy
         size=1,
         entry_price=21050.0,
@@ -257,58 +313,152 @@ async def order_management():
         target_offset=50.0  # $50 profit target
     )
 
-    print(f"Bracket order placed: {bracket_order.main_order_id}")
+    print(f"MNQ Bracket order placed: {bracket_order.main_order_id}")
+
+    await suite.disconnect()
+```
+
+#### Multi-Instrument Order Management
+
+```python
+async def multi_instrument_orders():
+    suite = await TradingSuite.create(["MNQ", "ES", "MGC"])
+
+    # Place orders across multiple instruments
+    tasks = []
+
+    # ES long position
+    es_task = suite["ES"].orders.place_limit_order(
+        contract_id=suite["ES"].instrument_id,
+        side=0, size=1, limit_price=5100.0
+    )
+    tasks.append(es_task)
+
+    # MNQ short position
+    mnq_task = suite["MNQ"].orders.place_limit_order(
+        contract_id=suite["MNQ"].instrument_id,
+        side=1, size=1, limit_price=21100.0
+    )
+    tasks.append(mnq_task)
+
+    # Execute all orders concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for i, result in enumerate(results):
+        symbol = ["ES", "MNQ"][i]
+        if isinstance(result, Exception):
+            print(f"{symbol} order failed: {result}")
+        else:
+            print(f"{symbol} order placed: {result.order_id}")
 
     await suite.disconnect()
 ```
 
 ### Position Tracking
 
+#### Single Instrument Position Tracking
+
 ```python
 async def position_tracking():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq = suite["MNQ"]
 
-    # Access the integrated position manager
-    positions = suite.positions
+    # Access the integrated position manager for MNQ
+    positions = mnq.positions
 
     # Get current position
     position = await positions.get_position("MNQ")
     if position:
-        print(f"Current Position:")
+        print(f"MNQ Position:")
         print(f"  Size: {position.size}")
         print(f"  Avg Price: ${position.avg_price:.2f}")
         print(f"  Unrealized P&L: ${position.unrealized_pnl:.2f}")
 
-    # Get all positions
-    all_positions = await positions.get_all_positions()
-    print(f"Total positions: {len(all_positions)}")
+    await suite.disconnect()
+```
 
-    # Get portfolio metrics
-    metrics = await positions.get_portfolio_metrics()
-    print(f"Total P&L: ${metrics['total_pnl']:,.2f}")
+#### Multi-Instrument Portfolio Tracking
+
+```python
+async def portfolio_tracking():
+    suite = await TradingSuite.create(["MNQ", "ES", "MGC"])
+
+    # Track positions across all instruments
+    portfolio_value = 0
+    total_pnl = 0
+
+    print("Portfolio Positions:")
+    for symbol, context in suite.items():
+        position = await context.positions.get_position(symbol)
+        if position:
+            print(f"  {symbol}: {position.size} @ ${position.avg_price:.2f} (P&L: ${position.unrealized_pnl:.2f})")
+            portfolio_value += abs(position.size * position.avg_price)
+            total_pnl += position.unrealized_pnl
+        else:
+            print(f"  {symbol}: No position")
+
+    print(f"\nPortfolio Summary:")
+    print(f"  Total Value: ${portfolio_value:,.2f}")
+    print(f"  Total P&L: ${total_pnl:.2f}")
+
+    # Portfolio-level metrics
+    portfolio_metrics = await suite.get_portfolio_metrics()
+    print(f"  Diversification Score: {portfolio_metrics.get('diversification_score', 0):.2f}")
+    print(f"  Risk Score: {portfolio_metrics.get('risk_score', 0):.2f}")
 
     await suite.disconnect()
 ```
 
 ### Real-time Data
 
+#### Single Instrument Real-time Data
+
 ```python
 async def realtime_data():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
+    mnq = suite["MNQ"]
 
-    # Access the real-time data manager
-    data = suite.data
+    # Access the real-time data manager for MNQ
+    data = mnq.data
 
     # Get current price
     current_price = await data.get_current_price()
-    print(f"Current Price: ${current_price:.2f}")
+    print(f"MNQ Current Price: ${current_price:.2f}")
 
     # Get latest bars
     latest_1min = await data.get_data("1min", count=10)  # Last 10 1-min bars
     latest_5min = await data.get_data("5min", count=5)   # Last 5 5-min bars
 
-    print(f"Latest 1min bars: {len(latest_1min)}")
-    print(f"Latest 5min bars: {len(latest_5min)}")
+    print(f"MNQ Latest 1min bars: {len(latest_1min)}")
+    print(f"MNQ Latest 5min bars: {len(latest_5min)}")
+
+    await suite.disconnect()
+```
+
+#### Multi-Instrument Real-time Data
+
+```python
+async def multi_realtime_data():
+    suite = await TradingSuite.create(
+        instruments=["MNQ", "ES", "MGC"],
+        timeframes=["1min", "5min"]
+    )
+
+    # Get current prices for all instruments
+    print("Current Prices:")
+    for symbol, context in suite.items():
+        current_price = await context.data.get_current_price()
+        print(f"  {symbol}: ${current_price:.2f}")
+
+    # Get latest 5min bars for all instruments
+    print("\nLatest 5min Data:")
+    for symbol, context in suite.items():
+        latest_5min = await context.data.get_data("5min", count=1)
+        if len(latest_5min) > 0:
+            latest_bar = latest_5min.tail(1)
+            close_price = latest_bar["close"].item()
+            volume = latest_bar["volume"].item()
+            print(f"  {symbol}: Close ${close_price:.2f}, Volume {volume:,}")
 
     await suite.disconnect()
 ```
@@ -380,37 +530,77 @@ async def risk_manager_feature():
 
 ### Setting Up Event Handlers
 
+#### Single Instrument Event Handling
+
 ```python
 from project_x_py import EventType
 
 async def event_handling():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq = suite["MNQ"]
 
-    # Define event handlers
+    # Define event handlers for MNQ
     async def on_new_bar(event):
-        print(f"New {event.timeframe} bar:")
+        print(f"MNQ New {event.timeframe} bar:")
         print(f"  Close: ${event.data.close:.2f}")
         print(f"  Volume: {event.data.volume:,}")
 
     async def on_order_filled(event):
-        print(f"Order filled: {event.order_id}")
+        print(f"MNQ Order filled: {event.order_id}")
         print(f"  Price: ${event.fill_price:.2f}")
         print(f"  Quantity: {event.fill_quantity}")
 
     async def on_position_changed(event):
         position = event.data
-        print(f"Position changed:")
+        print(f"MNQ Position changed:")
         print(f"  New size: {position.size}")
         print(f"  Unrealized P&L: ${position.unrealized_pnl:.2f}")
 
-    # Register event handlers
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.ORDER_FILLED, on_order_filled)
-    await suite.on(EventType.POSITION_CHANGED, on_position_changed)
+    # Register event handlers for MNQ
+    await mnq.on(EventType.NEW_BAR, on_new_bar)
+    await mnq.on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq.on(EventType.POSITION_CHANGED, on_position_changed)
 
     # Keep the application running to receive events
     await asyncio.sleep(300)  # Run for 5 minutes
 
+    await suite.disconnect()
+```
+
+#### Multi-Instrument Event Handling
+
+```python
+async def multi_instrument_events():
+    suite = await TradingSuite.create(
+        instruments=["MNQ", "ES", "MGC"],
+        timeframes=["1min", "5min"]
+    )
+
+    # Set up event handlers for each instrument
+    for symbol, context in suite.items():
+        # Create symbol-specific handlers using closures
+        def make_handlers(sym):
+            async def on_new_bar(event):
+                if event.timeframe == "5min":  # Only 5min bars
+                    print(f"{sym} 5min bar: ${event.data.close:.2f}")
+
+            async def on_order_filled(event):
+                print(f"{sym} Order filled: {event.order_id} @ ${event.fill_price:.2f}")
+
+            async def on_position_changed(event):
+                position = event.data
+                print(f"{sym} Position: {position.size} (P&L: ${position.unrealized_pnl:.2f})")
+
+            return on_new_bar, on_order_filled, on_position_changed
+
+        # Register handlers for this instrument
+        bar_handler, order_handler, position_handler = make_handlers(symbol)
+        await context.on(EventType.NEW_BAR, bar_handler)
+        await context.on(EventType.ORDER_FILLED, order_handler)
+        await context.on(EventType.POSITION_CHANGED, position_handler)
+
+    print("Monitoring events for all instruments...")
+    await asyncio.sleep(300)  # Run for 5 minutes
     await suite.disconnect()
 ```
 

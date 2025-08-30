@@ -1,6 +1,6 @@
 # Architecture Guide
 
-This guide explains the architecture and design patterns of the ProjectX Python SDK v3.3.4. Learn about the async-first design, component interactions, and architectural decisions that enable high-performance futures trading.
+This guide explains the architecture and design patterns of the ProjectX Python SDK v3.5.0. Learn about the async-first design, **revolutionary multi-instrument support**, component interactions, and architectural decisions that enable high-performance futures trading across multiple contracts simultaneously.
 
 ## Architecture Overview
 
@@ -9,36 +9,49 @@ The ProjectX SDK is built with a modern, async-first architecture optimized for 
 ### Key Architectural Principles
 
 1. **100% Async Architecture**: All operations use async/await for maximum concurrency
-2. **Event-Driven Design**: Components communicate through a unified event system
-3. **Dependency Injection**: Components receive dependencies rather than creating them
-4. **Protocol-Based Interfaces**: Type-safe contracts between components
-5. **Memory Efficiency**: Sliding windows and automatic cleanup prevent memory leaks
-6. **Performance Optimization**: Polars DataFrames and efficient data structures
+2. **Multi-Instrument Design (v3.5.0)**: Simultaneous management of multiple futures contracts
+3. **Event-Driven Design**: Components communicate through a unified event system with instrument isolation
+4. **Dependency Injection**: Components receive dependencies rather than creating them
+5. **Protocol-Based Interfaces**: Type-safe contracts between components
+6. **Memory Efficiency**: Sliding windows and automatic cleanup prevent memory leaks
+7. **Performance Optimization**: Polars DataFrames and efficient data structures
+8. **Container Protocol**: Dictionary-like access with `suite["SYMBOL"]` syntax
+9. **Parallel Processing**: Concurrent initialization and operation of multiple instruments
+10. **Resource Isolation**: Proper separation and cleanup between instrument contexts
 
 ### High-Level Architecture
 
 ```mermaid
 graph TB
     subgraph "Application Layer"
-        TS[TradingSuite]
+        TS[TradingSuite Container]
         EX[Examples & Strategies]
     end
 
-    subgraph "Manager Layer"
-        OM[OrderManager]
-        PM[PositionManager]
-        RM[RiskManager]
-        DM[RealtimeDataManager]
-        OB[OrderBook]
+    subgraph "Multi-Instrument Layer (v3.5.0)"
+        IC1[InstrumentContext MNQ]
+        IC2[InstrumentContext ES]
+        IC3[InstrumentContext MGC]
     end
 
-    subgraph "Client Layer"
+    subgraph "Manager Layer (Per Instrument)"
+        OM1[OrderManager MNQ]
+        PM1[PositionManager MNQ]
+        DM1[DataManager MNQ]
+        OM2[OrderManager ES]
+        PM2[PositionManager ES]
+        DM2[DataManager ES]
+        RM[RiskManager Shared]
+    end
+
+    subgraph "Client Layer (Shared)"
         PC[ProjectX Client]
         RC[RealtimeClient]
     end
 
     subgraph "Core Layer"
-        EB[EventBus]
+        EB1[EventBus MNQ]
+        EB2[EventBus ES]
         IND[Indicators]
         STAT[Statistics]
         UTILS[Utils]
@@ -50,84 +63,151 @@ graph TB
         DB[(Data Storage)]
     end
 
-    TS --> OM
-    TS --> PM
-    TS --> RM
-    TS --> DM
-    TS --> OB
+    TS --> IC1
+    TS --> IC2
+    TS --> IC3
 
-    OM --> PC
-    PM --> PC
-    DM --> RC
-    OB --> RC
+    IC1 --> OM1
+    IC1 --> PM1
+    IC1 --> DM1
+    IC2 --> OM2
+    IC2 --> PM2
+    IC2 --> DM2
+
+    OM1 --> PC
+    OM2 --> PC
+    PM1 --> PC
+    PM2 --> PC
+    DM1 --> RC
+    DM2 --> RC
 
     PC --> API
     RC --> WS
 
-    OM --> EB
-    PM --> EB
-    DM --> EB
+    OM1 --> EB1
+    PM1 --> EB1
+    DM1 --> EB1
+    OM2 --> EB2
+    PM2 --> EB2
+    DM2 --> EB2
 
-    DM --> IND
-    OM --> STAT
-    PM --> STAT
+    DM1 --> IND
+    DM2 --> IND
+    OM1 --> STAT
+    OM2 --> STAT
+    PM1 --> STAT
+    PM2 --> STAT
 ```
 
 ## Core Components
 
-### TradingSuite (Application Layer)
+### TradingSuite (Multi-Instrument Container)
 
-The `TradingSuite` is the primary entry point that orchestrates all components:
+The `TradingSuite` has been revolutionized in v3.5.0 as a multi-instrument container:
 
 ```python
+@dataclass(frozen=True)
+class InstrumentContext:
+    """Encapsulates all managers for a single instrument."""
+    symbol: str
+    instrument_info: InstrumentInfo
+    data: RealtimeDataManager
+    orders: OrderManager
+    positions: PositionManager
+    orderbook: Optional[OrderBook] = None
+    risk_manager: Optional[RiskManager] = None
+    event_bus: EventBus = field(default_factory=EventBus)
+
 class TradingSuite:
-    """Unified trading suite with integrated components."""
+    """Multi-instrument trading suite with container protocol."""
 
-    def __init__(
-        self,
-        client: ProjectXClientProtocol,
-        realtime_client: ProjectXRealtimeClient,
-        instrument_info: InstrumentInfo,
-        timeframes: List[str],
-        features: List[Features]
-    ):
-        self.client = client
-        self.realtime_client = realtime_client
-        self.instrument_info = instrument_info
-
-        # Core managers (always present)
-        self.data = RealtimeDataManager(...)
-        self.orders = OrderManager(...)
-        self.positions = PositionManager(...)
-
-        # Optional features
-        if Features.ORDERBOOK in features:
-            self.orderbook = OrderBook(...)
-        if Features.RISK_MANAGER in features:
-            self.risk_manager = RiskManager(...)
+    def __init__(self, instrument_contexts: Dict[str, InstrumentContext]):
+        self._instruments = instrument_contexts
+        self._is_single_instrument = (len(self._instruments) == 1)
+        if self._is_single_instrument:
+            self._single_context = next(iter(self._instruments.values()))
 
     @classmethod
     async def create(
         cls,
-        symbol: str,
+        instruments: Union[str, List[str]],  # Multi-instrument support
         timeframes: List[str] = None,
         features: List[Features] = None,
         **kwargs
     ) -> "TradingSuite":
-        """Factory method for proper async initialization."""
-        # Initialize all components with proper dependencies
-        client = await ProjectX.from_env()
-        realtime_client = await ProjectXRealtimeClient.create(...)
+        """Factory method for parallel multi-instrument initialization."""
+        # Normalize to list
+        instrument_list = [instruments] if isinstance(instruments, str) else instruments
 
-        # Create suite with all components
-        return cls(client, realtime_client, ...)
+        # Parallel creation of all instrument contexts
+        async def _create_context(symbol: str) -> Tuple[str, InstrumentContext]:
+            # Create all managers for this instrument
+            context = InstrumentContext(
+                symbol=symbol,
+                instrument_info=await get_instrument_info(symbol),
+                data=RealtimeDataManager(symbol, timeframes),
+                orders=OrderManager(client, symbol),
+                positions=PositionManager(client, symbol),
+                # Optional features per instrument
+                orderbook=OrderBook(symbol) if Features.ORDERBOOK in features else None,
+                risk_manager=RiskManager(symbol) if Features.RISK_MANAGER in features else None
+            )
+            return symbol, context
+
+        # Execute all context creations in parallel
+        tasks = [_create_context(symbol) for symbol in instrument_list]
+        context_results = await asyncio.gather(*tasks)
+        instrument_contexts = {symbol: context for symbol, context in context_results}
+
+        return cls(instrument_contexts)
+
+    # Container Protocol Implementation
+    def __getitem__(self, symbol: str) -> InstrumentContext:
+        """Dictionary-like access: suite['MNQ']"""
+        return self._instruments[symbol]
+
+    def __len__(self) -> int:
+        """Number of managed instruments."""
+        return len(self._instruments)
+
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over instrument symbols."""
+        return iter(self._instruments)
+
+    def keys(self) -> KeysView[str]:
+        """Get all instrument symbols."""
+        return self._instruments.keys()
+
+    def values(self) -> ValuesView[InstrumentContext]:
+        """Get all instrument contexts."""
+        return self._instruments.values()
+
+    def items(self) -> ItemsView[str, InstrumentContext]:
+        """Get all (symbol, context) pairs."""
+        return self._instruments.items()
+
+    # Backward Compatibility
+    def __getattr__(self, name: str):
+        """Legacy single-instrument access with deprecation warnings."""
+        if self._is_single_instrument and hasattr(self._single_context, name):
+            warnings.warn(
+                f"Direct access to '{name}' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].{name} instead.",
+                DeprecationWarning, stacklevel=2
+            )
+            return getattr(self._single_context, name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 ```
 
 **Key Responsibilities**:
-- Component orchestration and lifecycle management
-- Unified API surface for trading operations
-- Event coordination between components
-- Resource cleanup and connection management
+- **Multi-instrument orchestration**: Manage multiple futures contracts simultaneously
+- **Container protocol**: Dictionary-like access with `suite["SYMBOL"]` syntax
+- **Parallel initialization**: Concurrent setup of multiple instrument contexts
+- **Event isolation**: Separate event buses for each instrument to prevent interference
+- **Resource management**: Granular cleanup with fail-safe partial failure handling
+- **Backward compatibility**: Seamless transition from single-instrument patterns
+- **Cross-instrument operations**: Portfolio-level analytics and risk management
+- **Performance optimization**: Shared resources where appropriate (client, authentication)
 
 ### Client Layer
 
@@ -384,7 +464,288 @@ class EventBus:
 - `POSITION_CHANGED`: Position update
 - `CONNECTION_STATUS`: WebSocket connection status
 
+## Multi-Instrument Architecture (v3.5.0)
+
+### InstrumentContext Design
+
+The `InstrumentContext` is the core abstraction that encapsulates all functionality for a single instrument:
+
+```python
+@dataclass(frozen=True)
+class InstrumentContext:
+    """Complete context for a single trading instrument."""
+    symbol: str
+    instrument_info: InstrumentInfo
+
+    # Core managers (always present)
+    data: RealtimeDataManager
+    orders: OrderManager
+    positions: PositionManager
+
+    # Optional features
+    orderbook: Optional[OrderBook] = None
+    risk_manager: Optional[RiskManager] = None
+
+    # Event isolation
+    event_bus: EventBus = field(default_factory=EventBus)
+
+    # Lifecycle management
+    async def cleanup(self) -> None:
+        """Clean up all resources for this instrument."""
+        await asyncio.gather(
+            self.data.cleanup(),
+            self.orders.cleanup(),
+            self.positions.cleanup(),
+            self.orderbook.cleanup() if self.orderbook else asyncio.sleep(0),
+            self.risk_manager.cleanup() if self.risk_manager else asyncio.sleep(0),
+            return_exceptions=True
+        )
+```
+
+### Parallel Creation Pattern
+
+Multiple instruments are created concurrently for optimal performance:
+
+```python
+async def _create_instrument_contexts(
+    self,
+    instruments: List[str],
+    **kwargs
+) -> Dict[str, InstrumentContext]:
+    """Create multiple instrument contexts in parallel."""
+
+    async def _create_single_context(symbol: str) -> Tuple[str, InstrumentContext]:
+        # Parallel initialization of all managers
+        instrument_info = await self._get_instrument_info(symbol)
+
+        # Create managers concurrently
+        data_manager, order_manager, position_manager = await asyncio.gather(
+            RealtimeDataManager.create(symbol, self._timeframes),
+            OrderManager.create(self._client, symbol),
+            PositionManager.create(self._client, symbol)
+        )
+
+        # Optional features
+        optional_features = await asyncio.gather(
+            OrderBook.create(symbol) if self._has_orderbook else None,
+            RiskManager.create(symbol) if self._has_risk_manager else None,
+            return_exceptions=True
+        )
+
+        context = InstrumentContext(
+            symbol=symbol,
+            instrument_info=instrument_info,
+            data=data_manager,
+            orders=order_manager,
+            positions=position_manager,
+            orderbook=optional_features[0],
+            risk_manager=optional_features[1]
+        )
+
+        return symbol, context
+
+    # Execute all context creations in parallel
+    tasks = [_create_single_context(symbol) for symbol in instruments]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Handle partial failures gracefully
+    contexts = {}
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error(f"Failed to create context: {result}")
+        else:
+            symbol, context = result
+            contexts[symbol] = context
+
+    return contexts
+```
+
+### Event Isolation Architecture
+
+Each instrument maintains its own event bus to prevent cross-contamination:
+
+```python
+class EventIsolationManager:
+    """Manages event isolation between instruments."""
+
+    def __init__(self):
+        self._instrument_events: Dict[str, EventBus] = {}
+        self._global_events = EventBus()  # Portfolio-level events
+
+    async def emit_instrument_event(
+        self,
+        symbol: str,
+        event_type: EventType,
+        data: Any
+    ) -> None:
+        """Emit event for specific instrument only."""
+        if symbol in self._instrument_events:
+            await self._instrument_events[symbol].emit(event_type, data)
+
+    async def emit_portfolio_event(
+        self,
+        event_type: EventType,
+        data: Any
+    ) -> None:
+        """Emit portfolio-level event to all instruments."""
+        tasks = [
+            event_bus.emit(event_type, data)
+            for event_bus in self._instrument_events.values()
+        ]
+        await asyncio.gather(*tasks, return_exceptions=True)
+```
+
+### Resource Management
+
+Granular resource management with fail-safe cleanup:
+
+```python
+class ResourceManager:
+    """Manages resources across multiple instruments."""
+
+    def __init__(self):
+        self._cleanup_lock = asyncio.Lock()
+        self._created_contexts: Dict[str, InstrumentContext] = {}
+
+    async def cleanup_contexts(
+        self,
+        contexts: Dict[str, InstrumentContext]
+    ) -> None:
+        """Clean up contexts with proper error handling."""
+        async with self._cleanup_lock:
+            cleanup_tasks = []
+
+            for symbol, context in contexts.items():
+                cleanup_task = self._cleanup_single_context(symbol, context)
+                cleanup_tasks.append(cleanup_task)
+
+            # Execute all cleanups concurrently
+            results = await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+
+            # Log any cleanup failures
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    symbol = list(contexts.keys())[i]
+                    logger.error(f"Cleanup failed for {symbol}: {result}")
+
+    async def _cleanup_single_context(
+        self,
+        symbol: str,
+        context: InstrumentContext
+    ) -> None:
+        """Clean up a single instrument context."""
+        try:
+            await context.cleanup()
+        except Exception as e:
+            logger.error(f"Failed to cleanup {symbol}: {e}")
+            # Continue with other cleanups
+```
+
+### Cross-Instrument Operations
+
+Portfolio-level operations across multiple instruments:
+
+```python
+class PortfolioOperations:
+    """Portfolio-level operations across instruments."""
+
+    def __init__(self, suite: TradingSuite):
+        self._suite = suite
+
+    async def get_total_exposure(self) -> Decimal:
+        """Calculate total portfolio exposure."""
+        exposure_tasks = []
+
+        for symbol, context in self._suite.items():
+            async def get_exposure(ctx):
+                position = await ctx.positions.get_position(symbol)
+                if position:
+                    return abs(position.size * position.current_price)
+                return Decimal('0')
+
+            exposure_tasks.append(get_exposure(context))
+
+        exposures = await asyncio.gather(*exposure_tasks)
+        return sum(exposures, Decimal('0'))
+
+    async def get_correlation_matrix(self) -> Dict[str, Dict[str, float]]:
+        """Calculate correlation matrix between instruments."""
+        symbols = list(self._suite.keys())
+        if len(symbols) < 2:
+            return {}
+
+        # Get price data for all instruments
+        price_data = {}
+        for symbol, context in self._suite.items():
+            bars = await context.data.get_data("5min", count=100)
+            if len(bars) > 0:
+                price_data[symbol] = bars["close"].to_list()
+
+        # Calculate correlations
+        correlations = {}
+        for symbol1 in symbols:
+            correlations[symbol1] = {}
+            for symbol2 in symbols:
+                if symbol1 in price_data and symbol2 in price_data:
+                    corr = self._calculate_correlation(
+                        price_data[symbol1],
+                        price_data[symbol2]
+                    )
+                    correlations[symbol1][symbol2] = corr
+                else:
+                    correlations[symbol1][symbol2] = 0.0
+
+        return correlations
+
+    def _calculate_correlation(self, series1: List[float], series2: List[float]) -> float:
+        """Calculate correlation between two price series."""
+        import statistics
+
+        if len(series1) != len(series2) or len(series1) < 2:
+            return 0.0
+
+        # Convert to returns
+        returns1 = [series1[i]/series1[i-1] - 1 for i in range(1, len(series1))]
+        returns2 = [series2[i]/series2[i-1] - 1 for i in range(1, len(series2))]
+
+        try:
+            return statistics.correlation(returns1, returns2)
+        except statistics.StatisticsError:
+            return 0.0
+```
+
 ## Data Flow Architecture
+
+### Multi-Instrument Data Flow
+
+```mermaid
+sequenceDiagram
+    participant WS as WebSocket Feed
+    participant RC as RealtimeClient
+    participant TS as TradingSuite
+    participant IC1 as InstrumentContext MNQ
+    participant IC2 as InstrumentContext ES
+    participant DM1 as DataManager MNQ
+    participant DM2 as DataManager ES
+    participant EB1 as EventBus MNQ
+    participant EB2 as EventBus ES
+
+    WS->>RC: Multi-Symbol Tick Data
+    RC->>TS: Route by Symbol
+    TS->>IC1: MNQ Tick Data
+    TS->>IC2: ES Tick Data
+
+    IC1->>DM1: Process MNQ Tick
+    IC2->>DM2: Process ES Tick
+
+    DM1->>EB1: Emit MNQ NEW_BAR
+    DM2->>EB2: Emit ES NEW_BAR
+
+    Note over EB1,EB2: Events isolated by instrument
+
+    EB1->>IC1: MNQ Handlers Only
+    EB2->>IC2: ES Handlers Only
+```
 
 ### Real-time Data Flow
 
@@ -410,22 +771,46 @@ sequenceDiagram
     EB->>PM: Update Position
 ```
 
-### Order Lifecycle Flow
+### Multi-Instrument Order Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Pending: Create Order
-    Pending --> Submitted: Submit to API
-    Submitted --> Working: Accepted by Exchange
-    Working --> PartiallyFilled: Partial Fill
-    PartiallyFilled --> Filled: Complete Fill
-    PartiallyFilled --> Cancelled: User Cancel
-    Working --> Filled: Complete Fill
-    Working --> Cancelled: User Cancel
-    Working --> Rejected: Exchange Reject
-    Filled --> [*]
-    Cancelled --> [*]
-    Rejected --> [*]
+    [*] --> MultiOrder: Create Multi-Instrument Order
+
+    state MultiOrder {
+        [*] --> MNQOrder
+        [*] --> ESOrder
+        [*] --> MGCOrder
+
+        state MNQOrder {
+            [*] --> MNQPending
+            MNQPending --> MNQSubmitted
+            MNQSubmitted --> MNQWorking
+            MNQWorking --> MNQFilled
+            MNQWorking --> MNQCancelled
+        }
+
+        state ESOrder {
+            [*] --> ESPending
+            ESPending --> ESSubmitted
+            ESSubmitted --> ESWorking
+            ESWorking --> ESFilled
+            ESWorking --> ESCancelled
+        }
+
+        state MGCOrder {
+            [*] --> MGCPending
+            MGCPending --> MGCSubmitted
+            MGCSubmitted --> MGCWorking
+            MGCWorking --> MGCFilled
+            MGCWorking --> MGCCancelled
+        }
+    }
+
+    MNQFilled --> PortfolioUpdate
+    ESFilled --> PortfolioUpdate
+    MGCFilled --> PortfolioUpdate
+    PortfolioUpdate --> [*]
 ```
 
 ## Memory Management Architecture

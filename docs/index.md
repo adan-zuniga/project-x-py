@@ -7,8 +7,8 @@
 
 **project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
-!!! note "Version 3.4.0 - ETH vs RTH Trading Sessions"
-    New experimental feature: Trading session filtering for Electronic Trading Hours (ETH) vs Regular Trading Hours (RTH). Enables precise market analysis by separating overnight and regular session data. Includes session-aware indicators, statistics, and automatic maintenance break exclusion. **Note: This feature is experimental and not thoroughly tested with live data - use with caution in production.**
+!!! note "Version 3.5.0 - Multi-Instrument TradingSuite"
+    **Revolutionary Release**: Complete multi-instrument support enabling traders to manage multiple futures contracts simultaneously. Features include pairs trading, cross-market arbitrage, portfolio-level risk management, and advanced analytics across instruments. Full backward compatibility maintained with zero breaking changes.
 
 !!! note "Stable Production Release"
     Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -45,28 +45,33 @@ from project_x_py import TradingSuite
 from project_x_py.indicators import RSI, SMA, MACD
 
 async def main():
-    # V3.1: Use unified TradingSuite for simplified initialization
+    # V3.5: Multi-instrument TradingSuite for advanced strategies
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        instruments=["MNQ", "ES", "MGC"],  # Multiple instruments
         timeframes=["1min", "5min"],
         features=["orderbook", "risk_manager"]
     )
 
-    # Get market data with technical analysis
-    data = await suite.client.get_bars('MNQ', days=30, interval=60)
-    data = RSI(data, period=14)         # Add RSI
-    data = SMA(data, period=20)         # Add moving average
-    data = MACD(data)                   # Add MACD
+    # Access specific instruments
+    mnq_context = suite["MNQ"]
+    es_context = suite["ES"]
 
-    # Place an order using the integrated order manager
-    response = await suite.orders.place_limit_order(
-        contract_id=suite.instrument_id,
-        side=0,
-        size=1,
-        limit_price=21050.0
+    # Get market data with technical analysis
+    mnq_data = await suite.client.get_bars('MNQ', days=30, interval=60)
+    mnq_data = RSI(mnq_data, period=14)  # Add RSI
+    mnq_data = SMA(mnq_data, period=20)  # Add moving average
+
+    # Multi-instrument trading
+    await mnq_context.orders.place_limit_order(
+        contract_id=mnq_context.instrument_id,
+        side=0, size=1, limit_price=21050.0
     )
 
-    # Clean up when done
+    # Portfolio-level analytics
+    for symbol, context in suite.items():
+        price = await context.data.get_current_price()
+        print(f"{symbol}: ${price:.2f}")
+
     await suite.disconnect()
 
 # Run the async function
@@ -76,12 +81,15 @@ asyncio.run(main())
 ## Key Features
 
 ### 🚀 Core Trading Features
+- **Multi-Instrument Support (v3.5.0)**: Simultaneous trading across multiple futures contracts
 - Complete order management (market, limit, stop, bracket orders)
 - Real-time position tracking and portfolio management
 - Advanced risk management and position sizing
+- **Cross-Instrument Analytics**: Pairs trading, spread analysis, correlation strategies
 - Multi-account support
 
 ### 📊 Market Data & Analysis
+- **Multi-Instrument Data Streams (v3.5.0)**: Concurrent data processing for multiple contracts
 - Async historical OHLCV data with multiple timeframes
 - Real-time market data feeds via async WebSocket
 - **Level 2 orderbook analysis** with institutional-grade features
@@ -89,6 +97,7 @@ asyncio.run(main())
 - **Advanced market microstructure** analysis (iceberg detection, order flow, volume profile)
 - **Market Manipulation Detection**: 6 spoofing pattern types with regulatory compliance features
 - **100% Async Statistics System**: Health monitoring, multi-format export, component tracking
+- **Cross-Market Analysis**: Correlation matrices, spread calculations, sector rotation signals
 
 ### 🔧 Developer Tools
 - Comprehensive Python typing support
@@ -119,9 +128,14 @@ asyncio.run(main())
 
 ### Core Components
 
-**TradingSuite** - Unified trading environment with automatic initialization
+**TradingSuite** - Multi-instrument trading environment with automatic initialization
 ```python
-suite = await TradingSuite.create("MNQ", features=["orderbook", "risk_manager"])
+# Single instrument (backward compatible)
+suite = await TradingSuite.create(["MNQ"], features=["orderbook", "risk_manager"])
+
+# Multiple instruments (v3.5.0 new capability)
+suite = await TradingSuite.create(["MNQ", "ES", "MGC"], features=["orderbook", "risk_manager"])
+mnq_context = suite["MNQ"]  # Access specific instrument
 ```
 
 **ProjectX Client** - Main client for API interactions and authentication
@@ -201,6 +215,18 @@ suite = await TradingSuite.create("MNQ", features=["orderbook", "risk_manager"])
 - [Breaking Changes](migration/breaking-changes.md) - Change history
 
 ## Recent Changes
+
+### v3.5.0 - Multi-Instrument TradingSuite (2025-01-25)
+- **MAJOR**: Revolutionary multi-instrument support for simultaneous contract management
+- **Added**: `InstrumentContext` dataclass for encapsulating instrument-specific managers
+- **Added**: Dictionary-like container protocol with `suite["SYMBOL"]` access
+- **Added**: Parallel creation and initialization of multiple instrument contexts
+- **Added**: Event isolation between instruments for proper separation
+- **Added**: Granular resource management with fail-safe cleanup
+- **Added**: Cross-instrument analytics and portfolio-level operations
+- **Added**: Comprehensive migration guide and backward compatibility
+- **Added**: Example: `examples/26_multi_instrument_trading.py`
+- **Enhancement**: Zero breaking changes - all existing code continues to work
 
 ### v3.4.0 - ETH vs RTH Trading Sessions (2025-08-28)
 - **Added**: Trading Sessions module for ETH/RTH filtering (EXPERIMENTAL)

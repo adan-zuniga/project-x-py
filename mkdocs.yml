@@ -103,6 +103,7 @@ nav:
     - Technical Indicators: guide/indicators.md
     - Risk Management: guide/risk.md
     - Order Book: guide/orderbook.md
+    - Trading Sessions: guide/sessions.md
   - API Reference:
     - Client: api/client.md
     - Trading Suite: api/trading-suite.md
@@ -115,6 +116,7 @@ nav:
   - Examples:
     - Basic Usage: examples/basic.md
     - Advanced Trading: examples/advanced.md
+    - Multi-Instrument Trading: examples/multi-instrument.md
     - Real-time Data: examples/realtime.md
     - Backtesting: examples/backtesting.md
     - Notebooks: examples/notebooks/index.md
