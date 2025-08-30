@@ -591,11 +591,66 @@ class TradingSuite:
 
             return symbol, context
 
-        # Create all contexts in parallel
+        # Create all contexts in parallel with proper error handling
         tasks = [_create_single_context(symbol) for symbol in instruments]
-        results = await asyncio.gather(*tasks)
+        created_contexts: dict[str, InstrumentContext] = {}
 
-        return dict(results)
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process results and handle partial failures
+            for _i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    # Clean up already created contexts before raising
+                    await cls._cleanup_contexts(created_contexts)
+                    raise result
+
+                # Type checking: result is definitely a tuple here since it's not an Exception
+                symbol, context = cast(tuple[str, InstrumentContext], result)
+                created_contexts[symbol] = context
+
+        except Exception:
+            # Ensure cleanup even if gather itself fails
+            await cls._cleanup_contexts(created_contexts)
+            raise
+
+        return created_contexts
+
+    @classmethod
+    async def _cleanup_contexts(cls, contexts: dict[str, InstrumentContext]) -> None:
+        """
+        Clean up partially created instrument contexts.
+
+        Args:
+            contexts: Dictionary of contexts that need cleanup
+        """
+        if not contexts:
+            return
+
+        cleanup_tasks = []
+        for symbol, context in contexts.items():
+            try:
+                # Clean up each context component
+                if hasattr(context.data, "cleanup"):
+                    cleanup_tasks.append(context.data.cleanup())
+                if hasattr(context.orders, "cleanup"):
+                    cleanup_tasks.append(context.orders.cleanup())
+                if hasattr(context.positions, "cleanup"):
+                    cleanup_tasks.append(context.positions.cleanup())
+                if context.orderbook and hasattr(context.orderbook, "cleanup"):
+                    cleanup_tasks.append(context.orderbook.cleanup())
+                if context.risk_manager and hasattr(context.risk_manager, "cleanup"):
+                    cleanup_tasks.append(context.risk_manager.cleanup())
+            except Exception as e:
+                # Log cleanup error but don't fail the overall cleanup
+                logger.warning(f"Error cleaning up context for {symbol}: {e}")
+
+        # Run all cleanup tasks in parallel
+        if cleanup_tasks:
+            try:
+                await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+            except Exception as e:
+                logger.warning(f"Error during parallel context cleanup: {e}")
 
     @classmethod
     async def from_config(cls, config_path: str) -> "TradingSuite":
@@ -739,8 +794,9 @@ class TradingSuite:
         ]
         await asyncio.gather(*tasks)
 
-        # Update statistics aggregator with components from single context if available
-        if self._single_context:
+        # Update statistics aggregator with components
+        if self._is_single_instrument and self._single_context:
+            # Single instrument mode - use single context
             self._stats_aggregator.order_manager = self._single_context.orders
             self._stats_aggregator.data_manager = self._single_context.data
             self._stats_aggregator.position_manager = self._single_context.positions
@@ -748,6 +804,14 @@ class TradingSuite:
                 self._stats_aggregator.risk_manager = self._single_context.risk_manager
             if self._single_context.orderbook:
                 self._stats_aggregator.orderbook = self._single_context.orderbook
+        else:
+            # Multi-instrument mode - use first context for basic compatibility
+            # TODO: Future enhancement - StatisticsAggregator multi-instrument support
+            if self._instruments:
+                first_context = next(iter(self._instruments.values()))
+                self._stats_aggregator.order_manager = first_context.orders
+                self._stats_aggregator.data_manager = first_context.data
+                self._stats_aggregator.position_manager = first_context.positions
 
     async def _initialize_legacy_single_instrument(self) -> None:
         """Initialize components in legacy single-instrument mode."""
@@ -1245,17 +1309,17 @@ class TradingSuite:
         """Check if an instrument symbol is in the suite."""
         return symbol in self._instruments
 
-    def keys(self) -> Any:
+    def keys(self) -> Iterator[str]:
         """Return an iterator over instrument symbols."""
-        return self._instruments.keys()
+        return iter(self._instruments.keys())
 
-    def values(self) -> Any:
+    def values(self) -> Iterator[InstrumentContext]:
         """Return an iterator over instrument contexts."""
-        return self._instruments.values()
+        return iter(self._instruments.values())
 
-    def items(self) -> Any:
+    def items(self) -> Iterator[tuple[str, InstrumentContext]]:
         """Return an iterator over (symbol, context) pairs."""
-        return self._instruments.items()
+        return iter(self._instruments.items())
 
     # --- Backward Compatibility ---
     def __getattr__(self, name: str) -> Any:
@@ -1288,6 +1352,15 @@ class TradingSuite:
             )
             return getattr(self._single_context, name)
 
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
+        # Provide helpful error message for multi-instrument suites
+        if len(self._instruments) > 1:
+            available_symbols = list(self._instruments.keys())
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'. "
+                f"For multi-instrument suites, use suite['SYMBOL'].{name}. "
+                f"Available instruments: {available_symbols}"
+            )
+        else:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )

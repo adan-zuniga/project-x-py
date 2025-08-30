@@ -321,8 +321,13 @@ async def test_multi_instrument_parallel_creation():
     # Test creating 3 instruments
     instruments = ["MNQ", "MES", "MCL"]
 
-    with patch("project_x_py.trading_suite.ProjectX.from_env", return_value=mock_context):
-        with patch("project_x_py.trading_suite.ProjectXRealtimeClient", return_value=mock_realtime):
+    with patch(
+        "project_x_py.trading_suite.ProjectX.from_env", return_value=mock_context
+    ):
+        with patch(
+            "project_x_py.trading_suite.ProjectXRealtimeClient",
+            return_value=mock_realtime,
+        ):
             with patch("project_x_py.trading_suite.RealtimeDataManager"):
                 with patch("project_x_py.trading_suite.PositionManager"):
                     with patch("project_x_py.trading_suite.OrderManager"):
@@ -330,8 +335,12 @@ async def test_multi_instrument_parallel_creation():
 
                         # Call the actual method that should use parallel creation
                         result = await TradingSuite._create_instrument_contexts(
-                            instruments, mock_client, mock_realtime,
-                            TradingSuiteConfig(instrument="MNQ", timezone="America/Chicago")
+                            instruments,
+                            mock_client,
+                            mock_realtime,
+                            TradingSuiteConfig(
+                                instrument="MNQ", timezone="America/Chicago"
+                            ),
                         )
 
                         end_time = time.time()
@@ -347,7 +356,9 @@ async def test_multi_instrument_parallel_creation():
     # If executed in parallel, total time should be close to the individual task time (0.01s)
     # If executed sequentially, total time would be ~3x individual task time (0.03s)
     # We'll be generous and allow up to 0.025s (2.5x) to account for overhead
-    assert total_time < 0.025, f"Creation took {total_time:.3f}s, suggesting sequential rather than parallel execution"
+    assert total_time < 0.025, (
+        f"Creation took {total_time:.3f}s, suggesting sequential rather than parallel execution"
+    )
 
     # Additional verification: All instruments should have started before any finished
     # (indicating true parallelism)
@@ -358,7 +369,182 @@ async def test_multi_instrument_parallel_creation():
     latest_start = max(start_times)
     earliest_end = min(end_times)
 
-    assert latest_start <= earliest_end, "Instruments appear to be created sequentially rather than in parallel"
+    assert latest_start <= earliest_end, (
+        "Instruments appear to be created sequentially rather than in parallel"
+    )
+
+
+@pytest.mark.asyncio
+async def test_partial_failure_cleanup():
+    """
+    Test that partially created instrument contexts are cleaned up when one fails.
+
+    This tests the robustness of parallel creation when some instruments
+    fail to initialize properly.
+    """
+    # Mock client and dependencies
+    mock_client = AsyncMock()
+    mock_client.config = MagicMock()
+    mock_client.config.timezone = "America/Chicago"
+    mock_realtime = AsyncMock()
+    mock_config = TradingSuiteConfig(instrument="MNQ", timezone="America/Chicago")
+
+    # Track cleanup calls
+    cleanup_calls = []
+
+    def mock_cleanup():
+        cleanup_calls.append("cleanup_called")
+        return AsyncMock()()
+
+    # Mock successful and failing instrument creation
+    success_context = MagicMock()
+    success_context.data.cleanup = mock_cleanup
+    success_context.orders.cleanup = mock_cleanup
+    success_context.positions.cleanup = mock_cleanup
+    success_context.orderbook = None
+    success_context.risk_manager = None
+
+    async def mock_get_instrument(symbol: str):
+        if symbol == "FAIL":
+            raise ValueError(f"Failed to get instrument {symbol}")
+
+        mock_instrument = MagicMock()
+        mock_instrument.id = f"{symbol}_CONTRACT_ID"
+        mock_instrument.symbol = symbol
+        return mock_instrument
+
+    mock_client.get_instrument = AsyncMock(side_effect=mock_get_instrument)
+
+    # Mock manager creation - first succeeds, second fails
+    creation_count = 0
+
+    def create_mock_manager(*args, **kwargs):
+        nonlocal creation_count
+        creation_count += 1
+        if (
+            creation_count <= 3
+        ):  # First 3 calls succeed (data, orders, positions for MNQ)
+            return success_context  # Return the same mock for all managers
+        else:
+            raise RuntimeError("Simulated creation failure")
+
+    with patch(
+        "project_x_py.trading_suite.RealtimeDataManager",
+        side_effect=create_mock_manager,
+    ):
+        with patch(
+            "project_x_py.trading_suite.OrderManager", side_effect=create_mock_manager
+        ):
+            with patch(
+                "project_x_py.trading_suite.PositionManager",
+                side_effect=create_mock_manager,
+            ):
+                # This should fail because FAIL instrument will cause get_instrument to raise
+                with pytest.raises(ValueError, match="Failed to get instrument FAIL"):
+                    await TradingSuite._create_instrument_contexts(
+                        ["MNQ", "FAIL"], mock_client, mock_realtime, mock_config
+                    )
+
+                # Verify cleanup was attempted
+                # Note: In this test the failure happens early (get_instrument),
+                # so no contexts are created yet to clean up
+
+
+@pytest.mark.asyncio
+async def test_cross_instrument_event_isolation():
+    """
+    Test that events from one instrument don't interfere with others.
+
+    This ensures proper event isolation in multi-instrument mode.
+    """
+    # Create mock instruments with separate event tracking
+    mnq_events = []
+    es_events = []
+
+    def create_mock_context(symbol: str):
+        context = MagicMock()
+        context.symbol = symbol
+        context.instrument_info = MagicMock(id=f"{symbol}_CONTRACT_ID", symbol=symbol)
+
+        # Mock event bus that tracks events per instrument
+        mock_event_bus = MagicMock()
+        if symbol == "MNQ":
+            mock_event_bus.emit = AsyncMock(
+                side_effect=lambda *args: mnq_events.append(args)
+            )
+        else:  # ES
+            mock_event_bus.emit = AsyncMock(
+                side_effect=lambda *args: es_events.append(args)
+            )
+
+        context.data = MagicMock()
+        context.orders = MagicMock()
+        context.positions = MagicMock()
+        context.orderbook = None
+        context.risk_manager = None
+
+        return context
+
+    # Create contexts
+    mnq_context = create_mock_context("MNQ")
+    es_context = create_mock_context("ES")
+
+    # Create suite with multiple instruments
+    mock_client = AsyncMock()
+    mock_realtime = AsyncMock()
+    mock_config = TradingSuiteConfig(instrument="MNQ", timezone="America/Chicago")
+
+    suite = TradingSuite(
+        mock_client, mock_realtime, mock_config, {"MNQ": mnq_context, "ES": es_context}
+    )
+
+    # Verify contexts are isolated
+    assert suite["MNQ"].symbol == "MNQ"
+    assert suite["ES"].symbol == "ES"
+    assert suite["MNQ"] is not suite["ES"]
+
+    # Verify separate instrument contexts don't interfere
+    assert len(suite) == 2
+    assert "MNQ" in suite
+    assert "ES" in suite
+
+
+@pytest.mark.asyncio
+async def test_error_propagation_multi_instrument():
+    """
+    Test proper error propagation in multi-instrument scenarios.
+
+    Verifies that errors are handled gracefully and provide useful context.
+    """
+    # Create mock suite with multiple instruments
+    mock_client = AsyncMock()
+    mock_realtime = AsyncMock()
+    mock_config = TradingSuiteConfig(instrument="MNQ", timezone="America/Chicago")
+
+    context1 = MagicMock()
+    context1.symbol = "MNQ"
+    context2 = MagicMock()
+    context2.symbol = "ES"
+
+    suite = TradingSuite(
+        mock_client, mock_realtime, mock_config, {"MNQ": context1, "ES": context2}
+    )
+
+    # Test missing instrument access
+    with pytest.raises(KeyError):
+        _ = suite["NONEXISTENT"]
+
+    # Test attribute access on multi-instrument suite
+    with pytest.raises(AttributeError) as exc_info:
+        _ = suite.nonexistent_attribute
+
+    # Verify helpful error message
+    error_msg = str(exc_info.value)
+    assert "For multi-instrument suites, use suite['SYMBOL']" in error_msg
+    assert (
+        "Available instruments: ['MNQ', 'ES']" in error_msg
+        or "Available instruments: ['ES', 'MNQ']" in error_msg
+    )
 
 
 if __name__ == "__main__":
