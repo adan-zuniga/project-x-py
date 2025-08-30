@@ -33,7 +33,11 @@ Example Usage:
     ```
 """
 
+import asyncio
+import warnings
+from collections.abc import Iterator
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -69,6 +73,33 @@ from project_x_py.utils import ProjectXLogger
 from project_x_py.utils.deprecation import deprecated
 
 logger = ProjectXLogger.get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class InstrumentContext:
+    """
+    Encapsulates all managers and data for a single financial instrument.
+
+    This class holds all the components needed to trade and analyze a single
+    instrument, providing a clean interface for multi-instrument trading.
+
+    Attributes:
+        symbol: The instrument symbol (e.g., "MNQ", "ES")
+        instrument_info: The Instrument object with contract details
+        data: Real-time data manager for OHLCV data
+        orders: Order management system
+        positions: Position tracking system
+        orderbook: Level 2 market depth (optional)
+        risk_manager: Risk management system (optional)
+    """
+
+    symbol: str
+    instrument_info: Instrument
+    data: RealtimeDataManager
+    orders: OrderManager
+    positions: PositionManager
+    orderbook: OrderBook | None = None
+    risk_manager: RiskManager | None = None
 
 
 class Features(str, Enum):
@@ -230,16 +261,34 @@ class TradingSuite:
         client: ProjectXBase,
         realtime_client: ProjectXRealtimeClient,
         config: TradingSuiteConfig,
+        instrument_contexts: dict[str, InstrumentContext] | None = None,
     ):
         """
         Initialize TradingSuite with core components.
 
         Note: Use the factory methods (create, from_config, from_env) instead
         of instantiating directly.
+
+        Args:
+            client: ProjectX API client
+            realtime_client: WebSocket realtime client
+            config: Suite configuration
+            instrument_contexts: Pre-built instrument contexts (for multi-instrument)
         """
         self.client = client
         self.realtime = realtime_client
         self.config = config
+
+        # Multi-instrument support
+        self._instruments: dict[str, InstrumentContext] = instrument_contexts or {}
+        self._is_single_instrument = len(self._instruments) == 1
+        self._single_context: InstrumentContext | None  # For backward compatibility
+        if self._is_single_instrument and self._instruments:
+            self._single_context = next(iter(self._instruments.values()))
+        else:
+            self._single_context = None
+
+        # Legacy single-instrument properties (for backward compatibility)
         self._symbol = config.instrument  # Store original symbol
         self.instrument: Instrument | None = None  # Will be set during initialization
 
@@ -255,59 +304,76 @@ class TradingSuite:
         self._stats_aggregator.client = client
         self._stats_aggregator.realtime_client = realtime_client
 
-        # Initialize core components with typed configs and event bus
-        self.data = RealtimeDataManager(
-            instrument=config.instrument,
-            project_x=client,
-            realtime_client=realtime_client,
-            timeframes=config.timeframes,
-            timezone=config.timezone,
-            config=config.get_data_manager_config(),
-            event_bus=self.events,
-            session_config=config.session_config,  # Pass session configuration
-        )
-
-        self.orders = OrderManager(
-            client, config=config.get_order_manager_config(), event_bus=self.events
-        )
-
-        # Set aggregator references
-        self._stats_aggregator.order_manager = self.orders
-        self._stats_aggregator.data_manager = self.data
-
-        # Optional components
-        self.orderbook: OrderBook | None = None
-        self.risk_manager: RiskManager | None = None
-        # Future enhancements - not currently implemented
-        # These attributes are placeholders for future feature development
-        # To enable these features, implement the corresponding classes
-        # and integrate them into the TradingSuite initialization flow
-        self.journal = None  # Trade journal for recording and analyzing trades
-        self.analytics = None  # Performance analytics for strategy evaluation
-
-        # Create PositionManager first
-        self.positions = PositionManager(
-            client,
-            event_bus=self.events,
-            risk_manager=None,  # Will be set later
-            data_manager=self.data,
-            config=config.get_position_manager_config(),
-        )
-
-        # Set aggregator reference
-        self._stats_aggregator.position_manager = self.positions
-
-        # Initialize risk manager if enabled and inject dependencies
-        if Features.RISK_MANAGER in config.features:
-            self.risk_manager = RiskManager(
-                project_x=cast(ProjectXClientProtocol, client),
-                order_manager=self.orders,
+        # For backward compatibility, create single-instrument components if no contexts provided
+        if not instrument_contexts:
+            # Initialize core components with typed configs and event bus
+            self.data = RealtimeDataManager(
+                instrument=config.instrument,
+                project_x=client,
+                realtime_client=realtime_client,
+                timeframes=config.timeframes,
+                timezone=config.timezone,
+                config=config.get_data_manager_config(),
                 event_bus=self.events,
-                position_manager=self.positions,
-                config=config.get_risk_config(),
+                session_config=config.session_config,  # Pass session configuration
             )
-            self.positions.risk_manager = self.risk_manager
-            self._stats_aggregator.risk_manager = self.risk_manager
+
+            self.orders = OrderManager(
+                client, config=config.get_order_manager_config(), event_bus=self.events
+            )
+
+            # Set aggregator references
+            self._stats_aggregator.order_manager = self.orders
+            self._stats_aggregator.data_manager = self.data
+
+            # Optional components
+            self.orderbook: OrderBook | None = None
+            self.risk_manager: RiskManager | None = None
+            # Future enhancements - not currently implemented
+            # These attributes are placeholders for future feature development
+            # To enable these features, implement the corresponding classes
+            # and integrate them into the TradingSuite initialization flow
+            self.journal = None  # Trade journal for recording and analyzing trades
+            self.analytics = None  # Performance analytics for strategy evaluation
+
+            # Create PositionManager first
+            self.positions = PositionManager(
+                client,
+                event_bus=self.events,
+                risk_manager=None,  # Will be set later
+                data_manager=self.data,
+                config=config.get_position_manager_config(),
+            )
+
+            # Set aggregator reference
+            self._stats_aggregator.position_manager = self.positions
+
+            # Initialize risk manager if enabled and inject dependencies
+            if Features.RISK_MANAGER in config.features:
+                self.risk_manager = RiskManager(
+                    project_x=cast(ProjectXClientProtocol, client),
+                    order_manager=self.orders,
+                    event_bus=self.events,
+                    position_manager=self.positions,
+                    config=config.get_risk_config(),
+                )
+                self.positions.risk_manager = self.risk_manager
+                self._stats_aggregator.risk_manager = self.risk_manager
+        else:
+            # Multi-instrument mode - don't set direct attributes, use __getattr__ for backward compatibility
+            if self._is_single_instrument and self._single_context:
+                self.instrument = self._single_context.instrument_info
+
+                # Set aggregator references
+                self._stats_aggregator.order_manager = self._single_context.orders
+                self._stats_aggregator.data_manager = self._single_context.data
+                self._stats_aggregator.position_manager = self._single_context.positions
+                if self._single_context.risk_manager:
+                    self._stats_aggregator.risk_manager = (
+                        self._single_context.risk_manager
+                    )
+                if self._single_context.orderbook:
+                    self._stats_aggregator.orderbook = self._single_context.orderbook
 
         # State tracking
         self._connected = False
@@ -317,15 +383,19 @@ class TradingSuite:
             None  # Will be set by create() method
         )
 
+        instrument_list = (
+            list(self._instruments.keys()) if self._instruments else [config.instrument]
+        )
         logger.info(
-            f"TradingSuite created for {config.instrument} "
+            f"TradingSuite created for {instrument_list} "
             f"with features: {config.features}"
         )
 
     @classmethod
     async def create(
         cls,
-        instrument: str,
+        instruments: str | list[str] | None = None,
+        instrument: str | None = None,  # Backward compatibility
         timeframes: list[str] | None = None,
         features: list[str] | None = None,
         session_config: SessionConfig | None = None,
@@ -342,9 +412,11 @@ class TradingSuite:
         - Market data subscriptions
 
         Args:
-            instrument: Trading symbol (e.g., "MNQ", "ES", "NQ")
+            instruments: Trading symbol(s) - str for single, list for multiple
+            instrument: (Deprecated) Single trading symbol for backward compatibility
             timeframes: Data timeframes (default: ["5min"])
             features: Optional features to enable
+            session_config: Optional session configuration
             **kwargs: Additional configuration options
 
         Returns:
@@ -352,29 +424,38 @@ class TradingSuite:
 
         Example:
             ```python
-            # Simple usage with defaults (with proper cleanup)
-            async with await TradingSuite.create("MNQ") as suite:
-                # Use the suite for trading
-                current_price = await suite.data.get_current_price()
-                print(f"Current price: {current_price}")
+            # Single instrument (backward compatible)
+            suite = await TradingSuite.create("MNQ")
 
-            # Or manage lifecycle manually
-            suite = await TradingSuite.create(
-                "MNQ",
-                timeframes=["1min", "5min", "15min"],
-                features=["orderbook", "risk_manager"],
-                initial_days=10,
-            )
-            try:
-                # Use the suite
-                pass
-            finally:
-                await suite.disconnect()
+            # Multiple instruments
+            suite = await TradingSuite.create(["MNQ", "MES", "MCL"])
+
+            # Access specific instruments
+            mnq_context = suite["MNQ"]
+            current_price = await mnq_context.data.get_current_price()
             ```
         """
-        # Build configuration
+        # Handle backward compatibility and normalize input
+        if instruments is None and instrument is not None:
+            # Backward compatibility mode
+            instrument_list = [instrument]
+            primary_instrument = instrument
+        elif instruments is not None:
+            # New multi-instrument mode
+            if isinstance(instruments, str):
+                instrument_list = [instruments]
+                primary_instrument = instruments
+            else:
+                instrument_list = instruments
+                primary_instrument = instruments[0]  # Use first as primary for config
+        else:
+            raise ValueError(
+                "Must provide either 'instruments' or 'instrument' parameter"
+            )
+
+        # Build configuration using primary instrument
         config = TradingSuiteConfig(
-            instrument=instrument,
+            instrument=primary_instrument,
             timeframes=timeframes or ["5min"],
             features=[Features(f) for f in (features or [])],
             session_config=session_config,
@@ -382,8 +463,6 @@ class TradingSuite:
         )
 
         # Create and authenticate client
-        # Note: We need to manage the client lifecycle manually since we're
-        # keeping it alive beyond the creation method
         client_context = ProjectX.from_env()
         client = await client_context.__aenter__()
 
@@ -400,8 +479,13 @@ class TradingSuite:
                 config=client.config,
             )
 
-            # Create suite instance
-            suite = cls(client, realtime_client, config)
+            # Create instrument contexts in parallel
+            instrument_contexts = await cls._create_instrument_contexts(
+                instrument_list, client, realtime_client, config
+            )
+
+            # Create suite instance with contexts
+            suite = cls(client, realtime_client, config, instrument_contexts)
 
             # Store the context for cleanup later
             suite._client_context = client_context
@@ -416,6 +500,102 @@ class TradingSuite:
             # Clean up on error
             await client_context.__aexit__(None, None, None)
             raise
+
+    @classmethod
+    async def _create_instrument_contexts(
+        cls,
+        instruments: list[str],
+        client: ProjectXBase,
+        realtime_client: ProjectXRealtimeClient,
+        config: TradingSuiteConfig,
+    ) -> dict[str, InstrumentContext]:
+        """
+        Create InstrumentContext objects for multiple instruments in parallel.
+
+        Args:
+            instruments: List of instrument symbols
+            client: Authenticated ProjectX client
+            realtime_client: WebSocket client
+            config: Suite configuration
+
+        Returns:
+            Dictionary mapping symbol to InstrumentContext
+        """
+
+        async def _create_single_context(symbol: str) -> tuple[str, InstrumentContext]:
+            """Create a single instrument context."""
+            # Get instrument info
+            instrument_info = await client.get_instrument(symbol)
+
+            # Create unified event bus for this instrument
+            event_bus = EventBus()
+
+            # Create data manager
+            data_manager = RealtimeDataManager(
+                instrument=symbol,
+                project_x=client,
+                realtime_client=realtime_client,
+                timeframes=config.timeframes,
+                timezone=config.timezone,
+                config=config.get_data_manager_config(),
+                event_bus=event_bus,
+                session_config=config.session_config,
+            )
+
+            # Create order manager
+            order_manager = OrderManager(
+                client, config=config.get_order_manager_config(), event_bus=event_bus
+            )
+
+            # Create position manager
+            position_manager = PositionManager(
+                client,
+                event_bus=event_bus,
+                risk_manager=None,  # Will be set later if needed
+                data_manager=data_manager,
+                config=config.get_position_manager_config(),
+            )
+
+            # Optional components
+            orderbook = None
+            if Features.ORDERBOOK in config.features:
+                orderbook = OrderBook(
+                    symbol,
+                    event_bus,
+                    project_x=client,
+                    timezone_str=config.timezone,
+                    config=config.get_orderbook_config(),
+                )
+
+            risk_manager = None
+            if Features.RISK_MANAGER in config.features:
+                risk_manager = RiskManager(
+                    project_x=cast(ProjectXClientProtocol, client),
+                    order_manager=order_manager,
+                    event_bus=event_bus,
+                    position_manager=position_manager,
+                    config=config.get_risk_config(),
+                )
+                position_manager.risk_manager = risk_manager
+
+            # Create context
+            context = InstrumentContext(
+                symbol=symbol,
+                instrument_info=instrument_info,
+                data=data_manager,
+                orders=order_manager,
+                positions=position_manager,
+                orderbook=orderbook,
+                risk_manager=risk_manager,
+            )
+
+            return symbol, context
+
+        # Create all contexts in parallel
+        tasks = [_create_single_context(symbol) for symbol in instruments]
+        results = await asyncio.gather(*tasks)
+
+        return dict(results)
 
     @classmethod
     async def from_config(cls, config_path: str) -> "TradingSuite":
@@ -505,48 +685,12 @@ class TradingSuite:
             await self.realtime.connect()
             await self.realtime.subscribe_user_updates()
 
-            # Initialize order manager with realtime client for order tracking
-            await self.orders.initialize(realtime_client=self.realtime)
-
-            # Initialize position manager with order manager for cleanup
-            await self.positions.initialize(
-                realtime_client=self.realtime,
-                order_manager=self.orders,
-            )
-
-            # Load historical data
-            logger.info(
-                f"Loading {self.config.initial_days} days of historical data..."
-            )
-            await self.data.initialize(initial_days=self.config.initial_days)
-
-            # Get instrument info and subscribe to market data
-            self.instrument = await self.client.get_instrument(self._symbol)
-            if not self.instrument:
-                raise ValueError(f"Failed to get instrument info for {self._symbol}")
-
-            await self.realtime.subscribe_market_data([self.instrument.id])
-
-            # Start realtime data feed
-            await self.data.start_realtime_feed()
-
-            # Initialize optional components
-            if Features.ORDERBOOK in self.config.features:
-                logger.info("Initializing orderbook...")
-                # Use the actual contract ID for the orderbook to properly match WebSocket updates
-                self.orderbook = OrderBook(
-                    instrument=self.instrument.id,  # Use contract ID instead of symbol
-                    timezone_str=self.config.timezone,
-                    project_x=self.client,
-                    config=self.config.get_orderbook_config(),
-                    event_bus=self.events,
-                )
-                await self.orderbook.initialize(
-                    realtime_client=self.realtime,
-                    subscribe_to_depth=True,
-                    subscribe_to_quotes=True,
-                )
-                self._stats_aggregator.orderbook = self.orderbook
+            if self._instruments:
+                # Multi-instrument mode - initialize all contexts
+                await self._initialize_instrument_contexts()
+            else:
+                # Legacy single-instrument mode (for backward compatibility)
+                await self._initialize_legacy_single_instrument()
 
             self._connected = True
             self._initialized = True
@@ -556,6 +700,97 @@ class TradingSuite:
             logger.error(f"Failed to initialize TradingSuite: {e}")
             await self.disconnect()
             raise
+
+    async def _initialize_instrument_contexts(self) -> None:
+        """Initialize all instrument contexts in parallel."""
+
+        async def _initialize_single_context(context: InstrumentContext) -> None:
+            """Initialize a single instrument context."""
+            # Initialize order manager with realtime client for order tracking
+            await context.orders.initialize(realtime_client=self.realtime)
+
+            # Initialize position manager with order manager for cleanup
+            await context.positions.initialize(
+                realtime_client=self.realtime,
+                order_manager=context.orders,
+            )
+
+            # Load historical data
+            await context.data.initialize(initial_days=self.config.initial_days)
+
+            # Subscribe to market data
+            await self.realtime.subscribe_market_data([context.instrument_info.id])
+
+            # Start realtime data feed
+            await context.data.start_realtime_feed()
+
+            # Initialize optional components
+            if context.orderbook:
+                await context.orderbook.initialize(
+                    realtime_client=self.realtime,
+                    subscribe_to_depth=True,
+                    subscribe_to_quotes=True,
+                )
+
+        # Initialize all contexts in parallel
+        tasks = [
+            _initialize_single_context(context)
+            for context in self._instruments.values()
+        ]
+        await asyncio.gather(*tasks)
+
+        # Update statistics aggregator with components from single context if available
+        if self._single_context:
+            self._stats_aggregator.order_manager = self._single_context.orders
+            self._stats_aggregator.data_manager = self._single_context.data
+            self._stats_aggregator.position_manager = self._single_context.positions
+            if self._single_context.risk_manager:
+                self._stats_aggregator.risk_manager = self._single_context.risk_manager
+            if self._single_context.orderbook:
+                self._stats_aggregator.orderbook = self._single_context.orderbook
+
+    async def _initialize_legacy_single_instrument(self) -> None:
+        """Initialize components in legacy single-instrument mode."""
+        # Initialize order manager with realtime client for order tracking
+        await self.orders.initialize(realtime_client=self.realtime)
+
+        # Initialize position manager with order manager for cleanup
+        await self.positions.initialize(
+            realtime_client=self.realtime,
+            order_manager=self.orders,
+        )
+
+        # Load historical data
+        logger.info(f"Loading {self.config.initial_days} days of historical data...")
+        await self.data.initialize(initial_days=self.config.initial_days)
+
+        # Get instrument info and subscribe to market data
+        self.instrument = await self.client.get_instrument(self._symbol)
+        if not self.instrument:
+            raise ValueError(f"Failed to get instrument info for {self._symbol}")
+
+        await self.realtime.subscribe_market_data([self.instrument.id])
+
+        # Start realtime data feed
+        await self.data.start_realtime_feed()
+
+        # Initialize optional components
+        if Features.ORDERBOOK in self.config.features:
+            logger.info("Initializing orderbook...")
+            # Use the actual contract ID for the orderbook to properly match WebSocket updates
+            self.orderbook = OrderBook(
+                instrument=self.instrument.id,  # Use contract ID instead of symbol
+                timezone_str=self.config.timezone,
+                project_x=self.client,
+                config=self.config.get_orderbook_config(),
+                event_bus=self.events,
+            )
+            await self.orderbook.initialize(
+                realtime_client=self.realtime,
+                subscribe_to_depth=True,
+                subscribe_to_quotes=True,
+            )
+            self._stats_aggregator.orderbook = self.orderbook
 
     async def connect(self) -> None:
         """
@@ -582,18 +817,16 @@ class TradingSuite:
         """
         logger.info("Disconnecting TradingSuite...")
 
-        # Stop data feeds
-        if self.data:
-            await self.data.stop_realtime_feed()
-            await self.data.cleanup()
+        if self._instruments:
+            # Multi-instrument mode - disconnect all contexts
+            await self._disconnect_instrument_contexts()
+        else:
+            # Legacy single-instrument mode
+            await self._disconnect_legacy_single_instrument()
 
         # Disconnect realtime
         if self.realtime:
             await self.realtime.disconnect()
-
-        # Clean up orderbook
-        if self.orderbook:
-            await self.orderbook.cleanup()
 
         # Clean up client context
         if hasattr(self, "_client_context") and self._client_context:
@@ -606,6 +839,38 @@ class TradingSuite:
         self._connected = False
         self._initialized = False
         logger.info("TradingSuite disconnected")
+
+    async def _disconnect_instrument_contexts(self) -> None:
+        """Disconnect all instrument contexts in parallel."""
+
+        async def _disconnect_single_context(context: InstrumentContext) -> None:
+            """Disconnect a single instrument context."""
+            # Stop data feeds
+            if context.data:
+                await context.data.stop_realtime_feed()
+                await context.data.cleanup()
+
+            # Clean up orderbook
+            if context.orderbook:
+                await context.orderbook.cleanup()
+
+        # Disconnect all contexts in parallel
+        tasks = [
+            _disconnect_single_context(context)
+            for context in self._instruments.values()
+        ]
+        await asyncio.gather(*tasks)
+
+    async def _disconnect_legacy_single_instrument(self) -> None:
+        """Disconnect components in legacy single-instrument mode."""
+        # Stop data feeds
+        if hasattr(self, "data") and self.data:
+            await self.data.stop_realtime_feed()
+            await self.data.cleanup()
+
+        # Clean up orderbook
+        if hasattr(self, "orderbook") and self.orderbook:
+            await self.orderbook.cleanup()
 
     async def __aenter__(self) -> "TradingSuite":
         """Async context manager entry."""
@@ -944,3 +1209,85 @@ class TradingSuite:
         if hasattr(self.data, "get_session_statistics"):
             return await self.data.get_session_statistics(timeframe)
         return {}
+
+    # --- Container Protocol Methods ---
+    def __getitem__(self, symbol: str) -> InstrumentContext:
+        """
+        Get InstrumentContext for a specific symbol.
+
+        Args:
+            symbol: The instrument symbol (e.g., "MNQ", "ES")
+
+        Returns:
+            InstrumentContext for the specified symbol
+
+        Raises:
+            KeyError: If symbol is not found
+
+        Example:
+            ```python
+            # Access specific instrument context
+            mnq_context = suite["MNQ"]
+            current_price = await mnq_context.data.get_current_price()
+            ```
+        """
+        return self._instruments[symbol]
+
+    def __len__(self) -> int:
+        """Return the number of instruments in the suite."""
+        return len(self._instruments)
+
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over instrument symbols."""
+        return iter(self._instruments)
+
+    def __contains__(self, symbol: str) -> bool:
+        """Check if an instrument symbol is in the suite."""
+        return symbol in self._instruments
+
+    def keys(self) -> Any:
+        """Return an iterator over instrument symbols."""
+        return self._instruments.keys()
+
+    def values(self) -> Any:
+        """Return an iterator over instrument contexts."""
+        return self._instruments.values()
+
+    def items(self) -> Any:
+        """Return an iterator over (symbol, context) pairs."""
+        return self._instruments.items()
+
+    # --- Backward Compatibility ---
+    def __getattr__(self, name: str) -> Any:
+        """
+        Provide backward compatibility for single-instrument access.
+
+        This allows existing code to work while providing deprecation warnings.
+        Only works in single-instrument mode.
+
+        Args:
+            name: Attribute name being accessed
+
+        Returns:
+            The requested attribute from the single instrument context
+
+        Raises:
+            AttributeError: If not in single-instrument mode or attribute not found
+        """
+        if (
+            self._is_single_instrument
+            and self._single_context
+            and hasattr(self._single_context, name)
+        ):
+            warnings.warn(
+                f"Direct access to '{name}' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].{name} instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return getattr(self._single_context, name)
+
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
