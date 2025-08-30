@@ -282,11 +282,13 @@ class TradingSuite:
         # Multi-instrument support
         self._instruments: dict[str, InstrumentContext] = instrument_contexts or {}
         self._is_single_instrument = len(self._instruments) == 1
-        self._single_context: InstrumentContext | None  # For backward compatibility
-        if self._is_single_instrument and self._instruments:
-            self._single_context = next(iter(self._instruments.values()))
-        else:
-            self._single_context = None
+
+        # For backward compatibility - store single context if available
+        self._single_context: InstrumentContext | None = (
+            next(iter(self._instruments.values()))
+            if self._is_single_instrument and self._instruments
+            else None
+        )
 
         # Legacy single-instrument properties (for backward compatibility)
         self._symbol = config.instrument  # Store original symbol
