@@ -1393,9 +1393,20 @@ class TradingSuite:
             await suite.set_session_type(SessionType.RTH)
             ```
         """
-        if hasattr(self, "_data") and hasattr(self._data, "set_session_type"):
-            await self._data.set_session_type(session_type)
-            logger.info(f"Session type changed to {session_type}")
+        # Handle single instrument mode (backward compatibility)
+        if self._is_single_instrument and self._single_context:
+            if hasattr(self._single_context.data, "set_session_type"):
+                await self._single_context.data.set_session_type(session_type)
+                logger.info(f"Session type changed to {session_type}")
+        # Handle multi-instrument mode
+        else:
+            for context in self._contexts.values():
+                if hasattr(context.data, "set_session_type"):
+                    await context.data.set_session_type(session_type)
+            if self._contexts:
+                logger.info(
+                    f"Session type changed to {session_type} for all instruments"
+                )
 
     async def get_session_data(
         self, timeframe: str, session_type: SessionType | None = None
@@ -1416,12 +1427,25 @@ class TradingSuite:
             rth_data = await suite.get_session_data("1min", SessionType.RTH)
             ```
         """
-        if hasattr(self, "_data") and hasattr(self._data, "get_session_data"):
-            return await self._data.get_session_data(timeframe, session_type)
-        # Fallback to regular data if no session support
-        if hasattr(self, "_data"):
-            return await self._data.get_data(timeframe)
-        return None
+        # Handle single instrument mode (backward compatibility)
+        if self._is_single_instrument and self._single_context:
+            if hasattr(self._single_context.data, "get_session_data"):
+                return await self._single_context.data.get_session_data(
+                    timeframe, session_type
+                )
+            # Fallback to regular data if no session support
+            return await self._single_context.data.get_data(timeframe)
+
+        # Handle multi-instrument mode - return dict of data
+        result = {}
+        for symbol, context in self._contexts.items():
+            if hasattr(context.data, "get_session_data"):
+                result[symbol] = await context.data.get_session_data(
+                    timeframe, session_type
+                )
+            else:
+                result[symbol] = await context.data.get_data(timeframe)
+        return result if result else None
 
     async def get_session_statistics(self, timeframe: str = "1min") -> dict[str, Any]:
         """
@@ -1437,9 +1461,18 @@ class TradingSuite:
             print(f"ETH Volume: {stats['eth_volume']}")
             ```
         """
-        if hasattr(self, "_data") and hasattr(self._data, "get_session_statistics"):
-            return await self._data.get_session_statistics(timeframe)
-        return {}
+        # Handle single instrument mode (backward compatibility)
+        if self._is_single_instrument and self._single_context:
+            if hasattr(self._single_context.data, "get_session_statistics"):
+                return await self._single_context.data.get_session_statistics(timeframe)
+            return {}
+
+        # Handle multi-instrument mode - return dict of stats per instrument
+        result = {}
+        for symbol, context in self._contexts.items():
+            if hasattr(context.data, "get_session_statistics"):
+                result[symbol] = await context.data.get_session_statistics(timeframe)
+        return result if result else {}
 
     # --- Container Protocol Methods ---
     def __getitem__(self, symbol: str) -> InstrumentContext:
