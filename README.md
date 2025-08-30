@@ -21,11 +21,18 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.4.0 - ETH vs RTH Trading Sessions (Experimental)
+## 🚀 v3.5.0 - Multi-Instrument TradingSuite
 
-**Latest Version**: v3.4.0 - Introduces ETH (Electronic Trading Hours) vs RTH (Regular Trading Hours) session filtering for futures trading. This feature enables traders to analyze and trade based on specific market sessions, with up to 366% more data available in ETH sessions.
+**Latest Version**: v3.5.0 - Major enhancement enabling TradingSuite to manage multiple instruments simultaneously. This revolutionary feature enables complex multi-asset trading strategies, portfolio management, and cross-instrument analysis while maintaining full backward compatibility.
 
-⚠️ **Experimental Feature Warning**: The ETH vs RTH sessions feature is new and has not been thoroughly tested with live market data. Use with caution in production environments. See [CHANGELOG.md](CHANGELOG.md) for full release history.
+**Key Benefits**:
+- 🎯 **Multi-Asset Strategies**: Trade ES vs NQ pairs, commodity spreads, sector rotation
+- 📊 **Portfolio Management**: Unified risk management across multiple instruments
+- 🔄 **Parallel Processing**: Efficient concurrent data processing and order management
+- 🛡️ **Backward Compatible**: Existing single-instrument code continues to work
+- ⚡ **Performance Optimized**: Parallel context creation and resource sharing
+
+See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.0 release notes and migration guide.
 
 ### 📦 Production Stability Guarantee
 
@@ -150,7 +157,83 @@ if __name__ == \"__main__\":
     asyncio.run(main())
 ```
 
-### Session Filtering (NEW in v3.4.0 - Experimental)
+### Multi-Instrument Trading (NEW in v3.5.0)
+
+Manage multiple instruments simultaneously for advanced trading strategies:
+
+```python
+import asyncio
+from project_x_py import TradingSuite
+
+async def multi_instrument_example():
+    # Multi-instrument setup - trade multiple futures simultaneously
+    suite = await TradingSuite.create(
+        instruments=["MNQ", "ES", "MGC"],  # E-mini NASDAQ, S&P 500, Gold
+        timeframes=["1min", "5min"],
+        enable_orderbook=True,
+        enable_risk_management=True
+    )
+
+    print(f"Managing {len(suite)} instruments: {list(suite.keys())}")
+
+    # Access specific instruments via dictionary-like interface
+    mnq_context = suite["MNQ"]
+    es_context = suite["ES"]
+    mgc_context = suite["MGC"]
+
+    # Get current prices for all instruments
+    for symbol, context in suite.items():
+        current_price = await context.data.get_current_price()
+        print(f"{symbol}: ${current_price:.2f}")
+
+    # Execute pairs trading strategy (ES vs MNQ correlation)
+    es_data = await es_context.data.get_data("5min", bars=100)
+    mnq_data = await mnq_context.data.get_data("5min", bars=100)
+
+    # Analyze spread between ES and MNQ for pairs trading
+    es_price = es_data.select("close").to_series().to_list()[-1]
+    mnq_price = mnq_data.select("close").to_series().to_list()[-1]
+    spread = es_price * 50 - mnq_price * 20  # Contract value normalized
+
+    print(f"ES/MNQ Spread: ${spread:.2f}")
+
+    # Portfolio-level position management
+    total_exposure = 0
+    for symbol, context in suite.items():
+        positions = await context.positions.get_all_positions()
+        for pos in positions:
+            exposure = abs(pos.size * pos.averagePrice)
+            total_exposure += exposure
+            print(f"{symbol} Exposure: ${exposure:,.2f}")
+
+    print(f"Total Portfolio Exposure: ${total_exposure:,.2f}")
+
+    await suite.disconnect()
+
+# Backward compatibility - existing single-instrument code still works
+async def backward_compatible_example():
+    # This still works but shows deprecation warnings
+    suite = await TradingSuite.create("MNQ")  # Single instrument (legacy)
+    data = await suite.data.get_data("5min")  # Direct access (deprecated)
+
+    # Recommended: Use explicit multi-instrument syntax
+    suite = await TradingSuite.create(["MNQ"])  # List notation
+    data = await suite["MNQ"].data.get_data("5min")  # Explicit access
+
+    await suite.disconnect()
+
+if __name__ == "__main__":
+    asyncio.run(multi_instrument_example())
+```
+
+**Migration from v3.4.x**:
+- Single instrument: `TradingSuite.create("MNQ")` → `TradingSuite.create(["MNQ"])`
+- Access managers: `suite.data` → `suite["MNQ"].data`
+- All existing code continues to work with deprecation warnings
+
+📚 **Full Example**: See `examples/26_multi_instrument_trading.py` for comprehensive multi-instrument strategies.
+
+### Session Filtering (v3.4.0 - Experimental)
 
 Filter market data and indicators by trading session (RTH vs ETH):
 
@@ -161,21 +244,21 @@ from project_x_py import TradingSuite, SessionConfig, SessionType
 async def session_example():
     # RTH-only trading (9:30 AM - 4:00 PM ET)
     rth_suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],  # v3.5.0: Use list notation
         timeframes=["1min", "5min"],
         session_config=SessionConfig(session_type=SessionType.RTH)
     )
 
     # ETH trading (24-hour excluding maintenance breaks)
     eth_suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],  # v3.5.0: Use list notation
         timeframes=["1min", "5min"],
         session_config=SessionConfig(session_type=SessionType.ETH)
     )
 
-    # Compare data availability
-    rth_data = await rth_suite.get_session_data("1min")
-    eth_data = await eth_suite.get_session_data("1min")
+    # v3.5.0: Use explicit instrument access
+    rth_data = await rth_suite["MNQ"].data.get_session_data("1min")
+    eth_data = await eth_suite["MNQ"].data.get_session_data("1min")
 
     print(f"RTH bars: {len(rth_data):,}")  # ~390 bars per day
     print(f"ETH bars: {len(eth_data):,}")  # ~1,410 bars per day (366% more)
@@ -191,38 +274,55 @@ if __name__ == "__main__":
 
 📚 **Full Example**: See `examples/sessions/16_eth_vs_rth_sessions_demo.py` for comprehensive demonstration of all session features.
 
-### Trading Suite (NEW in v3.0+)
+### Trading Suite (Enhanced in v3.5.0)
 
-The easiest way to get started with a complete trading setup:
+The easiest way to get started with single or multi-instrument trading:
 
 ```python
 import asyncio
 from project_x_py import TradingSuite, EventType
 
 async def main():
+    # v3.5.0: Multi-instrument support
     suite = await TradingSuite.create(
-        \"MNQ\",
-        timeframes=[\"5min\", \"15min\", \"1hr\"],
-        features=[\"orderbook\", \"risk_manager\"]
+        instruments=["MNQ", "ES"],  # Multiple instruments
+        timeframes=["5min", "15min", "1hr"],
+        enable_orderbook=True,
+        enable_risk_management=True
     )
 
-    # Register event handlers
+    # Register event handlers (events are instrument-specific)
     async def on_new_bar(event):
-        # Access bar data directly from event
-        print(f\"New {event.data['timeframe']} bar: {event.data['data']['close']}\")
+        # Event data includes instrument symbol
+        symbol = event.data.get('symbol', 'Unknown')
+        timeframe = event.data['timeframe']
+        bar_close = event.data['data']['close']
+        print(f"New {symbol} {timeframe} bar: ${bar_close}")
 
     async def on_trade(event):
-        print(f\"Trade: {event.data['size']} @ {event.data['price']}\")
+        symbol = event.data.get('symbol', 'Unknown')
+        print(f"{symbol} Trade: {event.data['size']} @ ${event.data['price']}")
 
     # Register the handlers
     await suite.on(EventType.NEW_BAR, on_new_bar)
     await suite.on(EventType.TRADE_TICK, on_trade)
 
-    # Access components
-    data = await suite.data.get_data(\"5min\")
-    orderbook = suite.orderbook  # Available since feature enabled
-    order_manager = suite.orders
-    position_manager = suite.positions
+    # v3.5.0: Access components by instrument
+    for symbol, context in suite.items():
+        data = await context.data.get_data("5min")
+        orderbook = context.orderbook  # Available when enabled
+        order_manager = context.orders
+        position_manager = context.positions
+        print(f"{symbol}: {len(data)} bars loaded")
+
+    # Single instrument access (for backward compatibility)
+    if len(suite) == 1:
+        # Single instrument - can still access directly with deprecation warning
+        single_data = await suite.data.get_data("5min")  # Shows warning
+
+        # Recommended: Use explicit access
+        symbol = list(suite.keys())[0]
+        single_data = await suite[symbol].data.get_data("5min")
 
     await suite.disconnect()
 
@@ -238,18 +338,24 @@ from project_x_py import TradingSuite
 
 async def on_tick(event):
     tick_data = event.data
-    print(f\"Price: ${tick_data['price']}\")
+    symbol = tick_data.get('symbol', 'Unknown')
+    print(f\"{symbol} Price: ${tick_data['price']}\")
 
 async def main():
-    suite = await TradingSuite.create(\"MNQ\")
+    # v3.5.0: Use list notation for single or multiple instruments
+    suite = await TradingSuite.create([\"MNQ\"])
 
-    # Register tick callback
-    await suite.data.add_callback(\"tick\", on_tick)
+    # Get the instrument context
+    mnq = suite[\"MNQ\"]
 
-    current_price = await suite.data.get_current_price()
+    # Register tick callback on the specific instrument
+    await mnq.data.add_callback(\"tick\", on_tick)
 
-    response = await suite.orders.place_bracket_order(
-        contract_id=suite.instrument_id,
+    current_price = await mnq.data.get_current_price()
+
+    # Place bracket order using the instrument context
+    response = await mnq.orders.place_bracket_order(
+        contract_id=mnq.instrument.id,  # v3.5.0: Access via context
         side=0,  # Buy
         size=1,
         entry_price=current_price,
@@ -262,8 +368,26 @@ async def main():
     await asyncio.sleep(60)
     await suite.disconnect()
 
+# Multi-instrument real-time example
+async def multi_instrument_realtime():
+    suite = await TradingSuite.create([\"MNQ\", \"ES\"])
+
+    async def on_multi_tick(event):
+        tick_data = event.data
+        symbol = tick_data.get('symbol', 'Unknown')
+        print(f\"{symbol}: ${tick_data['price']:.2f}\")
+
+    # Register callback for all instruments
+    for symbol, context in suite.items():
+        await context.data.add_callback(\"tick\", on_multi_tick)
+
+    # Monitor both instruments
+    await asyncio.sleep(30)
+    await suite.disconnect()
+
 if __name__ == \"__main__\":
     asyncio.run(main())
+    # asyncio.run(multi_instrument_realtime())  # Uncomment for multi-instrument
 ```
 
 ## ⚡ Event Handling Best Practices
@@ -515,6 +639,12 @@ The `examples/` directory contains comprehensive async examples:
 - **07_technical_indicators.py** - Using indicators with async data
 - **08_order_and_position_tracking.py** - Integrated async monitoring
 - **09_get_check_available_instruments.py** - Interactive async instrument search
+
+### Multi-Instrument Trading (NEW in v3.5.0)
+- **26_multi_instrument_trading.py** - Complete multi-instrument trading demo
+- **Portfolio management** - Risk management across multiple instruments
+- **Pairs trading** - ES vs MNQ spread analysis and correlation strategies
+- **Cross-market analysis** - Commodities, indices, and currency futures
 
 ### Event System & Data Access
 - **10_unified_event_system.py** - Event-driven trading with EventBus

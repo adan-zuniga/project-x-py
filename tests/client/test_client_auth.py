@@ -168,7 +168,7 @@ class TestClientAuth:
 
                 assert client._authenticated
                 assert client.username == "testuser"
-                assert client.api_key == "test-api-key"
+                assert client.api_key == "test-api-key-1234567890"  # pragma: allowlist secret
                 assert client.account_name == "TEST ACCOUNT"
 
     @pytest.mark.asyncio

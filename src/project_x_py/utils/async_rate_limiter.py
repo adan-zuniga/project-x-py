@@ -105,7 +105,7 @@ class RateLimiter:
         ...     # This will take ~5 seconds (50 requests / 10 per second)
     """
 
-    def __init__(self, max_requests: int, window_seconds: int):
+    def __init__(self, max_requests: int, window_seconds: float):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.requests: list[float] = []

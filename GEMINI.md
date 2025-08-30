@@ -2,91 +2,173 @@
 
 This file provides guidance to Google's Gemini models when working with code in this repository.
 
-## Project Status: v3.2.1 - Statistics and Analytics Overhaul
+## Project Status: v3.3.0 - Complete Statistics Module Redesign
 
 **IMPORTANT**: This project uses a fully asynchronous architecture. All APIs are async-only, optimized for high-performance futures trading.
+
+---
+
+## CRITICAL: Test-Driven Development (TDD) Methodology
+
+**This project follows strict Test-Driven Development principles. Tests define the specification, not the implementation. All rules are MANDATORY.**
+
+### 1. The RED-GREEN-REFACTOR Cycle (NON-NEGOTIABLE)
+
+**ALWAYS follow this exact sequence for ALL development work:**
+
+1.  **RED**: Write a failing test that defines the desired behavior or reproduces a bug.
+2.  **GREEN**: Write the absolute minimal amount of implementation code required to make the test pass.
+3.  **REFACTOR**: Improve the code's structure, readability, and performance while ensuring all tests remain green.
+4.  **REPEAT**: Continue the cycle for the next piece of functionality.
+
+**FORBIDDEN**: Writing implementation code before a failing test exists.
+
+### 2. Test-First Development
+
+-   **MANDATORY**: Tests MUST be written **BEFORE** any implementation code.
+-   **MANDATORY**: Run the new test to confirm it fails as expected (the **RED** phase) before writing implementation code.
+-   **PRINCIPLE**: Tests are the executable specification of the system. If the code does not meet the test's specification, the code is wrong.
+-   **FORBIDDEN**: Writing tests after the implementation is complete.
+
+### 3. TDD-Based Debugging
+
+**When fixing a bug, the TDD cycle is the ONLY acceptable method:**
+
+1.  Write a new test that specifically reproduces the bug.
+2.  Run the test and confirm it **FAILS** in the same way as the bug report. This is your **RED** state.
+3.  Write the minimal code necessary to fix the bug and make the test pass. This is your **GREEN** state.
+4.  Run all tests to ensure the fix has not caused regressions.
+5.  Refactor the code if necessary.
+
+**FORBIDDEN**: Modifying code to fix a bug without first writing a failing test that captures the bug.
+
+---
+
+## CRITICAL: Development Workflow & Quality
+
+### 1. Mandatory Development Workflow
+
+A disciplined workflow is required to ensure quality and consistency.
+
+```bash
+# Step 1: RED - Write a failing test for a new feature
+# The test must define the expected behavior.
+./test.sh tests/test_new_feature.py::test_specific_behavior
+# --> MUST FAIL to confirm the RED phase.
+
+# Step 2: GREEN - Write minimal implementation
+# Write only enough code to make the test pass.
+./test.sh tests/test_new_feature.py::test_specific_behavior
+# --> MUST PASS to confirm the GREEN phase.
+
+# Step 3: REFACTOR - Improve the code
+# Clean up the implementation while keeping all tests green.
+./test.sh
+# --> ALL tests must continue to pass.
+```
+
+### 2. Mandatory Quality Gates
+
+**Before any commit, ALL of the following checks MUST pass without errors:**
+
+```bash
+# 1. Format code
+uv run ruff format .
+
+# 2. Lint code (with auto-fix)
+uv run ruff check . --fix
+
+# 3. Check static types
+uv run mypy src/
+
+# 4. Run the full test suite
+./test.sh
+```
+
+### 3. Test Execution
+
+**ALWAYS use the `./test.sh` script to run tests and examples.** This script correctly sets up the required environment variables.
+
+```bash
+# ✅ CORRECT: Use the test wrapper script
+./test.sh tests/test_client.py
+./test.sh examples/01_basic_client_connection.py
+
+# ❌ WRONG: Do not run python directly
+uv run python examples/01_basic_client_connection.py
+```
+
+---
+
+## CRITICAL: Code Quality Standards
+
+### 1. Modern Python and Type Hints (Python 3.10+)
+
+-   **ALWAYS** use modern union syntax (`X | Y` instead of `Union[X, Y]`).
+-   **ALWAYS** use modern `isinstance` syntax (`isinstance(x, int | float)`).
+-   **MANDATORY**: Provide type hints for all function parameters, return values, and class attributes.
+-   **FORBIDDEN**: Use of legacy typing syntax (`Optional`, `Union`, `Dict`, etc.).
+
+### 2. Async-First Patterns
+
+-   **MANDATORY**: All new code must use `async/await` patterns.
+-   **MANDATORY**: All async tests must be decorated with `@pytest.mark.asyncio`.
+-   **FORBIDDEN**: Using `asyncio.run()` or `.result()` inside test methods.
+
+### 3. Error Handling
+
+-   **ALWAYS** wrap external API calls in specific `try...except` blocks.
+-   **Raise** custom, specific exceptions from caught exceptions to provide context.
+-   **FORBIDDEN**: Bare `except:` clauses or swallowing exceptions without logging and re-raising.
+
+### 4. Data Operations
+
+-   **MANDATORY**: Use **Polars** for all DataFrame operations.
+-   **FORBIDDEN**: Any use of the `pandas` library is strictly prohibited.
+
+---
 
 ## Development Phase Guidelines
 
 **IMPORTANT**: This project has reached stable production status. When making changes:
 
-1. **Maintain Backward Compatibility**: Keep existing APIs functional with deprecation warnings
-2. **Deprecation Policy**: Mark deprecated features with warnings, remove after 2 minor versions
-3. **Semantic Versioning**: Follow semver strictly (MAJOR.MINOR.PATCH)
-4. **Migration Paths**: Provide clear migration guides for breaking changes
-5. **Modern Patterns**: Use the latest Python patterns while maintaining compatibility
-6. **Gradual Refactoring**: Improve code quality without breaking existing interfaces
-7. **Async-First**: All new code must use async/await patterns
-
-Example approach:
-- ✅ DO: Keep old method signatures with deprecation warnings
-- ✅ DO: Provide new improved APIs alongside old ones
-- ✅ DO: Add compatibility shims when necessary
-- ✅ DO: Document migration paths clearly
-- ❌ DON'T: Break existing APIs without major version bump
-- ❌ DON'T: Remove deprecated features without proper notice period
+1.  **Maintain Backward Compatibility**: Keep existing APIs functional with deprecation warnings.
+2.  **Deprecation Policy**: Mark deprecated features with warnings; remove after 2 minor versions.
+3.  **Semantic Versioning**: Follow semver strictly (MAJOR.MINOR.PATCH).
+4.  **Migration Paths**: Provide clear migration guides for breaking changes.
+5.  **Gradual Refactoring**: Improve code quality without breaking existing interfaces.
 
 ### Deprecation Process
-1. Use the standardized `@deprecated` decorator from `project_x_py.utils.deprecation`
-2. Provide clear reason, version info, and replacement path
-3. Keep deprecated feature for at least 2 minor versions
-4. Remove only in major version releases (4.0.0, 5.0.0, etc.)
+1.  Use the standardized `@deprecated` decorator from `project_x_py.utils.deprecation`.
+2.  Provide a clear reason, version info, and replacement path.
+3.  Keep the deprecated feature for at least 2 minor versions.
+4.  Remove only in major version releases (4.0.0, 5.0.0, etc.).
 
 Example:
 ```python
-from project_x_py.utils.deprecation import deprecated, deprecated_class
+from project_x_py.utils.deprecation import deprecated
 
-# For functions/methods
 @deprecated(
     reason="Method renamed for clarity",
-    version="3.1.14",  # When deprecated
-    removal_version="4.0.0",  # When it will be removed
-    replacement="new_method()"  # What to use instead
+    version="3.1.14",
+    removal_version="4.0.0",
+    replacement="new_method()"
 )
 def old_method(self):
     return self.new_method()
-
-# For classes
-@deprecated_class(
-    reason="Integrated into TradingSuite",
-    version="3.1.14",
-    removal_version="4.0.0",
-    replacement="TradingSuite"
-)
-class OldManager:
-    pass
 ```
-
-The standardized deprecation utilities provide:
-- Consistent warning messages across the SDK
-- Automatic docstring updates with deprecation info
-- IDE support through the `deprecated` package
-- Metadata tracking for deprecation management
-- Support for functions, methods, classes, and parameters
 
 ## Development Documentation with Obsidian
 
-### Important: Use Obsidian for Development Plans and Progress Tracking
+**ALWAYS use Obsidian for**:
+-   Multi-session development plans
+-   Testing procedures and results
+-   Architecture decisions and design documents
+-   Bug investigation notes
 
-**ALWAYS use Obsidian MCP integration for**:
-- Multi-session development plans
-- Testing procedures and results
-- Architecture decisions and design documents
-- Feature planning and roadmaps
-- Bug investigation notes
-- Performance optimization tracking
-- Release planning and checklists
+**DO NOT create project files for temporary notes or logs.** Keep the repository clean.
 
-**DO NOT create project files for**:
-- Personal development notes (use Obsidian instead)
-- Temporary planning documents
-- Testing logs and results
-- Work-in-progress documentation
-- Meeting notes or discussions
-
-### Obsidian Structure for ProjectX Development
-
-When using Obsidian for this project, use the following structure:
+### Obsidian Structure
 ```
 Development/
   ProjectX SDK/
@@ -98,11 +180,7 @@ Development/
       [Decision Topic].md
     Bug Investigations/
       [Issue Number] - [Description].md
-    Performance/
-      [Optimization Area].md
 ```
-
-This keeps the project repository clean and focused on production code while maintaining comprehensive development documentation in Obsidian.
 
 ## Development Commands
 
@@ -116,38 +194,18 @@ uv run [command]              # Run command in virtual environment
 
 ### Testing
 ```bash
-uv run pytest                # Run all tests
+./test.sh                     # Run all tests via the wrapper
 uv run pytest tests/test_client.py  # Run specific test file
-uv run pytest -m "not slow"  # Run tests excluding slow ones
+uv run pytest -m "not slow"   # Run tests excluding slow ones
 uv run pytest --cov=project_x_py --cov-report=html  # Generate coverage report
-uv run pytest -k "async"     # Run only async tests
-```
-
-### Async Testing Patterns
-```python
-# Test async methods with pytest-asyncio
-import pytest
-
-@pytest.mark.asyncio
-async def test_async_method():
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        result = await client.get_bars("MNQ", days=1)
-        assert result is not None
+uv run pytest -k "async"      # Run only async tests
 ```
 
 ### Code Quality
 ```bash
-uv run ruff check .          # Lint code
-uv run ruff check . --fix    # Auto-fix linting issues
-uv run ruff format .         # Format code
-uv run mypy src/             # Type checking
-```
-
-### Building and Distribution
-```bash
-uv build                     # Build wheel and source distribution
-uv run python -m build       # Alternative build command
+uv run ruff check . --fix     # Auto-fix linting issues
+uv run ruff format .          # Format code
+uv run mypy src/              # Type checking
 ```
 
 ## Project Architecture
@@ -167,229 +225,15 @@ uv run python -m build       # Alternative build command
 
 **Specialized Managers (All Async)**
 - `OrderManager` (`order_manager/`): Comprehensive async order operations
-  - `core.py`: Main order operations
-  - `bracket_orders.py`: OCO and bracket order logic
-  - `position_orders.py`: Position-based order management
-  - `tracking.py`: Order state tracking
-  - `templates.py`: Order templates for common strategies
 - `PositionManager` (`position_manager/`): Async position tracking and risk management
-  - `core.py`: Position management core
-  - `risk.py`: Risk calculations and limits
-  - `analytics.py`: Performance analytics
-  - `monitoring.py`: Real-time position monitoring
-  - `tracking.py`: Position lifecycle tracking
 - `RiskManager` (`risk_manager/`): Integrated risk management
-  - `core.py`: Risk limits and validation
-  - `monitoring.py`: Real-time risk monitoring
-  - `analytics.py`: Risk metrics and reporting
 - `ProjectXRealtimeDataManager` (`realtime_data_manager/`): Async WebSocket data
-  - `core.py`: Main data manager
-  - `callbacks.py`: Event callback handling
-  - `data_processing.py`: OHLCV bar construction
-  - `memory_management.py`: Efficient data storage
 - `OrderBook` (`orderbook/`): Async Level 2 market depth
-  - `base.py`: Core orderbook functionality
-  - `analytics.py`: Market microstructure analysis
-  - `detection.py`: Iceberg and spoofing detection
-  - `profile.py`: Volume profile analysis
 
 **Technical Indicators (`src/project_x_py/indicators/`)**
 - TA-Lib compatible indicator library built on Polars
-- 58+ indicators including pattern recognition:
-  - **Momentum**: RSI, MACD, Stochastic, etc.
-  - **Overlap**: SMA, EMA, Bollinger Bands, etc.
-  - **Volatility**: ATR, Keltner Channels, etc.
-  - **Volume**: OBV, VWAP, Money Flow, etc.
-  - **Pattern Recognition** (NEW):
-    - Fair Value Gap (FVG): Price imbalance detection
-    - Order Block: Institutional order zone identification
-    - Waddah Attar Explosion: Volatility-based trend strength
-- All indicators work with Polars DataFrames for performance
-
-**Configuration System**
-- Environment variable based configuration
-- JSON config file support (`~/.config/projectx/config.json`)
-- ProjectXConfig dataclass for type safety
-- ConfigManager for centralized configuration handling
-
-**Event System**
-- Unified EventBus for cross-component communication
-- Type-safe event definitions
-- Async event handlers with priority support
-- Built-in event types for all trading events
-
-### Architecture Patterns
-
-**Async Factory Functions**: Use async `create_*` functions for component initialization:
-```python
-# TradingSuite - Recommended approach (v3.0.0+)
-async def setup_trading():
-    # Simple one-line setup with TradingSuite
-    suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["1min", "5min"],
-        features=["orderbook"]
-    )
-
-    # Everything is ready - client authenticated, realtime connected
-    return suite
-```
-
-**Dependency Injection**: Managers receive their dependencies (ProjectX client, realtime client) rather than creating them.
-
-**Real-time Integration**: Single `ProjectXRealtimeClient` instance shared across managers for WebSocket connection efficiency.
-
-**Context Managers**: Always use async context managers for proper resource cleanup:
-```python
-async with ProjectX.from_env() as client:
-    # Client automatically handles auth, cleanup
-    pass
-```
-
-### Data Flow
-
-1. **Authentication**: ProjectX client authenticates and provides JWT tokens
-2. **Real-time Setup**: Create ProjectXRealtimeClient with JWT for WebSocket connections
-3. **Manager Initialization**: Pass clients to specialized managers via dependency injection
-4. **Data Processing**: Polars DataFrames used throughout for performance
-5. **Event Handling**: Real-time updates flow through WebSocket to respective managers
-
-## Important Technical Details
-
-### Indicator Functions
-- All indicators follow TA-Lib naming conventions (uppercase function names allowed in `indicators/__init__.py`)
-- Use Polars pipe() method for chaining: `data.pipe(SMA, period=20).pipe(RSI, period=14)`
-- Indicators support both class instantiation and direct function calls
-
-### Price Precision
-- All price handling uses Decimal for precision
-- Automatic tick size alignment in OrderManager
-- Price formatting utilities in utils.py
-
-### Error Handling
-- Custom exception hierarchy in exceptions.py
-- All API errors wrapped in ProjectX-specific exceptions
-- Comprehensive error context and retry logic
-
-### Testing Strategy
-- Pytest with async support and mocking
-- Test markers: unit, integration, slow, realtime
-- High test coverage required (configured in pyproject.toml)
-- Mock external API calls in unit tests
-
-## Environment Setup
-
-Required environment variables:
-- `PROJECT_X_API_KEY`: TopStepX API key
-- `PROJECT_X_USERNAME`: TopStepX username
-
-Optional configuration:
-- `PROJECTX_API_URL`: Custom API endpoint
-- `PROJECTX_TIMEOUT_SECONDS`: Request timeout
-- `PROJECTX_RETRY_ATTEMPTS`: Retry attempts
-
-## Performance Optimizations
-
-### Connection Pooling & Caching (client.py)
-- HTTP connection pooling with retry strategies for 50-70% fewer connection overhead
-- Instrument caching reduces repeated API calls by 80%
-- Preemptive JWT token refresh at 80% lifetime prevents authentication delays
-- Session-based requests with automatic retry on failures
-
-### Memory Management
-- **OrderBook**: Sliding windows with configurable limits (max 10K trades, 1K depth entries)
-- **RealtimeDataManager**: Automatic cleanup maintains 1K bars per timeframe
-- **Indicators**: LRU cache for repeated calculations (100 entry limit)
-- Periodic garbage collection after large data operations
-
-### Optimized DataFrame Operations
-- **Chained operations** reduce intermediate DataFrame creation by 30-40%
-- **Lazy evaluation** with Polars for better memory efficiency
-- **Efficient datetime parsing** with cached timezone objects
-- **Vectorized operations** in orderbook analysis
-
-### Performance Monitoring
-Use async built-in methods to monitor performance:
-```python
-# Client performance stats (async)
-async with ProjectX.from_env() as client:
-    await client.authenticate()
-
-    # Check performance metrics
-    stats = await client.get_performance_stats()
-    print(f"API calls: {stats['api_calls']}")
-    print(f"Cache hits: {stats['cache_hits']}")
-
-    # Health check
-    health = await client.get_health_status()
-
-    # Memory usage monitoring
-    orderbook_stats = await orderbook.get_memory_stats()
-    data_manager_stats = await data_manager.get_memory_stats()
-```
-
-### Expected Performance Improvements
-- **50-70% reduction in API calls** through intelligent caching
-- **30-40% faster indicator calculations** via chained operations
-- **60% less memory usage** through sliding windows and cleanup
-- **Sub-second response times** for cached operations
-- **95% reduction in polling** with real-time WebSocket feeds
-
-### Memory Limits (Configurable)
-- `max_trades = 10000` (OrderBook trade history)
-- `max_depth_entries = 1000` (OrderBook depth per side)
-- `max_bars_per_timeframe = 1000` (Real-time data per timeframe)
-- `tick_buffer_size = 1000` (Tick data buffer)
-- `cache_max_size = 100` (Indicator cache entries)
-
-## Recent Changes
-
-### v3.1.7 - Latest Release
-- Minor updates and improvements
-- Documentation enhancements
-
-### v3.1.6 - Critical Deadlock Fix
-- **Fixed**: Deadlock when calling `suite.data` methods from event handler callbacks (Issue #39)
-- **Improved**: Event emission now non-blocking to prevent handler deadlocks
-- **Enhanced**: Event triggering moved outside lock scope for better concurrency
-- **Added**: Missing asyncio import in data_processing module
-- **Maintained**: Full API compatibility - no breaking changes
-
-### v3.1.5 - Enhanced Bar Data Retrieval
-- **Added**: Optional `start_time` and `end_time` parameters to `get_bars()` method
-- **Improved**: Precise time range specification for historical data queries
-- **Enhanced**: Full timezone support with automatic UTC conversion
-- **Maintained**: Complete backward compatibility with existing `days` parameter
-
-### v3.1.4 - WebSocket Connection Fix
-- **Fixed**: Critical WebSocket error with missing `_use_batching` attribute
-- **Improved**: Proper mixin initialization in ProjectXRealtimeClient
-- **Enhanced**: More robust real-time connection handling
-
-### v3.0.2 - Bug Fixes and Improvements
-- **Order Lifecycle Tracking**: Fixed asyncio concurrency and field reference issues
-- **Order Templates**: Fixed instrument lookup to use cached object
-- **Cleanup Functionality**: Added comprehensive order/position cleanup
-- **Documentation**: Updated all docs to reflect current version
-
-### v3.0.1 - Production Ready
-- **Performance Optimizations**: Enhanced connection pooling and caching
-- **Event Bus System**: Unified event handling across all components
-- **Risk Management**: Integrated risk manager with position limits and monitoring
-- **Order Tracking**: Comprehensive order lifecycle tracking and management
-- **Memory Management**: Optimized sliding windows and automatic cleanup
-- **Enhanced Models**: Improved data models with better type safety
-
-### v3.0.0 - Major Architecture Improvements
-- **Trading Suite**: Unified trading suite with all managers integrated
-- **Advanced Order Types**: OCO, bracket orders, and position-based orders
-- **Real-time Integration**: Seamless WebSocket data flow across all components
-- **Protocol-based Design**: Type-safe protocols for all major interfaces
-
-### v2.0.4 - Package Refactoring
-- Converted monolithic modules to multi-file packages
-- All core modules organized as packages with focused submodules
-- Improved code organization and maintainability
+- 58+ indicators including pattern recognition.
+- All indicators work with Polars DataFrames for performance.
 
 ### Trading Suite Usage (v3.0.0+)
 ```python
@@ -405,43 +249,24 @@ async def main():
     )
 
     # All managers are integrated and ready
-    # No need to call start() - already connected
-
-    # Access individual managers
     order = await suite.orders.place_market_order(
         contract_id=suite.instrument_info.id,
         side=0,  # Buy
         size=1
     )
-
     position = await suite.positions.get_position("MNQ")
     bars = await suite.data.get_data("1min")
 ```
 
-### Key Async Examples
-```python
-# Basic usage
-async with ProjectX.from_env() as client:
-    await client.authenticate()
-    bars = await client.get_bars("MNQ", days=5)
+## Recent Changes
 
-# Real-time data with TradingSuite
-async def stream_data():
-    suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["1min", "5min"]
-    )
-
-    # Register event handlers
-    from project_x_py import EventType
-
-    async def handle_bar(event):
-        print(f"New bar: {event.data}")
-
-    await suite.on(EventType.NEW_BAR, handle_bar)
-
-    # Data is already streaming
-    # Access current data
-    current_price = await suite.data.get_current_price()
-    bars = await suite.data.get_data("1min")
-```
+### v3.3.0 - Latest Release (2025-01-21)
+- **Breaking**: Complete statistics system redesign with 100% async-first architecture
+- **Added**: New statistics module with BaseStatisticsTracker, ComponentCollector, StatisticsAggregator
+- **Added**: Multi-format export (JSON, Prometheus, CSV, Datadog) with data sanitization
+- **Added**: Enhanced health monitoring with 0-100 scoring and configurable thresholds
+- **Added**: TTL caching, parallel collection, and circular buffers for performance optimization
+- **Added**: 45+ new tests covering all aspects of the async statistics system
+- **Fixed**: Eliminated all statistics-related deadlocks with single RW lock per component
+- **Changed**: All statistics methods now require `await` for consistency and performance
+- **Removed**: Legacy statistics mixins (EnhancedStatsTrackingMixin, StatsTrackingMixin)
