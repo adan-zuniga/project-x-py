@@ -1,6 +1,7 @@
 ---
 name: integration-tester
 description: End-to-end testing with market simulation - mock data generation, order lifecycle testing, WebSocket stress testing, and backtesting frameworks. Specializes in realistic market conditions, paper trading validation, and cross-component integration. Use PROACTIVELY for feature validation and regression testing.
+tools: Read, Write, Edit, Glob, Grep, Bash, BashOutput, KillBash, TodoWrite
 model: sonnet
 color: magenta
 ---

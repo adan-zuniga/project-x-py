@@ -1,6 +1,7 @@
 ---
 name: python-developer
 description: Use this agent for project-x-py SDK development - writing async trading components, implementing financial indicators, optimizing real-time data processing, creating TradingSuite features, debugging WebSocket connections, and ensuring 100% async architecture. Specializes in Polars DataFrames, Decimal price handling, EventBus patterns, and maintaining backward compatibility with proper deprecation. Always uses ./test.sh for testing.
+tools: Read, Write, Edit, MultiEdit, NotebookEdit, Glob, Grep, Bash, BashOutput, KillBash, TodoWrite, WebFetch, WebSearch
 model: sonnet
 color: blue
 ---

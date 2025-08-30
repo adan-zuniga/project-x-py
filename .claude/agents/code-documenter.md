@@ -1,6 +1,7 @@
 ---
 name: code-documenter
 description: Document async trading SDK components - TradingSuite APIs, indicator functions, WebSocket events, order lifecycle, and migration guides. Specializes in async pattern documentation, Polars DataFrame examples, financial terminology, and deprecation notices. Maintains README, examples/, and docstrings. Use PROACTIVELY for API changes and new features.
+tools: Read, Write, Edit, MultiEdit, Glob, Grep, TodoWrite, WebFetch, WebSearch
 model: sonnet
 color: green
 ---
