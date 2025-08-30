@@ -594,29 +594,51 @@ class TradingSuite:
             return symbol, context
 
         # Create all contexts in parallel with proper error handling
-        tasks = [_create_single_context(symbol) for symbol in instruments]
+        # Use a shared dictionary to track contexts as they're created
         created_contexts: dict[str, InstrumentContext] = {}
+        cleanup_lock = asyncio.Lock()  # Protect against concurrent cleanup
+
+        async def _create_single_context_with_tracking(
+            symbol: str,
+        ) -> tuple[str, InstrumentContext]:
+            """Create context and track it immediately for cleanup."""
+            try:
+                symbol_result, context = await _create_single_context(symbol)
+                # Track context immediately for cleanup purposes
+                async with cleanup_lock:
+                    created_contexts[symbol_result] = context
+                return symbol_result, context
+            except Exception:
+                # If this individual context fails, clean up all contexts created so far
+                async with cleanup_lock:
+                    await cls._cleanup_contexts(created_contexts.copy())
+                raise
 
         try:
+            # Create tasks with tracking
+            tasks = [
+                _create_single_context_with_tracking(symbol) for symbol in instruments
+            ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Process results and handle partial failures
-            for _i, result in enumerate(results):
+            # Check for any exceptions in results
+            final_contexts: dict[str, InstrumentContext] = {}
+            for result in results:
                 if isinstance(result, Exception):
-                    # Clean up already created contexts before raising
-                    await cls._cleanup_contexts(created_contexts)
+                    # Some context failed, cleanup was already done in the tracking function
                     raise result
 
                 # Type checking: result is definitely a tuple here since it's not an Exception
                 symbol, context = cast(tuple[str, InstrumentContext], result)
-                created_contexts[symbol] = context
+                final_contexts[symbol] = context
+
+            return final_contexts
 
         except Exception:
-            # Ensure cleanup even if gather itself fails
-            await cls._cleanup_contexts(created_contexts)
+            # Final safety net - ensure cleanup even if something unexpected happens
+            async with cleanup_lock:
+                await cls._cleanup_contexts(created_contexts.copy())
             raise
-
-        return created_contexts
 
     @classmethod
     async def _cleanup_contexts(cls, contexts: dict[str, InstrumentContext]) -> None:
