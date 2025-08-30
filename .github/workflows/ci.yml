@@ -136,9 +136,13 @@ jobs:
     - name: Compare benchmarks
       run: |
         # Compare with main branch if exists
+        # Stash any changes to uv.lock that may have occurred during dependency installation
+        git stash push -m "Temporary stash for benchmark comparison" || true
         git checkout main
         uv run pytest tests/benchmarks/ --benchmark-json=baseline.json || true
         git checkout -
+        # Restore any stashed changes
+        git stash pop || true
         uv run pytest tests/benchmarks/ --benchmark-compare=baseline.json --benchmark-compare-fail=min:10%
 
     - name: Upload benchmark results
