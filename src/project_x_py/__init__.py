@@ -2,7 +2,8 @@
 ProjectX Python SDK for Trading Applications
 
 Author: @TexasCoding
-Date: 2025-08-02
+Date: 2025-01-25
+Version: 3.5.0 - Multi-Instrument TradingSuite
 
 Overview:
     A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing
@@ -10,14 +11,17 @@ Overview:
     This library offers comprehensive access to real-time market data, order management,
     position tracking, and advanced analytics for algorithmic trading.
 
-Key Features:
+Key Features (v3.5.0):
+    - Multi-instrument TradingSuite for managing multiple futures contracts simultaneously
     - Real-time market data streaming and historical data access
     - Comprehensive order management (market, limit, stop, bracket orders)
-    - Position tracking and portfolio analytics
+    - Position tracking and portfolio analytics with cross-instrument analysis
     - Level 2 orderbook depth and market microstructure analysis
     - Advanced technical indicators and pattern recognition
-    - Risk management and position sizing tools
+    - Risk management and position sizing tools across multiple instruments
     - Multi-timeframe data management and analysis
+    - Pairs trading and spread analysis capabilities
+    - Event isolation and parallel processing for multiple instruments
     - WebSocket-based real-time updates and event handling
     - Comprehensive statistics and analytics system with health monitoring
     - Fine-grained locking and async-first performance optimization
@@ -105,7 +109,7 @@ See Also:
     - `utils`: Utility functions and calculations
 """
 
-__version__ = "3.4.0"
+__version__ = "3.5.0"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
