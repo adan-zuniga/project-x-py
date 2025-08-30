@@ -23,6 +23,7 @@
            3. Refactor: Improve the code's design and quality while ensuring all tests remain green.
        * **Bug Discovery**: The primary goal of this TDD approach is to uncover any bugs in the core logic. If a test fails, it is because the implementation is incorrect, not the test. Fix the code to match the
          test's expectations.
+       * **Fix All Issues/Bugs Found when they are found**: When testing reveals a bug in core logic we need to fix the bug immediately. Never make tests pass without fixing the underlying issue!
 
   ## Final Deliverable:
 

@@ -34,10 +34,10 @@ class TestOrderPerformance:
             # Create suite with mocked components
             suite = TradingSuite.__new__(TradingSuite)
             suite.client = mock_client
-            suite.orders = MagicMock()
-            suite.orders.place_market_order = AsyncMock(return_value={"order_id": "123"})
+            suite._orders = MagicMock()
+            suite._orders.place_market_order = AsyncMock(return_value={"order_id": "123"})
 
-            return await suite.orders.place_market_order(
+            return await suite._orders.place_market_order(
                 contract_id="MNQ", side=0, size=1
             )
 
@@ -60,14 +60,14 @@ class TestOrderPerformance:
             # Create suite with mocked components
             suite = TradingSuite.__new__(TradingSuite)
             suite.client = mock_client
-            suite.orders = MagicMock()
-            suite.orders.place_bracket_order = AsyncMock(return_value={
+            suite._orders = MagicMock()
+            suite._orders.place_bracket_order = AsyncMock(return_value={
                 "main_order": {"order_id": "123"},
                 "stop_order": {"order_id": "124"},
                 "target_order": {"order_id": "125"}
             })
 
-            return await suite.orders.place_bracket_order(
+            return await suite._orders.place_bracket_order(
                 contract_id="MNQ",
                 side=0,
                 size=1,

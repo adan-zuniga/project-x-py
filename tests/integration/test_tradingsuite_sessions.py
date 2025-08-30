@@ -116,6 +116,9 @@ class TestTradingSuiteSessionIntegration:
                         session_config=SessionConfig()
                     )
 
+                    # Verify the data manager is the mock (in multi-instrument mode)
+                    assert suite["MNQ"].data == mock_data_mgr
+
                     # Change to RTH
                     await suite.set_session_type(SessionType.RTH)
 

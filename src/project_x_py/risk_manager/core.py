@@ -526,8 +526,15 @@ class RiskManager(BaseStatisticsTracker):
             # Create bracket response structure
             from project_x_py.models import BracketOrderResponse
 
+            # Success should only be True if ALL requested orders succeeded
+            success = True
+            if stop_loss and (not stop_response or not stop_response.success):
+                success = False
+            if take_profit and (not target_response or not target_response.success):
+                success = False
+
             bracket_response = BracketOrderResponse(
-                success=bool(stop_response or target_response),
+                success=success,
                 entry_order_id=None,  # No entry for existing position
                 stop_order_id=stop_response.orderId
                 if stop_response and stop_response.success
@@ -541,7 +548,9 @@ class RiskManager(BaseStatisticsTracker):
                 entry_response=None,
                 stop_response=stop_response,
                 target_response=target_response,
-                error_message=None,
+                error_message=None
+                if success
+                else "One or more risk orders failed to place",
             )
 
             # Setup trailing stop if configured
@@ -902,9 +911,10 @@ class RiskManager(BaseStatisticsTracker):
             while True:
                 # Get current price
                 if self.positions is None:
-                    raise ValueError(
-                        "Position manager not set. Call set_position_manager() to resolve circular dependency."
+                    logger.warning(
+                        "Position manager not set for trailing stop monitoring. Exiting monitor."
                     )
+                    break
 
                 current_positions = await self.positions.get_all_positions()
                 current_pos = next(

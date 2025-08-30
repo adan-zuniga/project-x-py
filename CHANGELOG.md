@@ -14,6 +14,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.1] - 2025-01-30
+
+### 🐛 Fixed
+
+**Critical Bug Fixes from TDD Test Suite**:
+- **Context Manager Re-entry**: Fixed issue where TradingSuite context manager couldn't be re-entered after exit
+- **ManagedTrade Attributes**: Added missing property accessors for `risk_manager`, `order_manager`, and `position_manager`
+- **Event Loop Handling**: Fixed `get_stats_sync()` to properly handle nested event loops using ThreadPoolExecutor
+- **Deprecation Warnings**: Ensured consistent deprecation warnings when accessing components directly
+- **Config Validation**: Fixed config file validation to check file extension before attempting file operations
+
+**Session Management Fixes**:
+- Fixed `set_session_type()`, `get_session_data()`, and `get_session_statistics()` to work correctly in multi-instrument mode
+- Session methods now properly iterate over all instrument contexts when in multi-instrument mode
+- Added fallback for single-instrument backward compatibility mode
+
+**Test Suite Fixes**:
+- Updated benchmark tests to use private attributes (`_orders`, `_positions`, etc.)
+- Fixed integration tests to properly mock multi-instrument contexts
+- Resolved statistics and event bus test failures caused by property-only access
+
+### 🔧 Changed
+
+- Component attributes (`data`, `orders`, `positions`, `orderbook`, `risk_manager`) are now stored as private attributes with deprecation warning properties
+- Context manager always initializes when entering context, regardless of `auto_connect` setting
+
 ## [3.5.0] - 2025-01-25
 
 ### 🚀 Major Feature: Multi-Instrument TradingSuite

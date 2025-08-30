@@ -309,7 +309,7 @@ class TradingSuite:
         # For backward compatibility, create single-instrument components if no contexts provided
         if not instrument_contexts:
             # Initialize core components with typed configs and event bus
-            self.data = RealtimeDataManager(
+            self._data = RealtimeDataManager(
                 instrument=config.instrument,
                 project_x=client,
                 realtime_client=realtime_client,
@@ -320,17 +320,17 @@ class TradingSuite:
                 session_config=config.session_config,  # Pass session configuration
             )
 
-            self.orders = OrderManager(
+            self._orders = OrderManager(
                 client, config=config.get_order_manager_config(), event_bus=self.events
             )
 
             # Set aggregator references
-            self._stats_aggregator.order_manager = self.orders
-            self._stats_aggregator.data_manager = self.data
+            self._stats_aggregator.order_manager = self._orders
+            self._stats_aggregator.data_manager = self._data
 
             # Optional components
-            self.orderbook: OrderBook | None = None
-            self.risk_manager: RiskManager | None = None
+            self._orderbook: OrderBook | None = None
+            self._risk_manager: RiskManager | None = None
             # Future enhancements - not currently implemented
             # These attributes are placeholders for future feature development
             # To enable these features, implement the corresponding classes
@@ -339,28 +339,28 @@ class TradingSuite:
             self.analytics = None  # Performance analytics for strategy evaluation
 
             # Create PositionManager first
-            self.positions = PositionManager(
+            self._positions = PositionManager(
                 client,
                 event_bus=self.events,
                 risk_manager=None,  # Will be set later
-                data_manager=self.data,
+                data_manager=self._data,
                 config=config.get_position_manager_config(),
             )
 
             # Set aggregator reference
-            self._stats_aggregator.position_manager = self.positions
+            self._stats_aggregator.position_manager = self._positions
 
             # Initialize risk manager if enabled and inject dependencies
             if Features.RISK_MANAGER in config.features:
-                self.risk_manager = RiskManager(
+                self._risk_manager = RiskManager(
                     project_x=cast(ProjectXClientProtocol, client),
-                    order_manager=self.orders,
+                    order_manager=self._orders,
                     event_bus=self.events,
-                    position_manager=self.positions,
+                    position_manager=self._positions,
                     config=config.get_risk_config(),
                 )
-                self.positions.risk_manager = self.risk_manager
-                self._stats_aggregator.risk_manager = self.risk_manager
+                self._positions.risk_manager = self._risk_manager
+                self._stats_aggregator.risk_manager = self._risk_manager
         else:
             # Multi-instrument mode - don't set direct attributes, use __getattr__ for backward compatibility
             if self._is_single_instrument and self._single_context:
@@ -709,6 +709,12 @@ class TradingSuite:
             ```
         """
         path = Path(config_path)
+
+        # Check file extension first
+        if path.suffix not in [".yaml", ".yml", ".json"]:
+            raise ValueError(f"Unsupported config format: {path.suffix}")
+
+        # Then check if file exists
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
@@ -720,6 +726,7 @@ class TradingSuite:
             with open(path, "rb") as f:
                 data = orjson.loads(f.read())
         else:
+            # This should never happen due to earlier check, but keep for safety
             raise ValueError(f"Unsupported config format: {path.suffix}")
 
         # Create suite with loaded configuration
@@ -840,17 +847,17 @@ class TradingSuite:
     async def _initialize_legacy_single_instrument(self) -> None:
         """Initialize components in legacy single-instrument mode."""
         # Initialize order manager with realtime client for order tracking
-        await self.orders.initialize(realtime_client=self.realtime)
+        await self._orders.initialize(realtime_client=self.realtime)
 
         # Initialize position manager with order manager for cleanup
-        await self.positions.initialize(
+        await self._positions.initialize(
             realtime_client=self.realtime,
-            order_manager=self.orders,
+            order_manager=self._orders,
         )
 
         # Load historical data
         logger.info(f"Loading {self.config.initial_days} days of historical data...")
-        await self.data.initialize(initial_days=self.config.initial_days)
+        await self._data.initialize(initial_days=self.config.initial_days)
 
         # Get instrument info and subscribe to market data
         self.instrument = await self.client.get_instrument(self._symbol)
@@ -860,25 +867,25 @@ class TradingSuite:
         await self.realtime.subscribe_market_data([self.instrument.id])
 
         # Start realtime data feed
-        await self.data.start_realtime_feed()
+        await self._data.start_realtime_feed()
 
         # Initialize optional components
         if Features.ORDERBOOK in self.config.features:
             logger.info("Initializing orderbook...")
             # Use the actual contract ID for the orderbook to properly match WebSocket updates
-            self.orderbook = OrderBook(
+            self._orderbook = OrderBook(
                 instrument=self.instrument.id,  # Use contract ID instead of symbol
                 timezone_str=self.config.timezone,
                 project_x=self.client,
                 config=self.config.get_orderbook_config(),
                 event_bus=self.events,
             )
-            await self.orderbook.initialize(
+            await self._orderbook.initialize(
                 realtime_client=self.realtime,
                 subscribe_to_depth=True,
                 subscribe_to_quotes=True,
             )
-            self._stats_aggregator.orderbook = self.orderbook
+            self._stats_aggregator.orderbook = self._orderbook
 
     async def connect(self) -> None:
         """
@@ -891,7 +898,7 @@ class TradingSuite:
             await suite.connect()
             ```
         """
-        if not self._initialized:
+        if not self._connected:
             await self._initialize()
 
     async def disconnect(self) -> None:
@@ -952,17 +959,19 @@ class TradingSuite:
     async def _disconnect_legacy_single_instrument(self) -> None:
         """Disconnect components in legacy single-instrument mode."""
         # Stop data feeds
-        if hasattr(self, "data") and self.data:
-            await self.data.stop_realtime_feed()
-            await self.data.cleanup()
+        if hasattr(self, "_data") and self._data:
+            await self._data.stop_realtime_feed()
+            await self._data.cleanup()
 
         # Clean up orderbook
-        if hasattr(self, "orderbook") and self.orderbook:
-            await self.orderbook.cleanup()
+        if hasattr(self, "_orderbook") and self._orderbook:
+            await self._orderbook.cleanup()
 
     async def __aenter__(self) -> "TradingSuite":
         """Async context manager entry."""
-        if not self._initialized and self.config.auto_connect:
+        # Always ensure we're connected when entering context
+        # Context manager should always initialize, regardless of auto_connect setting
+        if not self._connected:
             await self._initialize()
         return self
 
@@ -979,6 +988,122 @@ class TradingSuite:
     def is_connected(self) -> bool:
         """Check if all components are connected and ready."""
         return self._connected and self.realtime.is_connected()
+
+    # Backward compatibility properties for single-instrument mode
+    @property
+    def data(self) -> Any:
+        """Deprecated: Direct access to data manager."""
+        if hasattr(self, "_data"):
+            warnings.warn(
+                f"Direct access to 'data' is deprecated. "
+                f"Please use suite['{self._symbol}'].data instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._data
+        elif self._is_single_instrument and self._single_context:
+            warnings.warn(
+                f"Direct access to 'data' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].data instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._single_context.data
+        raise AttributeError("'TradingSuite' object has no attribute 'data'")
+
+    @property
+    def orders(self) -> Any:
+        """Deprecated: Direct access to order manager."""
+        if hasattr(self, "_orders"):
+            warnings.warn(
+                f"Direct access to 'orders' is deprecated. "
+                f"Please use suite['{self._symbol}'].orders instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._orders
+        elif self._is_single_instrument and self._single_context:
+            warnings.warn(
+                f"Direct access to 'orders' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].orders instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._single_context.orders
+        raise AttributeError("'TradingSuite' object has no attribute 'orders'")
+
+    @property
+    def positions(self) -> Any:
+        """Deprecated: Direct access to position manager."""
+        if hasattr(self, "_positions"):
+            warnings.warn(
+                f"Direct access to 'positions' is deprecated. "
+                f"Please use suite['{self._symbol}'].positions instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._positions
+        elif self._is_single_instrument and self._single_context:
+            warnings.warn(
+                f"Direct access to 'positions' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].positions instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._single_context.positions
+        raise AttributeError("'TradingSuite' object has no attribute 'positions'")
+
+    @property
+    def orderbook(self) -> Any:
+        """Deprecated: Direct access to orderbook."""
+        if hasattr(self, "_orderbook"):
+            warnings.warn(
+                f"Direct access to 'orderbook' is deprecated. "
+                f"Please use suite['{self._symbol}'].orderbook instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._orderbook
+        elif self._is_single_instrument and self._single_context:
+            warnings.warn(
+                f"Direct access to 'orderbook' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].orderbook instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._single_context.orderbook
+        raise AttributeError("'TradingSuite' object has no attribute 'orderbook'")
+
+    @property
+    def risk_manager(self) -> Any:
+        """Deprecated: Direct access to risk manager."""
+        if hasattr(self, "_risk_manager"):
+            warnings.warn(
+                f"Direct access to 'risk_manager' is deprecated. "
+                f"Please use suite['{self._symbol}'].risk_manager instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._risk_manager
+        elif self._is_single_instrument and self._single_context:
+            warnings.warn(
+                f"Direct access to 'risk_manager' is deprecated. "
+                f"Please use suite['{self._single_context.symbol}'].risk_manager instead. "
+                f"This compatibility mode will be removed in v4.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self._single_context.risk_manager
+        raise AttributeError("'TradingSuite' object has no attribute 'risk_manager'")
 
     @property
     def symbol(self) -> str:
@@ -1178,10 +1303,10 @@ class TradingSuite:
 
         return ManagedTrade(
             risk_manager=self.risk_manager,
-            order_manager=self.orders,
-            position_manager=self.positions,
+            order_manager=self.orders,  # Use property to access
+            position_manager=self.positions,  # Use property to access
             instrument_id=self.instrument_id or self._symbol,
-            data_manager=self.data,
+            data_manager=self.data,  # Use property to access
             max_risk_percent=max_risk_percent,
             max_risk_amount=max_risk_amount,
         )
@@ -1228,15 +1353,31 @@ class TradingSuite:
         """
         import asyncio
 
-        # Try to get or create event loop
+        # Check if we're already in an async context
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            loop = asyncio.get_running_loop()
+            # We're in an async context, create a task and wait for it
+            import concurrent.futures
 
-        # Run the async method
-        return loop.run_until_complete(self.get_stats())
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, self.get_stats())
+                return future.result()
+        except RuntimeError:
+            # No running loop, we can use run_until_complete
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Edge case: loop exists but is running
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, self.get_stats())
+                        return future.result()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            return loop.run_until_complete(self.get_stats())
 
     # Session-aware methods
     async def set_session_type(self, session_type: SessionType) -> None:
@@ -1252,8 +1393,8 @@ class TradingSuite:
             await suite.set_session_type(SessionType.RTH)
             ```
         """
-        if hasattr(self.data, "set_session_type"):
-            await self.data.set_session_type(session_type)
+        if hasattr(self, "_data") and hasattr(self._data, "set_session_type"):
+            await self._data.set_session_type(session_type)
             logger.info(f"Session type changed to {session_type}")
 
     async def get_session_data(
@@ -1275,10 +1416,12 @@ class TradingSuite:
             rth_data = await suite.get_session_data("1min", SessionType.RTH)
             ```
         """
-        if hasattr(self.data, "get_session_data"):
-            return await self.data.get_session_data(timeframe, session_type)
+        if hasattr(self, "_data") and hasattr(self._data, "get_session_data"):
+            return await self._data.get_session_data(timeframe, session_type)
         # Fallback to regular data if no session support
-        return await self.data.get_data(timeframe)
+        if hasattr(self, "_data"):
+            return await self._data.get_data(timeframe)
+        return None
 
     async def get_session_statistics(self, timeframe: str = "1min") -> dict[str, Any]:
         """
@@ -1294,8 +1437,8 @@ class TradingSuite:
             print(f"ETH Volume: {stats['eth_volume']}")
             ```
         """
-        if hasattr(self.data, "get_session_statistics"):
-            return await self.data.get_session_statistics(timeframe)
+        if hasattr(self, "_data") and hasattr(self._data, "get_session_statistics"):
+            return await self._data.get_session_statistics(timeframe)
         return {}
 
     # --- Container Protocol Methods ---

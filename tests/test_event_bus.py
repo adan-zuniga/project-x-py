@@ -265,13 +265,13 @@ class TestTradingSuiteIntegration:
         # Enable orderbook
         from project_x_py.orderbook import OrderBook
 
-        mock_suite.orderbook = OrderBook("MNQ", event_bus=mock_suite.events)
+        mock_suite._orderbook = OrderBook("MNQ", event_bus=mock_suite.events)
 
         handler = AsyncMock()
         await mock_suite.on(EventType.MARKET_DEPTH_UPDATE, handler)
 
         # Simulate depth update
-        await mock_suite.orderbook._trigger_callbacks(
+        await mock_suite._orderbook._trigger_callbacks(
             "market_depth", {"bids": [], "asks": []}
         )
 
