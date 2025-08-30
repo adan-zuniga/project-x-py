@@ -273,39 +273,92 @@ async def test_backward_compatibility_single_instrument():
 @pytest.mark.asyncio
 async def test_multi_instrument_parallel_creation():
     """
-    RED: Test that multiple instruments are created in parallel for performance.
+    Test that multiple instruments are created in parallel for performance.
 
     The create method should use asyncio.gather to create instrument contexts
     in parallel rather than sequentially.
     """
-    # This test will verify the parallel creation behavior
-    # Implementation will track creation timing and call order
+    # Instead of inspecting source code (which can be unreliable),
+    # let's test the actual behavior by mocking and timing
 
-    creation_order = []
+    import asyncio
+    import time
+    from unittest.mock import patch
 
-    async def mock_create_context(symbol: str):
-        creation_order.append(f"start_{symbol}")
-        # Simulate async work
-        await AsyncMock()()
-        creation_order.append(f"end_{symbol}")
-        return symbol, MagicMock()  # Return symbol and mock context
+    creation_times = {}
 
-    # Test that we're actually using asyncio.gather for parallel creation
-    # by checking the call pattern in _create_instrument_contexts
+    async def mock_get_instrument(symbol: str):
+        """Mock that simulates work and tracks timing."""
+        start_time = time.time()
+        creation_times[f"{symbol}_start"] = start_time
+
+        # Simulate some async work
+        await asyncio.sleep(0.01)  # 10ms delay
+
+        end_time = time.time()
+        creation_times[f"{symbol}_end"] = end_time
+
+        # Return mock instrument
+        mock_instrument = MagicMock()
+        mock_instrument.id = f"{symbol}_CONTRACT_ID"
+        mock_instrument.symbol = symbol
+        return mock_instrument
+
+    # Mock all the external dependencies
+    mock_client = AsyncMock()
+    mock_client.get_instrument = AsyncMock(side_effect=mock_get_instrument)
+    mock_client.search_all_orders = AsyncMock(return_value=[])
+    mock_client.config = MagicMock()
+    mock_client.config.timezone = "America/Chicago"
+    mock_client.config.auto_connect = False
+    mock_client.authenticate = AsyncMock()
+
+    mock_realtime = AsyncMock()
+    mock_context = AsyncMock()
+    mock_context.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_context.__aexit__ = AsyncMock()
+
+    # Test creating 3 instruments
     instruments = ["MNQ", "MES", "MCL"]
 
-    # Verify that the parallel creation pattern exists in the method
-    import inspect
+    with patch("project_x_py.trading_suite.ProjectX.from_env", return_value=mock_context):
+        with patch("project_x_py.trading_suite.ProjectXRealtimeClient", return_value=mock_realtime):
+            with patch("project_x_py.trading_suite.RealtimeDataManager"):
+                with patch("project_x_py.trading_suite.PositionManager"):
+                    with patch("project_x_py.trading_suite.OrderManager"):
+                        start_time = time.time()
 
-    from project_x_py.trading_suite import TradingSuite
+                        # Call the actual method that should use parallel creation
+                        result = await TradingSuite._create_instrument_contexts(
+                            instruments, mock_client, mock_realtime,
+                            TradingSuiteConfig(instrument="MNQ", timezone="America/Chicago")
+                        )
 
-    source = inspect.getsource(TradingSuite._create_instrument_contexts)
+                        end_time = time.time()
+                        total_time = end_time - start_time
 
-    # Verify parallel execution patterns are in the source
-    assert "asyncio.gather" in source, "Should use asyncio.gather for parallel creation"
-    assert "[_create_single_context(symbol) for symbol in instruments]" in source, (
-        "Should create tasks in parallel"
-    )
+    # Verify that the result contains all instruments
+    assert len(result) == 3
+    assert "MNQ" in result
+    assert "MES" in result
+    assert "MCL" in result
+
+    # Verify parallel execution by checking timing:
+    # If executed in parallel, total time should be close to the individual task time (0.01s)
+    # If executed sequentially, total time would be ~3x individual task time (0.03s)
+    # We'll be generous and allow up to 0.025s (2.5x) to account for overhead
+    assert total_time < 0.025, f"Creation took {total_time:.3f}s, suggesting sequential rather than parallel execution"
+
+    # Additional verification: All instruments should have started before any finished
+    # (indicating true parallelism)
+    start_times = [creation_times[f"{symbol}_start"] for symbol in instruments]
+    end_times = [creation_times[f"{symbol}_end"] for symbol in instruments]
+
+    # The latest start should be before the earliest end if running in parallel
+    latest_start = max(start_times)
+    earliest_end = min(end_times)
+
+    assert latest_start <= earliest_end, "Instruments appear to be created sequentially rather than in parallel"
 
 
 if __name__ == "__main__":
