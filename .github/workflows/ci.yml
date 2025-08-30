@@ -142,14 +142,20 @@ jobs:
         git checkout main
         # Install dependencies and run baseline benchmarks on main branch
         uv sync --all-extras --dev
-        uv run pytest tests/benchmarks/ --benchmark-json=baseline.json || true
+        uv run pytest tests/benchmarks/ --benchmark-json=/tmp/baseline.json || true
         # Reset and return to our branch
         git reset --hard HEAD
         git clean -fd
         git checkout -
         # Re-install our branch dependencies
         uv sync --all-extras --dev
-        uv run pytest tests/benchmarks/ --benchmark-compare=baseline.json --benchmark-compare-fail=min:10%
+        # Only run comparison if baseline exists
+        if [ -f /tmp/baseline.json ]; then
+          uv run pytest tests/benchmarks/ --benchmark-compare=/tmp/baseline.json --benchmark-compare-fail=min:10%
+        else
+          echo "Baseline benchmark not available, skipping comparison"
+          uv run pytest tests/benchmarks/
+        fi
 
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
