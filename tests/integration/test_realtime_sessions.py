@@ -241,7 +241,7 @@ class TestRealtimeSessionIntegration:
                 datetime(2024, 1, 15, 8, 0, tzinfo=timezone.utc),   # ETH
                 datetime(2024, 1, 15, 14, 30, tzinfo=timezone.utc),  # RTH
                 datetime(2024, 1, 15, 18, 0, tzinfo=timezone.utc),   # RTH
-                datetime(2024, 1, 15, 22, 0, tzinfo=timezone.utc),   # ETH
+                datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc),   # ETH (after maintenance)
             ],
             "open": [100.0, 101.0, 102.0, 103.0],
             "high": [100.5, 101.5, 102.5, 103.5],
