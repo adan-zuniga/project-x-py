@@ -481,12 +481,12 @@ class TestStatisticsSystemIntegration:
         )
         suite.instrument_info = mock_components["instrument"]
 
-        # Inject our mock components
-        suite.orders = mock_components["order_manager"]
-        suite.positions = mock_components["position_manager"]
-        suite.data = mock_components["data_manager"]
-        suite.orderbook = mock_components["orderbook"]
-        suite.risk_manager = mock_components["risk_manager"]
+        # Inject our mock components using private attributes
+        suite._orders = mock_components["order_manager"]
+        suite._positions = mock_components["position_manager"]
+        suite._data = mock_components["data_manager"]
+        suite._orderbook = mock_components["orderbook"]
+        suite._risk_manager = mock_components["risk_manager"]
 
         # Initialize statistics aggregator manually
         from project_x_py.statistics import StatisticsAggregator

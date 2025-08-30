@@ -7,8 +7,8 @@
 
 **project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
-!!! note "Version 3.5.0 - Multi-Instrument TradingSuite"
-    **Revolutionary Release**: Complete multi-instrument support enabling traders to manage multiple futures contracts simultaneously. Features include pairs trading, cross-market arbitrage, portfolio-level risk management, and advanced analytics across instruments. Full backward compatibility maintained with zero breaking changes.
+!!! note "Version 3.5.1 - Multi-Instrument TradingSuite with Critical Bug Fixes"
+    **Latest Release**: Critical bug fixes for TradingSuite including context manager re-entry, event loop handling, and session management in multi-instrument mode. The v3.5.0 release introduced revolutionary multi-instrument support enabling traders to manage multiple futures contracts simultaneously with pairs trading, cross-market arbitrage, and portfolio-level risk management. Full backward compatibility maintained.
 
 !!! note "Stable Production Release"
     Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -215,6 +215,14 @@ mnq_context = suite["MNQ"]  # Access specific instrument
 - [Breaking Changes](migration/breaking-changes.md) - Change history
 
 ## Recent Changes
+
+### v3.5.1 - Critical Bug Fixes (2025-01-30)
+- **Fixed**: Context manager re-entry issue in TradingSuite
+- **Fixed**: ManagedTrade missing property accessors
+- **Fixed**: Event loop handling in `get_stats_sync()` for nested async contexts
+- **Fixed**: Inconsistent deprecation warnings for direct component access
+- **Fixed**: Config file validation order (extension check before file operations)
+- **Fixed**: Session management methods in multi-instrument mode
 
 ### v3.5.0 - Multi-Instrument TradingSuite (2025-01-25)
 - **MAJOR**: Revolutionary multi-instrument support for simultaneous contract management

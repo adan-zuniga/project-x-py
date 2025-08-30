@@ -66,7 +66,21 @@ class ManagedTrade:
         self._stop_order: Order | None = None
         self._target_order: Order | None = None
         self._trade_result: dict[str, Any] | None = None
-        self._risk_amount: float = 0.0
+
+    @property
+    def risk_manager(self) -> "RiskManager":
+        """Access to the risk manager (alias for self.risk)."""
+        return self.risk
+
+    @property
+    def order_manager(self) -> OrderManagerProtocol:
+        """Access to the order manager (alias for self.orders)."""
+        return self.orders
+
+    @property
+    def position_manager(self) -> PositionManagerProtocol:
+        """Access to the position manager (alias for self.positions)."""
+        return self.positions
 
     async def __aenter__(self) -> "ManagedTrade":
         """Enter managed trade context."""

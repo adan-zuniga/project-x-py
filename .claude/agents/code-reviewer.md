@@ -1,6 +1,7 @@
 ---
 name: code-reviewer
 description: Perform thorough code reviews for the project-x-py async trading SDK, focusing on async patterns, real-time performance, financial data integrity, and API stability. Use PROACTIVELY for PR reviews and before releases.
+tools: Glob, Grep, LS, Read, WebFetch, TodoWrite, WebSearch, BashOutput, KillBash, ListMcpResourcesTool, ReadMcpResourceTool, Bash
 model: sonnet
 color: yellow
 ---
