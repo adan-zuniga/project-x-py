@@ -15,12 +15,12 @@ import asyncio
 async def basic_data_usage():
     # Create suite with real-time data
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["1min", "5min", "15min"]
     )
 
-    # Access the integrated data manager
-    data_manager = suite.data
+    # Access the integrated data manager for the specific instrument
+    data_manager = suite["MNQ"].data
 
     # Get current price
     current_price = await data_manager.get_current_price()
@@ -47,10 +47,11 @@ asyncio.run(basic_data_usage())
 
 ```python
 async def accessing_bar_data():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
+    mnq_data = suite["MNQ"].data
 
     # Get data for a specific timeframe
-    bars = await suite.data.get_data("1min")
+    bars = await mnq_data.get_data("1min")
     if bars is not None and not bars.is_empty():
         print(f"Retrieved {len(bars)} bars")
 
@@ -59,14 +60,14 @@ async def accessing_bar_data():
         print(f"Latest close: ${latest_bar['close'][0]:.2f}")
 
     # Get data with specific count
-    recent_bars = await suite.data.get_data("5min", count=20)
+    recent_bars = await mnq_data.get_data("5min", count=20)
 
     # Get data for time range
     from datetime import datetime, timedelta
     end_time = datetime.now()
     start_time = end_time - timedelta(hours=2)
 
-    range_bars = await suite.data.get_data(
+    range_bars = await mnq_data.get_data(
         timeframe="1min",
         start_time=start_time,
         end_time=end_time
@@ -81,20 +82,21 @@ asyncio.run(accessing_bar_data())
 
 ```python
 async def price_access():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Get current price (from latest tick or bar)
-    current_price = await suite.data.get_current_price()
+    current_price = await mnq_data.get_current_price()
     if current_price:
         print(f"Current price: ${current_price:.2f}")
 
     # Get latest price from specific timeframe
-    latest_price = await suite.data.get_latest_price()
+    latest_price = await mnq_data.get_latest_price()
     if latest_price:
         print(f"Latest price: ${latest_price:.2f}")
 
     # Get price range statistics
-    price_range = await suite.data.get_price_range(
+    price_range = await mnq_data.get_price_range(
         timeframe="1min",
         bars=100  # Last 100 bars
     )
@@ -112,10 +114,11 @@ asyncio.run(price_access())
 
 ```python
 async def volume_stats():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
+    mnq_data = suite["MNQ"].data
 
     # Get volume statistics
-    vol_stats = await suite.data.get_volume_stats(timeframe="1min")
+    vol_stats = await mnq_data.get_volume_stats(timeframe="1min")
     if vol_stats:
         print(f"Total volume: {vol_stats['total_volume']:,}")
         print(f"Average volume: {vol_stats['avg_volume']:.0f}")
@@ -132,21 +135,22 @@ asyncio.run(volume_stats())
 
 ```python
 async def memory_management():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
+    mnq_data = suite["MNQ"].data
 
     # Get memory statistics
-    memory_stats = await suite.data.get_memory_stats()
+    memory_stats = await mnq_data.get_memory_stats()
     print(f"Total bars in memory: {memory_stats.total_bars:,}")
     print(f"Memory usage: {memory_stats.memory_usage_mb:.2f} MB")
     print(f"Cache efficiency: {memory_stats.cache_efficiency:.1%}")
 
     # Get resource statistics
-    resource_stats = await suite.data.get_resource_stats()
+    resource_stats = await mnq_data.get_resource_stats()
     print(f"CPU usage: {resource_stats['cpu_percent']:.1f}%")
     print(f"Threads: {resource_stats['num_threads']}")
 
     # Cleanup old data
-    await suite.data.cleanup()
+    await mnq_data.cleanup()
 
     await suite.disconnect()
 
@@ -169,13 +173,15 @@ async def overflow_configuration():
     )
 
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["1min"],
         data_manager_config=config
     )
 
+    mnq_data = suite["MNQ"].data
+
     # Monitor overflow statistics
-    overflow_stats = await suite.data.get_overflow_stats("1min")
+    overflow_stats = await mnq_data.get_overflow_stats("1min")
     if overflow_stats:
         print(f"Bars overflowed: {overflow_stats['total_overflowed_bars']}")
         print(f"Disk usage: {overflow_stats['disk_storage_size_mb']:.2f} MB")
@@ -193,10 +199,11 @@ The data manager includes built-in DataFrame optimization:
 
 ```python
 async def dataframe_optimization():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Optimize data access patterns
-    optimization_result = await suite.data.optimize_data_access_patterns()
+    optimization_result = await mnq_data.optimize_data_access_patterns()
     print(f"Cache hits improved by: {optimization_result['cache_improvement']:.1%}")
     print(f"Access time reduced by: {optimization_result['time_reduction']:.1%}")
 
@@ -209,10 +216,11 @@ asyncio.run(dataframe_optimization())
 
 ```python
 async def lock_optimization():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Get lock optimization statistics
-    lock_stats = await suite.data.get_lock_optimization_stats()
+    lock_stats = await mnq_data.get_lock_optimization_stats()
     print(f"Lock acquisitions: {lock_stats['total_acquisitions']}")
     print(f"Average wait time: {lock_stats['avg_wait_time_ms']:.2f}ms")
     print(f"Contention rate: {lock_stats['contention_rate']:.1%}")
@@ -237,7 +245,7 @@ async def dst_handling():
     )
 
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["1min"],
         data_manager_config=config
     )
@@ -257,10 +265,11 @@ asyncio.run(dst_handling())
 
 ```python
 async def component_statistics():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
+    mnq_data = suite["MNQ"].data
 
     # Get comprehensive statistics
-    stats = await suite.data.get_stats()
+    stats = await mnq_data.get_stats()
     print(f"Component: {stats.component_type}")
     print(f"Health score: {stats.health_score:.1f}/100")
     print(f"Uptime: {stats.uptime_seconds}s")
@@ -270,7 +279,7 @@ async def component_statistics():
         print(f"{metric}: {value}")
 
     # Get bounded statistics (with size limits)
-    bounded_stats = await suite.data.get_bounded_statistics()
+    bounded_stats = await mnq_data.get_bounded_statistics()
     if bounded_stats:
         print(f"Recent operations: {bounded_stats['recent_operations']}")
         print(f"Error rate: {bounded_stats['error_rate']:.2%}")
@@ -284,17 +293,18 @@ asyncio.run(component_statistics())
 
 ```python
 async def health_monitoring():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Get health score
-    health_score = await suite.data.get_health_score()
+    health_score = await mnq_data.get_health_score()
     print(f"Health score: {health_score:.1f}/100")
 
     if health_score < 80:
         print("Warning: Data manager health is degraded")
 
         # Check specific issues
-        stats = await suite.data.get_stats()
+        stats = await mnq_data.get_stats()
         if stats.error_count > 0:
             print(f"Errors detected: {stats.error_count}")
 
@@ -309,10 +319,11 @@ asyncio.run(health_monitoring())
 
 ```python
 async def feed_management():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Start real-time feed
-    success = await suite.data.start_realtime_feed()
+    success = await mnq_data.start_realtime_feed()
     if success:
         print("Real-time feed started")
 
@@ -320,7 +331,7 @@ async def feed_management():
     await asyncio.sleep(60)
 
     # Stop real-time feed
-    await suite.data.stop_realtime_feed()
+    await mnq_data.stop_realtime_feed()
     print("Real-time feed stopped")
 
     await suite.disconnect()
@@ -334,18 +345,19 @@ asyncio.run(feed_management())
 
 ```python
 async def data_validation():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Data validation is performed automatically
     # Check validation statistics in memory stats
-    memory_stats = await suite.data.get_memory_stats()
+    memory_stats = await mnq_data.get_memory_stats()
 
     # Look for validation indicators
     if hasattr(memory_stats, 'validation_errors'):
         print(f"Validation errors: {memory_stats.validation_errors}")
 
     # Data readiness check
-    bars = await suite.data.get_data("1min")
+    bars = await mnq_data.get_data("1min")
     if bars is not None and len(bars) > 0:
         print("Data is ready and validated")
 
@@ -360,7 +372,8 @@ The data manager includes dynamic resource management:
 
 ```python
 async def dynamic_resources():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     # Resource limits adjust automatically based on:
     # - Available system memory
@@ -369,7 +382,7 @@ async def dynamic_resources():
     # - Number of active timeframes
 
     # Monitor resource adaptation
-    resource_stats = await suite.data.get_resource_stats()
+    resource_stats = await mnq_data.get_resource_stats()
     print(f"Current memory limit: {resource_stats['memory_limit_mb']:.0f} MB")
     print(f"Adjusted for load: {resource_stats['load_factor']:.2f}x")
 
@@ -384,11 +397,12 @@ asyncio.run(dynamic_resources())
 
 ```python
 async def error_handling():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_data = suite["MNQ"].data
 
     try:
         # Always check for None returns
-        data = await suite.data.get_data("1min")
+        data = await mnq_data.get_data("1min")
         if data is None:
             print("No data available yet")
             return
@@ -457,23 +471,23 @@ config = DataManagerConfig(
 
 ```python
 # ✅ Good: Get only needed data
-recent_bars = await suite.data.get_data("1min", count=100)
+recent_bars = await suite["MNQ"].data.get_data("1min", count=100)
 
 # ❌ Avoid: Getting all data when not needed
-all_bars = await suite.data.get_data("1min")  # Gets everything
+all_bars = await suite["MNQ"].data.get_data("1min")  # Gets everything
 ```
 
 ### Null Checking
 
 ```python
 # ✅ Good: Always check for None
-data = await suite.data.get_data("1min")
+data = await suite["MNQ"].data.get_data("1min")
 if data is not None and not data.is_empty():
     # Process data
     pass
 
 # ❌ Bad: Assuming data exists
-data = await suite.data.get_data("1min")
+data = await suite["MNQ"].data.get_data("1min")
 latest = data.tail(1)  # May fail if data is None
 ```
 
@@ -482,13 +496,13 @@ latest = data.tail(1)  # May fail if data is None
 ```python
 # ✅ Good: Always cleanup
 try:
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
     # Use suite
 finally:
     await suite.disconnect()
 
 # ✅ Better: Use context manager (if available)
-async with TradingSuite.create("MNQ") as suite:
+async with await TradingSuite.create(["MNQ"]) as suite:
     # Suite automatically cleaned up
     pass
 ```

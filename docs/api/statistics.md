@@ -35,10 +35,10 @@ The statistics system provides centralized collection and analysis of performanc
 from project_x_py import TradingSuite
 
 async def get_comprehensive_statistics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Get comprehensive system statistics (async-first API)
-    stats = await suite.get_stats()
+    stats = await suite.get_statistics()
 
     # Health scoring (0-100) with intelligent monitoring
     print(f"System Health: {stats['health_score']:.1f}/100")
@@ -55,19 +55,20 @@ async def get_comprehensive_statistics():
 
 ```python
 async def component_statistics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"], features=["orderbook"])
+    mnq_context = suite["MNQ"]
 
     # Component-specific statistics (all async for consistency)
-    order_stats = await suite.orders.get_stats()
+    order_stats = await mnq_context.orders.get_stats()
     print(f"Fill Rate: {order_stats['fill_rate']:.1%}")
     print(f"Average Fill Time: {order_stats['avg_fill_time_ms']:.0f}ms")
 
-    position_stats = await suite.positions.get_stats()
+    position_stats = await mnq_context.positions.get_stats()
     print(f"Win Rate: {position_stats.get('win_rate', 0):.1%}")
 
     # OrderBook statistics (if enabled)
-    if suite.orderbook:
-        orderbook_stats = await suite.orderbook.get_stats()
+    if mnq_context.orderbook:
+        orderbook_stats = await mnq_context.orderbook.get_stats()
         print(f"Depth Updates: {orderbook_stats['depth_updates']}")
 
     await suite.disconnect()
@@ -79,7 +80,7 @@ async def component_statistics():
 
 ```python
 async def export_statistics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Multi-format export capabilities
     prometheus_metrics = await suite.export_stats("prometheus")
@@ -103,7 +104,7 @@ async def export_statistics():
 
 ```python
 async def monitor_health():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Real-time health monitoring with degradation detection
     health_score = await suite.get_health_score()
@@ -146,8 +147,8 @@ async def custom_health_monitoring():
     monitor = HealthMonitor(thresholds=thresholds, weights=weights)
 
     # Use with aggregator
-    suite = await TradingSuite.create("MNQ")
-    stats = await suite.get_stats()
+    suite = await TradingSuite.create(["MNQ"])
+    stats = await suite.get_statistics()
     health_score = await monitor.calculate_health(stats)
 
     print(f"Custom Health Score: {health_score:.1f}/100")
@@ -205,7 +206,7 @@ from project_x_py import TradingSuite
 async def production_monitoring():
     """Complete production monitoring example."""
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         features=["orderbook", "risk_manager"]
     )
 
@@ -213,7 +214,7 @@ async def production_monitoring():
     while True:
         try:
             # Get comprehensive statistics
-            stats = await suite.get_stats()
+            stats = await suite.get_statistics()
 
             # Check system health
             health = stats.get('health_score', 0)
@@ -253,7 +254,7 @@ asyncio.run(production_monitoring())
 
 ```python
 async def prometheus_integration():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Export Prometheus metrics
     metrics = await suite.export_stats("prometheus")
@@ -278,7 +279,7 @@ async def prometheus_integration():
 
 ```python
 async def datadog_integration():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Export Datadog-compatible metrics
     metrics = await suite.export_stats("datadog")
@@ -300,7 +301,7 @@ async def datadog_integration():
 
 ```python
 async def csv_analytics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Export CSV for analytics
     csv_data = await suite.export_stats("csv")
@@ -337,7 +338,7 @@ async def csv_analytics():
 
 ```python
 async def debug_statistics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Enable debug logging
     import logging
@@ -345,8 +346,8 @@ async def debug_statistics():
 
     # Get raw component statistics
     for component_name in ["orders", "positions", "data"]:
-        if hasattr(suite, component_name):
-            component = getattr(suite, component_name)
+        if hasattr(suite["MNQ"], component_name):
+            component = getattr(suite["MNQ"], component_name)
             if hasattr(component, "get_stats"):
                 stats = await component.get_stats()
                 print(f"{component_name}: {stats}")

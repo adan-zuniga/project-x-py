@@ -14,13 +14,11 @@ The PositionManager provides complete position tracking capabilities including r
 from project_x_py import TradingSuite
 
 async def basic_position_management():
-    suite = await TradingSuite.create("MNQ")
-
-    # Access the integrated position manager
-    positions = suite.positions
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get current position
-    position = await positions.get_position("MNQ")
+    position = await mnq_positions.get_position("MNQ")
     if position:
         print(f"Size: {position.size}")
         print(f"Avg Price: ${position.avg_price:.2f}")
@@ -35,10 +33,11 @@ async def basic_position_management():
 
 ```python
 async def current_positions():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get specific position
-    mnq_position = await suite.positions.get_position("MNQ")
+    mnq_position = await mnq_positions.get_position("MNQ")
     if mnq_position:
         print(f"MNQ Position:")
         print(f"  Size: {mnq_position.size}")
@@ -48,8 +47,8 @@ async def current_positions():
         print(f"  Unrealized PnL: ${mnq_position.unrealized_pnl:.2f}")
         print(f"  Realized PnL: ${mnq_position.realized_pnl:.2f}")
 
-    # Get all positions
-    all_positions = await suite.positions.get_all_positions()
+    # Get all positions for this context
+    all_positions = await mnq_positions.get_all_positions()
     for instrument, position in all_positions.items():
         print(f"{instrument}: {position.size} @ ${position.avg_price:.2f}")
 
@@ -60,9 +59,10 @@ async def current_positions():
 
 ```python
 async def position_details():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
-    position = await suite.positions.get_position("MNQ")
+    position = await mnq_positions.get_position("MNQ")
     if position:
         # Basic information
         print(f"Instrument: {position.instrument}")
@@ -95,10 +95,11 @@ async def position_details():
 
 ```python
 async def portfolio_overview():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get comprehensive portfolio metrics
-    portfolio_metrics = await suite.positions.get_portfolio_metrics()
+    portfolio_metrics = await mnq_positions.get_portfolio_metrics()
 
     print("Portfolio Overview:")
     print(f"  Total Value: ${portfolio_metrics['total_portfolio_value']:,.2f}")
@@ -118,14 +119,16 @@ async def portfolio_overview():
     await suite.disconnect()
 ```
 
+
 ### Risk Metrics
 
 ```python
 async def risk_metrics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get risk analysis
-    risk_analysis = await suite.positions.get_risk_analysis()
+    risk_analysis = await mnq_positions.get_risk_analysis()
 
     print("Risk Analysis:")
     print(f"  Portfolio Beta: {risk_analysis.get('beta', 0):.2f}")
@@ -142,6 +145,7 @@ async def risk_metrics():
     await suite.disconnect()
 ```
 
+
 ## Performance Analytics
 
 ### Trade Analytics
@@ -149,10 +153,11 @@ async def risk_metrics():
 
 ```python
 async def trade_analytics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get detailed analytics
-    analytics = await suite.positions.get_analytics()
+    analytics = await mnq_positions.get_analytics()
 
     print("Trade Analytics:")
     print(f"  Total Trades: {analytics['total_trades']}")
@@ -175,14 +180,16 @@ async def trade_analytics():
     await suite.disconnect()
 ```
 
+
 ### Performance Tracking
 
 ```python
 async def performance_tracking():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Track performance over time
-    performance_history = await suite.positions.get_performance_history(
+    performance_history = await mnq_positions.get_performance_history(
         days=30  # Last 30 days
     )
 
@@ -191,7 +198,7 @@ async def performance_tracking():
               f"Return {metrics['daily_return']:.2f}%")
 
     # Monthly performance summary
-    monthly_performance = await suite.positions.get_monthly_performance()
+    monthly_performance = await mnq_positions.get_monthly_performance()
     for month, stats in monthly_performance.items():
         print(f"{month}: ${stats['total_pnl']:,.2f} "
               f"({stats['return_percentage']:+.1f}%)")
@@ -207,7 +214,8 @@ async def performance_tracking():
 from project_x_py import EventType
 
 async def position_monitoring():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_context = suite["MNQ"]
 
     # Real-time position update handler
     async def on_position_changed(event):
@@ -218,7 +226,7 @@ async def position_monitoring():
         print(f"  Current Price: ${position.current_price:.2f}")
 
     # Register for position events
-    await suite.on(EventType.POSITION_CHANGED, on_position_changed)
+    await mnq_context.on(EventType.POSITION_CHANGED, on_position_changed)
 
     # Keep monitoring
     await asyncio.sleep(300)  # Monitor for 5 minutes
@@ -229,12 +237,13 @@ async def position_monitoring():
 
 ```python
 async def pnl_alerts():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Set up P&L monitoring
     async def monitor_pnl():
         while True:
-            portfolio_metrics = await suite.positions.get_portfolio_metrics()
+            portfolio_metrics = await mnq_positions.get_portfolio_metrics()
             unrealized_pnl = portfolio_metrics.get('unrealized_pnl', 0)
 
             # Alert thresholds
@@ -255,10 +264,11 @@ async def pnl_alerts():
 
 ```python
 async def position_modifications():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Scale into position
-    await suite.positions.scale_into_position(
+    await mnq_positions.scale_into_position(
         instrument="MNQ",
         target_size=5,       # Target 5 contracts
         scale_levels=3,      # Scale in over 3 levels
@@ -266,14 +276,14 @@ async def position_modifications():
     )
 
     # Scale out of position
-    await suite.positions.scale_out_position(
+    await mnq_positions.scale_out_position(
         instrument="MNQ",
         scale_levels=3,      # Scale out over 3 levels
         price_increment=10.0 # $10 between levels
     )
 
     # Hedge position
-    hedge_result = await suite.positions.hedge_position(
+    hedge_result = await mnq_positions.hedge_position(
         instrument="MNQ",
         hedge_ratio=0.5,     # 50% hedge
         hedge_instrument="ES" # Hedge with ES
@@ -286,17 +296,18 @@ async def position_modifications():
 
 ```python
 async def position_closing():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Close specific position
-    close_result = await suite.positions.close_position(
+    close_result = await mnq_positions.close_position(
         instrument="MNQ",
         method="market",     # Market order
         partial_size=None    # Close entire position
     )
 
     # Partial close
-    partial_close = await suite.positions.close_position(
+    partial_close = await mnq_positions.close_position(
         instrument="MNQ",
         method="limit",
         limit_price=21100.0,
@@ -304,7 +315,7 @@ async def position_closing():
     )
 
     # Close all positions
-    close_all = await suite.positions.close_all_positions(
+    close_all = await mnq_positions.close_all_positions(
         method="market",
         emergency=False      # False = normal close, True = emergency
     )
@@ -318,10 +329,11 @@ async def position_closing():
 
 ```python
 async def position_reports():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Generate position report
-    report = await suite.positions.generate_report(
+    report = await mnq_positions.generate_report(
         format="detailed",   # "summary", "detailed", "csv"
         include_closed=True, # Include closed positions
         date_range=30        # Last 30 days
@@ -332,7 +344,7 @@ async def position_reports():
         f.write(report)
 
     # CSV export
-    csv_data = await suite.positions.export_to_csv(
+    csv_data = await mnq_positions.export_to_csv(
         include_metrics=True,
         date_range=30
     )
@@ -347,17 +359,18 @@ async def position_reports():
 
 ```python
 async def trade_journal():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Add trade notes
-    await suite.positions.add_trade_note(
+    await mnq_positions.add_trade_note(
         position_id="some_position_id",
         note="Entered on RSI oversold + support bounce",
         tags=["RSI", "support", "scalp"]
     )
 
     # Get trade history with notes
-    trade_history = await suite.positions.get_trade_history(
+    trade_history = await mnq_positions.get_trade_history(
         include_notes=True,
         days=7  # Last 7 days
     )
@@ -377,10 +390,11 @@ async def trade_journal():
 
 ```python
 async def position_statistics():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get position manager statistics
-    stats = await suite.positions.get_stats()
+    stats = await mnq_positions.get_stats()
 
     print("Position Manager Statistics:")
     print(f"  Active Positions: {stats['active_positions']}")
@@ -399,6 +413,7 @@ async def position_statistics():
 
     await suite.disconnect()
 ```
+
 
 ## Configuration
 
@@ -419,7 +434,7 @@ async def configure_position_manager():
     )
 
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         position_manager_config=position_config
     )
 
@@ -430,12 +445,16 @@ async def configure_position_manager():
 
 ### Position Management
 
+## Best Practices
+
+### Position Management
+
 ```python
 #  Good: Monitor positions regularly
 async def monitor_positions(suite):
     while True:
-        positions = await suite.positions.get_all_positions()
-        for instrument, position in positions.items():
+        all_positions = await suite["MNQ"].positions.get_all_positions()
+        for instrument, position in all_positions.items():
             # Check for risk limits
             if abs(position.unrealized_pnl) > 500:  # $500 risk limit
                 print(f"Risk limit exceeded for {instrument}")
@@ -445,14 +464,16 @@ async def monitor_positions(suite):
 
 #  Good: Use proper error handling
 try:
-    position = await suite.positions.get_position("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
+    position = await mnq_positions.get_position("MNQ")
     if position.size > 10:  # Position too large
-        await suite.positions.reduce_position("MNQ", percentage=0.5)
+        await mnq_positions.reduce_position("MNQ", percentage=0.5)
 except PositionNotFoundError:
     print("No position found")
 
 #  Good: Track performance metrics
-metrics = await suite.positions.get_analytics()
+metrics = await suite["MNQ"].positions.get_analytics()
 if metrics['win_rate'] < 0.4:  # Win rate below 40%
     print("Strategy performance declining")
 ```
@@ -461,6 +482,33 @@ if metrics['win_rate'] < 0.4:  # Win rate below 40%
 
 ```python
 #  Good: Set position limits
+MAX_POSITION_SIZE = 5
+MAX_PORTFOLIO_RISK = 1000.0
+
+async def check_risk_limits(suite):
+    mnq_positions = suite["MNQ"].positions
+    portfolio_metrics = await mnq_positions.get_portfolio_metrics()
+
+    # Check portfolio risk
+    if abs(portfolio_metrics['unrealized_pnl']) > MAX_PORTFOLIO_RISK:
+        print("Portfolio risk limit exceeded")
+        await mnq_positions.close_all_positions(method="market")
+
+    # Check individual position sizes
+    positions = await mnq_positions.get_all_positions()
+    for instrument, position in positions.items():
+        if abs(position.size) > MAX_POSITION_SIZE:
+            print(f"Position size limit exceeded for {instrument}")
+            await mnq_positions.reduce_position(
+                instrument,
+                target_size=MAX_POSITION_SIZE
+            )
+```
+
+### Risk Management
+
+```python
+# Good: Set position limits
 MAX_POSITION_SIZE = 5
 MAX_PORTFOLIO_RISK = 1000.0
 

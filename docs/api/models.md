@@ -34,11 +34,12 @@ async with ProjectX.from_env() as client:
 from project_x_py import TradingSuite
 
 async def order_models_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
 
     # Place order and get response
-    response = await suite.orders.place_limit_order(
-        contract_id=suite.instrument_id,
+    response = await mnq_context.orders.place_limit_order(
+        contract_id=mnq_context.instrument_info.id,
         side=0,  # Buy
         size=1,
         limit_price=21000.0
@@ -50,7 +51,7 @@ async def order_models_example():
     print(f"Message: {response.message}")
 
     # Get order details
-    order = await suite.orders.get_order(response.order_id)
+    order = await mnq_context.orders.get_order(response.order_id)
     print(f"Order Size: {order.size}")
     print(f"Order Price: ${order.price:.2f}")
     print(f"Time in Force: {order.time_in_force}")
@@ -64,9 +65,10 @@ async def order_models_example():
 ```python
 # Example position usage
 async def position_models_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
-    position = await suite.positions.get_position("MNQ")
+    position = await mnq_positions.get_position("MNQ")
     if position:
         print(f"Instrument: {position.instrument}")
         print(f"Size: {position.size}")
@@ -84,7 +86,7 @@ async def position_models_example():
 ```python
 # Example trade usage
 async def trade_models_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Get recent trades
     trades = await suite.client.get_recent_trades(limit=10)
@@ -193,9 +195,10 @@ class Quote:
 
 # Example quote usage
 async def quote_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
 
-    quote = await suite.data.get_current_quote()
+    quote = await mnq_data.get_current_quote()
     print(f"Bid: ${quote.bid:.2f} x {quote.bid_size}")
     print(f"Ask: ${quote.ask:.2f} x {quote.ask_size}")
     print(f"Spread: ${quote.spread:.2f}")
@@ -218,13 +221,14 @@ class Tick:
 
 # Example tick usage
 async def tick_example():
-    suite = await TradingSuite.create("MNQ")
-    await suite.data.subscribe_to_trades()
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    await mnq_data.subscribe_to_trades()
 
     # Wait for tick data
     await asyncio.sleep(30)
 
-    ticks = await suite.data.get_recent_ticks(count=20)
+    ticks = await mnq_data.get_recent_ticks(count=20)
     for tick in ticks[-5:]:  # Last 5 ticks
         print(f"${tick.price:.2f} x {tick.size} ({tick.side}) @ {tick.timestamp}")
 
@@ -337,11 +341,12 @@ async def response_handling_example():
 ```python
 # Example trading response usage
 async def trading_response_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
 
     # Place order and handle response
-    response = await suite.orders.place_limit_order(
-        contract_id=suite.instrument_id,
+    response = await mnq_context.orders.place_limit_order(
+        contract_id=mnq_context.instrument_info.id,
         side=0,
         size=1,
         limit_price=21000.0
@@ -366,10 +371,11 @@ async def trading_response_example():
 ```python
 # Example statistics usage
 async def statistics_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
 
     # Get comprehensive statistics
-    stats = await suite.get_stats()
+    stats = await suite.get_statistics()
 
     # Access typed statistics
     print(f"Health Score: {stats.health_score}")
@@ -378,7 +384,7 @@ async def statistics_example():
     print(f"Memory Usage: {stats.memory_usage_mb:.1f} MB")
 
     # Component-specific statistics
-    order_stats = await suite.orders.get_stats()
+    order_stats = await mnq_context.orders.get_stats()
     print(f"Total Orders: {order_stats.total_orders}")
     print(f"Fill Rate: {order_stats.fill_rate:.1%}")
     print(f"Average Fill Time: {order_stats.avg_fill_time_ms:.0f}ms")
@@ -398,11 +404,12 @@ from project_x_py.types import OrderSide, OrderType, OrderStatus
 
 # Example enum usage
 async def enum_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
 
     # Using enums for type safety
-    response = await suite.orders.place_order(
-        contract_id=suite.instrument_id,
+    response = await mnq_context.orders.place_order(
+        contract_id=mnq_context.instrument_info.id,
         side=OrderSide.BUY,           # Type-safe enum
         order_type=OrderType.LIMIT,   # Type-safe enum
         size=1,
@@ -429,9 +436,10 @@ from project_x_py.types import PositionType, PositionStatus
 
 # Example position enum usage
 async def position_enum_example():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
-    position = await suite.positions.get_position("MNQ")
+    position = await mnq_positions.get_position("MNQ")
     if position:
         # Check position type
         if position.position_type == PositionType.LONG:
@@ -489,10 +497,11 @@ class CustomTradingSignal:
 async def custom_model_example():
     from project_x_py.indicators import RSI, MACD
 
-    suite = await TradingSuite.create("MNQ", timeframes=["5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["5min"])
+    mnq_data = suite["MNQ"].data
 
     # Get data and calculate indicators
-    data = await suite.data.get_data("5min")
+    data = await mnq_data.get_data("5min")
     data_with_indicators = data.pipe(RSI, period=14).pipe(MACD)
 
     if len(data_with_indicators) > 0:
@@ -574,7 +583,7 @@ except ValueError as e:
 ### Model Usage
 
 ```python
-#  Good: Use type hints for better IDE support
+# Good: Use type hints for better IDE support
 from project_x_py.models import Order, Position
 from typing import Optional
 
@@ -584,7 +593,7 @@ async def process_order(order: Order) -> Optional[Position]:
         return await get_position_for_order(order.order_id)
     return None
 
-#  Good: Use enums for type safety
+# Good: Use enums for type safety
 from project_x_py.types import OrderSide, OrderType
 
 side = OrderSide.BUY  # Type-safe
@@ -598,10 +607,12 @@ order_type = OrderType.LIMIT  # Type-safe
 ### Error Handling
 
 ```python
-#  Good: Handle model validation errors
+# Good: Handle model validation errors
 try:
-    response = await suite.orders.place_limit_order(
-        contract_id=suite.instrument_id,
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
+    response = await mnq_context.orders.place_limit_order(
+        contract_id=mnq_context.instrument_info.id,
         side=0,
         size=1,
         limit_price=21000.0

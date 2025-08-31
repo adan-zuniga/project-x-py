@@ -23,12 +23,12 @@ from project_x_py import TradingSuite, Features
 async def basic_risk_management():
     # Enable risk manager feature
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         features=[Features.RISK_MANAGER]
     )
 
     # Access the integrated risk manager
-    risk = suite.risk_manager
+    risk = suite["MNQ"].risk_manager
 
     # Calculate position size based on risk
     sizing = await risk.calculate_position_size(
@@ -613,10 +613,10 @@ Enter a long position with automatic risk management.
 **Example:**
 ```python
 async with ManagedTrade(
-    risk_manager=suite.risk_manager,
-    order_manager=suite.orders,
-    position_manager=suite.positions,
-    instrument_id=suite.instrument_id,
+    risk_manager=suite["MNQ"].risk_manager,
+    order_manager=suite["MNQ"].orders,
+    position_manager=suite["MNQ"].positions,
+    instrument_id=suite["MNQ"].instrument_info.id,
     max_risk_percent=0.02
 ) as trade:
 
@@ -770,32 +770,19 @@ async def basic_risk_trading():
     )
 
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         features=[Features.RISK_MANAGER],
         risk_config=config
     )
-
-    # Validate trade before entry
-    mock_order = create_mock_order(
-        contract_id=suite.instrument_id,
-        side=OrderSide.BUY,
-        size=2
-    )
-
-    validation = await suite.risk_manager.validate_trade(mock_order)
-
-    if not validation.is_valid:
-        print(f"Trade rejected: {validation.reasons}")
-        await suite.disconnect()
-        return
+    mnq_context = suite["MNQ"]
 
     # Execute risk-managed trade
     async with ManagedTrade(
-        risk_manager=suite.risk_manager,
-        order_manager=suite.orders,
-        position_manager=suite.positions,
-        instrument_id=suite.instrument_id,
-        data_manager=suite.data,
+        risk_manager=mnq_context.risk_manager,
+        order_manager=mnq_context.orders,
+        position_manager=mnq_context.positions,
+        instrument_id=mnq_context.instrument_info.id,
+        data_manager=mnq_context.data,
         max_risk_percent=0.015  # Override to 1.5% for this trade
     ) as trade:
 
@@ -832,7 +819,7 @@ async def basic_risk_trading():
                     await asyncio.sleep(5)  # Check every 5 seconds
 
     # Get final risk metrics
-    metrics = await suite.risk_manager.get_risk_metrics()
+    metrics = await mnq_context.risk_manager.get_risk_metrics()
     print(f"Daily P&L: ${metrics.daily_loss:.2f}")
     print(f"Trades today: {metrics.daily_trades}")
 
@@ -854,7 +841,7 @@ async def advanced_portfolio_risk():
     )
 
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ", "ES", "RTY"],
         features=[Features.RISK_MANAGER],
         risk_config=config
     )
@@ -862,7 +849,9 @@ async def advanced_portfolio_risk():
     # Portfolio risk monitoring
     async def monitor_portfolio_risk():
         while True:
-            analysis = await suite.risk_manager.analyze_portfolio_risk()
+            # This would ideally be a single call to a portfolio-level risk manager
+            # For this example, we'll check the risk manager of the primary instrument
+            analysis = await suite["MNQ"].risk_manager.analyze_portfolio_risk()
 
             print(f"Portfolio Risk Analysis:")
             print(f"  Total risk: ${analysis['total_risk']:.2f}")
@@ -880,28 +869,9 @@ async def advanced_portfolio_risk():
 
     try:
         # Execute trades with portfolio-wide risk awareness
-        instruments = ["MNQ", "MES", "RTY"]  # Different indices
-
-        for instrument in instruments:
-            # Check correlation before trading
-            current_positions = await suite.positions.get_all_positions()
-
-            # Validate new position wouldn't exceed correlation limits
-            mock_order = create_mock_order(
-                contract_id=f"CON.F.US.{instrument}.U25",
-                side=OrderSide.BUY,
-                size=1
-            )
-
-            validation = await suite.risk_manager.validate_trade(
-                mock_order, current_positions
-            )
-
-            if validation.is_valid:
-                print(f"Adding {instrument} position")
-                # Execute trade logic here
-            else:
-                print(f"Skipping {instrument}: {validation.warnings}")
+        # In a real scenario, you would have logic to decide which instrument to trade
+        print("Trading logic would be executed here.")
+        await asyncio.sleep(1)
 
     finally:
         monitor_task.cancel()
@@ -1014,8 +984,11 @@ async def on_risk_orders(event):
     print(f"Take profit: {data['take_profit']}")
 
 # Subscribe to risk events
-await suite.event_bus.on("risk_limit_exceeded", on_risk_limit)
-await suite.event_bus.on("risk_orders_placed", on_risk_orders)
+suite = await TradingSuite.create(["MNQ"], features=[Features.RISK_MANAGER])
+mnq_context = suite["MNQ"]
+
+await mnq_context.event_bus.on("risk_limit_exceeded", on_risk_limit)
+await mnq_context.event_bus.on("risk_orders_placed", on_risk_orders)
 ```
 
 ## Statistics Integration
@@ -1024,7 +997,7 @@ The RiskManager extends `BaseStatisticsTracker` and provides comprehensive metri
 
 ```python
 # Get risk manager statistics
-stats = await suite.risk_manager.get_statistics()
+stats = await suite["MNQ"].risk_manager.get_statistics()
 
 print(f"Risk Manager Statistics:")
 print(f"  Status: {stats['status']}")
@@ -1082,7 +1055,14 @@ else:
 
 ```python
 # ✓ Good: Consistent risk management with ManagedTrade
-async with ManagedTrade(...) as trade:
+suite = await TradingSuite.create(["MNQ"], features=[Features.RISK_MANAGER])
+mnq_context = suite["MNQ"]
+async with ManagedTrade(
+    risk_manager=mnq_context.risk_manager,
+    order_manager=mnq_context.orders,
+    position_manager=mnq_context.positions,
+    instrument_id=mnq_context.instrument_info.id
+) as trade:
     result = await trade.enter_long(entry_price=21000.0)
     # Automatic position sizing, stops, targets
 

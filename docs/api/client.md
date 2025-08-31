@@ -252,16 +252,16 @@ async def basic_trading():
         # Place market order
         market_order = await client.place_market_order(
             instrument="MNQ",
-            side="buy",
-            quantity=1
+            side=0,  # 0 for buy
+            size=1
         )
         print(f"Market Order ID: {market_order.order_id}")
 
         # Place limit order
         limit_order = await client.place_limit_order(
             instrument="MNQ",
-            side="buy",
-            quantity=1,
+            side=0,  # 0 for buy
+            size=1,
             price=21000.0
         )
         print(f"Limit Order ID: {limit_order.order_id}")
@@ -269,8 +269,8 @@ async def basic_trading():
         # Place stop order
         stop_order = await client.place_stop_order(
             instrument="MNQ",
-            side="sell",
-            quantity=1,
+            side=1,  # 1 for sell
+            size=1,
             stop_price=20950.0
         )
         print(f"Stop Order ID: {stop_order.order_id}")

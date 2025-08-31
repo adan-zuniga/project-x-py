@@ -63,7 +63,7 @@ async def main():
 
     # Multi-instrument trading
     await mnq_context.orders.place_limit_order(
-        contract_id=mnq_context.instrument_id,
+        contract_id=mnq_context.instrument_info.id,
         side=0, size=1, limit_price=21050.0
     )
 

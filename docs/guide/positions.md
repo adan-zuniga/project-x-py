@@ -94,7 +94,7 @@ async def setup_position_monitoring():
 
         # Check for risk alerts
         if abs(position_data.get('unrealizedPnL', 0)) > 500:
-            print("  Large unrealized loss detected!")
+            print("  Large unrealized loss detected!")
 
     # Register position event handlers
     await suite.on(EventType.POSITION_UPDATED, on_position_update)
@@ -491,7 +491,7 @@ async def position_reconciliation():
         api_size = api_pos.size if api_pos else 0
 
         if api_size != calc_pos:
-            print(f"  {instrument} mismatch:")
+            print(f"  {instrument} mismatch:")
             print(f"   API: {api_size}")
             print(f"   Calculated: {calc_pos}")
             print(f"   Difference: {api_size - calc_pos}")
@@ -499,7 +499,7 @@ async def position_reconciliation():
             # Auto-reconcile if needed
             await suite.positions.reconcile_position(instrument)
         else:
-            print(f" {instrument}: {api_size} (matches)")
+            print(f" {instrument}: {api_size} (matches)")
 ```
 
 ### Position Cleanup
@@ -711,7 +711,7 @@ async def manage_position_correlation():
 
         # Alert on high correlation
         if abs(correlation) > 0.8:
-            print(f"      High correlation detected!")
+            print(f"      High correlation detected!")
 
             # Consider reducing one position
             instruments = pair.split('-')
@@ -798,7 +798,7 @@ async def run_health_check():
     if health['issues']:
         print("\nIssues:")
         for issue in health['issues']:
-            print(f"    {issue}")
+            print(f"    {issue}")
 
     if health['recommendations']:
         print("\nRecommendations:")

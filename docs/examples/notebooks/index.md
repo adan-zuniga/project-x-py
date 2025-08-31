@@ -87,7 +87,7 @@ jupyter notebook
 ```python
 # Always use paper trading for testing
 suite = await TradingSuite.create(
-    "MNQ",
+    ["MNQ"],
     mode="paper"  # Paper trading mode
 )
 ```
@@ -109,7 +109,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 # Now you can use await directly
-suite = await TradingSuite.create("MNQ")
+suite = await TradingSuite.create(["MNQ"])
 ```
 
 ## Contributing Notebooks
@@ -136,7 +136,7 @@ nest_asyncio.apply()
 
 # Cell 2: Connect
 suite = await TradingSuite.create(
-    "MNQ",
+    ["MNQ"],
     timeframes=["1min", "5min"],
     features=["orderbook"]
 )

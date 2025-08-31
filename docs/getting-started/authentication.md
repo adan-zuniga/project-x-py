@@ -67,7 +67,7 @@ The TradingSuite handles authentication automatically:
 from project_x_py import TradingSuite
 
 # Automatically uses environment variables
-suite = await TradingSuite.create("MNQ")
+suite = await TradingSuite.create(["MNQ"])
 
 # Or provide client explicitly
 from project_x_py import ProjectX
@@ -76,7 +76,7 @@ client = ProjectX.from_env()
 await client.authenticate()
 
 suite = await TradingSuite.create(
-    instrument="MNQ",
+    instruments=["MNQ"],
     project_x=client
 )
 ```

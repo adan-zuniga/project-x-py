@@ -38,7 +38,7 @@ async def main():
 
 ### Safety First
 
-** WARNING**: Order examples in this guide place real orders on the market. Always:
+** WARNING**: Order examples in this guide place real orders on the market. Always:
 
 - Use micro contracts (MNQ, MES) for testing
 - Set small position sizes
@@ -772,7 +772,7 @@ class OrderEventHandler:
         """Handle order placement confirmation."""
         order_data = event.data
         self.active_orders[order_data['order_id']] = order_data
-        print(f" Order placed: {order_data['order_id']}")
+        print(f" Order placed: {order_data['order_id']}")
 
     async def on_order_filled(self, event):
         """Handle order fills."""

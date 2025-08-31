@@ -63,12 +63,11 @@ PROJECT_X_USERNAME=your-username
 
 ```python
 import asyncio
-from project_x_py import ProjectX
+from project_x_py import TradingSuite
 
 async def verify():
-    async with ProjectX.from_env() as client:
-        await client.authenticate()
-        print(f"Connected to account: {client.account_info.name}")
+    async with TradingSuite.create(["MNQ"]) as suite:
+        print(f"Connected to account: {suite.client.account_info.name}")
 
 asyncio.run(verify())
 ```

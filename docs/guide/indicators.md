@@ -28,8 +28,9 @@ from project_x_py.indicators import RSI, SMA, MACD
 
 async def basic_indicators():
     # Get market data
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("5min", bars=100)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("5min", bars=100)
 
     # Method chaining with pipe (recommended)
     analyzed_data = (data
@@ -78,8 +79,9 @@ Overlap studies are typically plotted on the same scale as price data and help i
 
 ```python
 async def moving_averages():
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("15min", bars=200)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("15min", bars=200)
 
     # Simple Moving Average
     data_with_sma = data.pipe(SMA, period=20)
@@ -116,7 +118,7 @@ async def moving_averages():
         print("= Bearish MA crossover")
 
     # Check for golden cross (50 SMA above 200 SMA)
-    data_long_term = await suite.data.get_data("1hr", bars=300)
+    data_long_term = await mnq_data.get_data("1hr", bars=300)
     long_term_ma = (data_long_term
         .pipe(SMA, period=50)
         .pipe(SMA, period=200)
@@ -124,15 +126,16 @@ async def moving_averages():
 
     latest_long = long_term_ma.tail(1)
     if latest_long['sma_50'][0] > latest_long['sma_200'][0]:
-        print("< Golden Cross - Long-term bullish")
+        print("< Golden Cross - Long-term bullish")
 ```
 
 ### Bollinger Bands
 
 ```python
 async def bollinger_bands_analysis():
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("5min", bars=100)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("5min", bars=100)
 
     # Standard Bollinger Bands (20-period, 2 std dev)
     bb_data = data.pipe(BBANDS, period=20, std_dev=2)
@@ -176,8 +179,9 @@ async def bollinger_bands_analysis():
 
 ```python
 async def parabolic_sar():
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("15min", bars=100)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("15min", bars=100)
 
     # Parabolic SAR for trend following
     sar_data = data.pipe(SAR, acceleration=0.02, maximum=0.2)
@@ -216,8 +220,9 @@ Momentum indicators help identify the strength and direction of price movements,
 
 ```python
 async def rsi_analysis():
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("5min", bars=100)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("5min", bars=100)
 
     # Standard RSI (14-period)
     rsi_data = data.pipe(RSI, period=14)
@@ -244,13 +249,13 @@ async def rsi_analysis():
     rsi_trend = recent_data['rsi_14'][-1] - recent_data['rsi_14'][-10]
 
     if price_trend > 0 and rsi_trend < 0:
-        print("  Bearish divergence - price up but RSI down")
+        print("=  Bearish divergence - price up but RSI down")
     elif price_trend < 0 and rsi_trend > 0:
-        print("  Bullish divergence - price down but RSI up")
+        print("=  Bullish divergence - price down but RSI up")
 
     # Multiple timeframe RSI
-    data_15min = await suite.data.get_data("15min", bars=100)
-    data_1hr = await suite.data.get_data("1hr", bars=100)
+    data_15min = await mnq_data.get_data("15min", bars=100)
+    data_1hr = await mnq_data.get_data("1hr", bars=100)
 
     rsi_15min = data_15min.pipe(RSI, period=14)['rsi_14'][-1]
     rsi_1hr = data_1hr.pipe(RSI, period=14)['rsi_14'][-1]
@@ -265,8 +270,9 @@ async def rsi_analysis():
 
 ```python
 async def macd_analysis():
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("15min", bars=200)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("15min", bars=200)
 
     # Standard MACD (12, 26, 9)
     macd_data = data.pipe(MACD, fast_period=12, slow_period=26, signal_period=9)
@@ -314,8 +320,9 @@ async def macd_analysis():
 
 ```python
 async def stochastic_analysis():
-    suite = await TradingSuite.create("MNQ")
-    data = await suite.data.get_data("5min", bars=100)
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_data = suite["MNQ"].data
+    data = await mnq_data.get_data("5min", bars=100)
 
     # Stochastic (default: 5,3,3)
     stoch_data = data.pipe(STOCH, k_period=5, d_period=3, d_ma_type=0)
@@ -520,9 +527,9 @@ async def obv_analysis():
 
     # Volume-price divergence
     if price_trend > 0 and obv_trend < 0:
-        print("  Bearish divergence - price up, volume down")
+        print("=  Bearish divergence - price up, volume down")
     elif price_trend < 0 and obv_trend > 0:
-        print("  Bullish divergence - price down, volume up")
+        print("=  Bullish divergence - price down, volume up")
     elif price_trend > 0 and obv_trend > 0:
         print(" Bullish confirmation - price and volume up")
     elif price_trend < 0 and obv_trend < 0:
@@ -623,7 +630,7 @@ async def mfi_analysis():
         if current_mfi > current_rsi:
             print("= Volume supporting price momentum")
         else:
-            print("  Volume not supporting price momentum")
+            print("=  Volume not supporting price momentum")
 ```
 
 ## Pattern Recognition Indicators
@@ -1028,12 +1035,12 @@ async def multi_timeframe_confluence():
 
             # Check for strong confluence
             if rsi_oversold_count >= 2 and macd_bullish_count >= 2:
-                print("< STRONG BULLISH CONFLUENCE:")
+                print("< STRONG BULLISH CONFLUENCE:")
                 print(f"   RSI oversold on {rsi_oversold_count}/{valid_timeframes} timeframes")
                 print(f"   MACD bullish on {macd_bullish_count}/{valid_timeframes} timeframes")
 
             elif rsi_overbought_count >= 2 and macd_bearish_count >= 2:
-                print("< STRONG BEARISH CONFLUENCE:")
+                print("< STRONG BEARISH CONFLUENCE:")
                 print(f"   RSI overbought on {rsi_overbought_count}/{valid_timeframes} timeframes")
                 print(f"   MACD bearish on {macd_bearish_count}/{valid_timeframes} timeframes")
 

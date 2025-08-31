@@ -121,28 +121,38 @@ async def feature_setup():
     suite = await TradingSuite.create(
         ["MNQ", "ES"],  # List of instruments
         timeframes=["1min", "5min"],
-        features=["orderbook", "risk_manager"]
+        features=["orderbook", "risk_manager"],
     )
 
     # Each instrument has its own feature instances
+    total_exposure = 0.0
     for symbol, context in suite.items():
         print(f"\n{symbol} Features:")
 
         # Level 2 order book data (per instrument)
         if context.orderbook:
-            depth = await context.orderbook.get_depth()
-            print(f"  Order book depth: {len(depth.bids)} bids, {len(depth.asks)} asks")
+            snapshot = await context.orderbook.get_orderbook_snapshot()
+            print(
+                f"  Order book depth: {len(snapshot['bids'])} bids, {len(snapshot['asks'])} asks"
+            )
 
         # Risk management tools (per instrument)
         if context.risk_manager:
-            limits = await context.risk_manager.get_limits()
-            print(f"  Max position size: {limits.max_position_size}")
+            # Access risk configuration
+            config = context.risk_manager.config
+            print(f"  Max position size: {config.max_position_size}")
 
-    # Portfolio-level risk management
-    portfolio_risk = await suite.get_portfolio_risk()
-    print(f"\nPortfolio Risk: ${portfolio_risk['total_exposure']:,.2f}")
+            # Get current risk metrics
+            metrics = await context.risk_manager.get_risk_metrics()
+            print(f"  Current risk: ${metrics['current_risk']:,.2f}")
+            print(f"  Margin used: ${metrics['margin_used']:,.2f}")
+            total_exposure += metrics["margin_used"]
+
+    # Portfolio-level risk summary
+    print(f"\nTotal Portfolio Exposure: ${total_exposure:,.2f}")
 
     await suite.disconnect()
+
 
 asyncio.run(feature_setup())
 ```

@@ -86,7 +86,7 @@ from project_x_py import TradingSuite
 
 # Basic configuration
 suite = await TradingSuite.create(
-    instrument="MNQ",
+    instruments=["MNQ"],
     timeframes=["1min", "5min", "15min"],
     features=["orderbook", "risk_manager"],
     initial_days=10
@@ -94,7 +94,7 @@ suite = await TradingSuite.create(
 
 # Advanced configuration
 suite = await TradingSuite.create(
-    instrument="MNQ",
+    instruments=["MNQ"],
     timeframes=["1min"],
     features=["orderbook"],
     initial_days=5,

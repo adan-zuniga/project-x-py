@@ -115,12 +115,12 @@ async def es_mnq_spread_trading():
         # Place spread trade
         tasks = [
             es_context.orders.place_market_order(
-                contract_id=es_context.instrument_id,
+                contract_id=es_context.instrument_info.id,
                 side=1,  # Sell ES
                 size=1
             ),
             mnq_context.orders.place_market_order(
-                contract_id=mnq_context.instrument_id,
+                contract_id=mnq_context.instrument_info.id,
                 side=0,  # Buy MNQ
                 size=1
             )
@@ -140,12 +140,12 @@ async def es_mnq_spread_trading():
         # Place reverse spread trade
         tasks = [
             es_context.orders.place_market_order(
-                contract_id=es_context.instrument_id,
+                contract_id=es_context.instrument_info.id,
                 side=0,  # Buy ES
                 size=1
             ),
             mnq_context.orders.place_market_order(
-                contract_id=mnq_context.instrument_id,
+                contract_id=mnq_context.instrument_info.id,
                 side=1,  # Sell MNQ
                 size=1
             )
@@ -673,7 +673,7 @@ async def resource_management_example():
     ], features=["orderbook", "risk_manager"]) as suite:
 
         # Monitor resource usage
-        stats = await suite.get_stats()
+        stats = await suite.get_statistics()
         print(f"Initial memory usage: {stats['memory_usage_mb']:.1f} MB")
 
         # Your trading logic here
@@ -683,7 +683,7 @@ async def resource_management_example():
             print(f"{symbol} health: {component_health:.1f}/100")
 
         # Periodic resource monitoring
-        stats = await suite.get_stats()
+        stats = await suite.get_statistics()
         if stats['memory_usage_mb'] > 100:  # 100MB threshold
             print("⚠️ High memory usage detected")
 
