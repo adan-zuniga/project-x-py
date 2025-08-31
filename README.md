@@ -21,9 +21,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.5.1 - Multi-Instrument TradingSuite with Critical Bug Fixes
+## 🚀 v3.5.2 - TradingSuite with Enhanced Testing & Documentation
 
-**Latest Version**: v3.5.1 - Critical bug fixes for TradingSuite including context manager re-entry, event loop handling, and session management in multi-instrument mode. The v3.5.0 release introduced multi-instrument support enabling complex multi-asset trading strategies while maintaining full backward compatibility.
+**Latest Version**: v3.5.2 - Comprehensive bug fixes for session management in multi-instrument mode, complete test coverage for TradingSuite module, and thoroughly updated documentation. Fixed critical bugs where session methods were using incorrect attribute names (`_contexts` instead of `_instruments`).
 
 **Key Benefits**:
 - 🎯 **Multi-Asset Strategies**: Trade ES vs NQ pairs, commodity spreads, sector rotation
@@ -32,7 +32,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - 🛡️ **Backward Compatible**: Existing single-instrument code continues to work
 - ⚡ **Performance Optimized**: Parallel context creation and resource sharing
 
-See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.1 bug fixes and v3.5.0 release notes with migration guide.
+See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.2 bug fixes, testing improvements, and documentation updates.
 
 ### 📦 Production Stability Guarantee
 

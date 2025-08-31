@@ -4,216 +4,226 @@ This directory contains specialized agent configurations for the project-x-py as
 
 ## Agent Directory
 
-### Core Development Agents
+### Implementation Agents (Write Code)
+These agents have full tool access and directly implement features:
 
-1. **[python-developer](./python-developer.md)**
-   - Async trading component development
-   - Performance profiling and optimization
-   - Integration testing with mock market data
+| Agent | Purpose | Key Tools | When to Use |
+|-------|---------|-----------|-------------|
+| **python-developer** | Core SDK development | Read, Write, Edit, Bash, WebSearch | Writing new features, fixing bugs, implementing components |
+| **code-refactor** | Architecture improvements | Read, Write, Edit, Grep, Bash | Refactoring code, optimizing patterns, modernizing architecture |
+| **code-documenter** | Documentation creation | Read, Write, Edit, WebFetch | Writing docs, examples, migration guides, API references |
+| **integration-tester** | Test implementation | Read, Write, Edit, Bash | Creating tests, mock data, test fixtures |
+| **release-manager** | Release execution | Read, Write, Edit, Bash | Version bumping, changelog, PyPI deployment |
 
-2. **[code-standards-enforcer](./code-standards-enforcer.md)**
-   - **ALWAYS checks IDE diagnostics first**
-   - Enforces 100% async architecture
-   - Pre-commit hooks and security scanning
+### Analysis & Review Agents (Read-Only)
+These agents analyze and review but don't write code:
 
-3. **[code-debugger](./code-debugger.md)**
-   - WebSocket and real-time debugging
-   - Memory leak detection
-   - Production log analysis
+| Agent | Purpose | Key Tools | When to Use |
+|-------|---------|-----------|-------------|
+| **code-reviewer** | Code review | Read, Grep, Bash, WebFetch | PR reviews, quality checks, before releases |
+| **code-standards-enforcer** | Standards compliance | Read, Grep, Bash, WebSearch | Checking async compliance, type safety, standards |
+| **performance-optimizer** | Performance analysis | Read, Grep, Bash, WebSearch | Profiling, benchmarking, optimization planning |
+| **security-auditor** | Security review | Read, Grep, Bash, WebFetch | Vulnerability scanning, security compliance |
+| **code-debugger** | Issue investigation | Read, Grep, Bash, WebFetch | Debugging issues, root cause analysis |
+| **data-analyst** | Data validation | Read, Grep, Bash, NotebookEdit | Indicator validation, market analysis, metrics |
 
-4. **[code-documenter](./code-documenter.md)**
-   - API documentation generation
-   - Migration guides and changelogs
-   - Interactive documentation with MkDocs
+### Coordinator Agents (Orchestration Only)
+These agents coordinate other agents but don't directly implement:
 
-5. **[code-refactor](./code-refactor.md)**
-   - Architecture improvements
-   - AST-based safe refactoring
-   - Performance optimizations
+| Agent | Purpose | Key Tools | When to Use |
+|-------|---------|-----------|-------------|
+| **architecture-planner** | System design | Read, Grep, TodoWrite, WebSearch | Complex features, multi-agent coordination |
+| **test-orchestrator** | Test coordination | Read, Grep, Bash, TodoWrite | Test planning, coverage strategy, TDD workflow |
+| **deployment-coordinator** | Deployment orchestration | Read, Grep, TodoWrite, WebSearch | Release coordination, deployment workflows |
 
-6. **[code-reviewer](./code-reviewer.md)**
-   - Comprehensive code reviews
-   - Security and performance analysis
-   - PR review automation
+## Tool Access Matrix
 
-### Specialized Agents
-
-7. **[performance-optimizer](./performance-optimizer.md)** 🆕
-   - Memory and CPU profiling
-   - Cache optimization
-   - WebSocket message batching
-
-8. **[integration-tester](./integration-tester.md)** 🆕
-   - Market simulation
-   - End-to-end testing
-   - Load testing
-
-9. **[security-auditor](./security-auditor.md)** 🆕
-   - API key security
-   - Vulnerability scanning
-   - Compliance checks
-
-10. **[release-manager](./release-manager.md)** 🆕
-    - Semantic versioning
-    - PyPI deployment
-    - Release automation
-
-11. **[data-analyst](./data-analyst.md)** 🆕
-    - Indicator validation
-    - Market analysis
-    - Backtest metrics
-
-## Agent Selection Guide
-
-### By Task Type
-
-#### Feature Development
-- Primary: `python-developer`
-- Support: `code-documenter`, `integration-tester`
-- Review: `code-standards-enforcer`, `code-reviewer`
-
-#### Bug Fixing
-- Primary: `code-debugger`
-- Support: `integration-tester`
-- Review: `code-reviewer`
-
-#### Performance Issues
-- Primary: `performance-optimizer`
-- Support: `code-refactor`, `code-debugger`
-- Review: `code-reviewer`
-
-#### Security Audit
-- Primary: `security-auditor`
-- Support: `code-debugger`
-- Review: `code-reviewer`
-
-#### Release Preparation
-- Primary: `release-manager`
-- Support: `code-standards-enforcer`, `security-auditor`
-- Review: `code-reviewer`
-
-#### Market Analysis
-- Primary: `data-analyst`
-- Support: `python-developer`
-- Review: `code-reviewer`
-
-## Collaboration Workflows
-
-### Feature Implementation
+### Full Implementation Access
 ```
-1. data-analyst: Analyze requirements
-2. python-developer: Implement feature
-3. integration-tester: Create tests
-4. code-standards-enforcer: Ensure compliance
-5. performance-optimizer: Optimize if needed
-6. code-documenter: Document feature
-7. code-reviewer: Final review
+Read, Write, Edit, MultiEdit, NotebookEdit, Glob, Grep,
+Bash, BashOutput, KillBash, TodoWrite, WebFetch, WebSearch
+```
+**Agents:** python-developer
+
+### Limited Implementation Access
+```
+Read, Write, Edit, MultiEdit, Glob, Grep, Bash, TodoWrite, WebSearch
+```
+**Agents:** code-refactor, code-documenter
+
+### Execution & Testing Access
+```
+Read, Write, Edit, Glob, Grep, Bash, BashOutput, KillBash, TodoWrite
+```
+**Agents:** integration-tester
+
+### Release Management Access
+```
+Read, Write, Edit, Glob, Grep, Bash, TodoWrite, WebFetch
+```
+**Agents:** release-manager
+
+### Analysis & Review Access
+```
+Read, Glob, Grep, Bash, BashOutput, [KillBash], TodoWrite, WebSearch/WebFetch
+```
+**Agents:** code-reviewer, code-standards-enforcer, performance-optimizer, security-auditor, code-debugger
+
+### Data Analysis Access
+```
+Read, Glob, Grep, Bash, BashOutput, NotebookEdit, TodoWrite, WebSearch
+```
+**Agents:** data-analyst
+
+### Coordination Access (Minimal)
+```
+Read, Glob, Grep, TodoWrite, WebSearch, [Bash]
+```
+**Agents:** architecture-planner, test-orchestrator, deployment-coordinator
+
+## Agent Collaboration Patterns
+
+### Feature Development Flow
+```mermaid
+graph LR
+    A[architecture-planner] -->|Design| B[python-developer]
+    B -->|Implement| C[integration-tester]
+    C -->|Test| D[code-standards-enforcer]
+    D -->|Validate| E[code-reviewer]
+    E -->|Approve| F[code-documenter]
 ```
 
-### Production Issue
-```
-1. code-debugger: Investigate issue
-2. integration-tester: Reproduce problem
-3. python-developer: Implement fix
-4. code-standards-enforcer: Verify quality
-5. code-reviewer: Review fix
-```
-
-### Performance Optimization
-```
-1. performance-optimizer: Profile and identify bottlenecks
-2. code-refactor: Plan optimization
-3. python-developer: Implement improvements
-4. integration-tester: Verify performance
-5. code-reviewer: Review changes
+### Bug Fix Flow
+```mermaid
+graph LR
+    A[code-debugger] -->|Investigate| B[test-orchestrator]
+    B -->|Plan Tests| C[python-developer]
+    C -->|Fix| D[integration-tester]
+    D -->|Validate| E[code-reviewer]
 ```
 
-### Security Audit
-```
-1. security-auditor: Comprehensive scan
-2. code-debugger: Investigate vulnerabilities
-3. python-developer: Fix issues
-4. code-standards-enforcer: Verify secure coding
-5. integration-tester: Test security measures
-```
-
-### Release Process
-```
-1. code-standards-enforcer: Pre-release checks
-2. security-auditor: Security validation
-3. integration-tester: Full test suite
-4. release-manager: Version and deploy
-5. code-documenter: Update docs
+### Release Flow
+```mermaid
+graph LR
+    A[deployment-coordinator] -->|Coordinate| B[code-standards-enforcer]
+    B -->|Check| C[security-auditor]
+    C -->|Audit| D[test-orchestrator]
+    D -->|Test| E[release-manager]
+    E -->|Deploy| F[code-documenter]
 ```
 
-## MCP Server Usage
+## Usage Guidelines
 
-### Universal Access (All Agents)
-- `mcp__aakarsh-sasi-memory-bank-mcp` - Progress tracking
-- `mcp__mcp-obsidian` - Documentation
-- `mcp__smithery-ai-filesystem` - File operations
-- `mcp__ide` - IDE diagnostics
+### When to Use Coordinator Agents
 
-### Specialized Access
-- `mcp__project-x-py_Docs` - Project documentation
-- `mcp__upstash-context-7-mcp` - Library docs
-- `mcp__waldzellai-clear-thought` - Problem solving
-- `mcp__itseasy-21-mcp-knowledge-graph` - Dependencies
-- `mcp__tavily-mcp` - External research
-- `mcp__github` - GitHub operations
+**Use coordinator agents when:**
+- Task requires multiple specialized agents
+- Complex feature needing design and planning
+- Orchestrating deployment or testing workflows
+- Breaking down vague requirements
+- Coordinating parallel agent activities
 
-## Quick Start
+**Skip coordinator agents when:**
+- Simple, straightforward tasks
+- Single-agent responsibilities
+- Quick bug fixes
+- Documentation updates
+- Routine maintenance
 
-### Using an Agent
-```bash
-# Example: Using python-developer agent
-1. Read the agent documentation: .claude/agents/python-developer.md
-2. Follow the agent's workflow and tools
-3. Use specified MCP servers for the task
-4. Apply the quality checklist before completion
+### Agent Selection Best Practices
+
+1. **Start with the right agent**: Choose based on primary task type
+2. **Use coordinators for complexity**: Let them orchestrate multi-agent workflows
+3. **Leverage specialization**: Each agent excels in their domain
+4. **Parallel execution**: Run independent agents concurrently
+5. **Follow patterns**: Use established collaboration workflows
+
+## Tool Usage Philosophy
+
+### Write Access Principles
+- **python-developer**: Full access for feature implementation
+- **code-refactor**: Write access for architecture improvements
+- **code-documenter**: Write access for documentation
+- **integration-tester**: Write access for test creation
+- **release-manager**: Write access for release artifacts
+
+### Read-Only Principles
+- **Reviewers/Auditors**: Analyze without modifying
+- **Standards Enforcers**: Check compliance without fixing
+- **Performance Analyzers**: Profile without optimizing
+- **Debuggers**: Investigate without patching
+
+### Coordination Principles
+- **Minimal tools**: Only what's needed for orchestration
+- **No implementation**: Delegate to specialized agents
+- **TodoWrite essential**: Track complex workflows
+- **WebSearch useful**: Research solutions and patterns
+
+## Agent Communication
+
+### Inter-Agent Communication Pattern
+```python
+# Coordinator delegates to implementer
+architecture-planner -> python-developer:
+  "Implement OrderManager.place_bracket_order() with specs..."
+
+# Implementer reports to reviewer
+python-developer -> code-reviewer:
+  "Implementation complete, ready for review..."
+
+# Reviewer coordinates with tester
+code-reviewer -> integration-tester:
+  "Approved, needs integration tests for..."
 ```
 
-### Multi-Agent Task
-```bash
-# Example: Implementing a new feature
-1. Start with data-analyst for requirements
-2. Use python-developer for implementation
-3. Apply code-standards-enforcer checks
-4. Create tests with integration-tester
-5. Document with code-documenter
-6. Final review with code-reviewer
+### Task Handoff Protocol
+1. **Clear requirements**: Specify exactly what's needed
+2. **Context provision**: Share relevant background
+3. **Success criteria**: Define completion conditions
+4. **Constraints**: Note any limitations or requirements
+5. **Priority**: Indicate urgency if applicable
+
+## Configuration Format
+
+Each agent configuration file follows this format:
+
+```yaml
+---
+name: agent-name
+description: Agent purpose and specialization
+tools: Comma-separated list of allowed tools
+model: sonnet  # or other model
+color: display color for UI
+---
+
+# Agent documentation in Markdown
 ```
 
-## Best Practices
+## Adding New Agents
 
-1. **Always start with IDE diagnostics** when using code-standards-enforcer
-2. **Use agents concurrently** when tasks can be parallelized
-3. **Document decisions** in Memory Bank and Obsidian
-4. **Run tests frequently** during development
-5. **Profile before optimizing** with performance-optimizer
-6. **Security scan before release** with security-auditor
+To add a new agent:
 
-## Agent Capabilities Summary
+1. Create `agent-name.md` in this directory
+2. Add YAML frontmatter with name, description, tools, model, color
+3. Document agent's purpose, responsibilities, workflows
+4. Define tool access based on agent role:
+   - Implementation agents: Write access
+   - Analysis agents: Read-only access
+   - Coordinator agents: Minimal tools
+5. Update this README with the new agent
 
-| Agent | Primary Focus | Key Tools | MCP Servers |
-|-------|--------------|-----------|-------------|
-| python-developer | Async development | pytest, py-spy, mprof | Project docs, Clear Thought |
-| code-standards-enforcer | Quality enforcement | IDE diagnostics, ruff, mypy | IDE, Project docs |
-| code-debugger | Issue investigation | aiomonitor, objgraph | Clear Thought, IDE |
-| code-documenter | Documentation | mkdocs, sphinx | Obsidian, Project docs |
-| code-refactor | Architecture improvement | AST, libcst, pydeps | Clear Thought, Knowledge Graph |
-| code-reviewer | Code review | semgrep, radon | GitHub, Project docs |
-| performance-optimizer | Performance tuning | py-spy, mprof, benchmarks | Clear Thought, Memory Bank |
-| integration-tester | E2E testing | Mock market, pytest | Memory Bank, Obsidian |
-| security-auditor | Security validation | bandit, safety, trufflehog | Tavily, GitHub |
-| release-manager | Release automation | bump2version, twine | GitHub, Memory Bank |
-| data-analyst | Market analysis | TA-Lib, scipy, sklearn | Clear Thought, Obsidian |
+## Quality Standards
 
-## Updates and Maintenance
+All agents must:
+- Have clear, focused responsibilities
+- Use appropriate tool access for their role
+- Follow established patterns
+- Document their workflows
+- Coordinate efficiently with other agents
+- Maintain high quality standards
 
-- Agents are version-controlled with the project
-- Update agent configurations as tools evolve
-- Add new agents as project needs grow
-- Remove deprecated agents after migration period
+## Version History
 
-Last Updated: 2025-01-23
+- **v1.0.0**: Initial agent configuration
+- **v1.1.0**: Added coordinator agents (architecture-planner, test-orchestrator, deployment-coordinator)
+- **v1.2.0**: Refined tool access permissions for role-based separation

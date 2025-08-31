@@ -13,7 +13,9 @@ Before responding to any request, I must:
 
 ## CRITICAL: Testing and Running Examples
 
-**ALWAYS use `./test.sh` to run tests and examples.** The environment variables are not set globally, but test.sh handles this automatically.
+**ALWAYS use `./test.sh` to run examples.** The environment variables are not set globally, but test.sh handles this automatically.
+
+**ALWAYS run tests with `uv run pytest`**
 
 ```bash
 # CORRECT - Always use test.sh:
@@ -195,6 +197,8 @@ Remember: The test suite is the specification. Code must conform to tests, not v
 ### IMPORTANT: Use Appropriate Subagents for Different Tasks
 
 Claude Code includes specialized agents that should be used PROACTIVELY for specific development tasks. Each agent has specialized knowledge and tools optimized for their domain.
+
+**Agent configurations are defined in `.claude/agents/` directory with specific tool access permissions for each role.**
 
 ### Core Development Agents
 
@@ -410,6 +414,72 @@ Example scenarios:
 - "Compare indicator outputs with TA-Lib"
 - "Statistical validation of backtest results"
 
+### Coordinator Agents (NEW)
+
+These agents orchestrate multi-agent workflows but do NOT write code directly:
+
+#### **architecture-planner**
+Use for high-level system design and coordination:
+- Analyze complex requirements and break them down
+- Design system architecture and integration patterns
+- Coordinate multi-agent workflows
+- Ensure architectural consistency across components
+- Plan refactoring strategies
+- Define interfaces and contracts between components
+
+Example scenarios:
+- Complex features requiring multiple components
+- System-wide refactoring initiatives
+- Breaking down vague requirements
+- Multi-agent coordination needed
+
+#### **test-orchestrator**
+Use for comprehensive testing strategy coordination:
+- Design test strategies across unit/integration/E2E
+- Coordinate test implementation across agents
+- Ensure coverage targets are met
+- Plan test scenarios and edge cases
+- Manage test automation workflows
+- Ensure TDD principles are followed
+
+Example scenarios:
+- Planning comprehensive test coverage
+- Coordinating regression testing
+- TDD workflow orchestration
+- Test strategy for new features
+
+#### **deployment-coordinator**
+Use for release and deployment orchestration:
+- Plan and coordinate release workflows
+- Orchestrate pre-deployment validation
+- Coordinate deployment execution
+- Manage rollback procedures
+- Ensure post-deployment verification
+- Coordinate hotfix deployments
+
+Example scenarios:
+- Release planning and coordination
+- Deployment workflow orchestration
+- Emergency hotfix coordination
+- Rollback procedure management
+
+### Agent Organization
+
+Agents are organized into three categories based on their tool access:
+
+1. **Implementation Agents** (Have write access):
+   - python-developer, code-refactor, code-documenter
+   - integration-tester, release-manager
+
+2. **Analysis & Review Agents** (Read-only access):
+   - code-reviewer, code-standards-enforcer, performance-optimizer
+   - security-auditor, code-debugger, data-analyst
+
+3. **Coordinator Agents** (Minimal tools, orchestration only):
+   - architecture-planner, test-orchestrator, deployment-coordinator
+
+**Important**: Coordinator agents delegate work to specialized agents rather than implementing directly. Use them for complex tasks requiring multiple agents.
+
 ### Agent Collaboration Patterns
 
 #### Pattern 1: Feature Development
@@ -470,6 +540,9 @@ Example scenarios:
 5. **Combine agents** for complex tasks using collaboration patterns
 6. **Leverage specialized agents** for their unique capabilities
 7. **Follow patterns** for common workflows to ensure comprehensive coverage
+8. **Use coordinator agents** for complex multi-agent workflows instead of managing directly
+9. **Respect tool boundaries** - agents only have access to tools defined in their configuration
+10. **Check `.claude/agents/`** for detailed agent configurations and capabilities
 
 ### Example Multi-Agent Workflows
 
@@ -501,9 +574,13 @@ Example scenarios:
 5. code-reviewer: Review and approve fix
 ```
 
+### Agent Tool Access and Configuration
+
+**Important**: Each agent has specific tool access defined in their configuration file in `.claude/agents/`. Agents can only use tools explicitly granted to them. See `.claude/agents/README.md` for the complete tool access matrix.
+
 ### Agent Command Requirements
 
-**Note**: Tool permissions are configured at the system level. This section documents common commands agents need.
+**Note**: Tool permissions are configured in each agent's YAML frontmatter. This section documents common commands agents need.
 
 #### Commands Agents Typically Use
 

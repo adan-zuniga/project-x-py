@@ -1,6 +1,7 @@
 ---
 name: code-debugger
 description: Debug async trading SDK issues - WebSocket disconnections, order lifecycle failures, real-time data gaps, event deadlocks, price precision errors, and memory leaks. Specializes in asyncio debugging, SignalR tracing, and financial data integrity. Uses ./test.sh for reproduction. Use PROACTIVELY for production issues and real-time failures.
+tools: Read, Glob, Grep, Bash, BashOutput, KillBash, TodoWrite, WebFetch, WebSearch
 model: sonnet
 color: orange
 ---

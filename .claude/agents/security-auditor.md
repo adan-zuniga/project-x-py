@@ -1,6 +1,7 @@
 ---
 name: security-auditor
 description: Audit async trading SDK security - API key protection, WebSocket authentication, data encryption, PII compliance, and vulnerability scanning. Specializes in secret detection, input validation, rate limiting, and audit logging. Use PROACTIVELY before releases and for compliance checks.
+tools: Read, Glob, Grep, Bash, BashOutput, TodoWrite, WebFetch, WebSearch
 model: sonnet
 color: crimson
 ---

@@ -1,6 +1,7 @@
 ---
 name: code-standards-enforcer
 description: Enforce project-x-py SDK standards - 100% async architecture, TradingSuite patterns, Polars-only DataFrames, ./test.sh usage, and semantic versioning. Specializes in deprecation compliance, type safety with TypedDict/Protocol, Decimal price precision, and EventBus patterns. Use PROACTIVELY for PR checks and release validation.
+tools: Read, Glob, Grep, Bash, BashOutput, KillBash, TodoWrite, WebSearch
 model: sonnet
 color: red
 ---

@@ -29,22 +29,39 @@ asyncio.run(main())
 
 ```python
 async def advanced_setup():
-    # With specific configuration
+    # Single instrument (backward compatible)
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        "MNQ",  # Single instrument string
         timeframes=["1min", "5min", "15min"],
         features=["orderbook", "risk_manager"],
         initial_days=10,
         timezone="America/Chicago"
     )
 
-    # Access integrated components
-    print(f"Client: {suite.client}")
-    print(f"Orders: {suite.orders}")
-    print(f"Positions: {suite.positions}")
-    print(f"Data: {suite.data}")
-    print(f"OrderBook: {suite.orderbook}")  # if enabled
-    print(f"RiskManager: {suite.risk_manager}")  # if enabled
+    # Multi-instrument (recommended for v3.5.0+)
+    suite = await TradingSuite.create(
+        ["MNQ", "MES", "MCL"],  # List of instruments
+        timeframes=["1min", "5min", "15min"],
+        features=["orderbook", "risk_manager"],
+        initial_days=10,
+        timezone="America/Chicago"
+    )
+
+    # Access components (single instrument)
+    if len(suite) == 1:
+        # Backward compatible access (shows deprecation warning)
+        print(f"Data: {suite.data}")
+        print(f"Orders: {suite.orders}")
+
+    # Access components (multi-instrument - recommended)
+    for symbol, context in suite.items():
+        print(f"{symbol} Data: {context.data}")
+        print(f"{symbol} Orders: {context.orders}")
+        print(f"{symbol} Positions: {context.positions}")
+        if context.orderbook:  # if enabled
+            print(f"{symbol} OrderBook: {context.orderbook}")
+        if context.risk_manager:  # if enabled
+            print(f"{symbol} RiskManager: {context.risk_manager}")
 
     await suite.disconnect()
 ```
@@ -55,19 +72,19 @@ async def advanced_setup():
     Session filtering is experimental and not thoroughly tested with live data. Use with caution in production.
 
 ```python
-from project_x_py.sessions import SessionConfig, SessionType
+from project_x_py.sessions import SessionConfig, SessionType, SessionTimes
 
 async def session_setup():
     # RTH-only trading (9:30 AM - 4:00 PM ET)
     rth_suite = await TradingSuite.create(
-        instrument="MNQ",
+        "MNQ",  # Positional argument
         timeframes=["1min", "5min"],
         session_config=SessionConfig(session_type=SessionType.RTH)
     )
 
     # ETH-only analysis (overnight sessions)
     eth_suite = await TradingSuite.create(
-        instrument="ES",
+        "ES",  # Positional argument
         session_config=SessionConfig(session_type=SessionType.ETH)
     )
 
@@ -85,7 +102,7 @@ async def session_setup():
     )
 
     custom_suite = await TradingSuite.create(
-        instrument="CL",
+        "CL",  # Positional argument
         session_config=custom_config
     )
 
@@ -109,6 +126,113 @@ async def config_file_setup():
         "initial_days": 5
     }
     suite = await TradingSuite.from_dict(config)
+
+    await suite.disconnect()
+```
+
+## Multi-Instrument Support (v3.5.0+)
+
+### Creating Multi-Instrument Suites
+
+```python
+async def multi_instrument_setup():
+    # Create suite with multiple instruments
+    suite = await TradingSuite.create(
+        ["MNQ", "MES", "MCL"],  # List of instruments
+        timeframes=["1min", "5min"],
+        features=["orderbook", "risk_manager"]
+    )
+
+    # Suite acts as a dictionary
+    print(f"Managing {len(suite)} instruments")
+    print(f"Instruments: {list(suite.keys())}")
+
+    # Access each instrument context
+    for symbol in suite:
+        context = suite[symbol]
+        print(f"{symbol}: {context.instrument_info.name}")
+
+    await suite.disconnect()
+```
+
+### Container Protocol Methods
+
+```python
+async def container_protocol_demo():
+    suite = await TradingSuite.create(["MNQ", "MES", "MCL"])
+
+    # Dictionary-like operations
+    assert len(suite) == 3                    # Number of instruments
+    assert "MNQ" in suite                      # Membership test
+    assert list(suite) == ["MNQ", "MES", "MCL"]  # Iteration
+
+    # Access methods
+    symbols = list(suite.keys())              # Get all symbols
+    contexts = list(suite.values())           # Get all contexts
+    items = list(suite.items())               # Get (symbol, context) pairs
+
+    # Direct access
+    mnq = suite["MNQ"]                        # Get specific context
+
+    try:
+        unknown = suite["UNKNOWN"]            # Raises KeyError
+    except KeyError as e:
+        print(f"Instrument not found: {e}")
+
+    await suite.disconnect()
+```
+
+### Multi-Instrument Trading
+
+```python
+async def multi_instrument_trading():
+    suite = await TradingSuite.create(
+        ["MNQ", "MES", "MCL"],
+        features=["orderbook", "risk_manager"]
+    )
+
+    # Place orders on multiple instruments
+    for symbol, context in suite.items():
+        # Each instrument has its own managers
+        order = await context.orders.place_market_order(
+            contract_id=context.instrument_info.id,
+            side=0,  # Buy
+            size=1
+        )
+        print(f"{symbol} order placed: {order.id}")
+
+    # Monitor positions across all instruments
+    total_exposure = 0
+    for symbol, context in suite.items():
+        positions = await context.positions.get_all_positions()
+        for pos in positions:
+            exposure = abs(pos.size * pos.averagePrice)
+            total_exposure += exposure
+            print(f"{symbol} position: {pos.size} @ ${pos.averagePrice}")
+
+    print(f"Total portfolio exposure: ${total_exposure:,.2f}")
+
+    await suite.disconnect()
+```
+
+### Session Management with Multi-Instruments
+
+```python
+from project_x_py.sessions import SessionType
+
+async def multi_instrument_sessions():
+    suite = await TradingSuite.create(["MNQ", "MES"])
+
+    # Set session type for all instruments
+    await suite.set_session_type(SessionType.RTH)
+
+    # Get session data for all instruments
+    session_data = await suite.get_session_data("5min", SessionType.RTH)
+    # Returns: {"MNQ": data, "MES": data}
+
+    # Get session statistics for all instruments
+    session_stats = await suite.get_session_statistics("5min")
+    # Returns: {"MNQ": stats, "MES": stats}
 
     await suite.disconnect()
 ```
@@ -200,23 +324,37 @@ async def custom_configuration():
 async def component_access():
     suite = await TradingSuite.create("MNQ", features=["orderbook", "risk_manager"])
 
-    # Always available components
+    # Global components (always available)
     client = suite.client              # ProjectX API client
-    orders = suite.orders             # OrderManager
-    positions = suite.positions       # PositionManager
-    data = suite.data                 # RealtimeDataManager
     realtime = suite.realtime         # ProjectXRealtimeClient
 
-    # Optional components (based on features)
-    if suite.orderbook:
-        orderbook = suite.orderbook   # OrderBook (Level 2)
+    # Single instrument access (backward compatible, shows deprecation warning)
+    if len(suite) == 1:
+        orders = suite.orders          # OrderManager (deprecated)
+        positions = suite.positions    # PositionManager (deprecated)
+        data = suite.data             # RealtimeDataManager (deprecated)
 
-    if suite.risk_manager:
-        risk_mgr = suite.risk_manager # RiskManager
+        # Optional components (deprecated access)
+        if suite.orderbook:
+            orderbook = suite.orderbook   # OrderBook (Level 2) (deprecated)
+        if suite.risk_manager:
+            risk_mgr = suite.risk_manager # RiskManager (deprecated)
+
+    # Multi-instrument access (recommended)
+    mnq_context = suite["MNQ"]
+    orders = mnq_context.orders          # OrderManager for MNQ
+    positions = mnq_context.positions    # PositionManager for MNQ
+    data = mnq_context.data              # RealtimeDataManager for MNQ
+
+    # Optional components (per instrument)
+    if mnq_context.orderbook:
+        orderbook = mnq_context.orderbook   # OrderBook for MNQ
+    if mnq_context.risk_manager:
+        risk_mgr = mnq_context.risk_manager # RiskManager for MNQ
 
     # Instrument information
-    instrument_info = suite.instrument_info
-    instrument_id = suite.instrument_id
+    instrument_info = mnq_context.instrument_info
+    instrument_id = mnq_context.instrument_info.id
 
     await suite.disconnect()
 ```
@@ -589,10 +727,10 @@ orderbook:
 ### Initialization
 
 ```python
-#  Recommended: Use TradingSuite.create()
+# Recommended: Use TradingSuite.create()
 suite = await TradingSuite.create("MNQ", features=["orderbook"])
 
-#  Good: Use context manager for automatic cleanup
+# Good: Use context manager for automatic cleanup
 async with TradingSuite.create("MNQ") as suite:
     # Trading operations
     pass

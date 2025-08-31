@@ -1400,10 +1400,10 @@ class TradingSuite:
                 logger.info(f"Session type changed to {session_type}")
         # Handle multi-instrument mode
         else:
-            for context in self._contexts.values():
+            for context in self._instruments.values():
                 if hasattr(context.data, "set_session_type"):
                     await context.data.set_session_type(session_type)
-            if self._contexts:
+            if self._instruments:
                 logger.info(
                     f"Session type changed to {session_type} for all instruments"
                 )
@@ -1438,7 +1438,7 @@ class TradingSuite:
 
         # Handle multi-instrument mode - return dict of data
         result = {}
-        for symbol, context in self._contexts.items():
+        for symbol, context in self._instruments.items():
             if hasattr(context.data, "get_session_data"):
                 result[symbol] = await context.data.get_session_data(
                     timeframe, session_type
@@ -1469,7 +1469,7 @@ class TradingSuite:
 
         # Handle multi-instrument mode - return dict of stats per instrument
         result = {}
-        for symbol, context in self._contexts.items():
+        for symbol, context in self._instruments.items():
             if hasattr(context.data, "get_session_statistics"):
                 result[symbol] = await context.data.get_session_statistics(timeframe)
         return result if result else {}

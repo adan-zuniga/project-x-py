@@ -1,6 +1,7 @@
 ---
 name: code-refactor
 description: Refactor async trading SDK for performance and maintainability - migrate to TradingSuite patterns, optimize Polars operations, consolidate WebSocket handling, modernize async patterns, and maintain backward compatibility with deprecation. Specializes in monolithic to modular transitions, event system optimization, and memory management improvements. Use PROACTIVELY for architecture evolution.
+tools: Read, Write, Edit, MultiEdit, Glob, Grep, Bash, TodoWrite, WebSearch
 model: sonnet
 color: purple
 ---

@@ -1,6 +1,7 @@
 ---
 name: performance-optimizer
 description: Optimize async trading SDK performance - memory profiling, async tuning, cache strategies, WebSocket batching, and DataFrame operations. Specializes in benchmark management, regression detection, and resource utilization. Use PROACTIVELY for performance bottlenecks and optimization opportunities.
+tools: Read, Glob, Grep, Bash, BashOutput, KillBash, TodoWrite, WebSearch
 model: sonnet
 color: cyan
 ---

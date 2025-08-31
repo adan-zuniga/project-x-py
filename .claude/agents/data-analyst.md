@@ -1,6 +1,7 @@
 ---
 name: data-analyst
 description: Analyze trading data and validate indicators - TA-Lib comparison, market microstructure analysis, order flow patterns, and backtest metrics. Specializes in statistical validation, volume profile analysis, and data quality checks. Use PROACTIVELY for strategy validation and performance analysis.
+tools: Read, Glob, Grep, Bash, BashOutput, NotebookEdit, TodoWrite, WebSearch
 model: sonnet
 color: teal
 ---

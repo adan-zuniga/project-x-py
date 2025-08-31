@@ -1,6 +1,7 @@
 ---
 name: release-manager
 description: Manage SDK releases - semantic versioning, breaking change detection, migration scripts, changelog generation, and PyPI deployment. Specializes in release automation, git tagging, pre-release testing, and rollback procedures. Use PROACTIVELY for version releases and deployment coordination.
+tools: Read, Write, Edit, Glob, Grep, Bash, TodoWrite, WebFetch
 model: sonnet
 color: indigo
 ---
