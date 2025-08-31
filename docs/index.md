@@ -5,10 +5,10 @@
 [![License](https://img.shields.io/github/license/TexasCoding/project-x-py.svg)](https://github.com/TexasCoding/project-x-py/blob/main/LICENSE)
 [![Documentation Status](https://readthedocs.org/projects/project-x-py/badge/?version=latest)](https://project-x-py.readthedocs.io/en/latest/?badge=latest)
 
-**project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
+**project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 59+ TA-Lib compatible indicators including pattern recognition and chaos theory analysis.
 
-!!! note "Version 3.5.3 - Complete Documentation & Testing Improvements"
-    **Latest Release**: Comprehensive documentation updates, complete test coverage for realtime_data_manager module, and modernized all code examples. Fixed type safety issues and achieved 100% test passing rate across the SDK. Previous releases introduced multi-instrument support enabling traders to manage multiple futures contracts simultaneously with pairs trading, cross-market arbitrage, and portfolio-level risk management. Full backward compatibility maintained.
+!!! note "Version 3.5.4 - Lorenz Formula Indicator & Test Suite Improvements"
+    **Latest Release**: Introduces the innovative Lorenz Formula indicator applying chaos theory mathematics to market analysis, providing unique insights into market dynamics through volatility, trend strength, and volume patterns. Also includes comprehensive test suite reorganization for better maintainability and enhanced statistics module coverage. Full backward compatibility maintained with all existing APIs.
 
 !!! note "Stable Production Release"
     Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -45,7 +45,7 @@ from project_x_py import TradingSuite
 from project_x_py.indicators import RSI, SMA, MACD
 
 async def main():
-    # V3.5: Multi-instrument TradingSuite for advanced strategies
+    # V3.5.4: Multi-instrument TradingSuite with chaos theory indicators
     suite = await TradingSuite.create(
         instruments=["MNQ", "ES", "MGC"],  # Multiple instruments
         timeframes=["1min", "5min"],

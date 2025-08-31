@@ -21,9 +21,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.5.3 - Complete Documentation & Testing Improvements
+## 🚀 v3.5.4 - Lorenz Formula Indicator & Test Suite Improvements
 
-**Latest Version**: v3.5.3 - Comprehensive documentation updates, complete test coverage for realtime_data_manager module, and modernized all code examples. Fixed type safety issues and achieved 100% test passing rate across the SDK.
+**Latest Version**: v3.5.4 - Introduces the Lorenz Formula indicator applying chaos theory to market analysis, plus comprehensive test suite reorganization and enhanced statistics module coverage.
 
 **Key Benefits**:
 - 🎯 **Multi-Asset Strategies**: Trade ES vs NQ pairs, commodity spreads, sector rotation
@@ -32,7 +32,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - 🛡️ **Backward Compatible**: Existing single-instrument code continues to work
 - ⚡ **Performance Optimized**: Parallel context creation and resource sharing
 
-See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.3 bug fixes, testing improvements, and documentation updates.
+See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.4 features including the new Lorenz indicator and test improvements.
 
 ### 📦 Production Stability Guarantee
 
