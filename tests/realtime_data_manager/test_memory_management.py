@@ -705,7 +705,7 @@ class TestMemoryManagementMixinStatistics:
         """Test memory stats include overflow statistics."""
         # Mock overflow stats method
         mock_overflow_stats = {"disk_overflow_count": 5, "disk_usage_mb": 100.0}
-        memory_manager.get_overflow_stats = AsyncMock(return_value=mock_overflow_stats)
+        memory_manager.get_overflow_stats_summary = AsyncMock(return_value=mock_overflow_stats)
 
         stats = await memory_manager.get_memory_stats()
 
@@ -720,7 +720,7 @@ class TestMemoryManagementMixinStatistics:
     async def test_get_memory_stats_error_handling(self, memory_manager):
         """Test memory stats gracefully handle errors."""
         # Mock overflow stats to raise error
-        memory_manager.get_overflow_stats = AsyncMock(
+        memory_manager.get_overflow_stats_summary = AsyncMock(
             side_effect=Exception("Stats error")
         )
 
