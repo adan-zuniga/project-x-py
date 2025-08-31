@@ -19,7 +19,7 @@ Coverage Target: >90% for data_access.py module
 import asyncio
 import logging
 from collections import deque
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -43,14 +43,16 @@ def sample_ohlcv_data():
         datetime(2025, 1, 22, 9, 50, tzinfo=timezone.utc),
     ]
 
-    return pl.DataFrame({
-        "timestamp": timestamps,
-        "open": [19000.0, 19005.0, 19010.0, 19015.0, 19020.0],
-        "high": [19005.0, 19010.0, 19015.0, 19020.0, 19025.0],
-        "low": [18995.0, 19000.0, 19005.0, 19010.0, 19015.0],
-        "close": [19005.0, 19010.0, 19015.0, 19020.0, 19025.0],
-        "volume": [100, 150, 200, 175, 125],
-    })
+    return pl.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": [19000.0, 19005.0, 19010.0, 19015.0, 19020.0],
+            "high": [19005.0, 19010.0, 19015.0, 19020.0, 19025.0],
+            "low": [18995.0, 19000.0, 19005.0, 19010.0, 19015.0],
+            "close": [19005.0, 19010.0, 19015.0, 19020.0, 19025.0],
+            "volume": [100, 150, 200, 175, 125],
+        }
+    )
 
 
 @pytest.fixture
@@ -101,7 +103,9 @@ class TestGetData:
     """Test the get_data method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_get_data_returns_full_dataframe_when_no_bars_limit(self, data_access_manager):
+    async def test_get_data_returns_full_dataframe_when_no_bars_limit(
+        self, data_access_manager
+    ):
         """Test that get_data returns all available bars when no limit specified."""
         result = await data_access_manager.get_data("5min")
 
@@ -124,16 +128,22 @@ class TestGetData:
         assert actual_closes == expected_closes
 
     @pytest.mark.asyncio
-    async def test_get_data_returns_none_for_nonexistent_timeframe(self, data_access_manager):
+    async def test_get_data_returns_none_for_nonexistent_timeframe(
+        self, data_access_manager
+    ):
         """Test that get_data returns None for timeframes that don't exist."""
         result = await data_access_manager.get_data("1hr")
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_data_handles_bars_limit_greater_than_available(self, data_access_manager):
+    async def test_get_data_handles_bars_limit_greater_than_available(
+        self, data_access_manager
+    ):
         """Test that get_data handles bars limit greater than available data."""
-        result = await data_access_manager.get_data("5min", bars=10)  # More than 5 available
+        result = await data_access_manager.get_data(
+            "5min", bars=10
+        )  # More than 5 available
 
         assert result is not None
         assert len(result) == 5  # Should return all available bars
@@ -142,21 +152,24 @@ class TestGetData:
     async def test_get_data_handles_empty_dataframe(self, data_access_manager):
         """Test that get_data handles empty DataFrames correctly."""
         # Create empty DataFrame with correct schema
-        empty_df = pl.DataFrame({
-            "timestamp": [],
-            "open": [],
-            "high": [],
-            "low": [],
-            "close": [],
-            "volume": [],
-        }, schema={
-            "timestamp": pl.Datetime(time_zone="UTC"),
-            "open": pl.Float64,
-            "high": pl.Float64,
-            "low": pl.Float64,
-            "close": pl.Float64,
-            "volume": pl.Float64,
-        })
+        empty_df = pl.DataFrame(
+            {
+                "timestamp": [],
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            },
+            schema={
+                "timestamp": pl.Datetime(time_zone="UTC"),
+                "open": pl.Float64,
+                "high": pl.Float64,
+                "low": pl.Float64,
+                "close": pl.Float64,
+                "volume": pl.Float64,
+            },
+        )
 
         data_access_manager.data["empty"] = empty_df
         result = await data_access_manager.get_data("empty")
@@ -172,8 +185,8 @@ class TestGetData:
         # we test that the method handles both cases gracefully
 
         # Test that method works without data_rw_lock attribute
-        if hasattr(data_access_manager, 'data_rw_lock'):
-            delattr(data_access_manager, 'data_rw_lock')
+        if hasattr(data_access_manager, "data_rw_lock"):
+            delattr(data_access_manager, "data_rw_lock")
 
         result = await data_access_manager.get_data("5min")
         assert result is not None
@@ -186,8 +199,11 @@ class TestGetData:
         assert len(result2) == 5
 
     @pytest.mark.asyncio
-    async def test_get_data_thread_safety_with_concurrent_access(self, data_access_manager):
+    async def test_get_data_thread_safety_with_concurrent_access(
+        self, data_access_manager
+    ):
         """Test that get_data is thread-safe with concurrent access."""
+
         async def concurrent_read():
             return await data_access_manager.get_data("5min", bars=2)
 
@@ -221,7 +237,9 @@ class TestGetCurrentPrice:
     """Test the get_current_price method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_get_current_price_from_tick_data(self, data_access_manager, sample_tick_data):
+    async def test_get_current_price_from_tick_data(
+        self, data_access_manager, sample_tick_data
+    ):
         """Test that get_current_price prioritizes tick data over bar data."""
         data_access_manager.current_tick_data = deque(sample_tick_data)
 
@@ -262,7 +280,9 @@ class TestGetCurrentPrice:
         assert price == 19025.0
 
     @pytest.mark.asyncio
-    async def test_get_current_price_checks_timeframes_in_order(self, data_access_manager):
+    async def test_get_current_price_checks_timeframes_in_order(
+        self, data_access_manager
+    ):
         """Test that get_current_price checks timeframes in priority order."""
         # Remove 1min data but keep others
         del data_access_manager.data["1min"]
@@ -275,7 +295,9 @@ class TestGetCurrentPrice:
         assert price == 19025.0
 
     @pytest.mark.asyncio
-    async def test_get_current_price_returns_none_when_no_data(self, data_access_manager):
+    async def test_get_current_price_returns_none_when_no_data(
+        self, data_access_manager
+    ):
         """Test that get_current_price returns None when no data available."""
         # Clear all data
         data_access_manager.data = {}
@@ -286,26 +308,35 @@ class TestGetCurrentPrice:
         assert price is None
 
     @pytest.mark.asyncio
-    async def test_get_current_price_handles_empty_dataframes(self, data_access_manager):
+    async def test_get_current_price_handles_empty_dataframes(
+        self, data_access_manager
+    ):
         """Test that get_current_price handles empty DataFrames gracefully."""
         # Create empty DataFrames for all timeframes
-        empty_df = pl.DataFrame({
-            "timestamp": [],
-            "open": [],
-            "high": [],
-            "low": [],
-            "close": [],
-            "volume": [],
-        }, schema={
-            "timestamp": pl.Datetime(time_zone="UTC"),
-            "open": pl.Float64,
-            "high": pl.Float64,
-            "low": pl.Float64,
-            "close": pl.Float64,
-            "volume": pl.Float64,
-        })
+        empty_df = pl.DataFrame(
+            {
+                "timestamp": [],
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            },
+            schema={
+                "timestamp": pl.Datetime(time_zone="UTC"),
+                "open": pl.Float64,
+                "high": pl.Float64,
+                "low": pl.Float64,
+                "close": pl.Float64,
+                "volume": pl.Float64,
+            },
+        )
 
-        data_access_manager.data = {"1min": empty_df, "5min": empty_df, "15min": empty_df}
+        data_access_manager.data = {
+            "1min": empty_df,
+            "5min": empty_df,
+            "15min": empty_df,
+        }
         data_access_manager.current_tick_data = deque()
 
         price = await data_access_manager.get_current_price()
@@ -313,13 +344,15 @@ class TestGetCurrentPrice:
         assert price is None
 
     @pytest.mark.asyncio
-    async def test_get_current_price_uses_read_lock_optimization(self, data_access_manager):
+    async def test_get_current_price_uses_read_lock_optimization(
+        self, data_access_manager
+    ):
         """Test that get_current_price attempts to use optimized read lock when available."""
         data_access_manager.current_tick_data = deque()  # Force fallback to bar data
 
         # Test that method works without data_rw_lock attribute
-        if hasattr(data_access_manager, 'data_rw_lock'):
-            delattr(data_access_manager, 'data_rw_lock')
+        if hasattr(data_access_manager, "data_rw_lock"):
+            delattr(data_access_manager, "data_rw_lock")
 
         price = await data_access_manager.get_current_price()
         assert price is not None
@@ -374,8 +407,8 @@ class TestGetMTFData:
     async def test_get_mtf_data_uses_read_lock_optimization(self, data_access_manager):
         """Test that get_mtf_data attempts to use optimized read lock when available."""
         # Test that method works without data_rw_lock attribute
-        if hasattr(data_access_manager, 'data_rw_lock'):
-            delattr(data_access_manager, 'data_rw_lock')
+        if hasattr(data_access_manager, "data_rw_lock"):
+            delattr(data_access_manager, "data_rw_lock")
 
         result = await data_access_manager.get_mtf_data()
         assert isinstance(result, dict)
@@ -413,7 +446,9 @@ class TestGetLatestBars:
         assert result["close"].to_list() == [19025.0]  # Latest bar
 
     @pytest.mark.asyncio
-    async def test_get_latest_bars_defaults_to_5min_timeframe(self, data_access_manager):
+    async def test_get_latest_bars_defaults_to_5min_timeframe(
+        self, data_access_manager
+    ):
         """Test that get_latest_bars defaults to 5min timeframe."""
         result = await data_access_manager.get_latest_bars(count=1)
 
@@ -426,7 +461,9 @@ class TestGetLatestPrice:
     """Test the get_latest_price method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_get_latest_price_is_alias_for_get_current_price(self, data_access_manager, sample_tick_data):
+    async def test_get_latest_price_is_alias_for_get_current_price(
+        self, data_access_manager, sample_tick_data
+    ):
         """Test that get_latest_price returns same result as get_current_price."""
         data_access_manager.current_tick_data = deque(sample_tick_data)
 
@@ -475,7 +512,9 @@ class TestGetPriceRange:
     """Test the get_price_range method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_get_price_range_calculates_range_statistics(self, data_access_manager):
+    async def test_get_price_range_calculates_range_statistics(
+        self, data_access_manager
+    ):
         """Test that get_price_range calculates correct range statistics."""
         result = await data_access_manager.get_price_range(bars=5, timeframe="5min")
 
@@ -484,8 +523,8 @@ class TestGetPriceRange:
 
         # Based on sample data: highs=[19005, 19010, 19015, 19020, 19025], lows=[18995, 19000, 19005, 19010, 19015]
         assert result["high"] == 19025.0  # Max high
-        assert result["low"] == 18995.0   # Min low
-        assert result["range"] == 30.0    # 19025 - 18995
+        assert result["low"] == 18995.0  # Min low
+        assert result["range"] == 30.0  # 19025 - 18995
 
         # Average range = mean of (high-low) per bar: [10, 10, 10, 10, 10] = 10.0
         assert result["avg_range"] == 10.0
@@ -493,7 +532,9 @@ class TestGetPriceRange:
     @pytest.mark.asyncio
     async def test_get_price_range_handles_insufficient_data(self, data_access_manager):
         """Test that get_price_range returns None when insufficient data."""
-        result = await data_access_manager.get_price_range(bars=10, timeframe="5min")  # Need 10, have 5
+        result = await data_access_manager.get_price_range(
+            bars=10, timeframe="5min"
+        )  # Need 10, have 5
 
         assert result is None
 
@@ -501,17 +542,24 @@ class TestGetPriceRange:
     async def test_get_price_range_defaults_to_20_bars_5min(self, data_access_manager):
         """Test that get_price_range uses correct defaults."""
         # Add more data to meet the 20-bar default requirement
-        extended_data = pl.concat([
-            data_access_manager.data["5min"],
-            pl.DataFrame({
-                "timestamp": [datetime(2025, 1, 22, 10, i, tzinfo=timezone.utc) for i in range(15)],
-                "open": [19030.0 + i for i in range(15)],
-                "high": [19035.0 + i for i in range(15)],
-                "low": [19025.0 + i for i in range(15)],
-                "close": [19035.0 + i for i in range(15)],
-                "volume": [100 + i for i in range(15)],
-            })
-        ])
+        extended_data = pl.concat(
+            [
+                data_access_manager.data["5min"],
+                pl.DataFrame(
+                    {
+                        "timestamp": [
+                            datetime(2025, 1, 22, 10, i, tzinfo=timezone.utc)
+                            for i in range(15)
+                        ],
+                        "open": [19030.0 + i for i in range(15)],
+                        "high": [19035.0 + i for i in range(15)],
+                        "low": [19025.0 + i for i in range(15)],
+                        "close": [19035.0 + i for i in range(15)],
+                        "volume": [100 + i for i in range(15)],
+                    }
+                ),
+            ]
+        )
         data_access_manager.data["5min"] = extended_data
 
         result = await data_access_manager.get_price_range()  # Use defaults
@@ -523,17 +571,23 @@ class TestGetPriceRange:
     async def test_get_price_range_handles_null_values(self, data_access_manager):
         """Test that get_price_range handles null values gracefully."""
         # Create data with null values
-        null_data = pl.DataFrame({
-            "timestamp": [datetime(2025, 1, 22, 10, i, tzinfo=timezone.utc) for i in range(5)],
-            "open": [19000.0, None, 19010.0, None, 19020.0],
-            "high": [None, 19010.0, None, 19020.0, None],
-            "low": [18995.0, None, 19005.0, None, 19015.0],
-            "close": [19005.0, None, 19015.0, None, 19025.0],
-            "volume": [100, 150, 200, 175, 125],
-        })
+        null_data = pl.DataFrame(
+            {
+                "timestamp": [
+                    datetime(2025, 1, 22, 10, i, tzinfo=timezone.utc) for i in range(5)
+                ],
+                "open": [19000.0, None, 19010.0, None, 19020.0],
+                "high": [None, 19010.0, None, 19020.0, None],
+                "low": [18995.0, None, 19005.0, None, 19015.0],
+                "close": [19005.0, None, 19015.0, None, 19025.0],
+                "volume": [100, 150, 200, 175, 125],
+            }
+        )
         data_access_manager.data["null_test"] = null_data
 
-        result = await data_access_manager.get_price_range(bars=5, timeframe="null_test")
+        result = await data_access_manager.get_price_range(
+            bars=5, timeframe="null_test"
+        )
 
         # Should handle nulls gracefully - could return None or valid calculation
         # The implementation should not crash
@@ -543,7 +597,9 @@ class TestGetVolumeStats:
     """Test the get_volume_stats method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_get_volume_stats_calculates_volume_statistics(self, data_access_manager):
+    async def test_get_volume_stats_calculates_volume_statistics(
+        self, data_access_manager
+    ):
         """Test that get_volume_stats calculates correct volume statistics."""
         result = await data_access_manager.get_volume_stats(bars=5, timeframe="5min")
 
@@ -551,51 +607,66 @@ class TestGetVolumeStats:
         assert set(result.keys()) == {"total", "average", "current", "relative"}
 
         # Based on sample data: volumes=[100, 150, 200, 175, 125]
-        assert result["total"] == 750.0    # Sum of volumes
+        assert result["total"] == 750.0  # Sum of volumes
         assert result["average"] == 150.0  # Mean volume
         assert result["current"] == 125.0  # Last volume
         assert result["relative"] == 125.0 / 150.0  # Current / Average
 
     @pytest.mark.asyncio
-    async def test_get_volume_stats_handles_zero_average_volume(self, data_access_manager):
+    async def test_get_volume_stats_handles_zero_average_volume(
+        self, data_access_manager
+    ):
         """Test that get_volume_stats handles zero average volume gracefully."""
         # Create data with zero volumes
-        zero_vol_data = pl.DataFrame({
-            "timestamp": [datetime(2025, 1, 22, 10, i, tzinfo=timezone.utc) for i in range(3)],
-            "open": [19000.0, 19005.0, 19010.0],
-            "high": [19005.0, 19010.0, 19015.0],
-            "low": [18995.0, 19000.0, 19005.0],
-            "close": [19005.0, 19010.0, 19015.0],
-            "volume": [0, 0, 0],
-        })
+        zero_vol_data = pl.DataFrame(
+            {
+                "timestamp": [
+                    datetime(2025, 1, 22, 10, i, tzinfo=timezone.utc) for i in range(3)
+                ],
+                "open": [19000.0, 19005.0, 19010.0],
+                "high": [19005.0, 19010.0, 19015.0],
+                "low": [18995.0, 19000.0, 19005.0],
+                "close": [19005.0, 19010.0, 19015.0],
+                "volume": [0, 0, 0],
+            }
+        )
         data_access_manager.data["zero_vol"] = zero_vol_data
 
-        result = await data_access_manager.get_volume_stats(bars=3, timeframe="zero_vol")
+        result = await data_access_manager.get_volume_stats(
+            bars=3, timeframe="zero_vol"
+        )
 
         assert result is not None
         assert result["relative"] == 0.0  # Should handle division by zero
 
     @pytest.mark.asyncio
-    async def test_get_volume_stats_returns_none_for_empty_data(self, data_access_manager):
+    async def test_get_volume_stats_returns_none_for_empty_data(
+        self, data_access_manager
+    ):
         """Test that get_volume_stats returns None for empty data."""
-        empty_df = pl.DataFrame({
-            "timestamp": [],
-            "open": [],
-            "high": [],
-            "low": [],
-            "close": [],
-            "volume": [],
-        }, schema={
-            "timestamp": pl.Datetime(time_zone="UTC"),
-            "open": pl.Float64,
-            "high": pl.Float64,
-            "low": pl.Float64,
-            "close": pl.Float64,
-            "volume": pl.Float64,
-        })
+        empty_df = pl.DataFrame(
+            {
+                "timestamp": [],
+                "open": [],
+                "high": [],
+                "low": [],
+                "close": [],
+                "volume": [],
+            },
+            schema={
+                "timestamp": pl.Datetime(time_zone="UTC"),
+                "open": pl.Float64,
+                "high": pl.Float64,
+                "low": pl.Float64,
+                "close": pl.Float64,
+                "volume": pl.Float64,
+            },
+        )
 
         data_access_manager.data["empty_vol"] = empty_df
-        result = await data_access_manager.get_volume_stats(bars=5, timeframe="empty_vol")
+        result = await data_access_manager.get_volume_stats(
+            bars=5, timeframe="empty_vol"
+        )
 
         assert result is None
 
@@ -604,16 +675,22 @@ class TestIsDataReady:
     """Test the is_data_ready method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_is_data_ready_returns_true_when_sufficient_data(self, data_access_manager):
+    async def test_is_data_ready_returns_true_when_sufficient_data(
+        self, data_access_manager
+    ):
         """Test that is_data_ready returns True when sufficient data available."""
         result = await data_access_manager.is_data_ready(min_bars=3)  # Have 5 bars
 
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_is_data_ready_returns_false_when_insufficient_data(self, data_access_manager):
+    async def test_is_data_ready_returns_false_when_insufficient_data(
+        self, data_access_manager
+    ):
         """Test that is_data_ready returns False when insufficient data."""
-        result = await data_access_manager.is_data_ready(min_bars=10)  # Have only 5 bars
+        result = await data_access_manager.is_data_ready(
+            min_bars=10
+        )  # Have only 5 bars
 
         assert result is False
 
@@ -625,16 +702,24 @@ class TestIsDataReady:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_is_data_ready_returns_false_for_nonexistent_timeframe(self, data_access_manager):
+    async def test_is_data_ready_returns_false_for_nonexistent_timeframe(
+        self, data_access_manager
+    ):
         """Test that is_data_ready returns False for nonexistent timeframe."""
-        result = await data_access_manager.is_data_ready(min_bars=1, timeframe="nonexistent")
+        result = await data_access_manager.is_data_ready(
+            min_bars=1, timeframe="nonexistent"
+        )
 
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_is_data_ready_checks_all_timeframes_when_none_specified(self, data_access_manager):
+    async def test_is_data_ready_checks_all_timeframes_when_none_specified(
+        self, data_access_manager
+    ):
         """Test that is_data_ready checks all timeframes when none specified."""
-        result = await data_access_manager.is_data_ready(min_bars=5)  # All timeframes have exactly 5
+        result = await data_access_manager.is_data_ready(
+            min_bars=5
+        )  # All timeframes have exactly 5
 
         assert result is True
 
@@ -643,6 +728,7 @@ class TestIsDataReady:
         """Test that is_data_ready handles different lock types gracefully."""
         # Test with regular asyncio.Lock (should work)
         import asyncio
+
         data_access_manager.data_lock = asyncio.Lock()
 
         result = await data_access_manager.is_data_ready(min_bars=3)
@@ -672,7 +758,9 @@ class TestGetBarsSince:
         assert all(ts >= cutoff_time for ts in timestamps)
 
     @pytest.mark.asyncio
-    async def test_get_bars_since_handles_timezone_naive_timestamp(self, data_access_manager):
+    async def test_get_bars_since_handles_timezone_naive_timestamp(
+        self, data_access_manager
+    ):
         """Test that get_bars_since handles timezone-naive timestamps."""
         # Use timezone-naive timestamp
         naive_time = datetime(2025, 1, 22, 9, 42)
@@ -683,17 +771,20 @@ class TestGetBarsSince:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_get_bars_since_returns_none_for_empty_data(self, data_access_manager):
+    async def test_get_bars_since_returns_none_for_empty_data(
+        self, data_access_manager
+    ):
         """Test that get_bars_since returns None when no data available."""
         result = await data_access_manager.get_bars_since(
-            datetime(2025, 1, 22, 9, 0, tzinfo=timezone.utc),
-            "nonexistent"
+            datetime(2025, 1, 22, 9, 0, tzinfo=timezone.utc), "nonexistent"
         )
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_bars_since_returns_empty_for_future_timestamp(self, data_access_manager):
+    async def test_get_bars_since_returns_empty_for_future_timestamp(
+        self, data_access_manager
+    ):
         """Test that get_bars_since returns empty DataFrame for future timestamp."""
         future_time = datetime(2025, 1, 22, 10, 30, tzinfo=timezone.utc)
 
@@ -707,7 +798,9 @@ class TestGetDataOrNone:
     """Test the get_data_or_none method following TDD principles."""
 
     @pytest.mark.asyncio
-    async def test_get_data_or_none_returns_data_when_sufficient_bars(self, data_access_manager):
+    async def test_get_data_or_none_returns_data_when_sufficient_bars(
+        self, data_access_manager
+    ):
         """Test that get_data_or_none returns data when minimum bars available."""
         result = await data_access_manager.get_data_or_none("5min", min_bars=3)
 
@@ -715,14 +808,18 @@ class TestGetDataOrNone:
         assert len(result) == 5  # All available bars
 
     @pytest.mark.asyncio
-    async def test_get_data_or_none_returns_none_when_insufficient_bars(self, data_access_manager):
+    async def test_get_data_or_none_returns_none_when_insufficient_bars(
+        self, data_access_manager
+    ):
         """Test that get_data_or_none returns None when insufficient bars."""
         result = await data_access_manager.get_data_or_none("5min", min_bars=10)
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_data_or_none_returns_none_for_nonexistent_timeframe(self, data_access_manager):
+    async def test_get_data_or_none_returns_none_for_nonexistent_timeframe(
+        self, data_access_manager
+    ):
         """Test that get_data_or_none returns None for nonexistent timeframe."""
         result = await data_access_manager.get_data_or_none("nonexistent", min_bars=1)
 
@@ -770,32 +867,40 @@ class TestErrorHandling:
             await manager.get_data("5min")
 
     @pytest.mark.asyncio
-    async def test_handles_concurrent_modification_during_read(self, data_access_manager):
+    async def test_handles_concurrent_modification_during_read(
+        self, data_access_manager
+    ):
         """Test that concurrent data modification during reads doesn't cause issues."""
+
         async def modify_data():
             await asyncio.sleep(0.01)  # Small delay
-            data_access_manager.data["5min"] = pl.DataFrame({
-                "timestamp": [],
-                "open": [],
-                "high": [],
-                "low": [],
-                "close": [],
-                "volume": [],
-            }, schema={
-                "timestamp": pl.Datetime(time_zone="UTC"),
-                "open": pl.Float64,
-                "high": pl.Float64,
-                "low": pl.Float64,
-                "close": pl.Float64,
-                "volume": pl.Float64,
-            })
+            data_access_manager.data["5min"] = pl.DataFrame(
+                {
+                    "timestamp": [],
+                    "open": [],
+                    "high": [],
+                    "low": [],
+                    "close": [],
+                    "volume": [],
+                },
+                schema={
+                    "timestamp": pl.Datetime(time_zone="UTC"),
+                    "open": pl.Float64,
+                    "high": pl.Float64,
+                    "low": pl.Float64,
+                    "close": pl.Float64,
+                    "volume": pl.Float64,
+                },
+            )
 
         async def read_data():
             await asyncio.sleep(0.005)  # Different delay
             return await data_access_manager.get_data("5min")
 
         # Run concurrent modification and read
-        results = await asyncio.gather(modify_data(), read_data(), return_exceptions=True)
+        results = await asyncio.gather(
+            modify_data(), read_data(), return_exceptions=True
+        )
 
         # Should not raise exceptions due to proper locking
         assert all(not isinstance(r, Exception) for r in results)
