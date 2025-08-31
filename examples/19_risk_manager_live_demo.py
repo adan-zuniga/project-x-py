@@ -59,20 +59,6 @@ class RiskManagerDemo:
             raise RuntimeError("Failed to create trading suite")
 
         # Configure risk parameters
-        if self.suite.risk_manager:
-            self.suite.risk_manager.config = RiskConfig(
-                max_position_size=5,  # Max 5 contracts per position
-                max_positions=3,  # Max 3 concurrent positions
-                max_risk_per_trade=Decimal(0.02),  # 2% per trade
-                max_daily_loss=Decimal(0.05),  # 5% daily loss limit
-                max_correlated_positions=3,  # Max 3 correlated positions
-                use_kelly_criterion=True,  # Use Kelly for sizing
-                use_trailing_stops=True,  # Auto-adjust stops
-                trailing_stop_trigger=Decimal(50.0),  # Activate after $50 profit
-                trailing_stop_distance=Decimal(25.0),  # Trail by $25
-            )
-            print("✅ Risk management configured")
-
         if self.suite.client.account_info:
             print(
                 f"✅ Suite created for account: {self.suite.client.account_info.name}"
@@ -116,8 +102,8 @@ class RiskManagerDemo:
             print("❌ Trading suite not initialized")
             return
 
-        # Get current price
-        current_price = await self.suite.data.get_current_price()
+        # Get current price from the MNQ context
+        current_price = await self.suite["MNQ"].data.get_current_price()
         if not current_price:
             print("❌ Could not get current price")
             return
@@ -135,11 +121,11 @@ class RiskManagerDemo:
         ]
 
         for i, scenario in enumerate(scenarios, 1):
-            if not self.suite.risk_manager:
+            if not self.suite["MNQ"].risk_manager:
                 print("❌ Risk manager not enabled")
                 return
 
-            result = await self.suite.risk_manager.calculate_position_size(
+            result = await self.suite["MNQ"].risk_manager.calculate_position_size(
                 entry_price=current_price,
                 stop_loss=scenario["stop_loss"],
                 risk_percent=scenario.get("risk_percent"),
@@ -158,7 +144,7 @@ class RiskManagerDemo:
             print(f"   Risk/Reward @ 2:1: ${result.get('risk_amount', 0) * 2:.2f}")
             if (
                 result.get("position_size", 0)
-                == self.suite.risk_manager.config.max_position_size
+                == self.suite["MNQ"].risk_manager.config.max_position_size
             ):
                 ideal_size = (
                     scenario.get("risk_amount", 0)
@@ -168,10 +154,10 @@ class RiskManagerDemo:
                 )
                 if (
                     ideal_size
-                    and ideal_size > self.suite.risk_manager.config.max_position_size
+                    and ideal_size > self.suite["MNQ"].risk_manager.config.max_position_size
                 ):
                     print(
-                        f"   (Limited by max size {self.suite.risk_manager.config.max_position_size}, ideal would be {int(ideal_size)})"
+                        f"   (Limited by max size {self.suite["MNQ"].risk_manager.config.max_position_size}, ideal would be {int(ideal_size)})"
                     )
 
     async def demo_risk_validation(self) -> None:
@@ -184,7 +170,7 @@ class RiskManagerDemo:
             print("❌ Trading suite not initialized")
             return
 
-        current_price = await self.suite.data.get_current_price()
+        current_price = await self.suite["MNQ"].data.get_current_price()
         if not current_price:
             return
 
@@ -199,7 +185,7 @@ class RiskManagerDemo:
             print(f"\n🔍 Testing: {trade['desc']}")
             print(f"   Size: {trade['size']} contracts")
 
-            if not self.suite.risk_manager:
+            if not self.suite["MNQ"].risk_manager:
                 print("❌ Risk manager not enabled")
                 return
 
@@ -230,7 +216,7 @@ class RiskManagerDemo:
                 limitPrice=current_price if trade["side"] == OrderSide.BUY else None,
             )
 
-            validation = await self.suite.risk_manager.validate_trade(order=mock_order)
+            validation = await self.suite["MNQ"].risk_manager.validate_trade(order=mock_order)
 
             if validation.get("is_valid"):
                 # Calculate a simple risk score based on portfolio risk (0-10 scale)
@@ -263,14 +249,14 @@ class RiskManagerDemo:
             return
 
         # Check if we already have positions (from the real position demo)
-        existing_positions = await self.suite.positions.get_all_positions()
+        existing_positions = await self.suite["MNQ"].positions.get_all_positions()
         if existing_positions:
             print(
                 f"⚠️ Skipping managed trade demo - already have {len(existing_positions)} positions"
             )
             return
 
-        current_price = await self.suite.data.get_current_price()
+        current_price = await self.suite["MNQ"].data.get_current_price()
         if not current_price:
             return
 
@@ -280,7 +266,7 @@ class RiskManagerDemo:
         print(f"   Take Profit: ${current_price + 100:.2f}")
         print("   Max Risk: 1% of account")
 
-        if not self.suite.risk_manager:
+        if not self.suite["MNQ"].risk_manager:
             print("❌ Risk manager not enabled")
             return
 
@@ -288,11 +274,11 @@ class RiskManagerDemo:
 
         # Execute managed trade
         async with ManagedTrade(
-            risk_manager=self.suite.risk_manager,
-            order_manager=self.suite.orders,
-            position_manager=self.suite.positions,
+            risk_manager=self.suite["MNQ"].risk_manager,
+            order_manager=self.suite["MNQ"].orders,
+            position_manager=self.suite["MNQ"].positions,
             instrument_id=instrument.id,
-            data_manager=self.suite.data,
+            data_manager=self.suite["MNQ"].data,
             max_risk_percent=0.01,  # 1% max risk
         ) as trade:
             # Enter long position with automatic sizing
@@ -319,7 +305,7 @@ class RiskManagerDemo:
                     await asyncio.sleep(5)
 
                     # Check if trailing stop activated
-                    if self.suite.risk_manager.config.use_trailing_stops:
+                    if self.suite["MNQ"].risk_manager.config.use_trailing_stops:
                         print("📈 Trailing stop monitoring active")
                 else:
                     print("❌ Failed to open position")
@@ -340,7 +326,7 @@ class RiskManagerDemo:
             print("❌ Trading suite not initialized")
             return
 
-        current_price = await self.suite.data.get_current_price()
+        current_price = await self.suite["MNQ"].data.get_current_price()
         if not current_price:
             return
 
@@ -350,7 +336,7 @@ class RiskManagerDemo:
         instrument = await self.suite.client.get_instrument("MNQ")
 
         try:
-            order = await self.suite.orders.place_market_order(
+            order = await self.suite["MNQ"].orders.place_market_order(
                 contract_id=instrument.id,
                 side=OrderSide.BUY,
                 size=1,
@@ -364,7 +350,7 @@ class RiskManagerDemo:
                 await asyncio.sleep(3)
 
                 # Get the position
-                positions = await self.suite.positions.get_all_positions()
+                positions = await self.suite["MNQ"].positions.get_all_positions()
                 if positions:
                     position = positions[0]
                     print(f"   ✅ Position opened: {position.contractId}")
@@ -384,13 +370,17 @@ class RiskManagerDemo:
         if not self.suite:
             return
 
-        current_price = await self.suite.data.get_current_price()
+        current_price = await self.suite["MNQ"].data.get_current_price()
         if not current_price or not self.suite.risk_manager:
             return
 
         # Attach stop and target orders
         try:
-            orders = await self.suite.risk_manager.attach_risk_orders(
+            if not self.suite["MNQ"].risk_manager:
+                print("❌ Risk manager not enabled")
+                return
+
+            orders = await self.suite["MNQ"].risk_manager.attach_risk_orders(
                 position=position,
                 stop_loss=current_price - 30,  # $30 stop
                 take_profit=current_price + 60,  # $60 target
@@ -420,7 +410,7 @@ class RiskManagerDemo:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    adjusted = await self.suite.risk_manager.adjust_stops(
+                    adjusted = await self.suite["MNQ"].risk_manager.adjust_stops(
                         position=position,
                         new_stop=new_stop_price,
                     )
@@ -447,8 +437,10 @@ class RiskManagerDemo:
                         await asyncio.sleep(1)
                     else:
                         print(f"   ❌ Stop adjustment failed with error: {stop_error}")
+                        # Get position direction
+                        position_type = "LONG" if position.type == 1 else "SHORT"
                         print(
-                            f"    Check that stop price ${new_stop_price:.2f} is valid for {position.direction} position"
+                            f"    Check that stop price ${new_stop_price:.2f} is valid for {position_type} position"
                         )
 
         except Exception as e:
@@ -465,19 +457,19 @@ class RiskManagerDemo:
             return
 
         # Get all positions
-        positions = await self.suite.positions.get_all_positions()
+        positions = await self.suite["MNQ"].positions.get_all_positions()
 
         print(f"\n📊 Current Positions: {len(positions)}")
         for pos in positions:
             size = pos.size
             print(f"   - {pos.contractId}: {size} contracts")
 
-        if not self.suite.risk_manager:
+        if not self.suite["MNQ"].risk_manager:
             print("❌ Risk manager not enabled")
             return
 
         # Calculate portfolio risk metrics
-        metrics = await self.suite.risk_manager.get_risk_metrics()
+        metrics = await self.suite["MNQ"].risk_manager.get_risk_metrics()
 
         print("\n📊 Portfolio Risk Metrics:")
         print(f"   Total Positions: {metrics.get('position_count', 0)}")
@@ -503,15 +495,13 @@ class RiskManagerDemo:
         # Check risk limits
         print("\n🚦 Risk Limit Status:")
         print(
-            f"   Position Limit: {metrics.get('position_count', 0)}/{self.suite.risk_manager.config.max_positions}"
+            f"   Position Limit: {metrics.get('position_count', 0)}/{self.suite["MNQ"].risk_manager.config.max_positions}"
         )
         daily_loss = cast(float, metrics.get("daily_loss", 0))
         account_balance = cast(float, metrics.get("account_balance", 1))
-        daily_loss_limit = self.suite.risk_manager.config.max_daily_loss
-        if self.suite.risk_manager.config.max_daily_loss_amount:
-            daily_loss_limit_amount = (
-                self.suite.risk_manager.config.max_daily_loss_amount
-            )
+        daily_loss_limit = self.suite["MNQ"].risk_manager.config.max_daily_loss
+        if self.suite["MNQ"].risk_manager.config.max_daily_loss_amount:
+            daily_loss_limit_amount = self.suite["MNQ"].risk_manager.config.max_daily_loss_amount
         else:
             daily_loss_limit_amount = Decimal(account_balance) * daily_loss_limit
         print(
@@ -531,7 +521,7 @@ class RiskManagerDemo:
         print("6. TRADE HISTORY & KELLY CRITERION")
         print("-" * 60)
 
-        if not self.suite or not self.suite.risk_manager:
+        if not self.suite or not self.suite["MNQ"].risk_manager:
             print("❌ Risk manager not enabled")
             return
 
@@ -546,7 +536,7 @@ class RiskManagerDemo:
 
         print("\n📝 Recording sample trade history...")
         for i, trade in enumerate(sample_trades, 1):
-            await self.suite.risk_manager.record_trade_result(
+            await self.suite["MNQ"].risk_manager.record_trade_result(
                 position_id=f"demo_trade_{i}",
                 pnl=trade["pnl"],
                 duration_seconds=300,  # 5 minutes demo
@@ -556,24 +546,24 @@ class RiskManagerDemo:
 
         # Display Kelly statistics
         print("\n📊 Kelly Criterion Statistics:")
-        print(f"   Win Rate: {self.suite.risk_manager._win_rate:.1%}")
-        print(f"   Avg Win: ${self.suite.risk_manager._avg_win:.2f}")
-        print(f"   Avg Loss: ${abs(float(self.suite.risk_manager._avg_loss)):.2f}")
+        print(f"   Win Rate: {self.suite["MNQ"].risk_manager._win_rate:.1%}")
+        print(f"   Avg Win: ${self.suite["MNQ"].risk_manager._avg_win:.2f}")
+        print(f"   Avg Loss: ${abs(float(self.suite["MNQ"].risk_manager._avg_loss)):.2f}")
 
         if (
-            self.suite.risk_manager._win_rate > 0
-            and self.suite.risk_manager._avg_win > 0
-            and self.suite.risk_manager._avg_loss != 0
+            self.suite["MNQ"].risk_manager._win_rate > 0
+            and self.suite["MNQ"].risk_manager._avg_win > 0
+            and self.suite["MNQ"].risk_manager._avg_loss != 0
         ):
             # Calculate Kelly percentage
             win_loss_ratio = float(
-                self.suite.risk_manager._avg_win
-                / abs(self.suite.risk_manager._avg_loss)
+                self.suite["MNQ"].risk_manager._avg_win
+                / abs(self.suite["MNQ"].risk_manager._avg_loss)
             )
             kelly_pct = (
-                self.suite.risk_manager._win_rate * win_loss_ratio
-                - (1 - self.suite.risk_manager._win_rate)
-            ) / win_loss_ratio
+                (self.suite["MNQ"].risk_manager._win_rate * win_loss_ratio
+                - (1 - self.suite["MNQ"].risk_manager._win_rate)) / win_loss_ratio
+            )
             print(f"   Kelly %: {kelly_pct:.1%}")
             print(
                 f"   Recommended Position Size: {max(0, min(kelly_pct, 0.25)):.1%} of capital"
@@ -599,13 +589,13 @@ class RiskManagerDemo:
                         # Check if it's an OrderPlaceResponse
                         if hasattr(order_response, "orderId"):
                             # Get current order status
-                            orders = await self.suite.orders.search_open_orders()
+                            orders = await self.suite["MNQ"].orders.search_open_orders()
                             order = next(
                                 (o for o in orders if o.id == order_response.orderId),
                                 None,
                             )
                             if order and order.is_working:
-                                await self.suite.orders.cancel_order(order.id)
+                                await self.suite["MNQ"].orders.cancel_order(order.id)
                                 print(f"   ✅ Cancelled order {order.id}")
                                 cancelled_count += 1
                     except Exception as e:
@@ -614,7 +604,7 @@ class RiskManagerDemo:
                     print(f"   Cancelled {cancelled_count} orders")
 
             # Close all positions
-            positions = await self.suite.positions.get_all_positions()
+            positions = await self.suite["MNQ"].positions.get_all_positions()
             if positions:
                 print(f"\n📉 Closing {len(positions)} positions...")
                 for position in positions:
@@ -626,7 +616,7 @@ class RiskManagerDemo:
 
                         # Place market order to flatten
                         close_side = OrderSide.SELL if size > 0 else OrderSide.BUY
-                        close_order = await self.suite.orders.place_market_order(
+                        close_order = await self.suite["MNQ"].orders.place_market_order(
                             contract_id=position.contractId,
                             side=close_side,
                             size=abs(size),
@@ -638,12 +628,12 @@ class RiskManagerDemo:
                         logger.error(f"Error closing position: {e}")
 
             # Final risk report
-            if self.suite.risk_manager:
-                final_metrics = await self.suite.risk_manager.get_risk_metrics()
+            if self.suite["MNQ"].risk_manager:
+                final_metrics = await self.suite["MNQ"].risk_manager.get_risk_metrics()
                 print("\n📊 Final Risk Report:")
                 print(f"   Daily P&L: ${final_metrics.get('daily_pnl', 0):.2f}")
                 print(f"   Max Drawdown: ${final_metrics.get('max_drawdown', 0):.2f}")
-                print(f"   Total Trades: {self.suite.risk_manager._daily_trades}")
+                print(f"   Total Trades: {self.suite["MNQ"].risk_manager._daily_trades}")
 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")

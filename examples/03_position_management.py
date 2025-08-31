@@ -40,7 +40,7 @@ async def get_current_market_price(
     """Get current market price with async fallback for closed markets."""
     # Try to get real-time price first if available
     try:
-        current_price = await suite.data.get_current_price()
+        current_price = await suite[symbol].data.get_current_price()
         if current_price:
             return float(current_price)
     except Exception as e:
@@ -103,10 +103,10 @@ async def display_positions(
         if suite:
             try:
                 # Get current market price
-                current_price = await suite.data.get_current_price()
-                if current_price and suite.instrument:
+                current_price = await suite[position.symbol].data.get_current_price()
+                if current_price and suite[position.symbol].instrument_info:
                     # Use the instrument already loaded in suite
-                    instrument_info = suite.instrument
+                    instrument_info = suite[position.symbol].instrument_info
                     point_value = instrument_info.tickValue / instrument_info.tickSize
 
                     # Calculate P&L using position manager's method
@@ -138,20 +138,32 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
             if hasattr(position_manager, "get_risk_metrics"):
                 risk_check = await position_manager.get_risk_metrics()
                 # Check if we're within daily loss limits and position limits
-                within_daily_loss = risk_check["daily_loss"] <= risk_check["daily_loss_limit"]
-                within_position_limit = risk_check["position_count"] <= risk_check["position_limit"]
-                within_risk_limits = risk_check["current_risk"] <= risk_check["max_risk"]
+                within_daily_loss = (
+                    risk_check["daily_loss"] <= risk_check["daily_loss_limit"]
+                )
+                within_position_limit = (
+                    risk_check["position_count"] <= risk_check["position_limit"]
+                )
+                within_risk_limits = (
+                    risk_check["current_risk"] <= risk_check["max_risk"]
+                )
 
                 if within_daily_loss and within_position_limit and within_risk_limits:
                     print("✅ All positions within risk limits")
                 else:
                     violations = []
                     if not within_daily_loss:
-                        violations.append(f"Daily loss: ${risk_check['daily_loss']:.2f} / ${risk_check['daily_loss_limit']:.2f}")
+                        violations.append(
+                            f"Daily loss: ${risk_check['daily_loss']:.2f} / ${risk_check['daily_loss_limit']:.2f}"
+                        )
                     if not within_position_limit:
-                        violations.append(f"Position count: {risk_check['position_count']} / {risk_check['position_limit']}")
+                        violations.append(
+                            f"Position count: {risk_check['position_count']} / {risk_check['position_limit']}"
+                        )
                     if not within_risk_limits:
-                        violations.append(f"Current risk: ${risk_check['current_risk']:.2f} / ${risk_check['max_risk']:.2f}")
+                        violations.append(
+                            f"Current risk: ${risk_check['current_risk']:.2f} / ${risk_check['max_risk']:.2f}"
+                        )
                     if violations:
                         print(f"⚠️  Risk limit violations: {', '.join(violations)}")
                     else:
@@ -162,14 +174,12 @@ async def display_risk_metrics(position_manager: "PositionManager") -> None:
             if hasattr(position_manager, "get_risk_metrics"):
                 risk_summary = await position_manager.get_risk_metrics()
                 print("\nRisk Summary:")
+                print(f"  Current Risk: ${risk_summary.get('current_risk', 0):,.2f}")
+                print(f"  Max Risk Allowed: ${risk_summary.get('max_risk', 0):,.2f}")
                 print(
-                    f"  Current Risk: ${risk_summary.get('current_risk', 0):,.2f}"
+                    f"  Max Drawdown: {risk_summary.get('max_drawdown', 0) * 100:.1f}%"
                 )
-                print(
-                    f"  Max Risk Allowed: ${risk_summary.get('max_risk', 0):,.2f}"
-                )
-                print(f"  Max Drawdown: {risk_summary.get('max_drawdown', 0)*100:.1f}%")
-                print(f"  Win Rate: {risk_summary.get('win_rate', 0)*100:.1f}%")
+                print(f"  Win Rate: {risk_summary.get('win_rate', 0) * 100:.1f}%")
                 print(f"  Profit Factor: {risk_summary.get('profit_factor', 0):.2f}")
             else:
                 print("Risk summary not available")
@@ -210,10 +220,10 @@ async def monitor_positions(
                     try:
                         # Try to calculate real P&L with current prices
                         if suite and positions:
-                            current_price = await suite.data.get_current_price()
-                            if current_price and suite.instrument:
+                            current_price = await suite["MNQ"].data.get_current_price()
+                            if current_price and suite["MNQ"].instrument_info:
                                 # Use the instrument already loaded in suite
-                                instrument_info = suite.instrument
+                                instrument_info = suite["MNQ"].instrument_info
                                 point_value = (
                                     instrument_info.tickValue / instrument_info.tickSize
                                 )
@@ -282,11 +292,11 @@ async def main() -> bool:
 
         # Check for existing positions
         print("\n📊 Checking existing positions...")
-        existing_positions = await suite.positions.get_all_positions()
+        existing_positions = await suite["MNQ"].positions.get_all_positions()
 
         if existing_positions:
             print(f"Found {len(existing_positions)} existing positions")
-            await display_positions(suite.positions, suite)
+            await display_positions(suite["MNQ"].positions, suite)
         else:
             print("No existing positions found")
 
@@ -312,7 +322,9 @@ async def main() -> bool:
                     try:
                         response = await loop.run_in_executor(
                             None,
-                            lambda: input("\n   Place test order? (y/N): ").strip().lower(),
+                            lambda: input("\n   Place test order? (y/N): ")
+                            .strip()
+                            .lower(),
                         )
                     except (KeyboardInterrupt, asyncio.CancelledError):
                         print("\n\n⚠️  Script interrupted by user")
@@ -320,7 +332,7 @@ async def main() -> bool:
 
                     if response == "y":
                         print("\n   Placing market order...")
-                        order_response = await suite.orders.place_market_order(
+                        order_response = await suite["MNQ"].orders.place_market_order(
                             contract_id=contract_id,
                             side=0,
                             size=1,  # Buy
@@ -334,9 +346,9 @@ async def main() -> bool:
                             await asyncio.sleep(3)
 
                             # Refresh positions
-                            existing_positions = (
-                                await suite.positions.get_all_positions()
-                            )
+                            existing_positions = await suite[
+                                "MNQ"
+                            ].positions.get_all_positions()
                             if existing_positions:
                                 print("   ✅ Position created!")
                         else:
@@ -345,23 +357,23 @@ async def main() -> bool:
                     print("\n   ⚠️  Skipping test order")
 
         # Display comprehensive position information
-        if await suite.positions.get_all_positions():
+        if await suite["MNQ"].positions.get_all_positions():
             print("\n" + "=" * 80)
             print("📈 POSITION MANAGEMENT DEMONSTRATION")
             print("=" * 80)
 
             # 1. Display current positions
-            await display_positions(suite.positions, suite)
+            await display_positions(suite["MNQ"].positions, suite)
 
             # 2. Show risk metrics
-            await display_risk_metrics(suite.positions)
+            await display_risk_metrics(suite["MNQ"].positions)
 
             # 3. Portfolio statistics
             print("\n📊 Portfolio Statistics:")
             print("-" * 80)
             try:
-                if hasattr(suite.positions, "get_portfolio_pnl"):
-                    stats = await suite.positions.get_portfolio_pnl()
+                if hasattr(suite["MNQ"].positions, "get_portfolio_pnl"):
+                    stats = await suite["MNQ"].positions.get_portfolio_pnl()
                     print(f"  Total Trades: {stats.get('total_trades', 0)}")
                     print(f"  Winning Trades: {stats.get('winning_trades', 0)}")
                     print(f"  Average Win: ${stats.get('average_win', 0):,.2f}")
@@ -377,8 +389,8 @@ async def main() -> bool:
             print("\n📈 Performance Analytics:")
             print("-" * 80)
             try:
-                if hasattr(suite.positions, "get_portfolio_pnl"):
-                    analytics = await suite.positions.get_portfolio_pnl()
+                if hasattr(suite["MNQ"].positions, "get_portfolio_pnl"):
+                    analytics = await suite["MNQ"].positions.get_portfolio_pnl()
                     print(f"  Total P&L: ${analytics.get('total_pnl', 0):,.2f}")
                     print(f"  Max Drawdown: ${analytics.get('max_drawdown', 0):,.2f}")
                     print(
@@ -398,10 +410,10 @@ async def main() -> bool:
             print("=" * 80)
 
             # Monitor for 30 seconds
-            await monitor_positions(suite.positions, suite, duration=30)
+            await monitor_positions(suite["MNQ"].positions, suite, duration=30)
 
             # 6. Offer to close positions
-            if await suite.positions.get_all_positions():
+            if await suite["MNQ"].positions.get_all_positions():
                 print("\n" + "=" * 80)
                 print("🔧 POSITION MANAGEMENT")
                 print("=" * 80)
@@ -413,7 +425,9 @@ async def main() -> bool:
                     try:
                         response = await loop.run_in_executor(
                             None,
-                            lambda: input("\nClose all positions? (y/N): ").strip().lower(),
+                            lambda: input("\nClose all positions? (y/N): ")
+                            .strip()
+                            .lower(),
                         )
                     except (KeyboardInterrupt, asyncio.CancelledError):
                         print("\n\n⚠️  Script interrupted by user")
@@ -421,11 +435,11 @@ async def main() -> bool:
 
                     if response == "y":
                         print("\n🔄 Closing all positions...")
-                        positions = await suite.positions.get_all_positions()
+                        positions = await suite["MNQ"].positions.get_all_positions()
 
                         for position in positions:
                             try:
-                                result = await suite.orders.close_position(
+                                result = await suite["MNQ"].orders.close_position(
                                     position.contractId, method="market"
                                 )
                                 if result and result.success:
@@ -439,7 +453,9 @@ async def main() -> bool:
 
                         # Final position check
                         await asyncio.sleep(3)
-                        final_positions = await suite.positions.get_all_positions()
+                        final_positions = await suite[
+                            "MNQ"
+                        ].positions.get_all_positions()
                         if not final_positions:
                             print("\n✅ All positions closed successfully!")
                         else:
@@ -453,8 +469,8 @@ async def main() -> bool:
         print("=" * 80)
 
         try:
-            if hasattr(suite.positions, "get_portfolio_pnl"):
-                session_summary = await suite.positions.get_portfolio_pnl()
+            if hasattr(suite["MNQ"].positions, "get_portfolio_pnl"):
+                session_summary = await suite["MNQ"].positions.get_portfolio_pnl()
                 print(f"  Session Duration: {session_summary.get('duration', 'N/A')}")
                 print(
                     f"  Positions Opened: {session_summary.get('positions_opened', 0)}"
@@ -485,7 +501,7 @@ async def main() -> bool:
         # Ask user if they want to close positions
         if suite:
             try:
-                positions = await suite.positions.get_all_positions()
+                positions = await suite["MNQ"].positions.get_all_positions()
                 if positions:
                     print(f"\n⚠️  You have {len(positions)} open position(s).")
                     print("Would you like to close them before exiting?")
@@ -511,12 +527,12 @@ async def main() -> bool:
                 # Check if we need to close positions
                 if cleanup_positions:
                     print("\n🧹 Performing cleanup...")
-                    positions = await suite.positions.get_all_positions()
+                    positions = await suite["MNQ"].positions.get_all_positions()
                     if positions:
                         print(f"  Closing {len(positions)} open position(s)...")
                         for position in positions:
                             try:
-                                result = await suite.orders.close_position(
+                                result = await suite["MNQ"].orders.close_position(
                                     position.contractId, method="market"
                                 )
                                 if result and result.success:
@@ -530,7 +546,9 @@ async def main() -> bool:
                         await asyncio.sleep(2)
 
                         # Final check
-                        final_positions = await suite.positions.get_all_positions()
+                        final_positions = await suite[
+                            "MNQ"
+                        ].positions.get_all_positions()
                         if final_positions:
                             print(f"  ⚠️  {len(final_positions)} position(s) still open")
                         else:

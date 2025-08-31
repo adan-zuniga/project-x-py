@@ -22,7 +22,7 @@ class SimplifiedMTFStrategy:
 
     def __init__(self, suite: TradingSuite):
         self.suite = suite
-        self.data = suite.data  # Direct access to data manager
+        self.data = suite["MNQ"].data  # Direct access to data manager
         self.position_size: int = 0
         self.last_signal_time: float | None = None
 
@@ -152,7 +152,7 @@ async def run_simplified_mtf_strategy() -> None:
         print("Waiting for sufficient data...\n")
 
         # Wait for data using the new is_data_ready method
-        while not await suite.data.is_data_ready(min_bars=50, timeframe="4hr"):
+        while not await suite["MNQ"].data.is_data_ready(min_bars=50, timeframe="4hr"):
             await asyncio.sleep(1)
 
         print("✅ Data ready, starting analysis...\n")
@@ -165,8 +165,8 @@ async def run_simplified_mtf_strategy() -> None:
 
             if signal and signal["confidence"] > 0.05:
                 # Get current market snapshot using new methods
-                price = await suite.data.get_latest_price()
-                ohlc = await suite.data.get_ohlc("15min")
+                price = await suite["MNQ"].data.get_latest_price()
+                ohlc = await suite["MNQ"].data.get_ohlc("15min")
 
                 print(f"\n🎯 SIGNAL: {signal['action']}")
                 if price is not None:
@@ -203,7 +203,7 @@ async def run_simplified_mtf_strategy() -> None:
 
             else:
                 # Show current status using simplified methods
-                stats = await suite.data.get_price_range(bars=10, timeframe="15min")
+                stats = await suite["MNQ"].data.get_price_range(bars=10, timeframe="15min")
                 if stats:
                     print(
                         f"\r⏳ Monitoring... Price range: ${stats['range']:,.2f} "
@@ -261,7 +261,7 @@ async def compare_verbose_vs_simplified() -> None:
         import time
 
         start = time.time()
-        data = await suite.data.get_data("5min")
+        data = await suite["MNQ"].data.get_data("5min")
         if data is not None and len(data) >= 20:
             last_close = float(data["close"][-1])
             print(
@@ -270,7 +270,7 @@ async def compare_verbose_vs_simplified() -> None:
 
         # New simplified way
         start = time.time()
-        price = await suite.data.get_latest_price()
+        price = await suite["MNQ"].data.get_latest_price()
         if price is not None:
             print(f"Simplified method: ${price:,.2f} (took {time.time() - start:.3f}s)")
 

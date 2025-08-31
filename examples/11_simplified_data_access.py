@@ -34,19 +34,19 @@ async def demonstrate_simplified_access() -> None:
         print("=== Simplified Data Access Demo ===\n")
 
         # 1. Check if data is ready
-        if await suite.data.is_data_ready(min_bars=50):
+        if await suite["MNQ"].data.is_data_ready(min_bars=50):
             print("✅ Sufficient data loaded for all timeframes")
         else:
             print("⏳ Waiting for more data...")
             await asyncio.sleep(5)
 
         # 2. Get latest price - much cleaner than get_current_price()
-        price = await suite.data.get_latest_price()
+        price = await suite["MNQ"].data.get_latest_price()
         if price is not None:
             print(f"\n📊 Current Price: ${price:,.2f}")
 
         # 3. Get OHLC as a simple dictionary
-        ohlc = await suite.data.get_ohlc("5min")
+        ohlc = await suite["MNQ"].data.get_ohlc("5min")
         if ohlc:
             print("\n📈 Latest 5min Bar:")
             print(f"   Open:   ${ohlc['open']:,.2f}")
@@ -56,7 +56,7 @@ async def demonstrate_simplified_access() -> None:
             print(f"   Volume: {ohlc['volume']:,.0f}")
 
         # 4. Get latest few bars - cleaner syntax
-        recent_bars = await suite.data.get_latest_bars(count=5, timeframe="1min")
+        recent_bars = await suite["MNQ"].data.get_latest_bars(count=5, timeframe="1min")
         if recent_bars is not None:
             print("\n📊 Last 5 1-minute bars:")
             for i in range(len(recent_bars)):
@@ -66,7 +66,7 @@ async def demonstrate_simplified_access() -> None:
                 )
 
         # 5. Get price range statistics
-        range_stats = await suite.data.get_price_range(bars=20, timeframe="5min")
+        range_stats = await suite["MNQ"].data.get_price_range(bars=20, timeframe="5min")
         if range_stats:
             print("\n📊 20-bar Price Range (5min):")
             print(f"   High:  ${range_stats['high']:,.2f}")
@@ -75,7 +75,7 @@ async def demonstrate_simplified_access() -> None:
             print(f"   Avg Range per Bar: ${range_stats['avg_range']:,.2f}")
 
         # 6. Get volume statistics
-        vol_stats = await suite.data.get_volume_stats(bars=20, timeframe="5min")
+        vol_stats = await suite["MNQ"].data.get_volume_stats(bars=20, timeframe="5min")
         if vol_stats:
             print("\n📊 20-bar Volume Stats (5min):")
             print(f"   Current Volume: {vol_stats['current']:,.0f}")
@@ -87,7 +87,7 @@ async def demonstrate_simplified_access() -> None:
 
         # 7. Get bars since a specific time
         one_hour_ago = datetime.now() - timedelta(hours=1)
-        recent_activity = await suite.data.get_bars_since(one_hour_ago, "1min")
+        recent_activity = await suite["MNQ"].data.get_bars_since(one_hour_ago, "1min")
         if recent_activity is not None:
             print(f"\n📊 Bars in last hour: {len(recent_activity)}")
 
@@ -103,7 +103,7 @@ async def demonstrate_simplified_access() -> None:
         # 8. Multi-timeframe quick access
         print("\n📊 Multi-Timeframe Summary:")
         for tf in ["1min", "5min", "15min"]:
-            bars = await suite.data.get_latest_bars(count=1, timeframe=tf)
+            bars = await suite["MNQ"].data.get_latest_bars(count=1, timeframe=tf)
             if bars is not None and not bars.is_empty():
                 close = float(bars["close"][0])
                 volume = float(bars["volume"][0])
@@ -117,14 +117,14 @@ async def demonstrate_trading_usage() -> None:
         print("\n=== Trading Logic with Simplified Access ===\n")
 
         # Wait for enough data
-        while not await suite.data.is_data_ready(min_bars=50):
+        while not await suite["MNQ"].data.is_data_ready(min_bars=50):
             print("Waiting for data...")
             await asyncio.sleep(1)
 
         # Simple trading logic using new methods
-        price = await suite.data.get_latest_price()
-        range_stats = await suite.data.get_price_range(bars=20)
-        vol_stats = await suite.data.get_volume_stats(bars=20)
+        price = await suite["MNQ"].data.get_latest_price()
+        range_stats = await suite["MNQ"].data.get_price_range(bars=20)
+        vol_stats = await suite["MNQ"].data.get_volume_stats(bars=20)
 
         if price is not None and range_stats and vol_stats:
             # Example strategy logic

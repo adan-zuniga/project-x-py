@@ -42,10 +42,12 @@ async def demonstrate_bracket_order_recovery():
         )
 
         print("   ✓ Connected to MNQ")
-        print(f"   ✓ Current price: ${await suite.data.get_current_price():.2f}\n")
+        print(
+            f"   ✓ Current price: ${await suite['MNQ'].data.get_current_price():.2f}\n"
+        )
 
         # Get current price for realistic order placement
-        current_price = await suite.data.get_current_price()
+        current_price = await suite["MNQ"].data.get_current_price()
         tick_size = 0.25  # NQ tick size
 
         if current_price is None:
@@ -62,12 +64,12 @@ async def demonstrate_bracket_order_recovery():
         print(f"   Take Profit: ${take_profit_price:.2f}")
 
         try:
-            if suite.instrument_id is None:
+            if suite["MNQ"].instrument_info.id is None:
                 raise ValueError("Instrument ID is None")
 
             # Place a normal bracket order
-            bracket_response = await suite.orders.place_bracket_order(
-                contract_id=suite.instrument_id,
+            bracket_response = await suite["MNQ"].orders.place_bracket_order(
+                contract_id=suite["MNQ"].instrument_info.id,
                 side=0,  # Buy
                 size=1,
                 entry_price=entry_price,
@@ -84,10 +86,17 @@ async def demonstrate_bracket_order_recovery():
 
                 # Cancel the bracket orders for cleanup
                 print("\n   Cleaning up orders...")
-                cancel_results = await suite.orders.cancel_position_orders(
-                    suite.instrument_id
+                cancel_results = await suite["MNQ"].orders.cancel_position_orders(
+                    suite["MNQ"].instrument_info.id
                 )
-                total_cancelled = sum(v for v in [cancel_results.get(key, 0) for key in ['entry', 'stop', 'target']] if isinstance(v, int))
+                total_cancelled = sum(
+                    v
+                    for v in [
+                        cancel_results.get(key, 0)
+                        for key in ["entry", "stop", "target"]
+                    ]
+                    if isinstance(v, int)
+                )
                 print(f"   ✓ Cancelled {total_cancelled} orders\n")
 
             else:
@@ -98,7 +107,7 @@ async def demonstrate_bracket_order_recovery():
 
         # Demonstrate recovery statistics
         print("3. Checking recovery statistics...")
-        recovery_stats = suite.orders.get_recovery_statistics()
+        recovery_stats = suite["MNQ"].orders.get_recovery_statistics()
 
         print(f"   Operations started: {recovery_stats['operations_started']}")
         print(f"   Operations completed: {recovery_stats['operations_completed']}")
@@ -114,7 +123,7 @@ async def demonstrate_bracket_order_recovery():
 
         # Demonstrate circuit breaker status
         print("\n4. Checking circuit breaker status...")
-        cb_status = suite.orders.get_circuit_breaker_status()
+        cb_status = suite["MNQ"].orders.get_circuit_breaker_status()
 
         print(f"   State: {cb_status['state']}")
         print(f"   Failure count: {cb_status['failure_count']}")
@@ -123,7 +132,9 @@ async def demonstrate_bracket_order_recovery():
 
         # Demonstrate operation cleanup
         print("\n5. Cleaning up stale operations...")
-        cleaned_count = await suite.orders.cleanup_stale_operations(max_age_hours=0.1)
+        cleaned_count = await suite["MNQ"].orders.cleanup_stale_operations(
+            max_age_hours=0.1
+        )
         print(f"   ✓ Cleaned up {cleaned_count} stale operations")
 
         print("\n=== Error Recovery Demo Complete ===")
@@ -150,28 +161,30 @@ async def demonstrate_position_order_recovery():
         )
 
         print("Connected to MES")
-        current_price = await suite.data.get_current_price()
+        current_price = await suite["MES"].data.get_current_price()
         print(f"Current price: ${current_price:.2f}\n")
 
         # Demonstrate enhanced cancellation with error tracking
         print("1. Testing enhanced position order cancellation...")
 
-        if suite.instrument_id is None:
+        if suite["MES"].instrument_info.id is None:
             raise ValueError("Instrument ID is None")
 
         # First, check if there are any existing orders
-        position_orders = await suite.orders.get_position_orders(suite.instrument_id)
+        position_orders = await suite["MES"].orders.get_position_orders(
+            suite["MES"].instrument_info.id
+        )
         total_orders = sum(len(orders) for orders in position_orders.values())
 
         if total_orders > 0:
             print(f"   Found {total_orders} existing orders")
 
-            if suite.instrument_id is None:
+            if suite["MES"].instrument_info.id is None:
                 raise ValueError("Instrument ID is None")
 
             # Cancel with enhanced error tracking
-            cancel_results = await suite.orders.cancel_position_orders(
-                suite.instrument_id
+            cancel_results = await suite["MES"].orders.cancel_position_orders(
+                suite["MES"].instrument_info.id
             )
 
             print("   Cancellation results:")
@@ -198,7 +211,7 @@ async def demonstrate_position_order_recovery():
             print("   ✓ OCO linking methods available and enhanced")
 
             # Check if any OCO relationships exist
-            memory_stats = suite.orders.get_memory_stats()
+            memory_stats = suite["MES"].orders.get_memory_stats()
             oco_count = memory_stats.get("oco_groups_count", 0)
             print(f"   Current OCO groups: {oco_count}")
 

@@ -270,7 +270,7 @@ async def demonstrate_realtime_session_filtering():
         print("✅ RTH TradingSuite created for real-time demo")
 
         # Check connection status
-        print(f"Real-time connected: {suite.realtime.is_connected()}")
+        print(f"Real-time connected: {suite['MNQ'].data.get_realtime_validation_status().get('is_running', False)}")
 
         # Set up event counters
         event_counts = {"new_bar": 0, "tick": 0, "quote": 0}

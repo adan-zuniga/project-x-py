@@ -24,10 +24,10 @@ class SimplifiedStrategy:
     def __init__(self, trading_suite: TradingSuite, symbol: str):
         self.suite = trading_suite
         self.symbol = symbol
-        self.instrument = trading_suite.instrument
-        self.data_manager = trading_suite.data
-        self.order_manager = trading_suite.orders
-        self.position_manager = trading_suite.positions
+        self.instrument = trading_suite[symbol].instrument_info
+        self.data_manager = trading_suite[symbol].data
+        self.order_manager = trading_suite[symbol].orders
+        self.position_manager = trading_suite[symbol].positions
         self.is_running = False
         self.logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ async def main():
         # LOOK HOW SIMPLE THIS IS NOW! 🎉
         # One line to create a fully initialized trading suite!
         suite = await TradingSuite.create(
-            instrument="MNQ",
+            "MNQ",
             timeframes=["5min", "15min", "1hr"],
             initial_days=3,
         )
@@ -130,7 +130,7 @@ async def main():
         # ✅ All components wired together
 
         # Get the instrument info
-        instrument = suite.instrument
+        instrument = suite["MNQ"].instrument_info
 
         print("\n🎯 Trading suite fully initialized!")
         print(f"  Instrument: {instrument.symbolId if instrument else 'Unknown'}")

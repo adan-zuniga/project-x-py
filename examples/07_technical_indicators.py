@@ -528,8 +528,8 @@ async def main() -> int | None:
         print("\n📊 Monitoring indicators in real-time...")
 
         # Check if we have data_manager
-        if hasattr(suite, "data") and suite.data:
-            await real_time_indicator_updates(suite.data, duration_seconds=30)
+        if "MNQ" in suite and suite["MNQ"].data:
+            await real_time_indicator_updates(suite["MNQ"].data, duration_seconds=30)
         else:
             print("   Real-time monitoring not available in this configuration")
 

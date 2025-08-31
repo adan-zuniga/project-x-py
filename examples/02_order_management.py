@@ -186,7 +186,7 @@ async def main() -> bool:
 
         # TradingSuite v3 includes order manager with real-time tracking
         print("\n🏗️ Using TradingSuite order manager...")
-        order_manager = suite.orders
+        order_manager = suite["MNQ"].orders
         print("✅ Order manager ready with real-time tracking")
 
         # Track orders placed in this demo for cleanup
@@ -437,7 +437,7 @@ async def main() -> bool:
                         print("📋 No orders filled yet")
 
                     # Check current positions (to detect fills that weren't caught)
-                    current_positions = await suite.client.search_open_positions()
+                    current_positions = await suite["MNQ"].positions.get_all_positions()
                     if current_positions:
                         print(f"📊 Open positions: {len(current_positions)}")
                         for pos in current_positions:
@@ -477,7 +477,7 @@ async def main() -> bool:
             print("📊 ORDER STATISTICS")
             print("=" * 50)
 
-            stats = order_manager.get_order_statistics()
+            stats = await order_manager.get_order_statistics_async()
             print("Order Manager Statistics:")
             print(f"   Orders Placed: {stats.get('orders_placed', 0)}")
             print(f"   Orders Cancelled: {stats.get('orders_cancelled', 0)}")
@@ -517,7 +517,7 @@ async def main() -> bool:
                             print(f"⚠️  Error cancelling order #{order.id}: {e}")
 
                 # Check for positions and close them
-                positions = await suite.client.search_open_positions()
+                positions = await suite["MNQ"].positions.get_all_positions()
                 print(f"Found {len(positions)} open positions")
 
                 closed_count = 0

@@ -124,19 +124,19 @@ async def export_bars_to_csv(
     """Export the last N bars to a CSV file"""
     try:
         # Get the last 100 bars
-        bars_data = await suite.data.get_data(timeframe=timeframe, bars=bars_count)
+        bars_data = await suite["NQ"].data.get_data(timeframe=timeframe, bars=bars_count)
 
         if bars_data is None or bars_data.is_empty():
             print("No data available to export.")
             return False
 
-        if suite.instrument is None:
-            print("Suite.instrument is None, skipping chart creation")
+        if suite["NQ"].instrument_info is None:
+            print("Suite instrument is None, skipping chart creation")
             return True
 
         # Generate filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"bars_export_{suite.instrument.name}_{timeframe}_{timestamp}.csv"
+        filename = f"bars_export_{suite['NQ'].instrument_info.name}_{timeframe}_{timestamp}.csv"
         filepath = Path(filename)
 
         # Write to CSV
@@ -144,12 +144,12 @@ async def export_bars_to_csv(
 
         print(f"\n✅ Successfully exported {bars_data.height} bars to {filename}")
 
-        if suite.instrument is None:
-            print("Suite.instrument is None, skipping chart creation")
+        if suite["NQ"].instrument_info is None:
+            print("Suite instrument is None, skipping chart creation")
             return True
 
         # Create candlestick chart
-        create_candlestick_chart(bars_data, suite.instrument.name, timeframe, filename)
+        create_candlestick_chart(bars_data, suite["NQ"].instrument_info.name, timeframe, filename)
 
         return True
 
@@ -203,7 +203,7 @@ async def main():
     # Note: Use "MNQ" for Micro E-mini Nasdaq-100 futures
     # "NQ" resolves to E-mini Nasdaq (ENQ) which may have different data characteristics
     suite = await TradingSuite.create(
-        instrument="NQ",  # Works best with MNQ for consistent real-time updates
+        "NQ",  # Works best with MNQ for consistent real-time updates
         timeframes=[TIMEFRAME],
     )
     print("TradingSuite created!")
@@ -233,13 +233,13 @@ async def main():
         print(f"\n📊 New bar #{bar_counter['count']} received")
 
         try:
-            current_price = await suite.data.get_current_price()
+            current_price = await suite["NQ"].data.get_current_price()
         except Exception as e:
             print(f"Error getting current price: {e}")
             return
 
         try:
-            last_bars = await suite.data.get_data(timeframe=TIMEFRAME, bars=6)
+            last_bars = await suite["NQ"].data.get_data(timeframe=TIMEFRAME, bars=6)
         except Exception as e:
             print(f"Error getting data: {e}")
             return
@@ -283,7 +283,7 @@ async def main():
     await suite.on(EventType.NEW_BAR, on_new_bar)
     print("Event handler registered!")
 
-    print(f"\nMonitoring {suite.instrument} {TIMEFRAME} bars. Press CTRL+C to exit.")
+    print(f"\nMonitoring {suite['NQ'].instrument_info.name} {TIMEFRAME} bars. Press CTRL+C to exit.")
     print("📊 CSV export and chart generation will be prompted after 10 new bars.")
     print("Event handler registered and waiting for new bars...\n")
 

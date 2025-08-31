@@ -446,14 +446,14 @@ async def main():
         print("✅ Suite initialized successfully!")
         if suite.client.account_info:
             print(f"   Account: {suite.client.account_info.name}")
-        if suite.orderbook:
-            print(f"   Tracking: {suite.orderbook.instrument}")
+        if suite["MNQ"].orderbook:
+            print(f"   Tracking: {suite["MNQ"].orderbook.instrument}")
 
         # Wait for initial data
         print("\n⏳ Collecting market data for 10 seconds...")
         await asyncio.sleep(10)
 
-        orderbook: OrderBook | None = suite.orderbook
+        orderbook: OrderBook | None = suite["MNQ"].orderbook
         if not orderbook:
             raise ValueError("Orderbook not found")
 

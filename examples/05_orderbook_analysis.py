@@ -451,7 +451,7 @@ async def main() -> bool:
             print(f"   Simulated: {account.simulated}", flush=True)
 
         # Get orderbook from suite
-        orderbook = suite.orderbook
+        orderbook = suite["MNQ"].orderbook
         if not orderbook:
             print("❌ Orderbook not available in suite", flush=True)
             await suite.disconnect()

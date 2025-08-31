@@ -19,7 +19,13 @@ Author: SDK v3.0.2 Examples
 import asyncio
 from typing import Any
 
-from project_x_py import EventType, OrderLifecycleError, TradingSuite, get_template
+from project_x_py import (
+    EventType,
+    OrderLifecycleError,
+    OrderTracker,
+    TradingSuite,
+    get_template,
+)
 
 
 async def demonstrate_order_tracker() -> None:
@@ -29,21 +35,22 @@ async def demonstrate_order_tracker() -> None:
         print("=== OrderTracker Demo ===\n")
 
         # Get current price
-        price = await suite.data.get_latest_price()
+        price = await suite["MNQ"].data.get_current_price()
         if price is None:
             print("No price data available")
             return
 
         print(f"Current price: ${price:,.2f}")
-        print(f"Using contract: {suite.instrument_id}\n")
+        print(f"Using contract: {suite['MNQ'].instrument_info.id}\n")
 
         # 1. Basic order tracking with automatic fill detection
         print("1. Basic Order Tracking:")
-        async with suite.track_order() as tracker:
+        tracker_instance: OrderTracker = suite.track_order()
+        async with tracker_instance as tracker:
             # Place a limit order below market
-            assert suite.instrument_id is not None
-            order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument_id,
+            assert suite["MNQ"].instrument_info.id is not None
+            order = await suite["MNQ"].orders.place_limit_order(
+                contract_id=suite["MNQ"].instrument_info.id,
                 side=0,  # BUY
                 size=1,
                 limit_price=price - 50,  # 50 points below market
@@ -83,31 +90,32 @@ async def demonstrate_order_tracker() -> None:
 
         # 2. Wait for specific status
         print("2. Waiting for Specific Status:")
-        async with suite.track_order() as tracker:
+        tracker2_instance: OrderTracker = suite.track_order()
+        async with tracker2_instance as tracker2:
             # Place a marketable limit order
-            assert suite.instrument_id is not None
-            order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument_id,
+            assert suite["MNQ"].instrument_info.id is not None
+            order = await suite["MNQ"].orders.place_limit_order(
+                contract_id=suite["MNQ"].instrument_info.id,
                 side=1,  # SELL
                 size=1,
                 limit_price=price + 10,  # Slightly above market for quick fill
             )
 
             if order.success:
-                tracker.track(order)
+                tracker2.track(order)
                 print(f"Placed SELL limit order at ${price + 10:,.2f}")
 
                 try:
                     # Wait for any terminal status
                     print("Waiting for order completion...")
-                    _completed = await tracker.wait_for_status(2, timeout=5)  # FILLED
+                    _completed = await tracker2.wait_for_status(2, timeout=5)  # FILLED
                     print("✅ Order reached FILLED status")
 
                 except TimeoutError:
                     print("⏱️ Order still pending")
 
                     # Check current status
-                    current = await tracker.get_current_status()
+                    current = await tracker2.get_current_status()
                     if current:
                         print(f"Current status: {current.status_str}")
 
@@ -148,7 +156,7 @@ async def demonstrate_order_chain() -> None:
         # 2. Limit order with dynamic stops
         print("2. Limit Order with Price-Based Stops:")
 
-        current_price = await suite.data.get_latest_price()
+        current_price = await suite["MNQ"].data.get_current_price()
         if current_price is not None:
             order_chain = (
                 suite.order_chain()
@@ -271,7 +279,7 @@ async def demonstrate_advanced_tracking() -> None:
         trackers: list[Any] = []
         order_ids: list[int] = []
 
-        current_price = await suite.data.get_latest_price()
+        current_price = await suite["MNQ"].data.get_current_price()
         if current_price is None:
             return
 
@@ -279,9 +287,9 @@ async def demonstrate_advanced_tracking() -> None:
         for i in range(3):
             tracker = suite.track_order()
 
-            assert suite.instrument_id is not None
-            order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument_id,
+            assert suite["MNQ"].instrument_info.id is not None
+            order = await suite["MNQ"].orders.place_limit_order(
+                contract_id=suite["MNQ"].instrument_info.id,
                 side=0,  # BUY
                 size=1,
                 limit_price=current_price - (10 * (i + 1)),  # Staggered prices
@@ -350,17 +358,18 @@ async def demonstrate_advanced_tracking() -> None:
         await suite.on(EventType.ORDER_CANCELLED, on_order_event)
 
         # Place and track order
-        async with suite.track_order() as tracker:
-            assert suite.instrument_id is not None
-            order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument_id,
+        event_tracker_instance: OrderTracker = suite.track_order()
+        async with event_tracker_instance as event_tracker:
+            assert suite["MNQ"].instrument_info.id is not None
+            order = await suite["MNQ"].orders.place_limit_order(
+                contract_id=suite["MNQ"].instrument_info.id,
                 side=1,  # SELL
                 size=1,
                 limit_price=current_price + 100,  # Far from market
             )
 
             if order.success:
-                tracker.track(order)
+                event_tracker.track(order)
                 print(f"Placed order at ${current_price + 100:,.2f}")
 
                 # Give events time to arrive
@@ -368,7 +377,7 @@ async def demonstrate_advanced_tracking() -> None:
 
                 # Cancel the order
                 print("Cancelling order...")
-                await suite.orders.cancel_order(order.orderId)
+                await suite["MNQ"].orders.cancel_order(order.orderId)
 
                 # Wait a bit for cancel event
                 await asyncio.sleep(1)
@@ -392,13 +401,13 @@ async def cleanup_demo_orders_and_positions() -> None:
 
         # 1. Cancel all open orders
         print("1. Checking for open orders...")
-        open_orders = await suite.orders.search_open_orders()
+        open_orders = await suite["MNQ"].orders.search_open_orders()
 
         if open_orders:
             print(f"   Found {len(open_orders)} open orders to cancel:")
             for order in open_orders:
                 try:
-                    success = await suite.orders.cancel_order(order.id)
+                    success = await suite["MNQ"].orders.cancel_order(order.id)
                     if success:
                         # Get order type and side names safely
                         order_type = (
@@ -429,7 +438,7 @@ async def cleanup_demo_orders_and_positions() -> None:
 
         # 2. Close all open positions
         print("2. Checking for open positions...")
-        positions = await suite.positions.get_all_positions()
+        positions = await suite["MNQ"].positions.get_all_positions()
 
         if positions:
             print(f"   Found {len(positions)} open positions to close:")
@@ -443,7 +452,7 @@ async def cleanup_demo_orders_and_positions() -> None:
                         )  # SELL if long, BUY if short
                         size = position.size  # size is always positive
 
-                        result = await suite.orders.place_market_order(
+                        result = await suite["MNQ"].orders.place_market_order(
                             contract_id=position.contractId, side=side, size=size
                         )
 

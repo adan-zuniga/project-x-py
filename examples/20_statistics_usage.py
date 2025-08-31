@@ -49,7 +49,7 @@ async def main():
             print("❌ Failed to initialize trading suite")
             return
 
-        if not suite.instrument:
+        if not suite.instrument_info:
             print("❌ Failed to initialize trading suite")
             return
 
@@ -77,7 +77,7 @@ async def main():
             print("❌ Failed to initialize trading suite")
             return
 
-        print(f"\n✅ Trading suite initialized for {suite.instrument.id}")
+        print(f"\n✅ Trading suite initialized for {suite.instrument_info.id}")
         print(f"   Account: {suite.client.account_info.name}")
 
         # =========================================================================
@@ -98,7 +98,7 @@ async def main():
             else:
                 current_price = Decimal("20000")
 
-        print(f"   Current {suite.instrument.id} price: ${current_price:,.2f}")
+        print(f"   Current {suite.instrument_info.id} price: ${current_price:,.2f}")
 
         # Place some test orders (far from market to avoid fills)
         test_orders = []
@@ -106,11 +106,13 @@ async def main():
         # Buy orders below market
         for i in range(3):
             price = float(current_price) - (50 + i * 50)
-            price = utils.round_to_tick_size(float(price), suite.instrument.tickSize)
+            price = utils.round_to_tick_size(
+                float(price), suite.instrument_info.tickSize
+            )
 
             print(f"\n   Placing buy limit order at ${price:,.2f}...")
             order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument.id,
+                contract_id=suite.instrument_info.id,
                 side=0,  # Buy
                 size=1,
                 limit_price=float(price),
@@ -121,11 +123,13 @@ async def main():
         # Sell orders above market
         for i in range(2):
             price = float(current_price) + (50 + i * 50)
-            price = utils.round_to_tick_size(float(price), suite.instrument.tickSize)
+            price = utils.round_to_tick_size(
+                float(price), suite.instrument_info.tickSize
+            )
 
             print(f"\n   Placing sell limit order at ${price:,.2f}...")
             order = await suite.orders.place_limit_order(
-                contract_id=suite.instrument.id,
+                contract_id=suite.instrument_info.id,
                 side=1,  # Sell
                 size=1,
                 limit_price=float(price),

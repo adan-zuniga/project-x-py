@@ -30,7 +30,7 @@ async def simple_long_trade(suite: TradingSuite) -> None:
     print("\n=== Simple Long Trade with Risk Management ===")
 
     # Get current price
-    latest_bars = await suite.data.get_latest_bars(count=1, timeframe="5min")
+    latest_bars = await suite["MNQ"].data.get_latest_bars(count=1, timeframe="5min")
     if latest_bars is None or latest_bars.is_empty():
         print("No data available")
         return
@@ -44,7 +44,7 @@ async def simple_long_trade(suite: TradingSuite) -> None:
     # In a real scenario, this would execute:
     try:
         # Create managed trade context
-        # async with suite.managed_trade(max_risk_percent=0.01) as trade:
+        # async with suite["MNQ"].managed_trade(max_risk_percent=0.01) as trade:
         #     # Enter long with automatic position sizing
         #     result = await trade.enter_long(
         #         stop_loss=current_price - 50,      # $50 stop
@@ -75,7 +75,7 @@ async def advanced_trade_management(suite: TradingSuite) -> None:
     print("\n=== Advanced Trade Management ===")
 
     # Get current price
-    latest_bars = await suite.data.get_latest_bars(count=1, timeframe="5min")
+    latest_bars = await suite["MNQ"].data.get_latest_bars(count=1, timeframe="5min")
     if latest_bars is None or latest_bars.is_empty():
         print("No data available")
         return
@@ -91,7 +91,7 @@ async def advanced_trade_management(suite: TradingSuite) -> None:
 
     # Show what the code would do
     example_code = """
-    async with suite.managed_trade(max_risk_percent=0.01) as trade:
+    async with suite["MNQ"].managed_trade(max_risk_percent=0.01) as trade:
         # Enter with limit order
         result = await trade.enter_long(
             entry_price=entry_price,        # Limit order
@@ -137,7 +137,7 @@ async def risk_validation_demo(suite: TradingSuite) -> None:
     print("\n=== Risk Validation Demo ===")
 
     # Get current price
-    latest_bars = await suite.data.get_latest_bars(count=1, timeframe="5min")
+    latest_bars = await suite["MNQ"].data.get_latest_bars(count=1, timeframe="5min")
     if latest_bars is None or latest_bars.is_empty():
         print("No data available")
         return
@@ -149,8 +149,8 @@ async def risk_validation_demo(suite: TradingSuite) -> None:
 
     # 1. Valid trade
     print("\n1. Valid trade (1% risk):")
-    assert suite.risk_manager is not None
-    sizing = await suite.risk_manager.calculate_position_size(
+    assert suite["MNQ"].risk_manager is not None
+    sizing = await suite["MNQ"].risk_manager.calculate_position_size(
         entry_price=current_price,
         stop_loss=current_price - 50,
         risk_percent=0.01,
@@ -162,19 +162,19 @@ async def risk_validation_demo(suite: TradingSuite) -> None:
     # 2. Excessive position size
     print("\n2. Excessive position size:")
     print("   Requested: 15 contracts")
-    print(f"   Max allowed: {suite.risk_manager.config.max_position_size}")
+    print(f"   Max allowed: {suite['MNQ'].risk_manager.config.max_position_size}")
     print("   ✗ Would be rejected")
 
     # 3. Too many positions
     print("\n3. Too many open positions:")
     print("   Current positions: 3")
-    print(f"   Max allowed: {suite.risk_manager.config.max_positions}")
+    print(f"   Max allowed: {suite['MNQ'].risk_manager.config.max_positions}")
     print("   ✗ Would be rejected")
 
     # 4. Daily loss limit
     print("\n4. Daily loss limit reached:")
     print("   Daily loss: 3.5%")
-    print(f"   Max allowed: {suite.risk_manager.config.max_daily_loss * 100}%")
+    print(f"   Max allowed: {suite['MNQ'].risk_manager.config.max_daily_loss * 100}%")
     print("   ✗ Would be rejected")
 
 
@@ -191,7 +191,7 @@ async def main() -> None:
         initial_days=5,
     )
 
-    print(f"✓ Suite created for {suite.instrument_id}")
+    print(f"✓ Suite created for {suite['MNQ'].instrument_info.id}")
     print("✓ Risk manager enabled")
 
     # Wait for data
