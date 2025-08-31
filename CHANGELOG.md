@@ -14,6 +14,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.3] - 2025-01-31
+
+### 🐛 Fixed
+
+**Realtime Data Manager Fixes**:
+- **Memory Management**: Fixed mypy error with `get_overflow_stats()` method signatures in mmap overflow handling
+- **Type Safety**: Resolved type checking issues in overflow statistics reporting
+- **Test Coverage**: Achieved 100% test passing rate for realtime_data_manager module
+
+### 📝 Documentation
+
+**Comprehensive Documentation Updates**:
+- **Realtime Data Manager**: Updated documentation to be 100% accurate with actual implementation
+- **Code Examples**: Updated all examples to use modern TradingSuite API and component access patterns
+- **API Documentation**: Fixed inconsistencies between documentation and actual code implementation
+- **Example Files**: Modernized all example scripts to follow best practices and current API patterns
+
+### 🔧 Changed
+
+- **API Consistency**: Standardized component access patterns across all examples and documentation
+- **Documentation Accuracy**: All documentation now precisely reflects the actual code behavior
+- **Example Modernization**: All 25+ example files updated to use recommended patterns
+
+### ✅ Testing
+
+- **Complete Test Coverage**: All tests now passing for realtime_data_manager module
+- **Type Safety**: Fixed all mypy type checking errors
+- **Test Reliability**: Improved test stability and removed flaky tests
+
 ## [3.5.2] - 2025-01-31
 
 ### 🐛 Fixed
