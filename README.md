@@ -677,11 +677,14 @@ orderbook = OrderBook(
     cache_ttl=300  # 5 minutes
 )
 
-# In RealtimeDataManager
-data_manager = RealtimeDataManager(
-    instrument="NQ",
+# In ProjectXRealtimeDataManager (integrated with TradingSuite)
+# Data manager is configured via DataManagerConfig
+from project_x_py.realtime_data_manager.types import DataManagerConfig
+
+config = DataManagerConfig(
     max_bars_per_timeframe=1000,
-    tick_buffer_size=1000
+    enable_mmap_overflow=True,
+    enable_dynamic_limits=True
 )
 ```
 

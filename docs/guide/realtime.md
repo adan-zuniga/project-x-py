@@ -4,17 +4,19 @@ This guide covers comprehensive real-time data streaming using ProjectX Python S
 
 ## Overview
 
-The RealtimeDataManager provides complete real-time market data streaming including OHLCV bars, tick data, price updates, and multi-timeframe synchronization. All operations are designed for high-frequency trading applications with minimal latency.
+The ProjectXRealtimeDataManager provides complete real-time market data streaming including OHLCV bars, tick data, price updates, and multi-timeframe synchronization. All operations are designed for high-frequency trading applications with minimal latency.
 
 ### Key Features
 
 - **Multi-timeframe Streaming**: Simultaneous data across multiple timeframes
 - **WebSocket Connectivity**: High-performance async WebSocket connections
-- **Automatic Reconnection**: Built-in circuit breaker and reconnection logic
-- **Memory Management**: Sliding windows with automatic cleanup
+- **Automatic Memory Management**: Sliding windows with automatic cleanup
 - **Event-Driven Architecture**: Real-time callbacks for all data updates
 - **Data Synchronization**: Synchronized updates across timeframes
-- **Performance Optimization**: Connection pooling and message batching
+- **Performance Optimization**: DataFrame caching and lock optimization
+- **DST Handling**: Automatic Daylight Saving Time transition management
+- **MMap Overflow**: Disk-based overflow for large datasets
+- **Dynamic Resource Limits**: Adaptive memory and CPU management
 
 ## Getting Started
 
@@ -22,13 +24,13 @@ The RealtimeDataManager provides complete real-time market data streaming includ
 
 ```python
 import asyncio
-from project_x_py import TradingSuite, EventType
+from project_x_py import TradingSuite
 
 async def basic_realtime_setup():
     # Initialize with real-time capabilities
     suite = await TradingSuite.create(
         "MNQ",
-        timeframes=["1sec", "1min", "5min"],  # Multiple timeframes
+        timeframes=["1min", "5min", "15min"],  # Multiple timeframes
         initial_days=2  # Historical data for context
     )
 
@@ -39,930 +41,439 @@ async def basic_realtime_setup():
 
     # Get current price
     current_price = await data_manager.get_current_price()
-    print(f"Current MNQ price: ${current_price}")
+    if current_price:
+        print(f"Current MNQ price: ${current_price:.2f}")
 
     # Get recent data
-    recent_1min = await data_manager.get_data("1min", bars=10)
-    print(f"Last 10 1-minute bars: {len(recent_1min)} rows")
+    recent_1min = await data_manager.get_data("1min", count=10)
+    if recent_1min is not None:
+        print(f"Last 10 1-minute bars: {len(recent_1min)} rows")
+
+    await suite.disconnect()
+
+asyncio.run(basic_realtime_setup())
 ```
 
-### Connection Management
+### Health Monitoring
 
-The TradingSuite automatically manages WebSocket connections, but you can monitor and control them:
+Monitor the health and status of the real-time data manager:
 
 ```python
-async def connection_management():
+async def health_monitoring():
     suite = await TradingSuite.create("MNQ")
 
-    # Check connection status
-    connection_status = await suite.data.get_connection_status()
-    print(f"Connection Status: {connection_status}")
+    # Get health score (0-100)
+    health_score = await suite.data.get_health_score()
+    print(f"Health Score: {health_score:.1f}/100")
 
-    # Connection health monitoring
-    health = await suite.data.get_connection_health()
-    print(f"Connection Health:")
-    print(f"  Status: {health['status']}")
-    print(f"  Uptime: {health['uptime']}")
-    print(f"  Messages Received: {health['messages_received']}")
-    print(f"  Last Message: {health['last_message_time']}")
+    # Get comprehensive statistics
+    stats = await suite.data.get_stats()
+    print(f"Component Status: {stats.status}")
+    print(f"Uptime: {stats.uptime_seconds}s")
+    print(f"Error Count: {stats.error_count}")
 
-    # Manual reconnection (rarely needed)
-    if health['status'] != 'CONNECTED':
-        print("Reconnecting...")
-        await suite.data.reconnect()
+    # Memory statistics
+    memory_stats = await suite.data.get_memory_stats()
+    print(f"Total Bars: {memory_stats.total_bars:,}")
+    print(f"Memory Usage: {memory_stats.memory_usage_mb:.2f} MB")
+
+    await suite.disconnect()
+
+asyncio.run(health_monitoring())
 ```
 
-## Real-time Data Types
+## Real-time Data Access
 
-### Price Ticks
+### Getting Bar Data
 
-Real-time price updates provide the most granular market data:
-
-```python
-async def handle_price_ticks():
-    suite = await TradingSuite.create("MNQ")
-
-    # Event-driven tick handling
-    async def on_tick(event):
-        tick_data = event.data
-
-        print(f"Tick: ${tick_data['price']} (Size: {tick_data['size']})")
-        print(f"  Time: {tick_data['timestamp']}")
-        print(f"  Bid/Ask: ${tick_data['bid']}/${tick_data['ask']}")
-
-        # Tick analysis
-        if tick_data['size'] > 50:  # Large tick
-            print(f"  =% Large tick detected!")
-
-    # Register tick handler
-    await suite.on(EventType.TICK_UPDATE, on_tick)
-
-    # Alternative: Callback-based approach
-    async def tick_callback(tick_data):
-        print(f"Callback tick: ${tick_data['price']}")
-
-    await suite.data.add_callback("tick", tick_callback)
-
-    # Stream ticks for 30 seconds
-    print("Streaming ticks...")
-    await asyncio.sleep(30)
-```
-
-### OHLCV Bars
-
-Real-time bar formation across multiple timeframes:
+Access OHLCV bar data across multiple timeframes:
 
 ```python
-async def handle_bar_updates():
-    suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["15sec", "1min", "5min", "15min"]
+async def accessing_bar_data():
+    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+
+    # Get all available data for a timeframe
+    all_bars = await suite.data.get_data("1min")
+
+    # Get specific number of bars
+    recent_bars = await suite.data.get_data("5min", count=20)
+
+    # Get data for a time range
+    from datetime import datetime, timedelta
+    end_time = datetime.now()
+    start_time = end_time - timedelta(hours=2)
+
+    range_bars = await suite.data.get_data(
+        timeframe="1min",
+        start_time=start_time,
+        end_time=end_time
     )
 
-    # Bar update handler
-    async def on_new_bar(event):
-        bar_data = event.data
-        timeframe = bar_data['timeframe']
-        bar = bar_data['data']
+    # Always check for None returns
+    if all_bars is not None and not all_bars.is_empty():
+        latest = all_bars.tail(1)
+        print(f"Latest 1min close: ${latest['close'][0]:.2f}")
 
-        print(f"New {timeframe} bar:")
-        print(f"  O: ${bar['open']} H: ${bar['high']}")
-        print(f"  L: ${bar['low']} C: ${bar['close']}")
-        print(f"  Volume: {bar['volume']}")
-        print(f"  Time: {bar['timestamp']}")
+    await suite.disconnect()
 
-        # Bar analysis
-        body_size = abs(bar['close'] - bar['open'])
-        range_size = bar['high'] - bar['low']
-
-        if body_size > range_size * 0.8:  # Strong directional bar
-            direction = "Bullish" if bar['close'] > bar['open'] else "Bearish"
-            print(f"  < Strong {direction} bar!")
-
-    # Register bar handler
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-
-    # Monitor bars for 5 minutes
-    print("Monitoring bar formation...")
-    await asyncio.sleep(300)
+asyncio.run(accessing_bar_data())
 ```
 
-### Quote Updates
+### Current Price and Volume
 
-Real-time bid/ask quote changes:
+Get real-time price and volume information:
 
 ```python
-async def handle_quote_updates():
-    suite = await TradingSuite.create("MNQ")
+async def price_and_volume():
+    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
 
-    async def on_quote_update(event):
-        quote_data = event.data
+    # Current price from latest tick or bar
+    current_price = await suite.data.get_current_price()
+    if current_price:
+        print(f"Current price: ${current_price:.2f}")
 
-        bid = quote_data['bid']
-        ask = quote_data['ask']
-        spread = ask - bid
+    # Latest price from specific timeframe
+    latest_price = await suite.data.get_latest_price()
+    if latest_price:
+        print(f"Latest price: ${latest_price:.2f}")
 
-        print(f"Quote: ${bid} x ${ask} (Spread: ${spread})")
+    # Price range statistics
+    price_range = await suite.data.get_price_range(
+        timeframe="1min",
+        bars=100
+    )
+    if price_range:
+        print(f"100-bar range: ${price_range['low']:.2f} - ${price_range['high']:.2f}")
+        print(f"Range size: ${price_range['range']:.2f}")
 
-        # Spread analysis
-        if spread > 5.0:  # Wide spread for MNQ
-            print("    Wide spread detected!")
+    # Volume statistics
+    vol_stats = await suite.data.get_volume_stats(timeframe="1min")
+    if vol_stats:
+        print(f"Total volume: {vol_stats['total_volume']:,}")
+        print(f"Average volume: {vol_stats['avg_volume']:.0f}")
 
-        # Level 2 data (if available)
-        if 'depth' in quote_data:
-            depth = quote_data['depth']
-            print(f"  Depth: {len(depth['bids'])} bids, {len(depth['asks'])} asks")
+    await suite.disconnect()
 
-    await suite.on(EventType.QUOTE_UPDATE, on_quote_update)
-
-    # Monitor quotes
-    await asyncio.sleep(60)
+asyncio.run(price_and_volume())
 ```
 
-## Multi-timeframe Analysis
+## Multi-Timeframe Synchronization
 
-### Synchronized Data Access
+### Working with Multiple Timeframes
 
 ```python
 async def multi_timeframe_analysis():
     suite = await TradingSuite.create(
         "MNQ",
-        timeframes=["1min", "5min", "15min", "1hr"],
-        initial_days=5
+        timeframes=["1min", "5min", "15min", "1hour"]
     )
 
-    # Get synchronized data across timeframes
-    timeframe_data = {}
+    # Get data from all timeframes concurrently
+    timeframes = ["1min", "5min", "15min", "1hour"]
+    tasks = [suite.data.get_data(tf, count=10) for tf in timeframes]
+    results = await asyncio.gather(*tasks)
 
-    for tf in ["1min", "5min", "15min", "1hr"]:
-        data = await suite.data.get_data(tf, bars=100)
-        timeframe_data[tf] = data
-        print(f"{tf}: {len(data)} bars")
+    # Analyze alignment
+    for tf, data in zip(timeframes, results):
+        if data is not None and not data.is_empty():
+            latest = data.tail(1)
+            close = latest['close'][0]
+            print(f"{tf:>6}: ${close:.2f}")
 
-    # Analysis across timeframes
-    current_time = datetime.now()
+    await suite.disconnect()
 
-    # Check trend alignment
-    trends = {}
-    for tf, data in timeframe_data.items():
-        if len(data) >= 2:
-            current_close = data[-1]['close']
-            prev_close = data[-2]['close']
-            trends[tf] = "Up" if current_close > prev_close else "Down"
-
-    print(f"Trend Alignment: {trends}")
-
-    # Look for confluence
-    all_up = all(trend == "Up" for trend in trends.values())
-    all_down = all(trend == "Down" for trend in trends.values())
-
-    if all_up:
-        print("= All timeframes bullish!")
-    elif all_down:
-        print("= All timeframes bearish!")
-    else:
-        print("= Mixed timeframe signals")
+asyncio.run(multi_timeframe_analysis())
 ```
 
-### Real-time Multi-timeframe Monitoring
+## Performance Optimization
+
+### Memory Management
+
+Configure and monitor memory usage:
 
 ```python
-class MultiTimeframeMonitor:
-    def __init__(self, suite):
-        self.suite = suite
-        self.timeframes = ["1min", "5min", "15min"]
-        self.current_bars = {}
-        self.signals = {}
+async def memory_optimization():
+    from project_x_py.realtime_data_manager.types import DataManagerConfig
 
-    async def setup_monitoring(self):
-        """Setup multi-timeframe monitoring."""
+    # Configure memory limits
+    config = DataManagerConfig(
+        max_bars_per_timeframe=1000,  # Limit bars in memory
+        enable_mmap_overflow=True,     # Use disk for overflow
+        overflow_threshold=0.8,        # Overflow at 80% capacity
+        enable_dynamic_limits=True     # Adaptive limits
+    )
 
-        # Initialize current bars for each timeframe
-        for tf in self.timeframes:
-            data = await self.suite.data.get_data(tf, bars=1)
-            if len(data) > 0:
-                self.current_bars[tf] = data[-1]
-
-        # Register bar update handler
-        await self.suite.on(EventType.NEW_BAR, self.on_bar_update)
-
-        print("Multi-timeframe monitoring active")
-
-    async def on_bar_update(self, event):
-        """Handle new bar across all timeframes."""
-        bar_data = event.data
-        timeframe = bar_data['timeframe']
-        bar = bar_data['data']
-
-        if timeframe not in self.timeframes:
-            return
-
-        # Update current bar
-        prev_bar = self.current_bars.get(timeframe)
-        self.current_bars[timeframe] = bar
-
-        # Generate signals
-        signal = await self.generate_signal(timeframe, bar, prev_bar)
-        if signal:
-            self.signals[timeframe] = signal
-            await self.check_confluence()
-
-    async def generate_signal(self, timeframe, current_bar, prev_bar):
-        """Generate signals based on bar patterns."""
-
-        if not prev_bar:
-            return None
-
-        # Simple momentum signal
-        if current_bar['close'] > prev_bar['close'] * 1.002:  # 0.2% up
-            return {"type": "BULLISH", "strength": "STRONG"}
-        elif current_bar['close'] < prev_bar['close'] * 0.998:  # 0.2% down
-            return {"type": "BEARISH", "strength": "STRONG"}
-
-        return None
-
-    async def check_confluence(self):
-        """Check for signal confluence across timeframes."""
-
-        if len(self.signals) < 2:
-            return
-
-        # Check alignment
-        signal_types = [sig["type"] for sig in self.signals.values()]
-
-        if len(set(signal_types)) == 1:  # All same type
-            signal_type = signal_types[0]
-            timeframes = list(self.signals.keys())
-
-            print(f"< CONFLUENCE SIGNAL: {signal_type}")
-            print(f"   Timeframes: {', '.join(timeframes)}")
-
-            # Clear signals after confluence
-            self.signals.clear()
-
-# Usage
-async def run_multi_timeframe_monitoring():
     suite = await TradingSuite.create(
         "MNQ",
-        timeframes=["1min", "5min", "15min"]
+        timeframes=["1min"],
+        data_manager_config=config
     )
 
-    monitor = MultiTimeframeMonitor(suite)
-    await monitor.setup_monitoring()
+    # Monitor memory usage
+    memory_stats = await suite.data.get_memory_stats()
+    print(f"Memory Usage: {memory_stats.memory_usage_mb:.2f} MB")
+    print(f"Cache Efficiency: {memory_stats.cache_efficiency:.1%}")
 
-    # Keep monitoring for 10 minutes
-    await asyncio.sleep(600)
+    # Optimize data access patterns
+    optimization = await suite.data.optimize_data_access_patterns()
+    print(f"Cache improvement: {optimization['cache_improvement']:.1%}")
+
+    await suite.disconnect()
+
+asyncio.run(memory_optimization())
 ```
 
-## Data Processing and Aggregation
+### Lock Optimization
 
-### Custom Bar Aggregation
-
-```python
-async def custom_bar_aggregation():
-    suite = await TradingSuite.create("MNQ")
-
-    # Custom aggregation periods
-    custom_aggregator = CustomBarAggregator(period_seconds=45)  # 45-second bars
-
-    async def on_tick(event):
-        tick_data = event.data
-
-        # Feed ticks to custom aggregator
-        bar = await custom_aggregator.process_tick(tick_data)
-
-        if bar:  # New bar completed
-            print(f"Custom 45s bar:")
-            print(f"  OHLC: {bar['open']:.2f}, {bar['high']:.2f}, {bar['low']:.2f}, {bar['close']:.2f}")
-            print(f"  Volume: {bar['volume']}")
-
-            # Your custom analysis here
-            await analyze_custom_bar(bar)
-
-    await suite.on(EventType.TICK_UPDATE, on_tick)
-
-    # Stream for custom aggregation
-    await asyncio.sleep(300)
-
-class CustomBarAggregator:
-    def __init__(self, period_seconds: int):
-        self.period = timedelta(seconds=period_seconds)
-        self.current_bar = None
-        self.bar_start_time = None
-
-    async def process_tick(self, tick_data):
-        """Process tick and return completed bar if ready."""
-
-        tick_time = datetime.fromisoformat(tick_data['timestamp'])
-        price = tick_data['price']
-        size = tick_data['size']
-
-        # Initialize new bar
-        if not self.current_bar:
-            self.start_new_bar(tick_time, price)
-            return None
-
-        # Check if bar period elapsed
-        if tick_time >= self.bar_start_time + self.period:
-            completed_bar = self.current_bar.copy()
-            self.start_new_bar(tick_time, price)
-            return completed_bar
-
-        # Update current bar
-        self.current_bar['high'] = max(self.current_bar['high'], price)
-        self.current_bar['low'] = min(self.current_bar['low'], price)
-        self.current_bar['close'] = price
-        self.current_bar['volume'] += size
-
-        return None
-
-    def start_new_bar(self, start_time, open_price):
-        """Start a new bar."""
-        self.bar_start_time = start_time
-        self.current_bar = {
-            'timestamp': start_time,
-            'open': open_price,
-            'high': open_price,
-            'low': open_price,
-            'close': open_price,
-            'volume': 0
-        }
-
-async def analyze_custom_bar(bar):
-    """Analyze custom aggregated bar."""
-
-    body_size = abs(bar['close'] - bar['open'])
-    range_size = bar['high'] - bar['low']
-
-    if body_size > range_size * 0.7:
-        direction = "bullish" if bar['close'] > bar['open'] else "bearish"
-        print(f"  = Strong {direction} bar (body {body_size:.2f})")
-```
-
-### Volume Analysis
+Monitor and optimize lock contention:
 
 ```python
-async def volume_analysis():
+async def lock_optimization():
     suite = await TradingSuite.create("MNQ", timeframes=["1min"])
 
-    volume_analyzer = VolumeAnalyzer()
+    # Get lock statistics
+    lock_stats = await suite.data.get_lock_optimization_stats()
+    print(f"Lock acquisitions: {lock_stats['total_acquisitions']}")
+    print(f"Average wait time: {lock_stats['avg_wait_time_ms']:.2f}ms")
+    print(f"Contention rate: {lock_stats['contention_rate']:.1%}")
 
-    async def on_bar_update(event):
-        bar_data = event.data
+    await suite.disconnect()
 
-        if bar_data['timeframe'] == '1min':
-            bar = bar_data['data']
-            analysis = await volume_analyzer.analyze_bar(bar)
-
-            if analysis['volume_spike']:
-                print(f"=% Volume spike detected!")
-                print(f"   Volume: {bar['volume']} (Avg: {analysis['avg_volume']:.0f})")
-                print(f"   Multiple: {analysis['volume_multiple']:.1f}x")
-
-            if analysis['exhaustion']:
-                print(f"=4 Volume exhaustion - potential reversal")
-
-    await suite.on(EventType.NEW_BAR, on_bar_update)
-
-    await asyncio.sleep(300)
-
-class VolumeAnalyzer:
-    def __init__(self, lookback_periods: int = 20):
-        self.lookback_periods = lookback_periods
-        self.volume_history = []
-
-    async def analyze_bar(self, bar):
-        """Analyze volume characteristics of a bar."""
-
-        current_volume = bar['volume']
-        self.volume_history.append(current_volume)
-
-        # Keep only recent history
-        if len(self.volume_history) > self.lookback_periods:
-            self.volume_history.pop(0)
-
-        if len(self.volume_history) < 5:
-            return {"volume_spike": False, "exhaustion": False}
-
-        # Calculate volume statistics
-        avg_volume = sum(self.volume_history[:-1]) / len(self.volume_history[:-1])
-        volume_multiple = current_volume / avg_volume if avg_volume > 0 else 1
-
-        # Volume spike detection
-        volume_spike = volume_multiple > 2.0  # 2x average volume
-
-        # Volume exhaustion detection
-        recent_avg = sum(self.volume_history[-3:]) / 3
-        older_avg = sum(self.volume_history[-8:-5]) / 3
-        exhaustion = recent_avg < older_avg * 0.6  # 40% drop in volume
-
-        return {
-            "volume_spike": volume_spike,
-            "exhaustion": exhaustion,
-            "avg_volume": avg_volume,
-            "volume_multiple": volume_multiple,
-            "recent_avg": recent_avg
-        }
+asyncio.run(lock_optimization())
 ```
 
-## Memory Management and Performance
+## DST Handling
 
-### Automatic Memory Management
-
-The RealtimeDataManager includes sophisticated memory management:
+### Automatic DST Transition Management
 
 ```python
-async def memory_management_demo():
-    suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["1sec", "15sec", "1min", "5min"]  # Multiple high-frequency timeframes
+async def dst_aware_trading():
+    from project_x_py.realtime_data_manager.types import DataManagerConfig
+
+    # Configure with timezone awareness
+    config = DataManagerConfig(
+        session_type="RTH",  # Regular Trading Hours
+        timezone="America/New_York"  # Exchange timezone
     )
 
-    # Check memory usage
-    memory_stats = await suite.data.get_memory_stats()
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min"],
+        data_manager_config=config
+    )
 
-    print("Memory Usage:")
-    for timeframe, stats in memory_stats['by_timeframe'].items():
-        print(f"  {timeframe}: {stats['bar_count']} bars, {stats['memory_mb']:.1f} MB")
+    # DST transitions are handled automatically:
+    # - Spring forward: Missing hour is skipped
+    # - Fall back: Duplicate hour is disambiguated
+    # - Bar timestamps are adjusted correctly
 
-    print(f"Total Memory: {memory_stats['total_memory_mb']:.1f} MB")
-    print(f"Tick Buffer: {memory_stats['tick_buffer_size']} ticks")
+    # Data access works normally across DST boundaries
+    bars = await suite.data.get_data("1min")
+    if bars is not None:
+        print(f"Bars across DST: {len(bars)}")
 
-    # Memory limits (automatically managed)
-    limits = await suite.data.get_memory_limits()
-    print(f"\nMemory Limits:")
-    print(f"  Max bars per timeframe: {limits['max_bars_per_timeframe']}")
-    print(f"  Tick buffer size: {limits['tick_buffer_size']}")
-    print(f"  Total memory limit: {limits['max_memory_mb']} MB")
+    await suite.disconnect()
 
-    # Manual cleanup (rarely needed)
-    await suite.data.cleanup_old_data(keep_hours=1)  # Keep only last hour
+asyncio.run(dst_aware_trading())
 ```
 
-### Performance Optimization
+## Advanced Features
+
+### MMap Overflow for Large Datasets
+
+Handle large amounts of historical data with disk overflow:
 
 ```python
-async def optimize_performance():
-    suite = await TradingSuite.create("MNQ")
+async def large_dataset_handling():
+    from project_x_py.realtime_data_manager.types import DataManagerConfig
 
-    # Performance monitoring
-    perf_stats = await suite.data.get_performance_stats()
+    config = DataManagerConfig(
+        max_bars_per_timeframe=500,   # Low memory limit
+        enable_mmap_overflow=True,    # Enable disk overflow
+        overflow_threshold=0.8,        # Trigger at 80%
+        mmap_storage_path="/tmp/overflow"  # Storage location
+    )
 
-    print("Performance Statistics:")
-    print(f"  Message Rate: {perf_stats['messages_per_second']:.1f}/sec")
-    print(f"  Processing Latency: {perf_stats['avg_processing_latency_ms']:.2f}ms")
-    print(f"  Memory Growth Rate: {perf_stats['memory_growth_mb_per_hour']:.2f} MB/hr")
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min"],
+        data_manager_config=config,
+        initial_days=30  # Large initial dataset
+    )
 
-    # Optimize settings based on usage
-    if perf_stats['messages_per_second'] > 100:
-        print("High message rate - enabling batching")
-        await suite.data.enable_message_batching(batch_size=50, batch_timeout_ms=100)
+    # Check overflow statistics
+    overflow_stats = await suite.data.get_overflow_stats("1min")
+    if overflow_stats:
+        print(f"Overflowed bars: {overflow_stats['total_overflowed_bars']}")
+        print(f"Disk usage: {overflow_stats['disk_storage_size_mb']:.2f} MB")
 
-    # Connection optimization
-    connection_stats = await suite.data.get_connection_stats()
+    # Data access seamlessly combines memory and disk
+    all_data = await suite.data.get_data("1min")
+    if all_data is not None:
+        print(f"Total bars available: {len(all_data)}")
 
-    print(f"\nConnection Statistics:")
-    print(f"  Reconnections: {connection_stats['reconnection_count']}")
-    print(f"  Average Latency: {connection_stats['avg_latency_ms']:.2f}ms")
-    print(f"  Message Loss Rate: {connection_stats['message_loss_rate']:.4%}")
+    await suite.disconnect()
 
-    if connection_stats['avg_latency_ms'] > 100:
-        print("High latency detected - checking connection quality")
+asyncio.run(large_dataset_handling())
 ```
 
-## Error Handling and Circuit Breaker
+### Dynamic Resource Management
 
-### Connection Error Handling
+Adaptive resource limits based on system load:
 
 ```python
-async def robust_connection_handling():
-    suite = await TradingSuite.create("MNQ")
+async def dynamic_resources():
+    from project_x_py.realtime_data_manager.types import DataManagerConfig
 
-    # Connection event handlers
-    async def on_connected(event):
-        print(" Connected to real-time data")
+    config = DataManagerConfig(
+        enable_dynamic_limits=True,
+        memory_threshold_percent=80.0,  # Adjust at 80% memory
+        cpu_threshold_percent=70.0      # Adjust at 70% CPU
+    )
 
-    async def on_disconnected(event):
-        reason = event.data.get('reason', 'Unknown')
-        print(f"L Disconnected: {reason}")
+    suite = await TradingSuite.create(
+        "MNQ",
+        timeframes=["1min"],
+        data_manager_config=config
+    )
 
-    async def on_reconnecting(event):
-        attempt = event.data.get('attempt', 0)
-        print(f"= Reconnecting (attempt {attempt})...")
+    # Monitor resource adaptation
+    resource_stats = await suite.data.get_resource_stats()
+    print(f"Memory limit: {resource_stats.get('memory_limit_mb', 0):.0f} MB")
+    print(f"CPU usage: {resource_stats['cpu_percent']:.1f}%")
+    print(f"Thread count: {resource_stats['num_threads']}")
 
-    async def on_error(event):
-        error = event.data.get('error', 'Unknown error')
-        print(f"= Connection error: {error}")
+    await suite.disconnect()
 
-    # Register connection event handlers
-    await suite.on(EventType.REALTIME_CONNECTED, on_connected)
-    await suite.on(EventType.REALTIME_DISCONNECTED, on_disconnected)
-    await suite.on(EventType.REALTIME_RECONNECTING, on_reconnecting)
-    await suite.on(EventType.REALTIME_ERROR, on_error)
-
-    # Monitor connection health
-    async def health_monitor():
-        while True:
-            try:
-                health = await suite.data.get_connection_health()
-
-                if health['status'] != 'CONNECTED':
-                    print(f"  Connection issues: {health['status']}")
-
-                    # Check if manual intervention needed
-                    if health.get('consecutive_failures', 0) > 5:
-                        print("Multiple failures - manual intervention may be needed")
-
-            except Exception as e:
-                print(f"Health check error: {e}")
-
-            await asyncio.sleep(30)  # Check every 30 seconds
-
-    # Run health monitoring
-    health_task = asyncio.create_task(health_monitor())
-
-    # Your trading logic here...
-    await asyncio.sleep(300)
-
-    # Cleanup
-    health_task.cancel()
+asyncio.run(dynamic_resources())
 ```
 
-### Circuit Breaker Pattern
+## Error Handling
+
+### Proper Error Handling Patterns
 
 ```python
-class RealtimeCircuitBreaker:
-    def __init__(self, suite, failure_threshold: int = 5, reset_timeout: int = 60):
-        self.suite = suite
-        self.failure_threshold = failure_threshold
-        self.reset_timeout = reset_timeout
+async def robust_data_access():
+    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
 
-        self.failure_count = 0
-        self.last_failure_time = None
-        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
-
-    async def call_with_breaker(self, operation, *args, **kwargs):
-        """Execute operation with circuit breaker protection."""
-
-        if self.state == "OPEN":
-            if self.should_attempt_reset():
-                self.state = "HALF_OPEN"
-            else:
-                raise Exception("Circuit breaker is OPEN - service unavailable")
-
-        try:
-            result = await operation(*args, **kwargs)
-            await self.on_success()
-            return result
-
-        except Exception as e:
-            await self.on_failure()
-            raise e
-
-    async def on_success(self):
-        """Handle successful operation."""
-        self.failure_count = 0
-        self.state = "CLOSED"
-
-    async def on_failure(self):
-        """Handle failed operation."""
-        self.failure_count += 1
-        self.last_failure_time = datetime.now()
-
-        if self.failure_count >= self.failure_threshold:
-            self.state = "OPEN"
-            print(f"=% Circuit breaker OPEN after {self.failure_count} failures")
-
-    def should_attempt_reset(self) -> bool:
-        """Check if should attempt reset."""
-        if self.last_failure_time:
-            time_since_failure = (datetime.now() - self.last_failure_time).total_seconds()
-            return time_since_failure >= self.reset_timeout
-        return False
-
-# Usage
-async def use_circuit_breaker():
-    suite = await TradingSuite.create("MNQ")
-    breaker = RealtimeCircuitBreaker(suite)
-
-    # Protected operations
     try:
-        current_price = await breaker.call_with_breaker(
-            suite.data.get_current_price
-        )
-        print(f"Price: ${current_price}")
+        # Always check for None returns
+        data = await suite.data.get_data("1min")
+        if data is None:
+            print("No data available yet")
+            return
+
+        # Check for empty DataFrames
+        if data.is_empty():
+            print("DataFrame is empty")
+            return
+
+        # Safe data access
+        if len(data) > 0:
+            latest = data.tail(1)
+            close_price = latest["close"][0]
+            print(f"Latest close: ${close_price:.2f}")
 
     except Exception as e:
-        print(f"Operation failed: {e}")
-```
+        print(f"Error accessing data: {e}")
+        # Log error for debugging
+        import logging
+        logging.error(f"Data access error: {e}", exc_info=True)
 
-## Advanced Real-time Features
+    finally:
+        # Always cleanup
+        await suite.disconnect()
 
-### Data Validation and Integrity
-
-```python
-class DataIntegrityChecker:
-    def __init__(self, suite):
-        self.suite = suite
-        self.last_timestamps = {}
-        self.price_validators = {}
-
-    async def setup_validation(self):
-        """Setup data validation."""
-
-        await self.suite.on(EventType.TICK_UPDATE, self.validate_tick)
-        await self.suite.on(EventType.NEW_BAR, self.validate_bar)
-
-    async def validate_tick(self, event):
-        """Validate incoming tick data."""
-        tick_data = event.data
-
-        # Timestamp validation
-        timestamp = datetime.fromisoformat(tick_data['timestamp'])
-
-        if 'tick' not in self.last_timestamps:
-            self.last_timestamps['tick'] = timestamp
-            return
-
-        # Check for time regression
-        if timestamp < self.last_timestamps['tick']:
-            print(f"  Tick timestamp regression detected")
-            return
-
-        # Check for unrealistic time gaps
-        time_gap = (timestamp - self.last_timestamps['tick']).total_seconds()
-        if time_gap > 60:  # More than 1 minute gap
-            print(f"  Large time gap in ticks: {time_gap:.1f} seconds")
-
-        self.last_timestamps['tick'] = timestamp
-
-        # Price validation
-        price = tick_data['price']
-        if not self.is_valid_price(price):
-            print(f"  Invalid tick price: ${price}")
-
-    async def validate_bar(self, event):
-        """Validate bar data."""
-        bar_data = event.data
-        bar = bar_data['data']
-        timeframe = bar_data['timeframe']
-
-        # OHLC consistency
-        if not (bar['low'] <= bar['open'] <= bar['high'] and
-                bar['low'] <= bar['close'] <= bar['high']):
-            print(f"  Invalid OHLC relationship in {timeframe} bar")
-
-        # Volume validation
-        if bar['volume'] < 0:
-            print(f"  Negative volume in {timeframe} bar")
-
-        # Timestamp sequence validation
-        timestamp = datetime.fromisoformat(bar['timestamp'])
-        last_key = f"bar_{timeframe}"
-
-        if last_key in self.last_timestamps:
-            if timestamp <= self.last_timestamps[last_key]:
-                print(f"  Bar timestamp issue in {timeframe}")
-
-        self.last_timestamps[last_key] = timestamp
-
-    def is_valid_price(self, price: float) -> bool:
-        """Validate price reasonableness."""
-        # Basic sanity checks for MNQ
-        return 1000 <= price <= 50000  # Reasonable range for MNQ
-
-# Usage
-async def run_data_validation():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
-
-    validator = DataIntegrityChecker(suite)
-    await validator.setup_validation()
-
-    # Data will be validated automatically
-    await asyncio.sleep(300)
-```
-
-### Market Session Tracking
-
-```python
-class MarketSessionTracker:
-    def __init__(self, suite):
-        self.suite = suite
-        self.session_start = None
-        self.session_volume = 0
-        self.session_high = None
-        self.session_low = None
-        self.pre_market_data = []
-
-    async def setup_session_tracking(self):
-        """Setup market session tracking."""
-
-        await self.suite.on(EventType.TICK_UPDATE, self.track_session_data)
-        await self.suite.on(EventType.NEW_BAR, self.update_session_stats)
-
-        # Check current session status
-        await self.initialize_session()
-
-    async def initialize_session(self):
-        """Initialize session tracking."""
-        current_time = datetime.now()
-
-        # Market hours for ES/NQ (CT): 5:00 PM - 4:00 PM next day
-        if current_time.hour >= 17 or current_time.hour < 16:
-            self.session_start = current_time
-            print(f"= Market session active since {self.session_start}")
-        else:
-            print("= Market closed")
-
-    async def track_session_data(self, event):
-        """Track session-level data."""
-        tick_data = event.data
-        price = tick_data['price']
-        size = tick_data['size']
-
-        # Update session statistics
-        self.session_volume += size
-
-        if self.session_high is None or price > self.session_high:
-            self.session_high = price
-            print(f"=% New session high: ${price}")
-
-        if self.session_low is None or price < self.session_low:
-            self.session_low = price
-            print(f"D  New session low: ${price}")
-
-        # Track pre-market activity
-        current_time = datetime.now()
-        if current_time.hour < 9:  # Before 9 AM
-            self.pre_market_data.append({
-                'time': current_time,
-                'price': price,
-                'size': size
-            })
-
-    async def update_session_stats(self, event):
-        """Update session statistics on bar completion."""
-        bar_data = event.data
-
-        if bar_data['timeframe'] == '1min':
-            bar = bar_data['data']
-
-            # Check for session milestones
-            if self.session_volume % 100000 == 0:  # Every 100k contracts
-                print(f"= Session volume milestone: {self.session_volume:,}")
-
-            # Range expansion alerts
-            if self.session_high and self.session_low:
-                session_range = self.session_high - self.session_low
-
-                if session_range > 200:  # Large range for MNQ
-                    print(f"= Wide session range: ${session_range:.2f}")
-
-    async def get_session_summary(self):
-        """Get current session summary."""
-
-        if not self.session_start:
-            return "Market session not active"
-
-        session_duration = datetime.now() - self.session_start
-
-        return {
-            'session_start': self.session_start,
-            'duration': session_duration,
-            'volume': self.session_volume,
-            'high': self.session_high,
-            'low': self.session_low,
-            'range': self.session_high - self.session_low if self.session_high and self.session_low else 0,
-            'pre_market_ticks': len(self.pre_market_data)
-        }
-
-# Usage
-async def track_market_session():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
-
-    tracker = MarketSessionTracker(suite)
-    await tracker.setup_session_tracking()
-
-    # Periodic session summary
-    async def print_session_summary():
-        while True:
-            summary = await tracker.get_session_summary()
-            if isinstance(summary, dict):
-                print(f"\n= Session Summary:")
-                print(f"   Duration: {summary['duration']}")
-                print(f"   Volume: {summary['volume']:,}")
-                print(f"   Range: ${summary['range']:.2f}")
-                print(f"   High/Low: ${summary['high']:.2f}/${summary['low']:.2f}")
-
-            await asyncio.sleep(300)  # Every 5 minutes
-
-    summary_task = asyncio.create_task(print_session_summary())
-
-    # Keep running
-    await asyncio.sleep(3600)  # 1 hour
-
-    summary_task.cancel()
+asyncio.run(robust_data_access())
 ```
 
 ## Best Practices
 
-### 1. Efficient Event Handling
+### 1. Resource Management
 
 ```python
-# Good: Lightweight event handlers
-async def efficient_tick_handler(event):
-    """Efficient tick processing."""
-    tick_data = event.data
+# ✅ Good: Limit timeframes to what you need
+suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
 
-    # Quick analysis only
-    if tick_data['size'] > 100:  # Large size threshold
-        # Queue for detailed analysis
-        await analysis_queue.put(tick_data)
-
-# Avoid: Heavy processing in event handlers
-async def inefficient_handler(event):
-    """Avoid this - too much processing in handler."""
-    tick_data = event.data
-
-    # Don't do heavy calculations here
-    complex_analysis = await heavy_calculation(tick_data)  # L Bad
-    database_write = await save_to_database(tick_data)     # L Bad
+# ❌ Bad: Too many unnecessary timeframes
+suite = await TradingSuite.create("MNQ",
+    timeframes=["1sec", "5sec", "10sec", "15sec", "30sec", "1min", "2min", "5min", "15min", "30min", "1hour"])
 ```
 
-### 2. Memory-Conscious Data Handling
+### 2. Data Access
 
 ```python
-async def memory_conscious_streaming():
-    suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["1min", "5min"],  # Limit timeframes to what you need
-        initial_days=1  # Don't load excessive historical data
-    )
+# ✅ Good: Get only needed data
+recent = await suite.data.get_data("1min", count=100)
 
-    # Periodic cleanup
-    async def periodic_cleanup():
-        while True:
-            await asyncio.sleep(3600)  # Every hour
-            await suite.data.cleanup_old_data(keep_hours=2)  # Keep only 2 hours
-
-    cleanup_task = asyncio.create_task(periodic_cleanup())
-
-    # Your streaming logic...
-
-    cleanup_task.cancel()
+# ❌ Bad: Get all data when you only need recent
+all_data = await suite.data.get_data("1min")
+recent = all_data.tail(100) if all_data else None
 ```
 
-### 3. Connection Resilience
+### 3. Null Checking
 
 ```python
-async def resilient_streaming():
+# ✅ Good: Always check for None and empty
+data = await suite.data.get_data("1min")
+if data is not None and not data.is_empty():
+    # Process data safely
+    pass
+
+# ❌ Bad: Assume data exists
+data = await suite.data.get_data("1min")
+latest = data.tail(1)  # May fail!
+```
+
+### 4. Cleanup
+
+```python
+# ✅ Good: Use try/finally for cleanup
+try:
     suite = await TradingSuite.create("MNQ")
+    # Use suite
+finally:
+    await suite.disconnect()
 
-    # Connection monitoring
-    async def monitor_connection():
-        consecutive_failures = 0
-
-        while True:
-            try:
-                health = await suite.data.get_connection_health()
-
-                if health['status'] == 'CONNECTED':
-                    consecutive_failures = 0
-                else:
-                    consecutive_failures += 1
-                    print(f"Connection issue #{consecutive_failures}")
-
-                    if consecutive_failures > 3:
-                        print("Multiple connection failures - taking defensive action")
-                        # Stop placing new orders, close positions, etc.
-
-            except Exception as e:
-                print(f"Health check failed: {e}")
-                consecutive_failures += 1
-
-            await asyncio.sleep(15)
-
-    monitor_task = asyncio.create_task(monitor_connection())
-
-    # Your trading logic...
-
-    monitor_task.cancel()
+# ✅ Better: Use async context manager (when available)
+async with await TradingSuite.create("MNQ") as suite:
+    # Suite automatically cleaned up
+    pass
 ```
 
-## Summary
+## Performance Tips
 
-The ProjectX RealtimeDataManager provides comprehensive real-time data streaming capabilities:
+1. **Configure memory limits** - Set appropriate `max_bars_per_timeframe`
+2. **Enable overflow** - Use MMap overflow for long-running sessions
+3. **Monitor health** - Check health scores and statistics regularly
+4. **Optimize access** - Use `count` parameter to limit data retrieval
+5. **Enable caching** - DataFrame optimization improves repeated access
+6. **Use appropriate timeframes** - Don't subscribe to unnecessary timeframes
+7. **Batch operations** - Use `asyncio.gather()` for concurrent operations
 
-- **High-performance WebSocket connectivity** with automatic reconnection
-- **Multi-timeframe synchronization** across any number of timeframes
-- **Event-driven architecture** for responsive real-time applications
-- **Memory management** with sliding windows and automatic cleanup
-- **Data validation** ensuring integrity of streaming data
-- **Circuit breaker patterns** for robust error handling
-- **Performance optimization** with message batching and connection pooling
+## Troubleshooting
 
-All real-time operations are designed for production trading environments with minimal latency, comprehensive error handling, and automatic resource management.
+### Common Issues
 
----
+**No data returned**
+- Check if real-time feed is started
+- Verify authentication and connection
+- Allow time for initial data to accumulate
 
-**Next**: [Technical Indicators Guide](indicators.md) | **Previous**: [Position Management Guide](positions.md)
+**High memory usage**
+- Enable MMap overflow
+- Reduce `max_bars_per_timeframe`
+- Enable dynamic resource limits
+- Call `cleanup()` periodically
+
+**Performance degradation**
+- Check lock contention statistics
+- Optimize data access patterns
+- Reduce number of timeframes
+- Enable DataFrame caching
+
+## See Also
+
+- [Data Manager API](../api/data-manager.md) - Complete API reference
+- [Trading Suite Guide](../guide/trading-suite.md) - Integrated trading
+- [Examples](../../examples/) - Working code examples
