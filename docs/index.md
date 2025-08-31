@@ -7,8 +7,8 @@
 
 **project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 58+ TA-Lib compatible indicators including pattern recognition.
 
-!!! note "Version 3.5.1 - Multi-Instrument TradingSuite with Critical Bug Fixes"
-    **Latest Release**: Critical bug fixes for TradingSuite including context manager re-entry, event loop handling, and session management in multi-instrument mode. The v3.5.0 release introduced revolutionary multi-instrument support enabling traders to manage multiple futures contracts simultaneously with pairs trading, cross-market arbitrage, and portfolio-level risk management. Full backward compatibility maintained.
+!!! note "Version 3.5.3 - Complete Documentation & Testing Improvements"
+    **Latest Release**: Comprehensive documentation updates, complete test coverage for realtime_data_manager module, and modernized all code examples. Fixed type safety issues and achieved 100% test passing rate across the SDK. Previous releases introduced multi-instrument support enabling traders to manage multiple futures contracts simultaneously with pairs trading, cross-market arbitrage, and portfolio-level risk management. Full backward compatibility maintained.
 
 !!! note "Stable Production Release"
     Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -63,7 +63,7 @@ async def main():
 
     # Multi-instrument trading
     await mnq_context.orders.place_limit_order(
-        contract_id=mnq_context.instrument_id,
+        contract_id=mnq_context.instrument_info.id,
         side=0, size=1, limit_price=21050.0
     )
 
@@ -215,6 +215,21 @@ mnq_context = suite["MNQ"]  # Access specific instrument
 - [Breaking Changes](migration/breaking-changes.md) - Change history
 
 ## Recent Changes
+
+### v3.5.3 - Complete Documentation & Testing Improvements (2025-01-31)
+- **Fixed**: Mypy error with `get_overflow_stats()` method signatures in mmap overflow handling
+- **Fixed**: Type safety issues in overflow statistics reporting
+- **Fixed**: All tests now passing for realtime_data_manager module (100% pass rate)
+- **Updated**: All documentation to be 100% accurate with actual implementation
+- **Updated**: All 25+ examples to use modern TradingSuite API and component access patterns
+- **Improved**: Documentation accuracy and API consistency across the SDK
+
+### v3.5.2 - TradingSuite with Enhanced Testing & Documentation (2025-01-31)
+- **Fixed**: Session management methods using incorrect attribute names (`_contexts` instead of `_instruments`)
+- **Fixed**: Critical implementation bugs discovered during comprehensive testing
+- **Updated**: All documentation to correctly reflect the actual API implementation
+- **Added**: 51 new tests for 100% TradingSuite coverage
+- **Improved**: Test-driven development approach with 88 total tests for TradingSuite
 
 ### v3.5.1 - Critical Bug Fixes (2025-01-30)
 - **Fixed**: Context manager re-entry issue in TradingSuite

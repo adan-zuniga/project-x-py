@@ -44,7 +44,7 @@ async def demonstrate_lazy_operations(suite: TradingSuite) -> None:
     print("=" * 60)
 
     # Get some initial data
-    data_5m = await suite.data.get_data("5min", bars=200)
+    data_5m = await suite["MNQ"].data.get_data("5min", bars=200)
     if data_5m is None or data_5m.is_empty():
         print("No 5-minute data available for lazy operations demo")
         return
@@ -58,8 +58,8 @@ async def demonstrate_lazy_operations(suite: TradingSuite) -> None:
     start_time = time.time()
 
     # Use the new lazy operations from the data manager
-    if hasattr(suite.data, "get_optimized_bars"):
-        filtered_data = await suite.data.get_optimized_bars(
+    if hasattr(suite["MNQ"].data, "get_optimized_bars"):
+        filtered_data = await suite["MNQ"].data.get_optimized_bars(
             "5min",
             bars=100,
             columns=["timestamp", "close", "volume"],
@@ -91,7 +91,7 @@ async def demonstrate_batch_queries(suite: TradingSuite) -> None:
     print("=" * 60)
 
     # Check if advanced batch operations are available
-    if not hasattr(suite.data, "execute_batch_queries"):
+    if not hasattr(suite["MNQ"].data, "execute_batch_queries"):
         print("Batch query operations not available in this version")
         return
 
@@ -183,7 +183,9 @@ async def demonstrate_batch_queries(suite: TradingSuite) -> None:
 
     # Execute batch queries
     try:
-        results = await suite.data.execute_batch_queries(batch_queries, use_cache=True)
+        results = await suite["MNQ"].data.execute_batch_queries(
+            batch_queries, use_cache=True
+        )
 
         execution_time = (time.time() - start_time) * 1000
         print(f"Batch execution completed in {execution_time:.2f} ms")
@@ -212,7 +214,7 @@ async def demonstrate_advanced_analysis(suite: TradingSuite) -> None:
     print("=" * 60)
 
     # Get comprehensive data
-    data_1m = await suite.data.get_data("1min", bars=500)
+    data_1m = await suite["MNQ"].data.get_data("1min", bars=500)
     if data_1m is None or data_1m.is_empty():
         print("No 1-minute data available for advanced analysis")
         return
@@ -312,13 +314,13 @@ async def demonstrate_performance_monitoring(suite: TradingSuite) -> None:
     print("=" * 60)
 
     # Check if optimization features are available
-    if not hasattr(suite.data, "get_optimization_stats"):
+    if not hasattr(suite["MNQ"].data, "get_optimization_stats"):
         print("Performance monitoring not available in this version")
         return
 
     # Get optimization statistics
     try:
-        opt_stats = suite.data.get_optimization_stats()
+        opt_stats = suite["MNQ"].data.get_optimization_stats()
 
         print("DataFrame Optimization Statistics:")
         print("-" * 40)
@@ -350,8 +352,8 @@ async def demonstrate_performance_monitoring(suite: TradingSuite) -> None:
             )
 
         # Memory profiling
-        if hasattr(suite.data, "profile_memory_usage"):
-            memory_profile = await suite.data.profile_memory_usage()
+        if hasattr(suite["MNQ"].data, "profile_memory_usage"):
+            memory_profile = await suite["MNQ"].data.profile_memory_usage()
             print("\nMemory Usage:")
             print(
                 f"  Current memory: {memory_profile.get('current_memory_mb', 0):.2f} MB"
@@ -384,7 +386,7 @@ async def main():
         )
 
         print(
-            f"✓ Connected to {suite.instrument} with {len(['1min', '5min', '15min'])} timeframes"
+            f"✓ Connected to {suite['MNQ'].instrument_info.symbolId} with {len(['1min', '5min', '15min'])} timeframes"
         )
 
         # Wait for some real-time data
@@ -394,7 +396,7 @@ async def main():
         # Check data availability
         data_stats = {}
         for tf in ["1min", "5min", "15min"]:
-            data = await suite.data.get_data(tf)
+            data = await suite["MNQ"].data.get_data(tf)
             data_stats[tf] = len(data) if data is not None else 0
 
         print(f"Data availability: {data_stats}")
@@ -419,7 +421,7 @@ async def main():
         print("=" * 60)
 
         # Memory statistics
-        memory_stats = await suite.data.get_memory_stats()
+        memory_stats = await suite["MNQ"].data.get_memory_stats()
         print(f"Total bars processed: {memory_stats['bars_processed']}")
         print(f"Ticks processed: {memory_stats['ticks_processed']}")
         print(f"Memory usage: {memory_stats['memory_usage_mb']:.2f} MB")

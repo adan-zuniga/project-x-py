@@ -16,8 +16,8 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-from project_x_py.orderbook.profile import VolumeProfile
 from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.orderbook.profile import VolumeProfile
 
 
 @pytest.fixture

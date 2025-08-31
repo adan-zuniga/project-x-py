@@ -19,13 +19,13 @@ Test Coverage Goals:
 
 import asyncio
 import gc
-import pytest
 import time
-from unittest.mock import AsyncMock, Mock, patch, call
-from datetime import datetime, timezone
 from collections import deque
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import polars as pl
+import pytest
 
 from project_x_py.realtime_data_manager.memory_management import MemoryManagementMixin
 
@@ -42,7 +42,7 @@ class MockRealtimeDataManager(MemoryManagementMixin):
         self.timeframes = {
             "1min": {"interval": 1, "unit": 2},  # 1 minute
             "5min": {"interval": 5, "unit": 2},  # 5 minutes
-            "30sec": {"interval": 30, "unit": 1}, # 30 seconds
+            "30sec": {"interval": 30, "unit": 1},  # 30 seconds
         }
         self.data = {
             "1min": pl.DataFrame(),
@@ -82,7 +82,6 @@ class MockRealtimeDataManager(MemoryManagementMixin):
     # Mock methods for statistics
     async def increment(self, metric, value=1):
         """Mock increment method."""
-        pass
 
 
 class TestMemoryManagementMixinBasicFunctionality:
@@ -99,10 +98,10 @@ class TestMemoryManagementMixinBasicFunctionality:
         assert memory_manager._cleanup_task is None
 
         # Should initialize buffer overflow attributes
-        assert hasattr(memory_manager, '_buffer_overflow_thresholds')
-        assert hasattr(memory_manager, '_dynamic_buffer_enabled')
-        assert hasattr(memory_manager, '_overflow_alert_callbacks')
-        assert hasattr(memory_manager, '_sampling_ratios')
+        assert hasattr(memory_manager, "_buffer_overflow_thresholds")
+        assert hasattr(memory_manager, "_dynamic_buffer_enabled")
+        assert hasattr(memory_manager, "_overflow_alert_callbacks")
+        assert hasattr(memory_manager, "_sampling_ratios")
 
         # Should have default values
         assert memory_manager._dynamic_buffer_enabled is True
@@ -113,8 +112,7 @@ class TestMemoryManagementMixinBasicFunctionality:
         """Test configuring dynamic buffer sizing with enabled state."""
         # Configure with enabled
         memory_manager.configure_dynamic_buffer_sizing(
-            enabled=True,
-            initial_thresholds={"1min": 500, "5min": 1000}
+            enabled=True, initial_thresholds={"1min": 500, "5min": 1000}
         )
 
         # Should enable dynamic buffering
@@ -131,8 +129,8 @@ class TestMemoryManagementMixinBasicFunctionality:
 
         # Should set default thresholds based on timeframe unit
         assert memory_manager._buffer_overflow_thresholds["30sec"] == 5000  # seconds
-        assert memory_manager._buffer_overflow_thresholds["1min"] == 2000   # minutes
-        assert memory_manager._buffer_overflow_thresholds["5min"] == 2000   # minutes
+        assert memory_manager._buffer_overflow_thresholds["1min"] == 2000  # minutes
+        assert memory_manager._buffer_overflow_thresholds["5min"] == 2000  # minutes
 
     def test_configure_dynamic_buffer_sizing_disabled(self, memory_manager):
         """Test disabling dynamic buffer sizing."""
@@ -164,14 +162,16 @@ class TestMemoryManagementMixinBufferOverflow:
     async def test_check_buffer_overflow_normal_usage(self, memory_manager):
         """Test buffer overflow check with normal usage."""
         # Create sample data (50 bars, threshold is 2000, so ~2.5% utilization)
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(50)],
-            "open": [100.0] * 50,
-            "high": [101.0] * 50,
-            "low": [99.0] * 50,
-            "close": [100.5] * 50,
-            "volume": [1000] * 50,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(50)],
+                "open": [100.0] * 50,
+                "high": [101.0] * 50,
+                "low": [99.0] * 50,
+                "close": [100.5] * 50,
+                "volume": [1000] * 50,
+            }
+        )
         memory_manager.data["1min"] = sample_data
 
         is_overflow, utilization = await memory_manager._check_buffer_overflow("1min")
@@ -185,14 +185,16 @@ class TestMemoryManagementMixinBufferOverflow:
     async def test_check_buffer_overflow_critical_usage(self, memory_manager):
         """Test buffer overflow check at critical usage level."""
         # Create data that exceeds 95% of threshold (2000 * 0.96 = 1920 bars)
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(1920)],
-            "open": [100.0] * 1920,
-            "high": [101.0] * 1920,
-            "low": [99.0] * 1920,
-            "close": [100.5] * 1920,
-            "volume": [1000] * 1920,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(1920)],
+                "open": [100.0] * 1920,
+                "high": [101.0] * 1920,
+                "low": [99.0] * 1920,
+                "close": [100.5] * 1920,
+                "volume": [1000] * 1920,
+            }
+        )
         memory_manager.data["1min"] = sample_data
 
         is_overflow, utilization = await memory_manager._check_buffer_overflow("1min")
@@ -240,14 +242,16 @@ class TestMemoryManagementMixinBufferOverflow:
     async def test_handle_buffer_overflow_applies_sampling(self, memory_manager):
         """Test overflow handling applies data sampling."""
         # Create large dataset
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(1000)],
-            "open": [100.0 + i * 0.1 for i in range(1000)],
-            "high": [101.0 + i * 0.1 for i in range(1000)],
-            "low": [99.0 + i * 0.1 for i in range(1000)],
-            "close": [100.5 + i * 0.1 for i in range(1000)],
-            "volume": [1000] * 1000,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(1000)],
+                "open": [100.0 + i * 0.1 for i in range(1000)],
+                "high": [101.0 + i * 0.1 for i in range(1000)],
+                "low": [99.0 + i * 0.1 for i in range(1000)],
+                "close": [100.5 + i * 0.1 for i in range(1000)],
+                "volume": [1000] * 1000,
+            }
+        )
         memory_manager.data["1min"] = sample_data
 
         # Trigger overflow handling
@@ -283,14 +287,16 @@ class TestMemoryManagementMixinDataSampling:
     async def test_apply_data_sampling_small_dataset(self, memory_manager):
         """Test data sampling with dataset smaller than target."""
         # Create small dataset (50 bars, target is 70% of 100 = 70)
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(50)],
-            "open": [100.0] * 50,
-            "high": [101.0] * 50,
-            "low": [99.0] * 50,
-            "close": [100.5] * 50,
-            "volume": [1000] * 50,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(50)],
+                "open": [100.0] * 50,
+                "high": [101.0] * 50,
+                "low": [99.0] * 50,
+                "close": [100.5] * 50,
+                "volume": [1000] * 50,
+            }
+        )
         memory_manager.data["1min"] = sample_data
 
         await memory_manager._apply_data_sampling("1min")
@@ -302,14 +308,16 @@ class TestMemoryManagementMixinDataSampling:
     async def test_apply_data_sampling_large_dataset(self, memory_manager):
         """Test data sampling with dataset requiring reduction."""
         # Create large dataset (200 bars, target is 70% of 100 = 70)
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(200)],
-            "open": [100.0 + i * 0.1 for i in range(200)],
-            "high": [101.0 + i * 0.1 for i in range(200)],
-            "low": [99.0 + i * 0.1 for i in range(200)],
-            "close": [100.5 + i * 0.1 for i in range(200)],
-            "volume": [1000] * 200,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(200)],
+                "open": [100.0 + i * 0.1 for i in range(200)],
+                "high": [101.0 + i * 0.1 for i in range(200)],
+                "low": [99.0 + i * 0.1 for i in range(200)],
+                "close": [100.5 + i * 0.1 for i in range(200)],
+                "volume": [1000] * 200,
+            }
+        )
         memory_manager.data["1min"] = sample_data
 
         await memory_manager._apply_data_sampling("1min")
@@ -327,14 +335,17 @@ class TestMemoryManagementMixinDataSampling:
         recent_timestamp = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         older_timestamp = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
 
-        sample_data = pl.DataFrame({
-            "timestamp": [older_timestamp] * 150 + [recent_timestamp] * 50,
-            "open": [100.0] * 150 + [200.0] * 50,  # Recent data has different prices
-            "high": [101.0] * 150 + [201.0] * 50,
-            "low": [99.0] * 150 + [199.0] * 50,
-            "close": [100.5] * 150 + [200.5] * 50,
-            "volume": [1000] * 200,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [older_timestamp] * 150 + [recent_timestamp] * 50,
+                "open": [100.0] * 150
+                + [200.0] * 50,  # Recent data has different prices
+                "high": [101.0] * 150 + [201.0] * 50,
+                "low": [99.0] * 150 + [199.0] * 50,
+                "close": [100.5] * 150 + [200.5] * 50,
+                "volume": [1000] * 200,
+            }
+        )
         memory_manager.data["1min"] = sample_data
         memory_manager.last_bar_times["1min"] = recent_timestamp
 
@@ -357,14 +368,16 @@ class TestMemoryManagementMixinDataSampling:
         recent_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
         # Create dataset with recent data
-        sample_data = pl.DataFrame({
-            "timestamp": [recent_time],
-            "open": [100.0],
-            "high": [101.0],
-            "low": [99.0],
-            "close": [100.5],
-            "volume": [1000],
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [recent_time],
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [1000],
+            }
+        )
         memory_manager.data["1min"] = sample_data
         memory_manager.last_bar_times["1min"] = recent_time
 
@@ -471,14 +484,16 @@ class TestMemoryManagementMixinCleanupOperations:
         memory_manager._buffer_overflow_thresholds.clear()
 
         # Create data exceeding max_bars_per_timeframe
-        large_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(100)],
-            "open": [100.0] * 100,
-            "high": [101.0] * 100,
-            "low": [99.0] * 100,
-            "close": [100.5] * 100,
-            "volume": [1000] * 100,
-        })
+        large_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(100)],
+                "open": [100.0] * 100,
+                "high": [101.0] * 100,
+                "low": [99.0] * 100,
+                "close": [100.5] * 100,
+                "volume": [1000] * 100,
+            }
+        )
         memory_manager.data["1min"] = large_data
 
         await memory_manager._perform_cleanup()
@@ -500,14 +515,16 @@ class TestMemoryManagementMixinCleanupOperations:
         memory_manager._buffer_overflow_thresholds["1min"] = 10  # Very low threshold
 
         # Create data that will trigger overflow
-        overflow_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(15)],
-            "open": [100.0] * 15,
-            "high": [101.0] * 15,
-            "low": [99.0] * 15,
-            "close": [100.5] * 15,
-            "volume": [1000] * 15,
-        })
+        overflow_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(15)],
+                "open": [100.0] * 15,
+                "high": [101.0] * 15,
+                "low": [99.0] * 15,
+                "close": [100.5] * 15,
+                "volume": [1000] * 15,
+            }
+        )
         memory_manager.data["1min"] = overflow_data
 
         # Mock overflow handling
@@ -522,18 +539,20 @@ class TestMemoryManagementMixinCleanupOperations:
     async def test_perform_cleanup_garbage_collection(self, memory_manager):
         """Test cleanup triggers garbage collection when needed."""
         # Create data that will be cleaned
-        large_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(100)],
-            "open": [100.0] * 100,
-            "high": [101.0] * 100,
-            "low": [99.0] * 100,
-            "close": [100.5] * 100,
-            "volume": [1000] * 100,
-        })
+        large_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(100)],
+                "open": [100.0] * 100,
+                "high": [101.0] * 100,
+                "low": [99.0] * 100,
+                "close": [100.5] * 100,
+                "volume": [1000] * 100,
+            }
+        )
         memory_manager.data["1min"] = large_data
 
         # Mock garbage collection
-        with patch('gc.collect') as mock_gc:
+        with patch("gc.collect") as mock_gc:
             await memory_manager._perform_cleanup()
 
             # Should call garbage collection after cleanup
@@ -559,7 +578,9 @@ class TestMemoryManagementMixinCleanupOperations:
     async def test_periodic_cleanup_error_handling(self, memory_manager):
         """Test periodic cleanup handles errors gracefully."""
         # Mock cleanup to raise MemoryError
-        memory_manager._cleanup_old_data = AsyncMock(side_effect=MemoryError("Out of memory"))
+        memory_manager._cleanup_old_data = AsyncMock(
+            side_effect=MemoryError("Out of memory")
+        )
 
         # Start cleanup task
         memory_manager.start_cleanup_task()
@@ -584,14 +605,16 @@ class TestMemoryManagementMixinStatistics:
         manager = MockRealtimeDataManager()
 
         # Add sample data
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(50)],
-            "open": [100.0] * 50,
-            "high": [101.0] * 50,
-            "low": [99.0] * 50,
-            "close": [100.5] * 50,
-            "volume": [1000] * 50,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(50)],
+                "open": [100.0] * 50,
+                "high": [101.0] * 50,
+                "low": [99.0] * 50,
+                "close": [100.5] * 50,
+                "volume": [1000] * 50,
+            }
+        )
         manager.data["1min"] = sample_data
         manager.data["5min"] = sample_data.clone()
 
@@ -639,20 +662,35 @@ class TestMemoryManagementMixinStatistics:
 
         # Should include all expected statistics fields
         required_fields = [
-            "bars_processed", "ticks_processed", "quotes_processed", "trades_processed",
-            "timeframe_stats", "avg_processing_time_ms", "data_latency_ms",
-            "buffer_utilization", "total_bars_stored", "memory_usage_mb",
-            "compression_ratio", "updates_per_minute", "last_update",
-            "data_freshness_seconds", "data_validation_errors", "connection_interruptions",
-            "recovery_attempts", "overflow_stats", "buffer_overflow_stats",
-            "lock_optimization_stats"
+            "bars_processed",
+            "ticks_processed",
+            "quotes_processed",
+            "trades_processed",
+            "timeframe_stats",
+            "avg_processing_time_ms",
+            "data_latency_ms",
+            "buffer_utilization",
+            "total_bars_stored",
+            "memory_usage_mb",
+            "compression_ratio",
+            "updates_per_minute",
+            "last_update",
+            "data_freshness_seconds",
+            "data_validation_errors",
+            "connection_interruptions",
+            "recovery_attempts",
+            "overflow_stats",
+            "buffer_overflow_stats",
+            "lock_optimization_stats",
         ]
 
         for field in required_fields:
             assert field in stats, f"Missing field: {field}"
 
         # Should calculate buffer utilization correctly
-        expected_utilization = len(memory_manager.current_tick_data) / memory_manager.tick_buffer_size
+        expected_utilization = (
+            len(memory_manager.current_tick_data) / memory_manager.tick_buffer_size
+        )
         assert stats["buffer_utilization"] == expected_utilization
 
         # Should calculate total bars correctly
@@ -682,7 +720,9 @@ class TestMemoryManagementMixinStatistics:
     async def test_get_memory_stats_error_handling(self, memory_manager):
         """Test memory stats gracefully handle errors."""
         # Mock overflow stats to raise error
-        memory_manager.get_overflow_stats = AsyncMock(side_effect=Exception("Stats error"))
+        memory_manager.get_overflow_stats = AsyncMock(
+            side_effect=Exception("Stats error")
+        )
 
         stats = await memory_manager.get_memory_stats()
 
@@ -716,14 +756,16 @@ class TestMemoryManagementMixinIntegration:
         memory_manager.start_cleanup_task()
 
         # Create large dataset that will trigger overflow
-        large_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(3000)],
-            "open": [100.0 + i * 0.01 for i in range(3000)],
-            "high": [101.0 + i * 0.01 for i in range(3000)],
-            "low": [99.0 + i * 0.01 for i in range(3000)],
-            "close": [100.5 + i * 0.01 for i in range(3000)],
-            "volume": [1000] * 3000,
-        })
+        large_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(3000)],
+                "open": [100.0 + i * 0.01 for i in range(3000)],
+                "high": [101.0 + i * 0.01 for i in range(3000)],
+                "low": [99.0 + i * 0.01 for i in range(3000)],
+                "close": [100.5 + i * 0.01 for i in range(3000)],
+                "volume": [1000] * 3000,
+            }
+        )
         memory_manager.data["1min"] = large_data
 
         # Force cleanup (wait for interval)
@@ -746,14 +788,16 @@ class TestMemoryManagementMixinIntegration:
     async def test_concurrent_cleanup_and_data_access(self, memory_manager):
         """Test concurrent cleanup and data access operations."""
         # Create data
-        sample_data = pl.DataFrame({
-            "timestamp": [datetime.now(timezone.utc) for _ in range(200)],
-            "open": [100.0] * 200,
-            "high": [101.0] * 200,
-            "low": [99.0] * 200,
-            "close": [100.5] * 200,
-            "volume": [1000] * 200,
-        })
+        sample_data = pl.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc) for _ in range(200)],
+                "open": [100.0] * 200,
+                "high": [101.0] * 200,
+                "low": [99.0] * 200,
+                "close": [100.5] * 200,
+                "volume": [1000] * 200,
+            }
+        )
         memory_manager.data["1min"] = sample_data
 
         # Force cleanup time
@@ -765,7 +809,9 @@ class TestMemoryManagementMixinIntegration:
         buffer_stats_task = asyncio.create_task(memory_manager.get_buffer_stats())
 
         # Should complete without errors
-        results = await asyncio.gather(cleanup_task, stats_task, buffer_stats_task, return_exceptions=True)
+        results = await asyncio.gather(
+            cleanup_task, stats_task, buffer_stats_task, return_exceptions=True
+        )
 
         # Check no exceptions occurred
         for result in results:
@@ -781,20 +827,21 @@ class TestMemoryManagementMixinIntegration:
         """Test behavior under memory pressure conditions."""
         # Configure low thresholds to simulate pressure
         memory_manager.configure_dynamic_buffer_sizing(
-            enabled=True,
-            initial_thresholds={"1min": 50, "5min": 50, "30sec": 50}
+            enabled=True, initial_thresholds={"1min": 50, "5min": 50, "30sec": 50}
         )
 
         # Create data for all timeframes
         for tf_key in memory_manager.timeframes:
-            pressure_data = pl.DataFrame({
-                "timestamp": [datetime.now(timezone.utc) for _ in range(75)],
-                "open": [100.0] * 75,
-                "high": [101.0] * 75,
-                "low": [99.0] * 75,
-                "close": [100.5] * 75,
-                "volume": [1000] * 75,
-            })
+            pressure_data = pl.DataFrame(
+                {
+                    "timestamp": [datetime.now(timezone.utc) for _ in range(75)],
+                    "open": [100.0] * 75,
+                    "high": [101.0] * 75,
+                    "low": [99.0] * 75,
+                    "close": [100.5] * 75,
+                    "volume": [1000] * 75,
+                }
+            )
             memory_manager.data[tf_key] = pressure_data
 
         # Force cleanup
@@ -809,7 +856,11 @@ class TestMemoryManagementMixinIntegration:
         # Should maintain consistent data structures
         stats = await memory_manager.get_memory_stats()
         assert stats["total_bars_stored"] > 0
-        assert all(isinstance(v, (int, float, str, type(None))) for v in stats.values() if not isinstance(v, dict))
+        assert all(
+            isinstance(v, (int, float, str, type(None)))
+            for v in stats.values()
+            if not isinstance(v, dict)
+        )
 
 
 if __name__ == "__main__":

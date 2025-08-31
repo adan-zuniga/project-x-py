@@ -38,13 +38,14 @@ from datetime import datetime
 
 from project_x_py import TradingSuite, setup_logging
 from project_x_py.models import BracketOrderResponse, Order, Position
+from project_x_py.types import OrderSide
 
 
 class OrderPositionDemo:
     """Demo class for order and position tracking with automatic cleanup."""
 
     def __init__(self):
-        self.suite = None
+        self.suite: TradingSuite | None = None
         self.running = False
         self.demo_orders = []  # Track orders created by this demo
         self.shutdown_event = asyncio.Event()
@@ -72,7 +73,7 @@ class OrderPositionDemo:
                 print("❌ MNQ instrument not found")
                 return False
 
-            current_price = await self.suite.data.get_current_price()
+            current_price = await self.suite["MNQ"].data.get_current_price()
             if not current_price:
                 print("❌ Could not get current price")
                 return False
@@ -100,9 +101,9 @@ class OrderPositionDemo:
                 print("❌ Could not get account information")
                 return False
 
-            bracket_response = await self.suite.orders.place_bracket_order(
+            bracket_response = await self.suite["MNQ"].orders.place_bracket_order(
                 contract_id=instrument.id,
-                side=0,  # Buy
+                side=OrderSide.BUY,
                 size=1,
                 entry_price=current_price,
                 stop_loss_price=stop_price,
@@ -151,9 +152,9 @@ class OrderPositionDemo:
                 return
 
             # Fetch data concurrently using async methods
-            positions_task = self.suite.positions.get_all_positions()
-            orders_task = self.suite.orders.search_open_orders()
-            price_task = self.suite.data.get_current_price()
+            positions_task = self.suite["MNQ"].positions.get_all_positions()
+            orders_task = self.suite["MNQ"].orders.search_open_orders()
+            price_task = self.suite["MNQ"].data.get_current_price()
 
             positions, orders, current_price = await asyncio.gather(
                 positions_task, orders_task, price_task
@@ -175,20 +176,13 @@ class OrderPositionDemo:
                 for pos in positions:
                     if not isinstance(pos, Position):
                         continue
-                    direction = (
-                        "LONG"
-                        if pos.type == 1
-                        else "SHORT"
-                        if pos.type == 2
-                        else "UNKNOWN"
-                    )
                     pnl_info = ""
                     if current_price:
-                        if pos.type == 1:  # Long
+                        if pos.is_long:
                             unrealized_pnl = (
                                 current_price - pos.averagePrice
                             ) * pos.size
-                        elif pos.type == 2:  # Short
+                        elif pos.is_short:
                             unrealized_pnl = (
                                 pos.averagePrice - current_price
                             ) * pos.size
@@ -197,7 +191,7 @@ class OrderPositionDemo:
                         pnl_info = f" | P&L: ${unrealized_pnl:+.2f}"
 
                     print(
-                        f"   • {direction} {pos.size} @ ${pos.averagePrice:.2f}{pnl_info}"
+                        f"   • {pos.direction} {pos.size} @ ${pos.averagePrice:.2f}{pnl_info}"
                     )
 
             # Show order details
@@ -207,10 +201,6 @@ class OrderPositionDemo:
                     if not isinstance(order, Order):
                         print(f"   ❌ Unexpected order type: {type(order)}")
                         continue
-                    order_type = "UNKNOWN"
-                    if hasattr(order, "type"):
-                        order_type = order.type
-                    side = "BUY" if order.side == 0 else "SELL"
 
                     # Handle None prices gracefully
                     price_str = "Pending"
@@ -218,7 +208,7 @@ class OrderPositionDemo:
                         price_str = f"${order.filledPrice:.2f}"
 
                     print(
-                        f"   • {order_type} {side} {order.size} @ {price_str} (ID: {order.id})"
+                        f"   • {order.type_str} {order.side_str} {order.size} @ {price_str} (ID: {order.id})"
                     )
 
             if not positions and not orders:
@@ -250,8 +240,8 @@ class OrderPositionDemo:
                     break
 
                 # Check if everything is closed (position was closed and orders cleaned up)
-                positions = await self.suite.positions.get_all_positions()
-                orders = await self.suite.orders.search_open_orders()
+                positions = await self.suite["MNQ"].positions.get_all_positions()
+                orders = await self.suite["MNQ"].orders.search_open_orders()
                 current_count = (len(positions), len(orders))
 
                 # Detect when positions/orders change
@@ -305,14 +295,14 @@ class OrderPositionDemo:
                 return
 
             # Cancel all open orders
-            orders = await self.suite.orders.search_open_orders()
+            orders = await self.suite["MNQ"].orders.search_open_orders()
             if orders:
                 print(f"📋 Cancelling {len(orders)} open orders...")
                 cancel_tasks = []
                 for order in orders:
                     if not isinstance(order, Order):
                         continue
-                    cancel_tasks.append(self.suite.orders.cancel_order(order.id))
+                    cancel_tasks.append(self.suite["MNQ"].orders.cancel_order(order.id))
 
                 # Wait for all cancellations to complete
                 cancel_results: list[Order | BaseException] = await asyncio.gather(
@@ -330,13 +320,17 @@ class OrderPositionDemo:
                         print(f"   ⚠️ Failed to cancel order {order.id}")
 
             # Close all open positions
-            positions: list[Position] = await self.suite.positions.get_all_positions()
+            positions: list[Position] = await self.suite[
+                "MNQ"
+            ].positions.get_all_positions()
             if positions:
                 print(f"🏦 Closing {len(positions)} open positions...")
                 close_tasks = []
                 for position in positions:
                     close_tasks.append(
-                        self.suite.positions.close_position_direct(position.contractId)
+                        self.suite["MNQ"].positions.close_position_direct(
+                            position.contractId
+                        )
                     )
 
                 # Wait for all positions to close
@@ -379,7 +373,7 @@ class OrderPositionDemo:
         try:
             print("\n🔧 Setting up TradingSuite v3...")
             self.suite = await TradingSuite.create(
-                instrument="MNQ",
+                "MNQ",
                 timeframes=["5min"],  # Minimal timeframes for demo
                 initial_days=1,
             )

@@ -32,7 +32,9 @@ async def main():
 
     # Everything is connected and ready!
     print(f"Connected: {suite.is_connected}")
-    print(f"Instrument: {suite.symbol}")  # Use symbol property instead of instrument
+    if suite.instrument is None:
+        raise Exception("Instrument is None")
+    print(f"Instrument: {suite.instrument.symbolId}")  # Access instrument info
 
     # Access components - new multi-instrument way (recommended)
     print("\n=== Component Access (Recommended) ===")
@@ -64,7 +66,7 @@ async def main():
     )
 
     print(f"Connected: {suite2.is_connected}")
-    print(f"Has orderbook: {suite2.orderbook is not None}")
+    print(f"Has orderbook: {suite2['MGC'].orderbook is not None}")
 
     # Use as context manager for automatic cleanup
     print("\n\n=== Using as context manager ===")

@@ -643,9 +643,9 @@ class RealtimeDataManager(
 
         # Add overflow stats if available
         overflow_stats = {}
-        if hasattr(self, "get_overflow_stats"):
+        if hasattr(self, "get_overflow_stats_summary"):
             try:
-                method = self.get_overflow_stats
+                method = self.get_overflow_stats_summary
                 if callable(method):
                     # Method is always async now
                     overflow_stats = await method()

@@ -19,6 +19,8 @@ from project_x_py.utils import ProjectXLogger
 if TYPE_CHECKING:
     from asyncio import Lock
 
+    from project_x_py.utils.lock_optimization import AsyncRWLock
+
 logger = ProjectXLogger.get_logger(__name__)
 
 
@@ -37,6 +39,7 @@ class MMapOverflowMixin:
         memory_stats: dict[str, Any]
         instrument: str
         data_lock: Lock
+        data_rw_lock: AsyncRWLock
 
     def __init__(self) -> None:
         """Initialize memory-mapped overflow storage."""
@@ -57,14 +60,49 @@ class MMapOverflowMixin:
         )
         self.mmap_storage_path = Path(base_path)
 
-        # Validate path to prevent directory traversal
+        # Validate and create storage path
         try:
+            # Check for directory traversal patterns in the original path before resolving
+            original_path_str = str(base_path)
+            has_traversal = any(
+                suspicious in original_path_str for suspicious in ["../", "..\\", "~"]
+            )
+
+            if has_traversal:
+                raise ValueError(f"Directory traversal detected in path: {base_path}")
+
             self.mmap_storage_path = self.mmap_storage_path.resolve()
-            if not str(self.mmap_storage_path).startswith(str(Path.home())):
-                raise ValueError(f"Invalid storage path: {self.mmap_storage_path}")
-            self.mmap_storage_path.mkdir(
-                parents=True, exist_ok=True, mode=0o700
-            )  # Secure permissions
+
+            # Additional security check - ensure resolved path is in safe locations
+            path_str = str(self.mmap_storage_path)
+            home_str = str(Path.home())
+            # Include both /var/folders and /private/var/folders for macOS temp directories
+            temp_dirs = [
+                "/tmp",  # nosec B108 - needed for temp file validation
+                "/var/folders",
+                "/private/var/folders",
+                str(Path.cwd()),
+            ]
+
+            is_safe_path = path_str.startswith(home_str) or any(
+                path_str.startswith(temp_dir) for temp_dir in temp_dirs
+            )
+
+            if not is_safe_path:
+                raise ValueError(
+                    f"Potentially unsafe storage path: {self.mmap_storage_path}"
+                )
+
+            # Create directory with appropriate permissions
+            self.mmap_storage_path.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+        except ValueError as e:
+            # For security errors with traversal attempts, re-raise
+            if "traversal" in str(e):
+                raise
+            # For other invalid paths (unsafe or non-existent), disable overflow
+            logger.warning(f"Invalid overflow storage path, disabling overflow: {e}")
+            self.enable_mmap_overflow = False
         except Exception as e:
             logger.error(f"Failed to create overflow storage directory: {e}")
             self.enable_mmap_overflow = False
@@ -315,11 +353,12 @@ class MMapOverflowMixin:
     def __del__(self) -> None:
         """Ensure cleanup on deletion."""
         # Synchronous cleanup for destructor
-        for storage in self._mmap_storages.values():
-            with suppress(Exception):
-                storage.close()
+        if hasattr(self, "_mmap_storages"):
+            for storage in self._mmap_storages.values():
+                with suppress(Exception):
+                    storage.close()
 
-    async def get_overflow_stats(self) -> dict[str, Any]:
+    async def get_overflow_stats_summary(self) -> dict[str, Any]:
         """
         Get statistics about overflow storage.
 
@@ -410,3 +449,195 @@ class MMapOverflowMixin:
         except Exception as e:
             logger.error(f"Error restoring from overflow: {e}")
             return False
+
+    async def _perform_overflow(self, timeframe: str) -> None:
+        """
+        Perform overflow operation for a specific timeframe.
+
+        Args:
+            timeframe: Timeframe to overflow data for
+        """
+        try:
+            # Import here to avoid circular dependency
+            from project_x_py.utils.lock_optimization import AsyncRWLock
+
+            # Use appropriate lock method based on lock type
+            if hasattr(self, "data_rw_lock") and isinstance(
+                getattr(self, "data_rw_lock", None), AsyncRWLock
+            ):
+                async with self.data_rw_lock.write_lock():
+                    await self._overflow_to_disk(timeframe)
+            elif hasattr(self, "data_lock"):
+                async with self.data_lock:
+                    await self._overflow_to_disk(timeframe)
+            else:
+                # No lock available, proceed anyway
+                await self._overflow_to_disk(timeframe)
+
+        except Exception as e:
+            logger.error(f"Error performing overflow for {timeframe}: {e}")
+
+    async def _retrieve_overflow_data(
+        self, timeframe: str, start_time: datetime, end_time: datetime
+    ) -> pl.DataFrame | None:
+        """
+        Retrieve overflowed data for a specific time range.
+
+        Args:
+            timeframe: Timeframe to retrieve data for
+            start_time: Start of time range
+            end_time: End of time range
+
+        Returns:
+            DataFrame with overflowed data or None
+        """
+        if timeframe not in self._mmap_storages:
+            return None
+
+        try:
+            storage = self._mmap_storages[timeframe]
+
+            # Find matching overflow ranges
+            matching_data = []
+            for overflow_start, overflow_end in self._overflowed_ranges.get(
+                timeframe, []
+            ):
+                # Check if this range overlaps with requested range
+                if overflow_end >= start_time and overflow_start <= end_time:
+                    key = f"{timeframe}_{overflow_start.isoformat()}_{overflow_end.isoformat()}"
+                    chunk = storage.read_dataframe(key)
+                    if chunk is not None:
+                        # Filter to exact time range
+                        mask = (pl.col("timestamp") >= start_time) & (
+                            pl.col("timestamp") <= end_time
+                        )
+                        filtered_chunk = chunk.filter(mask)
+                        if not filtered_chunk.is_empty():
+                            matching_data.append(filtered_chunk)
+
+            if matching_data:
+                return pl.concat(matching_data).sort("timestamp")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error retrieving overflow data: {e}")
+            return None
+
+    async def get_combined_data(
+        self, timeframe: str, start_time: datetime, end_time: datetime
+    ) -> pl.DataFrame | None:
+        """
+        Get combined data from both memory and overflow storage.
+
+        Args:
+            timeframe: Timeframe to retrieve
+            start_time: Start of time range
+            end_time: End of time range
+
+        Returns:
+            Combined DataFrame or None
+        """
+        # Get memory data
+        memory_data = None
+        if timeframe in self.data:
+            df = self.data[timeframe]
+            if not df.is_empty():
+                mask = (pl.col("timestamp") >= start_time) & (
+                    pl.col("timestamp") <= end_time
+                )
+                memory_data = df.filter(mask)
+
+        # Get overflow data
+        overflow_data = await self._retrieve_overflow_data(
+            timeframe, start_time, end_time
+        )
+
+        # Combine data
+        if memory_data is not None and overflow_data is not None:
+            combined = pl.concat([overflow_data, memory_data]).sort("timestamp")
+            return combined.unique("timestamp", keep="last")
+        elif memory_data is not None:
+            return memory_data
+        elif overflow_data is not None:
+            return overflow_data
+        else:
+            return None
+
+    async def _cleanup_old_overflow_files(self, max_age_days: int = 7) -> None:
+        """
+        Clean up old overflow files based on age.
+
+        Args:
+            max_age_days: Maximum age in days for files to keep
+        """
+        try:
+            cutoff_time = datetime.now() - timedelta(days=max_age_days)
+
+            for file_path in self.mmap_storage_path.glob("*.mmap"):
+                if file_path.stat().st_mtime < cutoff_time.timestamp():
+                    file_path.unlink()
+                    # Also remove metadata file
+                    meta_path = file_path.with_suffix(".meta")
+                    if meta_path.exists():
+                        meta_path.unlink()
+                    logger.info(f"Cleaned up old overflow file: {file_path.name}")
+
+        except Exception as e:
+            logger.error(f"Error cleaning up old overflow files: {e}")
+
+    async def get_total_data_count(self, timeframe: str) -> int:
+        """
+        Get total count of bars including both memory and overflow storage.
+
+        Args:
+            timeframe: Timeframe to count
+
+        Returns:
+            Total number of bars
+        """
+        total_count = 0
+
+        # Count in-memory bars
+        if timeframe in self.data:
+            total_count += len(self.data[timeframe])
+
+        # Count overflowed bars
+        if timeframe in self._overflow_stats:
+            total_count += self._overflow_stats[timeframe].get(
+                "total_bars_overflowed", 0
+            )
+
+        return total_count
+
+    async def get_overflow_stats(self, timeframe: str) -> dict[str, Any]:
+        """
+        Get overflow statistics for a specific timeframe.
+
+        Args:
+            timeframe: Timeframe to get stats for
+
+        Returns:
+            Dictionary with overflow statistics
+        """
+        if timeframe not in self._overflow_stats:
+            return {
+                "total_overflowed_bars": 0,
+                "disk_storage_size_mb": 0.0,
+                "overflow_operations_count": 0,
+            }
+
+        stats = self._overflow_stats[timeframe].copy()
+
+        # Get disk storage size
+        disk_size_mb = 0.0
+        if timeframe in self._mmap_storages:
+            storage = self._mmap_storages[timeframe]
+            info = storage.get_info()
+            disk_size_mb = info.get("size_mb", 0.0)
+
+        return {
+            "total_overflowed_bars": stats.get("total_bars_overflowed", 0),
+            "disk_storage_size_mb": disk_size_mb,
+            "overflow_operations_count": stats.get("overflow_count", 0),
+        }

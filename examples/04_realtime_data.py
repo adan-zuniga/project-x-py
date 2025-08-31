@@ -242,7 +242,7 @@ async def main() -> bool:
             print(f"   Timeframes: {', '.join(timeframes)}")
 
             # Components are now accessed as attributes
-            data_manager = suite.data
+            data_manager = suite["MNQ"].data
 
             print("\n✅ All components connected and subscribed:")
             print("   - Real-time client connected")

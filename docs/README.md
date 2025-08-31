@@ -119,8 +119,15 @@ Always use async/await patterns:
 
 ```python
 async def example():
-    suite = await TradingSuite.create("MNQ")
-    # Your code here
+    # Use a list for instruments, even for a single one
+    suite = await TradingSuite.create(["MNQ"])
+
+    # Access the context for the instrument
+    mnq_context = suite["MNQ"]
+
+    # Your code here, using the context
+    # For example: await mnq_context.data.get_current_price()
+
     await suite.disconnect()
 ```
 

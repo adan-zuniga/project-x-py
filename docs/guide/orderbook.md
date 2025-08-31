@@ -103,7 +103,7 @@ async def spread_analysis():
 
                 # Spread alerts
                 if spread > 5.0:  # Wide spread for MNQ
-                    print("  Wide spread detected!")
+                    print("  Wide spread detected!")
                 elif spread < 0.5:  # Tight spread
                     print("=% Tight spread - high liquidity")
 
@@ -182,7 +182,7 @@ async def analyze_price_impact(orderbook):
 
         # Large impact warning
         if buy_impact > 10 or sell_impact > 10:  # $10+ impact
-            print(f"      High price impact for {size} contracts!")
+            print(f"      High price impact for {size} contracts!")
 ```
 
 ### Order Flow and Trade Analysis
@@ -277,7 +277,7 @@ async def order_flow_analysis():
         elif sell_large > buy_large * 1.5:
             print("  = Large seller dominance")
         else:
-            print("    Balanced large trade flow")
+            print("    Balanced large trade flow")
 ```
 
 ## Advanced Market Microstructure
@@ -599,7 +599,7 @@ async def volume_profile_analysis():
     for row in hvn_levels.iter_rows(named=True):
         print(f"  ${row['price_level']:.2f}: {row['volume']:,} contracts")
 
-    print(f"\n=s  Low Volume Nodes (LVN) - Potential breakout levels:")
+    print(f"\n=s  Low Volume Nodes (LVN) - Potential breakout levels:")
     for row in lvn_levels.head(5).iter_rows(named=True):
         print(f"  ${row['price_level']:.2f}: {row['volume']:,} contracts")
 
@@ -645,7 +645,7 @@ async def volume_profile_analysis():
             elif mid_price < value_area_low:
                 print(f"  = Price below value area - potential support")
             else:
-                print(f"   Price within value area")
+                print(f"   Price within value area")
 
     # Volume distribution analysis
     await analyze_volume_distribution(volume_profile)
@@ -685,7 +685,7 @@ async def analyze_volume_distribution(volume_profile):
             print("  <
  Well distributed volume across price levels")
         else:
-            print("    Moderate volume concentration")
+            print("    Moderate volume concentration")
 ```
 
 ## Memory Management and Performance
@@ -724,7 +724,7 @@ async def orderbook_memory_management():
 
     # Cleanup recommendations
     if memory_usage > 0.8:
-        print("  High memory usage - consider cleanup")
+        print("  High memory usage - consider cleanup")
 
         # Manual cleanup (usually automatic)
         cleaned_count = await orderbook.cleanup_old_data(keep_minutes=30)
@@ -746,7 +746,7 @@ async def orderbook_performance_monitoring():
 
     # Performance optimization
     if perf_stats['avg_processing_latency_ms'] > 10:
-        print("  High processing latency detected")
+        print("  High processing latency detected")
 
         # Enable performance optimizations
         await orderbook.enable_optimizations(
@@ -755,7 +755,7 @@ async def orderbook_performance_monitoring():
             compress_history=True    # Compress old data
         )
 
-        print(" Performance optimizations enabled")
+        print(" Performance optimizations enabled")
 ```
 
 ## Best Practices
@@ -822,7 +822,7 @@ async def robust_orderbook_operations():
         best_prices = await orderbook.get_best_bid_ask()
 
         if not best_prices['bid'] or not best_prices['ask']:
-            print("  No bid/ask available - market may be closed")
+            print("  No bid/ask available - market may be closed")
             return
 
         # Proceed with analysis

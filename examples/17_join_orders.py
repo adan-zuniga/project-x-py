@@ -29,16 +29,16 @@ async def main() -> None:
     suite = await TradingSuite.create("MNQ")
 
     try:
-        print(f"=== JoinBid and JoinAsk Order Example for {suite.symbol} ===")
-        print(f"Using contract: {suite.instrument_id}")
-        if suite.instrument:
+        print(f"=== JoinBid and JoinAsk Order Example for {suite['MNQ'].symbol} ===")
+        print(f"Using contract: {suite['MNQ'].instrument_info.id}")
+        if suite["MNQ"].instrument_info:
             print(
-                f"Tick size: ${suite.instrument.tickSize}, Tick value: ${suite.instrument.tickValue}"
+                f"Tick size: ${suite['MNQ'].instrument_info.tickSize}, Tick value: ${suite['MNQ'].instrument_info.tickValue}"
             )
         print()
 
         # Get current market data to show context
-        bars = await suite.client.get_bars(suite.symbol, days=1)
+        bars = await suite.client.get_bars(suite["MNQ"].symbol, days=1)
         if bars is not None and not bars.is_empty():
             latest = bars.tail(1)
             print("Current market context:")
@@ -53,10 +53,10 @@ async def main() -> None:
             # Note: JoinBid/JoinAsk orders may not be supported in all environments
             # or may require specific market conditions (active bid/ask quotes)
             try:
-                if suite.instrument_id is None:
+                if suite["MNQ"].instrument_info.id is None:
                     raise RuntimeError("Instrument ID not available")
-                join_bid_response = await suite.orders.place_join_bid_order(
-                    contract_id=suite.instrument_id, size=1
+                join_bid_response = await suite["MNQ"].orders.place_join_bid_order(
+                    contract_id=suite["MNQ"].instrument_info.id, size=1
                 )
 
                 if join_bid_response.success:
@@ -80,10 +80,10 @@ async def main() -> None:
             # Example 2: Place a JoinAsk order
             print("2. Placing JoinAsk order (sell at best ask)...")
             try:
-                if suite.instrument_id is None:
+                if suite["MNQ"].instrument_info.id is None:
                     raise RuntimeError("Instrument ID not available")
-                join_ask_response = await suite.orders.place_join_ask_order(
-                    contract_id=suite.instrument_id, size=1
+                join_ask_response = await suite["MNQ"].orders.place_join_ask_order(
+                    contract_id=suite["MNQ"].instrument_info.id, size=1
                 )
 
                 if join_ask_response.success:
@@ -103,7 +103,7 @@ async def main() -> None:
 
             # Show order status
             print("3. Checking order status...")
-            active_orders = await suite.orders.search_open_orders()
+            active_orders = await suite["MNQ"].orders.search_open_orders()
 
             print(f"\nActive orders: {len(active_orders)}")
             order_ids = []
@@ -150,7 +150,9 @@ async def main() -> None:
                 ]:
                     if order_id:
                         try:
-                            cancel_result = await suite.orders.cancel_order(order_id)
+                            cancel_result = await suite["MNQ"].orders.cancel_order(
+                                order_id
+                            )
                             if cancel_result:
                                 print(f"✅ {order_type} order {order_id} cancelled")
                         except Exception as e:
@@ -166,7 +168,7 @@ async def main() -> None:
             print("\n5. Checking for open positions...")
             await asyncio.sleep(1)  # Allow time for position updates
 
-            positions = await suite.positions.get_all_positions()
+            positions = await suite["MNQ"].positions.get_all_positions()
             if positions:
                 print(f"Found {len(positions)} open position(s)")
                 for position in positions:
@@ -184,7 +186,7 @@ async def main() -> None:
 
                         print("  Closing position with market order...")
                         try:
-                            close_order = await suite.orders.place_market_order(
+                            close_order = await suite["MNQ"].orders.place_market_order(
                                 contract_id=position.contractId,
                                 side=side,
                                 size=position.size,
@@ -211,9 +213,9 @@ async def main() -> None:
         print("\nExample code:")
         print("```python")
         print("# Get current orderbook or last trade price")
-        print("current_price = await suite.data.get_current_price()")
+        print("current_price = await suite['MNQ'].data.get_current_price()")
         print("# Place limit orders slightly below/above market")
-        print("buy_order = await suite.orders.place_limit_order(")
+        print("buy_order = await suite['MNQ'].orders.place_limit_order(")
         print("    contract_id='MNQ',")
         print("    side=0,  # Buy")
         print("    size=1,")

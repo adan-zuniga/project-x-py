@@ -58,11 +58,11 @@ class UnifiedEventDemo:
         )
 
         # Register all event handlers through unified interface
-        await self._register_event_handlers()
+        await self._register_event_handlers(instrument)
 
         logger.info("Setup complete - all event handlers registered")
 
-    async def _register_event_handlers(self) -> None:
+    async def _register_event_handlers(self, instrument: str) -> None:
         """Register handlers for various event types."""
         if self.suite is None:
             logger.error("Suite is not initialized")
@@ -90,7 +90,7 @@ class UnifiedEventDemo:
         await self.suite.on(EventType.ERROR, self._on_error)
 
         # OrderBook Events (if enabled)
-        if self.suite.orderbook:
+        if self.suite[instrument].orderbook:
             await self.suite.on(EventType.ORDERBOOK_UPDATE, self._on_orderbook_update)
             await self.suite.on(EventType.MARKET_DEPTH_UPDATE, self._on_market_depth)
 
@@ -199,7 +199,7 @@ class UnifiedEventDemo:
 
     async def _on_error(self, event: Any) -> None:
         """Handle error events."""
-        logger.error(f"❗ Error: {event.data}")
+        logger.info(f"❗ Error: {event.data}")
 
     # OrderBook Event Handlers
     async def _on_orderbook_update(self, event: Any) -> None:

@@ -206,6 +206,9 @@ class DynamicResourceMixin(TaskManagerMixin):
         """Initialize dynamic resource management."""
         super().__init__()
 
+        # Initialize task manager
+        self._init_task_manager()
+
         # Resource monitoring
         self._resource_config = ResourceConfig()
         self._current_limits: ResourceLimits | None = None
@@ -244,6 +247,11 @@ class DynamicResourceMixin(TaskManagerMixin):
                 "psutil not available - using fallback resource monitoring. "
                 "Install psutil for optimal resource management."
             )
+
+    @property
+    def background_tasks(self) -> set:
+        """Get managed background tasks for testing."""
+        return self._persistent_tasks if hasattr(self, "_persistent_tasks") else set()
 
     def configure_dynamic_resources(
         self,

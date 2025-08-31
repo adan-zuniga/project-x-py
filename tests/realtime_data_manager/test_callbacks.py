@@ -18,12 +18,13 @@ Test Coverage Goals:
 """
 
 import asyncio
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, call
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, call, patch
 
+import pytest
+
+from project_x_py.event_bus import EventBus, EventType
 from project_x_py.realtime_data_manager.callbacks import CallbackMixin
-from project_x_py.event_bus import EventType, EventBus
 
 
 class MockRealtimeDataManager(CallbackMixin):

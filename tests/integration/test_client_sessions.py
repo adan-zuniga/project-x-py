@@ -8,12 +8,13 @@ Author: TDD Implementation
 Date: 2025-08-28
 """
 
-import pytest
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
-import polars as pl
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import polars as pl
+import pytest
 
 from project_x_py.client import ProjectX
 from project_x_py.sessions import SessionConfig, SessionType
@@ -51,7 +52,6 @@ class TestClientSessionAPI:
         """Should fetch bars filtered by session type."""
         # Create a client but bypass authentication
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -115,7 +115,6 @@ class TestClientSessionAPI:
     async def test_get_session_bars_with_custom_config(self, auth_env_vars):
         """Should use custom session configuration."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionConfig, SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -181,7 +180,6 @@ class TestClientSessionAPI:
     async def test_get_session_volume_profile(self, auth_env_vars):
         """Should calculate volume profile by session."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -224,7 +222,6 @@ class TestClientSessionAPI:
     async def test_get_session_statistics(self, auth_env_vars):
         """Should calculate statistics for session."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -265,7 +262,6 @@ class TestClientSessionAPI:
     async def test_is_market_open_for_session(self, auth_env_vars):
         """Should check if market is open for specific session."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -292,7 +288,6 @@ class TestClientSessionAPI:
     async def test_get_next_session_open(self, auth_env_vars):
         """Should get next session open time."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -312,7 +307,6 @@ class TestClientSessionAPI:
     async def test_get_session_trades(self, auth_env_vars):
         """Should fetch trades filtered by session."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],
@@ -356,7 +350,6 @@ class TestClientSessionAPI:
     async def test_get_session_order_flow(self, auth_env_vars):
         """Should analyze order flow by session."""
         from project_x_py import ProjectX
-        from project_x_py.sessions import SessionType
 
         client = ProjectX(
             api_key=auth_env_vars["PROJECT_X_API_KEY"],

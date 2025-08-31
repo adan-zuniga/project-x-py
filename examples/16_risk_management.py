@@ -41,15 +41,15 @@ async def main() -> None:
         initial_days=5,
     )
 
-    print(f"✓ Suite created for {suite.instrument}")
-    print(f"✓ Risk manager enabled: {suite.risk_manager is not None}")
+    print(f"✓ Suite created for {suite['MNQ'].instrument_info.symbolId}")
+    print(f"✓ Risk manager enabled: {suite['MNQ'].risk_manager is not None}")
 
     # Wait for data to be ready
     print("\nWaiting for data...")
     await asyncio.sleep(3)
 
     # Get current market price
-    latest_bar = await suite.data.get_latest_bars(1, "5min")
+    latest_bar = await suite["MNQ"].data.get_latest_bars(1, "5min")
     if latest_bar is None or latest_bar.is_empty():
         print("No data available yet")
         return
@@ -63,8 +63,8 @@ async def main() -> None:
     stop_loss = current_price - 50  # $50 stop loss
 
     # Calculate size for 1% risk
-    assert suite.risk_manager is not None
-    sizing = await suite.risk_manager.calculate_position_size(
+    assert suite["MNQ"].risk_manager is not None
+    sizing = await suite["MNQ"].risk_manager.calculate_position_size(
         entry_price=current_price,
         stop_loss=stop_loss,
         risk_percent=0.01,  # Risk 1% of account
@@ -83,7 +83,7 @@ async def main() -> None:
     mock_order = Order(
         id=0,
         accountId=0,
-        contractId=suite.symbol,
+        contractId=suite["MNQ"].symbol,
         creationTimestamp=datetime.now().isoformat(),
         updateTimestamp=None,
         status=1,  # Open
@@ -93,7 +93,7 @@ async def main() -> None:
         limitPrice=current_price,
     )
 
-    validation = await suite.risk_manager.validate_trade(mock_order)
+    validation = await suite["MNQ"].risk_manager.validate_trade(mock_order)
 
     print(f"Trade valid: {validation['is_valid']}")
     if validation["reasons"]:
@@ -107,7 +107,7 @@ async def main() -> None:
     # 3. Get current risk metrics
     print("\n=== Risk Metrics ===")
 
-    risk_metrics = await suite.risk_manager.get_risk_metrics()
+    risk_metrics = await suite["MNQ"].risk_manager.get_risk_metrics()
 
     print(f"Current risk: {risk_metrics['current_risk'] * 100:.2f}%")
     print(f"Max risk allowed: {risk_metrics['max_risk'] * 100:.2f}%")
@@ -135,7 +135,7 @@ async def main() -> None:
     # Show example code
     print("\nExample code:")
     print("""
-    async with suite.managed_trade(max_risk_percent=0.01) as trade:
+    async with suite["MNQ"].managed_trade(max_risk_percent=0.01) as trade:
         result = await trade.enter_long(
             stop_loss=current_price - 50,
             take_profit=current_price + 100,
@@ -153,7 +153,7 @@ async def main() -> None:
     # 5. Risk configuration overview
     print("\n=== Risk Configuration ===")
 
-    config = suite.risk_manager.config
+    config = suite["MNQ"].risk_manager.config
     print(f"Max risk per trade: {config.max_risk_per_trade * 100:.1f}%")
     print(f"Max daily loss: {config.max_daily_loss * 100:.1f}%")
     print(f"Max positions: {config.max_positions}")
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     # Check for required environment variables
     if not os.getenv("PROJECT_X_API_KEY") or not os.getenv("PROJECT_X_USERNAME"):
         print(
-            "Error: Please set PROJECT_X_API_KEY and PROJECT_X_USERNAME environment variables"
+            "Error: Please set PROJECT_X_API_API_KEY and PROJECT_X_USERNAME environment variables"
         )
         sys.exit(1)
 

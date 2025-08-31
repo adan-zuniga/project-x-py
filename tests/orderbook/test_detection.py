@@ -17,8 +17,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from project_x_py.orderbook.detection import OrderDetection
 from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.orderbook.detection import OrderDetection
 
 
 @pytest.fixture

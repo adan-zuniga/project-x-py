@@ -1,6 +1,7 @@
 """Mock-based fixtures for OrderManager testing that don't require authentication."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from project_x_py.event_bus import EventBus

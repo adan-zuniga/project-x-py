@@ -6,8 +6,8 @@ from project_x_py.event_bus import EventType
 
 
 async def on_new_bar(suite: TradingSuite):
-    current_price = await suite.data.get_current_price()
-    last_bars = await suite.data.get_data(timeframe="15sec", bars=5)
+    current_price = await suite["MNQ"].data.get_current_price()
+    last_bars = await suite["MNQ"].data.get_data(timeframe="15sec", bars=5)
     print(f"\nCurrent price: {current_price}")
     print("=" * 80)
 
@@ -36,8 +36,6 @@ async def main():
         instrument="MNQ",
         timeframes=["15sec"],
     )
-
-    await suite.connect()
 
     # Set up signal handler for clean exit
     shutdown_event = asyncio.Event()

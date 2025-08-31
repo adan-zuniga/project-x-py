@@ -19,7 +19,7 @@ Coverage Target: >90% for validation.py module
 import asyncio
 import logging
 from collections import deque
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -28,8 +28,8 @@ import pytest
 from project_x_py.realtime_data_manager.validation import (
     DataValidationMixin,
     ValidationConfig,
-    ValidationMixin,
     ValidationMetrics,
+    ValidationMixin,
 )
 
 
@@ -80,13 +80,17 @@ class MockDataValidationManager(DataValidationMixin):
         # Initialize the mixin
         super().__init__()
 
-    def _parse_and_validate_quote_payload(self, quote_data: Any) -> dict[str, Any] | None:
+    def _parse_and_validate_quote_payload(
+        self, quote_data: Any
+    ) -> dict[str, Any] | None:
         """Mock implementation for testing."""
         if isinstance(quote_data, dict) and "symbol" in quote_data:
             return quote_data
         return None
 
-    def _parse_and_validate_trade_payload(self, trade_data: Any) -> dict[str, Any] | None:
+    def _parse_and_validate_trade_payload(
+        self, trade_data: Any
+    ) -> dict[str, Any] | None:
         """Mock implementation for testing - only check for symbolId to allow price validation testing."""
         if isinstance(trade_data, dict) and "symbolId" in trade_data:
             return trade_data
@@ -225,13 +229,15 @@ class TestDataValidationMixin:
     @pytest.mark.asyncio
     async def test_initialization(self, data_validation_manager):
         """Test that DataValidationMixin initializes correctly."""
-        assert hasattr(data_validation_manager, '_validation_config')
-        assert hasattr(data_validation_manager, '_validation_metrics')
-        assert hasattr(data_validation_manager, '_metrics_lock')
-        assert hasattr(data_validation_manager, '_price_history')
-        assert hasattr(data_validation_manager, '_volume_history')
+        assert hasattr(data_validation_manager, "_validation_config")
+        assert hasattr(data_validation_manager, "_validation_metrics")
+        assert hasattr(data_validation_manager, "_metrics_lock")
+        assert hasattr(data_validation_manager, "_price_history")
+        assert hasattr(data_validation_manager, "_volume_history")
         assert isinstance(data_validation_manager._validation_config, ValidationConfig)
-        assert isinstance(data_validation_manager._validation_metrics, ValidationMetrics)
+        assert isinstance(
+            data_validation_manager._validation_metrics, ValidationMetrics
+        )
         assert isinstance(data_validation_manager._metrics_lock, asyncio.Lock)
 
     @pytest.mark.asyncio
@@ -261,7 +267,10 @@ class TestDataValidationMixin:
 
         assert result is None
         assert data_validation_manager._validation_metrics.total_rejected == 1
-        assert "format_error" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "format_error"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_quote_data_invalid_spread(self, data_validation_manager):
@@ -277,7 +286,10 @@ class TestDataValidationMixin:
 
         assert result is None
         assert data_validation_manager._validation_metrics.total_rejected == 1
-        assert "invalid_spread_bid_gt_ask" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "invalid_spread_bid_gt_ask"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_quote_data_excessive_spread(self, data_validation_manager):
@@ -293,7 +305,10 @@ class TestDataValidationMixin:
 
         assert result is None
         assert data_validation_manager._validation_metrics.total_rejected == 1
-        assert "excessive_spread" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "excessive_spread"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_trade_data_success(self, data_validation_manager):
@@ -324,7 +339,10 @@ class TestDataValidationMixin:
 
         assert result is None
         assert data_validation_manager._validation_metrics.total_rejected == 1
-        assert "missing_price" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "missing_price"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_trade_data_negative_price(self, data_validation_manager):
@@ -340,7 +358,10 @@ class TestDataValidationMixin:
 
         assert result is None
         assert data_validation_manager._validation_metrics.total_rejected == 1
-        assert "negative_or_zero_price" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "negative_or_zero_price"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_trade_data_excessive_volume(self, data_validation_manager):
@@ -356,7 +377,10 @@ class TestDataValidationMixin:
 
         assert result is None
         assert data_validation_manager._validation_metrics.total_rejected == 1
-        assert "volume_above_maximum" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "volume_above_maximum"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_price_value_tick_alignment(self, data_validation_manager):
@@ -367,10 +391,15 @@ class TestDataValidationMixin:
         # Invalid unaligned price (not divisible by 0.25)
         result = await data_validation_manager._validate_price_value(19000.13, "test")
         assert result is False
-        assert "price_not_tick_aligned" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "price_not_tick_aligned"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
-    async def test_validate_price_value_anomaly_detection(self, data_validation_manager):
+    async def test_validate_price_value_anomaly_detection(
+        self, data_validation_manager
+    ):
         """Test price validation with anomaly detection."""
         # Build up price history with normal prices
         normal_prices = [19000.0, 19001.0, 19002.0, 19000.5, 19001.5] * 5  # 25 prices
@@ -384,7 +413,10 @@ class TestDataValidationMixin:
         # Average ~19001, so 35000 = (35000-19001)/19001 * 100 = ~84% deviation (exceeds 50% limit)
         result = await data_validation_manager._validate_price_value(35000.0, "test")
         assert result is False
-        assert "price_anomaly" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "price_anomaly"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_is_price_aligned_to_tick(self, data_validation_manager):
@@ -400,8 +432,12 @@ class TestDataValidationMixin:
         assert not data_validation_manager._is_price_aligned_to_tick(19000.37, 0.25)
 
         # Test edge cases
-        assert data_validation_manager._is_price_aligned_to_tick(100.0, 0.0)  # Zero tick size
-        assert data_validation_manager._is_price_aligned_to_tick(100.0, -0.25)  # Negative tick size
+        assert data_validation_manager._is_price_aligned_to_tick(
+            100.0, 0.0
+        )  # Zero tick size
+        assert data_validation_manager._is_price_aligned_to_tick(
+            100.0, -0.25
+        )  # Negative tick size
 
     @pytest.mark.asyncio
     async def test_validate_volume_spike_detection(self, data_validation_manager):
@@ -426,7 +462,9 @@ class TestDataValidationMixin:
     @pytest.mark.asyncio
     async def test_validate_timestamp_future(self, data_validation_manager):
         """Test timestamp validation for future timestamps."""
-        future_time = datetime.now(timezone.utc) + timedelta(seconds=10)  # 10s in future (exceeds 5s limit)
+        future_time = datetime.now(timezone.utc) + timedelta(
+            seconds=10
+        )  # 10s in future (exceeds 5s limit)
 
         trade_data = {
             "symbolId": "MNQ",
@@ -438,12 +476,17 @@ class TestDataValidationMixin:
         result = await data_validation_manager.validate_trade_data(trade_data)
 
         assert result is None
-        assert "timestamp_too_future" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "timestamp_too_future"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_timestamp_too_old(self, data_validation_manager):
         """Test timestamp validation for old timestamps."""
-        old_time = datetime.now(timezone.utc) - timedelta(hours=25)  # 25 hours ago (exceeds 24h limit)
+        old_time = datetime.now(timezone.utc) - timedelta(
+            hours=25
+        )  # 25 hours ago (exceeds 24h limit)
 
         trade_data = {
             "symbolId": "MNQ",
@@ -455,7 +498,10 @@ class TestDataValidationMixin:
         result = await data_validation_manager.validate_trade_data(trade_data)
 
         assert result is None
-        assert "timestamp_too_past" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "timestamp_too_past"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_timestamp_string_formats(self, data_validation_manager):
@@ -470,12 +516,17 @@ class TestDataValidationMixin:
 
         result = await data_validation_manager.validate_trade_data(trade_data)
         # Should pass validation (assuming timestamp is not too old/future)
-        assert result is not None or "timestamp_too_past" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            result is not None
+            or "timestamp_too_past"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_validate_timestamp_unix_timestamp(self, data_validation_manager):
         """Test timestamp validation with Unix timestamp."""
         import time
+
         current_unix = time.time()
 
         trade_data = {
@@ -493,10 +544,14 @@ class TestDataValidationMixin:
         """Test timestamp validation for out-of-order timestamps."""
         # Add a recent timestamp to the history
         recent_time = datetime.now(timezone.utc)
-        data_validation_manager._validation_metrics.recent_timestamps.append(recent_time)
+        data_validation_manager._validation_metrics.recent_timestamps.append(
+            recent_time
+        )
 
         # Create a timestamp significantly earlier (beyond tolerance)
-        old_time = recent_time - timedelta(seconds=120)  # 2 minutes earlier (exceeds 60s tolerance)
+        old_time = recent_time - timedelta(
+            seconds=120
+        )  # 2 minutes earlier (exceeds 60s tolerance)
 
         trade_data = {
             "symbolId": "MNQ",
@@ -508,7 +563,10 @@ class TestDataValidationMixin:
         result = await data_validation_manager.validate_trade_data(trade_data)
 
         assert result is None
-        assert "timestamp_out_of_order" in data_validation_manager._validation_metrics.rejection_reasons
+        assert (
+            "timestamp_out_of_order"
+            in data_validation_manager._validation_metrics.rejection_reasons
+        )
 
     @pytest.mark.asyncio
     async def test_update_quality_metrics_trade(self, data_validation_manager):
@@ -620,13 +678,18 @@ class TestDataValidationMixin:
     async def test_validation_exception_handling(self, data_validation_manager):
         """Test that validation handles exceptions gracefully."""
         # Mock _parse_and_validate_trade_payload to raise an exception
-        with patch.object(data_validation_manager, '_parse_and_validate_trade_payload',
-                         side_effect=Exception("Test exception")):
-
+        with patch.object(
+            data_validation_manager,
+            "_parse_and_validate_trade_payload",
+            side_effect=Exception("Test exception"),
+        ):
             result = await data_validation_manager.validate_trade_data({"test": "data"})
 
             assert result is None
-            assert "validation_exception" in data_validation_manager._validation_metrics.rejection_reasons
+            assert (
+                "validation_exception"
+                in data_validation_manager._validation_metrics.rejection_reasons
+            )
 
 
 class TestValidationMixin:
@@ -665,12 +728,15 @@ class TestValidationMixin:
 
     def test_parse_and_validate_trade_payload_signalr_format(self, validation_manager):
         """Test parsing SignalR format [contract_id, data_dict]."""
-        signalr_data = ["CON.F.US.MNQ.U25", {
-            "symbolId": "MNQ",
-            "price": 19000.25,
-            "timestamp": "2025-01-22T10:00:00Z",
-            "volume": 5,
-        }]
+        signalr_data = [
+            "CON.F.US.MNQ.U25",
+            {
+                "symbolId": "MNQ",
+                "price": 19000.25,
+                "timestamp": "2025-01-22T10:00:00Z",
+                "volume": 5,
+            },
+        ]
 
         result = validation_manager._parse_and_validate_trade_payload(signalr_data)
 
@@ -710,7 +776,9 @@ class TestValidationMixin:
 
     def test_parse_and_validate_quote_payload_json_string(self, validation_manager):
         """Test parsing quote payload from JSON string."""
-        quote_json = '{"symbol": "MNQ", "timestamp": "2025-01-22T10:00:00Z", "bestBid": 19000.0}'
+        quote_json = (
+            '{"symbol": "MNQ", "timestamp": "2025-01-22T10:00:00Z", "bestBid": 19000.0}'
+        )
 
         result = validation_manager._parse_and_validate_quote_payload(quote_json)
 
@@ -719,18 +787,23 @@ class TestValidationMixin:
 
     def test_parse_and_validate_quote_payload_signalr_format(self, validation_manager):
         """Test parsing SignalR format for quotes."""
-        signalr_data = ["CON.F.US.MNQ.U25", {
-            "symbol": "MNQ",
-            "timestamp": "2025-01-22T10:00:00Z",
-            "bestBid": 19000.0,
-        }]
+        signalr_data = [
+            "CON.F.US.MNQ.U25",
+            {
+                "symbol": "MNQ",
+                "timestamp": "2025-01-22T10:00:00Z",
+                "bestBid": 19000.0,
+            },
+        ]
 
         result = validation_manager._parse_and_validate_quote_payload(signalr_data)
 
         assert result is not None
         assert result["symbol"] == "MNQ"
 
-    def test_parse_and_validate_quote_payload_missing_required_fields(self, validation_manager):
+    def test_parse_and_validate_quote_payload_missing_required_fields(
+        self, validation_manager
+    ):
         """Test parsing quote payload with missing required fields."""
         incomplete_quote = {
             "bestBid": 19000.0,
@@ -765,7 +838,9 @@ class TestValidationMixin:
 
         assert validation_manager._symbol_matches_instrument("ENQ")
         assert validation_manager._symbol_matches_instrument("F.US.ENQ")
-        assert validation_manager._symbol_matches_instrument("NQ")  # Original should still match
+        assert validation_manager._symbol_matches_instrument(
+            "NQ"
+        )  # Original should still match
 
     def test_get_realtime_validation_status(self, validation_manager):
         """Test getting real-time validation status."""
@@ -842,6 +917,7 @@ class TestValidationEdgeCases:
     @pytest.mark.asyncio
     async def test_concurrent_validation(self, data_validation_manager):
         """Test that concurrent validations work correctly."""
+
         async def validate_trade():
             trade_data = {
                 "symbolId": "MNQ",
@@ -864,7 +940,7 @@ class TestValidationEdgeCases:
         # Test with zero/negative values
         config = ValidationConfig(
             min_price=0.0,  # Zero minimum
-            max_volume=0,   # Zero maximum volume
+            max_volume=0,  # Zero maximum volume
             tick_tolerance=0.0,  # Zero tolerance
         )
 
@@ -879,6 +955,7 @@ class TestValidationIntegration:
     @pytest.mark.asyncio
     async def test_full_validation_pipeline(self):
         """Test the complete validation pipeline from parsing to validation."""
+
         # Create a combined mock that has both mixins
         class CombinedValidationManager(ValidationMixin, DataValidationMixin):
             def __init__(self):
@@ -891,12 +968,15 @@ class TestValidationIntegration:
         manager = CombinedValidationManager()
 
         # Test with SignalR-style trade data
-        raw_trade = ["CON.F.US.MNQ.U25", {
-            "symbolId": "MNQ",
-            "price": 19000.25,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "volume": 5,
-        }]
+        raw_trade = [
+            "CON.F.US.MNQ.U25",
+            {
+                "symbolId": "MNQ",
+                "price": 19000.25,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "volume": 5,
+            },
+        ]
 
         # Should parse and validate successfully
         result = await manager.validate_trade_data(raw_trade)

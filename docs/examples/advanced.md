@@ -128,7 +128,7 @@ class ATRBracketStrategy:
 async def main():
     # Create trading suite with required timeframes
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["1min", "5min"],
         initial_days=10,  # Need historical data for indicators
         features=["risk_manager"]
@@ -157,8 +157,8 @@ async def main():
         print(f"ORDER FILLED: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}")
 
     # Register event handlers
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.ORDER_FILLED, on_order_filled)
+    await suite["MNQ"].on(EventType.NEW_BAR, on_new_bar)
+    await suite["MNQ"].on(EventType.ORDER_FILLED, on_order_filled)
 
     print("Advanced Bracket Order Strategy Active")
     print("Monitoring for entry signals on 5-minute bars...")
@@ -172,7 +172,7 @@ async def main():
             await strategy.monitor_orders()
 
             # Display current market info
-            current_price = await suite.data.get_current_price()
+            current_price = await suite["MNQ"].data.get_current_price()
             active_count = len(strategy.active_orders)
             print(f"Price: ${current_price:.2f} | Active Orders: {active_count}")
 
@@ -182,10 +182,11 @@ async def main():
         # Cancel any remaining orders
         for bracket in strategy.active_orders:
             try:
-                await suite.orders.cancel_order(bracket.main_order_id)
+                await suite["MNQ"].orders.cancel_order(bracket.main_order_id)
                 print(f"Cancelled order {bracket.main_order_id}")
             except Exception as e:
                 print(f"Error cancelling order: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -358,11 +359,12 @@ class MultiTimeframeMomentumStrategy:
 async def main():
     # Create suite with multiple timeframes
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["5min", "15min", "1hr"],
         initial_days=15,  # More historical data for higher timeframes
         features=["risk_manager"]
     )
+    mnq_context = suite["MNQ"]
 
     strategy = MultiTimeframeMomentumStrategy(suite)
 
@@ -395,8 +397,8 @@ async def main():
                 strategy.active_position = None  # Clear position
 
     # Register events
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
+    await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
 
     print("Multi-Timeframe Momentum Strategy Active")
     print("Analyzing 5min, 15min, and 1hr timeframes for confluence...")
@@ -407,7 +409,7 @@ async def main():
             await asyncio.sleep(10)
 
             # Display status
-            current_price = await suite.data.get_current_price()
+            current_price = await mnq_context.data.get_current_price()
             position_status = "ACTIVE" if strategy.active_position else "FLAT"
             print(f"Price: ${current_price:.2f} | Position: {position_status}")
 
@@ -418,10 +420,11 @@ async def main():
         if strategy.active_position:
             bracket = strategy.active_position['bracket']
             try:
-                await suite.orders.cancel_order(bracket.main_order_id)
+                await mnq_context.orders.cancel_order(bracket.main_order_id)
                 print("Cancelled active orders")
             except Exception as e:
                 print(f"Error cancelling orders: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -664,8 +667,9 @@ class AdvancedRiskManager:
         print("="*50)
 
 async def main():
-    suite = await TradingSuite.create("MNQ", timeframes=["5min"], features=["risk_manager"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["5min"], features=["risk_manager"])
     risk_manager = AdvancedRiskManager(suite)
+    mnq_context = suite["MNQ"]
 
     # Event handlers
     async def on_order_filled(event):
@@ -679,7 +683,7 @@ async def main():
                 trade['status'] = 'completed'
                 print(f"Trade completed: {trade['direction']} from ${trade['entry_price']:.2f}")
 
-    await suite.on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
 
     print("Advanced Risk Management System Active")
     print("Commands:")
@@ -698,7 +702,7 @@ async def main():
                 await risk_manager.generate_risk_report()
             elif command in ['long', 'short']:
                 # Get current price and simulate trade levels
-                current_price = await suite.data.get_current_price()
+                current_price = await mnq_context.data.get_current_price()
 
                 if command == 'long':
                     entry_price = float(current_price)
@@ -911,11 +915,12 @@ class OrderBookScalpingStrategy:
 async def main():
     # Create suite with order book feature
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["15sec", "1min"],
         features=["orderbook"],  # Essential for order book analysis
         initial_days=1
     )
+    mnq_context = suite["MNQ"]
 
     strategy = OrderBookScalpingStrategy(suite)
 
@@ -961,8 +966,8 @@ async def main():
         print(f"SCALP FILL: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}")
 
     # Register events
-    await suite.on(EventType.TICK, on_tick)
-    await suite.on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq_context.on(EventType.TICK, on_tick)
+    await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
 
     print("Order Book Scalping Strategy Active")
     print("Analyzing market microstructure for scalping opportunities...")
@@ -976,7 +981,7 @@ async def main():
             await strategy.monitor_scalps()
 
             # Display status
-            current_price = await suite.data.get_current_price()
+            current_price = await mnq_context.data.get_current_price()
             active_scalps = len(strategy.active_orders)
             recent_ticks = len(strategy.tick_history)
 
@@ -988,10 +993,11 @@ async def main():
         # Cancel any active orders
         for scalp in strategy.active_orders:
             try:
-                await suite.orders.cancel_order(scalp['bracket'].main_order_id)
+                await mnq_context.orders.cancel_order(scalp['bracket'].main_order_id)
                 print(f"Cancelled scalp order: {scalp['bracket'].main_order_id}")
             except Exception as e:
                 print(f"Error cancelling order: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

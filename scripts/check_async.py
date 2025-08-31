@@ -58,9 +58,9 @@ class AsyncChecker(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Check for sync methods in async classes."""
-        if self.in_async_class:
-            # Skip special methods and private methods
-            if not (
+        if (
+            self.in_async_class
+            and not (
                 node.name.startswith("__")
                 or node.name.startswith("_")
                 or node.name in ["__init__", "__str__", "__repr__"]
@@ -70,16 +70,16 @@ class AsyncChecker(ast.NodeVisitor):
                 in [d.id for d in node.decorator_list if isinstance(d, ast.Name)]
                 or "@classmethod"
                 in [d.id for d in node.decorator_list if isinstance(d, ast.Name)]
-            ):
-                # Check if method performs I/O operations
-                if self._has_io_operations(node):
-                    class_name = ".".join(self.class_stack)
-                    self.issues.append(
-                        (
-                            node.lineno,
-                            f"Synchronous method '{node.name}' in async class '{class_name}' performs I/O",
-                        )
-                    )
+            )
+            and self._has_io_operations(node)
+        ):
+            class_name = ".".join(self.class_stack)
+            self.issues.append(
+                (
+                    node.lineno,
+                    f"Synchronous method '{node.name}' in async class '{class_name}' performs I/O",
+                )
+            )
 
         self.generic_visit(node)
 
@@ -109,17 +109,23 @@ class AsyncChecker(ast.NodeVisitor):
                         elif obj_name in ["file", "f", "fp"]:
                             if attr_name in ["read", "write", "seek", "tell"]:
                                 return True
-                        elif obj_name in ["db", "database", "conn", "connection", "cursor"]:
-                            if attr_name in ["execute", "fetch", "commit", "rollback"]:
-                                return True
+                        elif (
+                            obj_name in ["db", "database", "conn", "connection", "cursor"]
+                            and attr_name in ["execute", "fetch", "commit", "rollback"]
+                        ):
+                            return True
 
                     # Check for self.client or self.http calls (common in SDK)
-                    if isinstance(item.func.value, ast.Attribute):
-                        if hasattr(item.func.value, "attr"):
-                            obj_attr = item.func.value.attr
-                            if obj_attr in ["client", "http", "session", "api", "_client", "_http"]:
-                                if attr_name in ["get", "post", "put", "delete", "patch", "request", "fetch"]:
-                                    return True
+                    if (
+                        isinstance(item.func.value, ast.Attribute)
+                        and hasattr(item.func.value, "attr")
+                    ):
+                        obj_attr = item.func.value.attr
+                        if (
+                            obj_attr in ["client", "http", "session", "api", "_client", "_http"]
+                            and attr_name in ["get", "post", "put", "delete", "patch", "request", "fetch"]
+                        ):
+                            return True
 
                     # Check for common async I/O patterns that should be async
                     if attr_name in ["request", "fetch_data", "api_call", "send_request",
@@ -151,10 +157,12 @@ class AsyncChecker(ast.NodeVisitor):
                     if item.func.attr in ["request", "fetch", "api_call", "http_get", "http_post"]:
                         has_io_call = True
                         break
-                elif isinstance(item.func, ast.Name):
-                    if item.func.id in ["open", "fetch", "request"]:
-                        has_io_call = True
-                        break
+                elif (
+                    isinstance(item.func, ast.Name)
+                    and item.func.id in ["open", "fetch", "request"]
+                ):
+                    has_io_call = True
+                    break
 
         # If no I/O calls and the method is short, it's likely a simple getter
         if not has_io_call and len(node.body) <= 10:

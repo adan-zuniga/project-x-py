@@ -40,8 +40,8 @@ async def monitor_resource_usage(suite: TradingSuite, duration_seconds: int = 60
         iteration += 1
 
         # Get current resource statistics
-        resource_stats = await suite.data.get_resource_stats()
-        memory_stats = await suite.data.get_memory_stats()
+        resource_stats = await suite["MNQ"].data.get_resource_stats()
+        memory_stats = await suite["MNQ"].data.get_memory_stats()
 
         print(f"\n📈 Iteration {iteration} ({time.time() - start_time:.1f}s elapsed)")
         print("-" * 40)
@@ -102,10 +102,12 @@ async def simulate_memory_pressure(suite: TradingSuite):
             print(f"📥 Loading {days} days of historical data...")
 
             # This will load data and potentially trigger resource adjustments
-            bars = await suite.client.get_bars(suite.instrument, days=days)
+            bars = await suite.client.get_bars(
+                suite["MNQ"].instrument_info.symbolId, days=days
+            )
 
             # Get updated resource stats
-            resource_stats = await suite.data.get_resource_stats()
+            resource_stats = await suite["MNQ"].data.get_resource_stats()
             current_limits = resource_stats.get("current_limits", {})
 
             print(f"   → Loaded {len(bars):,} bars")
@@ -132,7 +134,7 @@ async def demonstrate_manual_overrides(suite: TradingSuite):
     print("\n⚙️  Demonstrating manual resource overrides...")
 
     # Get current limits
-    resource_stats = await suite.data.get_resource_stats()
+    resource_stats = await suite["MNQ"].data.get_resource_stats()
     current_limits = resource_stats.get("current_limits", {})
     original_buffer_size = current_limits.get("max_bars_per_timeframe", 1000)
 
@@ -146,10 +148,10 @@ async def demonstrate_manual_overrides(suite: TradingSuite):
     }
 
     print(f"🔧 Applying manual override: buffer size → {new_buffer_size:,}")
-    await suite.data.override_resource_limits(overrides, duration_seconds=30)
+    await suite["MNQ"].data.override_resource_limits(overrides, duration_seconds=30)
 
     # Check updated limits
-    resource_stats = await suite.data.get_resource_stats()
+    resource_stats = await suite["MNQ"].data.get_resource_stats()
     current_limits = resource_stats.get("current_limits", {})
 
     print(
@@ -161,7 +163,7 @@ async def demonstrate_manual_overrides(suite: TradingSuite):
     await asyncio.sleep(35)
 
     # Check if override expired
-    resource_stats = await suite.data.get_resource_stats()
+    resource_stats = await suite["MNQ"].data.get_resource_stats()
     current_limits = resource_stats.get("current_limits", {})
 
     print(f"🔄 After expiry: {current_limits.get('max_bars_per_timeframe', 'N/A'):,}")
@@ -198,7 +200,7 @@ async def main():
         print("✅ TradingSuite created successfully!")
 
         # Display initial resource configuration
-        resource_stats = await suite.data.get_resource_stats()
+        resource_stats = await suite["MNQ"].data.get_resource_stats()
         config = resource_stats.get("configuration", {})
 
         print("\n⚙️  Resource Configuration:")
@@ -213,7 +215,7 @@ async def main():
         await asyncio.sleep(5)
 
         # Show current resource status
-        resource_stats = await suite.data.get_resource_stats()
+        resource_stats = await suite["MNQ"].data.get_resource_stats()
         if resource_stats.get("current_limits"):
             current_limits = resource_stats["current_limits"]
             print("\n📊 Initial Resource Limits:")
@@ -236,7 +238,7 @@ async def main():
         # Final resource statistics
         print("\n📊 Final Resource Statistics:")
         print("-" * 40)
-        resource_stats = await suite.data.get_resource_stats()
+        resource_stats = await suite["MNQ"].data.get_resource_stats()
 
         stats_summary = {
             "Resource Adjustments": resource_stats.get("resource_adjustments", 0),

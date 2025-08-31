@@ -8,26 +8,27 @@ Author: TDD Implementation
 Date: 2025-08-28
 """
 
-import pytest
-import polars as pl
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from project_x_py.sessions import SessionConfig, SessionType, SessionFilterMixin
-from project_x_py.indicators import SMA, EMA, VWAP, RSI, MACD
+import polars as pl
+import pytest
+
+from project_x_py.indicators import EMA, MACD, RSI, SMA, VWAP
+from project_x_py.sessions import SessionConfig, SessionFilterMixin, SessionType
 from project_x_py.sessions.indicators import (
-    calculate_session_vwap,
-    find_session_boundaries,
-    create_single_session_data,
-    calculate_anchored_vwap,
-    calculate_session_levels,
-    calculate_session_cumulative_volume,
-    identify_sessions,
-    calculate_relative_to_vwap,
-    calculate_percent_from_open,
-    create_minute_data,
     aggregate_with_sessions,
-    generate_session_alerts
+    calculate_anchored_vwap,
+    calculate_percent_from_open,
+    calculate_relative_to_vwap,
+    calculate_session_cumulative_volume,
+    calculate_session_levels,
+    calculate_session_vwap,
+    create_minute_data,
+    create_single_session_data,
+    find_session_boundaries,
+    generate_session_alerts,
+    identify_sessions,
 )
 
 

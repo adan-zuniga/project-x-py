@@ -25,7 +25,7 @@ async def demonstrate_position_properties():
         print("=== Enhanced Position Properties ===\n")
 
         # Get positions
-        positions = await suite.positions.get_all_positions()
+        positions = await suite["MNQ"].positions.get_all_positions()
 
         if not positions:
             print("No open positions. Creating a demo position for illustration...")
@@ -67,7 +67,7 @@ async def demonstrate_position_properties():
             print(f"    Is Short? {pos.is_short}")
 
             # P&L calculation
-            current_price = await suite.data.get_latest_price()
+            current_price = await suite["MNQ"].data.get_latest_price()
             if current_price:
                 pnl = pos.unrealized_pnl(
                     current_price, tick_value=5.0
@@ -90,7 +90,7 @@ async def demonstrate_order_properties():
         print("\n\n=== Enhanced Order Properties ===\n")
 
         # Search for open orders
-        orders = await suite.orders.search_open_orders()
+        orders = await suite["MNQ"].orders.search_open_orders()
 
         if not orders:
             print("No open orders. Creating demo orders for illustration...")
@@ -178,7 +178,7 @@ async def demonstrate_strategy_usage():
         print("\n\n=== Strategy Code Improvements ===\n")
 
         # Position management is cleaner
-        positions = await suite.positions.get_all_positions()
+        positions = await suite["MNQ"].positions.get_all_positions()
 
         print("BEFORE (verbose):")
         print("```python")
@@ -215,7 +215,7 @@ async def demonstrate_strategy_usage():
         if positions:
             print("\n\nReal Position Summary:")
             for pos in positions:
-                current_price = await suite.data.get_latest_price()
+                current_price = await suite["MNQ"].data.get_latest_price()
                 if current_price:
                     pnl = pos.unrealized_pnl(current_price, tick_value=5.0)
 

@@ -427,6 +427,10 @@ class LazyDataFrameMixin:
         """Initialize DataFrame optimization components."""
         super().__init__()
 
+        # Initialize logger if not provided by parent class
+        if not hasattr(self, "logger"):
+            self.logger = logger
+
         # Query optimization and caching
         self.query_optimizer = QueryOptimizer()
         self.query_cache = LazyQueryCache(max_size=50, default_ttl=30.0)
@@ -780,6 +784,28 @@ class LazyDataFrameMixin:
                 -10:
             ],  # Last 10 operations
             "total_operations_timed": len(self.operation_times),
+        }
+
+    async def get_lazy_operation_stats(self) -> dict[str, Any]:
+        """
+        Get comprehensive lazy operation statistics.
+
+        Returns:
+            Dictionary with cache stats, optimizer stats, and operation counts
+        """
+        cache_stats = self.query_cache.get_stats()
+        optimizer_stats = dict(self.query_optimizer.optimization_stats)
+
+        # Calculate total operations from various sources
+        total_operations = self.lazy_stats.get(
+            "operations_optimized", 0
+        ) + self.lazy_stats.get("batch_operations_executed", 0)
+
+        return {
+            "cache_stats": cache_stats,
+            "optimizer_stats": optimizer_stats,
+            "total_operations": total_operations,
+            **self.lazy_stats,
         }
 
     async def clear_optimization_cache(self) -> None:

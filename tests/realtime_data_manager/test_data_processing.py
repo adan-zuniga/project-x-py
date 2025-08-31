@@ -19,13 +19,13 @@ Test Coverage Goals:
 """
 
 import asyncio
-import pytest
 import time
-from unittest.mock import AsyncMock, Mock, patch, call
-from datetime import datetime, timezone
 from collections import deque
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import polars as pl
+import pytest
 
 from project_x_py.realtime_data_manager.data_processing import DataProcessingMixin
 from project_x_py.types.trading import TradeLogType
@@ -75,43 +75,33 @@ class MockRealtimeDataManager(DataProcessingMixin):
 
     async def _trigger_callbacks(self, event_type, data):
         """Mock callback triggering."""
-        pass
 
     async def _cleanup_old_data(self):
         """Mock cleanup."""
-        pass
 
     async def track_error(self, error, context, details=None):
         """Mock error tracking."""
-        pass
 
     async def track_quote_processed(self):
         """Mock quote tracking."""
-        pass
 
     async def track_trade_processed(self):
         """Mock trade tracking."""
-        pass
 
     async def track_tick_processed(self):
         """Mock tick tracking."""
-        pass
 
     async def track_bar_created(self, timeframe):
         """Mock bar creation tracking."""
-        pass
 
     async def track_bar_updated(self, timeframe):
         """Mock bar update tracking."""
-        pass
 
     async def record_timing(self, metric, duration_ms):
         """Mock timing recording."""
-        pass
 
     async def increment(self, metric, value=1):
         """Mock metric increment."""
-        pass
 
 
 class TestDataProcessingMixinQuoteHandling:

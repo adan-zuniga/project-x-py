@@ -15,21 +15,22 @@ Coverage focus areas:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
-import pytest
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import pytest
+
+from project_x_py.event_bus import EventBus
 from project_x_py.exceptions import (
-    ProjectXError,
-    ProjectXConnectionError,
     ProjectXAuthenticationError,
+    ProjectXConnectionError,
+    ProjectXError,
     ProjectXServerError,
 )
 from project_x_py.models import Position
+from project_x_py.position_manager import PositionManager
 from project_x_py.types import PositionType
 from project_x_py.types.response_types import RiskAnalysisResponse
-from project_x_py.position_manager import PositionManager
-from project_x_py.event_bus import EventBus
 
 
 @pytest.fixture

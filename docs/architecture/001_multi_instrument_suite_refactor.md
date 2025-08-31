@@ -110,7 +110,7 @@ class TradingSuite:
 
 ```python
 # Single instrument (backward compatible)
-suite_single = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+suite_single = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
 
 # Multiple instruments
 suite_multi = await TradingSuite.create(

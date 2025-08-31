@@ -17,7 +17,7 @@ from project_x_py import TradingSuite
 
 async def main():
     # Simple one-liner with defaults
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Everything is ready - client authenticated, realtime connected
     await suite.disconnect()
@@ -29,9 +29,9 @@ asyncio.run(main())
 
 ```python
 async def advanced_setup():
-    # Single instrument (backward compatible)
-    suite = await TradingSuite.create(
-        "MNQ",  # Single instrument string
+    # Single instrument (backward compatible, but list is recommended)
+    suite_single = await TradingSuite.create(
+        ["MNQ"],  # List notation is preferred
         timeframes=["1min", "5min", "15min"],
         features=["orderbook", "risk_manager"],
         initial_days=10,
@@ -39,7 +39,7 @@ async def advanced_setup():
     )
 
     # Multi-instrument (recommended for v3.5.0+)
-    suite = await TradingSuite.create(
+    suite_multi = await TradingSuite.create(
         ["MNQ", "MES", "MCL"],  # List of instruments
         timeframes=["1min", "5min", "15min"],
         features=["orderbook", "risk_manager"],
@@ -48,13 +48,14 @@ async def advanced_setup():
     )
 
     # Access components (single instrument)
-    if len(suite) == 1:
-        # Backward compatible access (shows deprecation warning)
-        print(f"Data: {suite.data}")
-        print(f"Orders: {suite.orders}")
+    if len(suite_single) == 1:
+        # New recommended access
+        mnq_context = suite_single["MNQ"]
+        print(f"Data: {mnq_context.data}")
+        print(f"Orders: {mnq_context.orders}")
 
     # Access components (multi-instrument - recommended)
-    for symbol, context in suite.items():
+    for symbol, context in suite_multi.items():
         print(f"{symbol} Data: {context.data}")
         print(f"{symbol} Orders: {context.orders}")
         print(f"{symbol} Positions: {context.positions}")
@@ -63,7 +64,8 @@ async def advanced_setup():
         if context.risk_manager:  # if enabled
             print(f"{symbol} RiskManager: {context.risk_manager}")
 
-    await suite.disconnect()
+    await suite_single.disconnect()
+    await suite_multi.disconnect()
 ```
 
 ### Session Configuration (v3.4.0+)
@@ -77,14 +79,14 @@ from project_x_py.sessions import SessionConfig, SessionType, SessionTimes
 async def session_setup():
     # RTH-only trading (9:30 AM - 4:00 PM ET)
     rth_suite = await TradingSuite.create(
-        "MNQ",  # Positional argument
+        instruments=["MNQ"],
         timeframes=["1min", "5min"],
         session_config=SessionConfig(session_type=SessionType.RTH)
     )
 
     # ETH-only analysis (overnight sessions)
     eth_suite = await TradingSuite.create(
-        "ES",  # Positional argument
+        instruments=["ES"],
         session_config=SessionConfig(session_type=SessionType.ETH)
     )
 
@@ -102,7 +104,7 @@ async def session_setup():
     )
 
     custom_suite = await TradingSuite.create(
-        "CL",  # Positional argument
+        instruments=["CL"],
         session_config=custom_config
     )
 
@@ -120,7 +122,7 @@ async def config_file_setup():
 
     # Or from dictionary
     config = {
-        "instrument": "MNQ",
+        "instruments": ["MNQ"],
         "timeframes": ["1min", "5min"],
         "features": ["orderbook"],
         "initial_days": 5
@@ -199,7 +201,7 @@ async def multi_instrument_trading():
             side=0,  # Buy
             size=1
         )
-        print(f"{symbol} order placed: {order.id}")
+        print(f"{symbol} order placed: {order.order_id}")
 
     # Monitor positions across all instruments
     total_exposure = 0
@@ -256,7 +258,7 @@ features = [
 ]
 
 suite = await TradingSuite.create(
-    "MNQ",
+    ["MNQ"],
     features=features
 )
 ```
@@ -306,7 +308,7 @@ async def custom_configuration():
     )
 
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         order_manager_config=order_config,
         position_manager_config=position_config,
         risk_config=risk_config,
@@ -322,25 +324,13 @@ async def custom_configuration():
 
 ```python
 async def component_access():
-    suite = await TradingSuite.create("MNQ", features=["orderbook", "risk_manager"])
+    suite = await TradingSuite.create(["MNQ"], features=["orderbook", "risk_manager"])
 
     # Global components (always available)
     client = suite.client              # ProjectX API client
     realtime = suite.realtime         # ProjectXRealtimeClient
 
-    # Single instrument access (backward compatible, shows deprecation warning)
-    if len(suite) == 1:
-        orders = suite.orders          # OrderManager (deprecated)
-        positions = suite.positions    # PositionManager (deprecated)
-        data = suite.data             # RealtimeDataManager (deprecated)
-
-        # Optional components (deprecated access)
-        if suite.orderbook:
-            orderbook = suite.orderbook   # OrderBook (Level 2) (deprecated)
-        if suite.risk_manager:
-            risk_mgr = suite.risk_manager # RiskManager (deprecated)
-
-    # Multi-instrument access (recommended)
+    # Single instrument access (new recommended way)
     mnq_context = suite["MNQ"]
     orders = mnq_context.orders          # OrderManager for MNQ
     positions = mnq_context.positions    # PositionManager for MNQ
@@ -365,26 +355,27 @@ async def component_access():
 
 ```python
 async def order_operations():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
 
     # Place market order
-    market_order = await suite.orders.place_market_order(
-        contract_id=suite.instrument_id,
+    market_order = await mnq_context.orders.place_market_order(
+        contract_id=mnq_context.instrument_info.id,
         side=0,  # Buy
         size=1
     )
 
     # Place limit order
-    limit_order = await suite.orders.place_limit_order(
-        contract_id=suite.instrument_id,
+    limit_order = await mnq_context.orders.place_limit_order(
+        contract_id=mnq_context.instrument_info.id,
         side=0,  # Buy
         size=1,
         limit_price=21050.0
     )
 
     # Place bracket order
-    bracket_result = await suite.orders.place_bracket_order(
-        contract_id=suite.instrument_id,
+    bracket_result = await mnq_context.orders.place_bracket_order(
+        contract_id=mnq_context.instrument_info.id,
         side=0,  # Buy
         size=1,
         entry_price=21050.0,
@@ -399,20 +390,21 @@ async def order_operations():
 
 ```python
 async def position_operations():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get current position
-    position = await suite.positions.get_position("MNQ")
+    position = await mnq_positions.get_position("MNQ")
     if position:
         print(f"Size: {position.size}")
         print(f"Avg Price: {position.avg_price}")
         print(f"Unrealized PnL: {position.unrealized_pnl}")
 
     # Get all positions
-    all_positions = await suite.positions.get_all_positions()
+    positions = await suite["MNQ"].positions.get_all_positions()
 
     # Get position metrics
-    metrics = await suite.positions.get_metrics()
+    metrics = await mnq_positions.get_metrics()
     print(f"Total PnL: {metrics.get('total_pnl', 0)}")
     print(f"Win Rate: {metrics.get('win_rate', 0):.1%}")
 
@@ -423,20 +415,21 @@ async def position_operations():
 
 ```python
 async def data_access():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"], features=["orderbook"])
+    mnq_context = suite["MNQ"]
 
     # Get historical data via client
     historical = await suite.client.get_bars("MNQ", days=5, interval=60)
 
     # Get real-time data
-    current_price = await suite.data.get_current_price()
-    latest_bars_1min = await suite.data.get_data("1min")
-    latest_bars_5min = await suite.data.get_data("5min")
+    current_price = await mnq_context.data.get_current_price()
+    latest_bars_1min = await mnq_context.data.get_data("1min")
+    latest_bars_5min = await mnq_context.data.get_data("5min")
 
     # OrderBook data (if enabled)
-    if suite.orderbook:
-        depth = await suite.orderbook.get_depth()
-        trades = await suite.orderbook.get_recent_trades()
+    if mnq_context.orderbook:
+        depth = await mnq_context.orderbook.get_depth()
+        trades = await mnq_context.orderbook.get_recent_trades()
 
     await suite.disconnect()
 ```
@@ -449,21 +442,22 @@ from project_x_py.sessions import SessionType
 async def session_data_access():
     # Create suite with session configuration
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["1min", "5min"],
         session_config=SessionConfig(session_type=SessionType.RTH)
     )
+    mnq_data = suite["MNQ"].data
 
     # Get session-specific data
-    rth_data = await suite.data.get_session_bars("5min", SessionType.RTH)
-    eth_data = await suite.data.get_session_bars("5min", SessionType.ETH)
+    rth_data = await mnq_data.get_session_bars("5min", SessionType.RTH)
+    eth_data = await mnq_data.get_session_bars("5min", SessionType.ETH)
 
     # Session trades
-    rth_trades = await suite.data.get_session_trades(SessionType.RTH)
+    rth_trades = await mnq_data.get_session_trades(SessionType.RTH)
 
     # Session statistics
     from project_x_py.sessions import SessionStatistics
-    stats = SessionStatistics(suite)
+    stats = SessionStatistics(suite["MNQ"])
     rth_stats = await stats.calculate_session_stats(SessionType.RTH)
 
     print(f"RTH Volatility: {rth_stats['volatility']:.2%}")
@@ -480,7 +474,8 @@ async def session_data_access():
 from project_x_py import EventType
 
 async def event_handling():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_context = suite["MNQ"]
 
     # Register event handlers
     async def on_new_bar(event):
@@ -493,9 +488,9 @@ async def event_handling():
         print(f"Position changed: {event.data}")
 
     # Register handlers
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.ORDER_FILLED, on_order_filled)
-    await suite.on(EventType.POSITION_CHANGED, on_position_changed)
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
+    await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq_context.on(EventType.POSITION_CHANGED, on_position_changed)
 
     # Keep running to receive events
     await asyncio.sleep(60)
@@ -508,21 +503,22 @@ async def event_handling():
 
 ```python
 async def statistics_monitoring():
-    suite = await TradingSuite.create("MNQ", features=["orderbook", "risk_manager"])
+    suite = await TradingSuite.create(["MNQ"], features=["orderbook", "risk_manager"])
+    mnq_context = suite["MNQ"]
 
     # Get system statistics (async-first API)
-    stats = await suite.get_stats()
+    stats = await suite.get_statistics()
     print(f"System Health: {stats['health_score']:.1f}/100")
     print(f"API Success Rate: {stats['api_success_rate']:.1%}")
     print(f"Memory Usage: {stats['memory_usage_mb']:.1f} MB")
 
     # Component-specific statistics
-    order_stats = await suite.orders.get_stats()
-    position_stats = await suite.positions.get_stats()
-    data_stats = await suite.data.get_stats()
+    order_stats = await mnq_context.orders.get_stats()
+    position_stats = await mnq_context.positions.get_stats()
+    data_stats = await mnq_context.data.get_stats()
 
-    if suite.orderbook:
-        orderbook_stats = await suite.orderbook.get_stats()
+    if mnq_context.orderbook:
+        orderbook_stats = await mnq_context.orderbook.get_stats()
 
     # Export statistics
     prometheus_metrics = await suite.export_stats("prometheus")
@@ -535,12 +531,12 @@ async def statistics_monitoring():
 
 ```python
 async def health_monitoring():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
 
     # Real-time health monitoring
     health_score = await suite.get_health_score()
     if health_score < 70:
-        print(f" System health degraded: {health_score:.1f}/100")
+        print(f" System health degraded: {health_score:.1f}/100")
 
         # Get component health breakdown
         component_health = await suite.get_component_health()
@@ -557,16 +553,19 @@ async def health_monitoring():
 
 ```python
 from project_x_py.risk_manager import ManagedTrade
+from project_x_py import Features
 
 async def risk_managed_trading():
-    suite = await TradingSuite.create("MNQ", features=["risk_manager"])
+    suite = await TradingSuite.create(["MNQ"], features=[Features.RISK_MANAGER])
+    mnq_context = suite["MNQ"]
 
     # Create a managed trade with risk controls
     managed_trade = ManagedTrade(
-        suite=suite,
-        max_risk_per_trade=100.0,  # $100 max risk
-        risk_reward_ratio=2.0,     # 1:2 risk/reward
-        max_position_size=3        # Max 3 contracts
+        risk_manager=mnq_context.risk_manager,
+        order_manager=mnq_context.orders,
+        position_manager=mnq_context.positions,
+        instrument_id=mnq_context.instrument_info.id,
+        data_manager=mnq_context.data # Pass data_manager for ATR calculations etc.
     )
 
     # Execute the trade with automatic risk management
@@ -591,24 +590,25 @@ async def risk_managed_trading():
 
 ```python
 async def order_lifecycle():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_context = suite["MNQ"]
 
     # Track order lifecycle
-    tracker = suite.track_order()
+    tracker = mnq_context.track_order()
 
     # Create order chain
-    chain = suite.order_chain()
+    chain = mnq_context.order_chain()
 
     # Build complex order sequence
     entry_order = await chain.add_market_order(
-        contract_id=suite.instrument_id,
+        contract_id=mnq_context.instrument_info.id,
         side=0,
         size=1
     )
 
     # Add conditional orders
     await chain.add_stop_order(
-        contract_id=suite.instrument_id,
+        contract_id=mnq_context.instrument_info.id,
         side=1,  # Sell to close
         size=1,
         stop_price=21000.0,
@@ -625,32 +625,33 @@ async def order_lifecycle():
 
 ### Lifecycle Management
 
+### Context Manager (Recommended)
+
 ```python
-async def connection_lifecycle():
-    # Context manager (recommended)
-    async with TradingSuite.create("MNQ") as suite:
-        # Suite automatically connects on entry
-        await suite.orders.place_market_order(
-            contract_id=suite.instrument_id,
-            side=0,
+async def context_manager_usage():
+    # Recommended: Use context manager for automatic cleanup
+    async with TradingSuite.create(["MNQ"]) as suite:
+        mnq_context = suite["MNQ"]
+        # Suite is automatically connected on entry
+
+        current_price = await mnq_context.data.get_current_price()
+        print(f"Current Price: ${current_price:.2f}")
+
+        # Place a trade
+        order = await mnq_context.orders.place_market_order(
+            contract_id=mnq_context.instrument_info.id,
+            side=0,  # Buy
             size=1
         )
-        # Suite automatically disconnects on exit
 
-    # Manual management
-    suite = await TradingSuite.create("MNQ")
-    try:
-        # Trading operations
-        pass
-    finally:
-        await suite.disconnect()
+        # Suite automatically disconnects on exit
 ```
 
 ### Reconnection Handling
 
 ```python
 async def reconnection_handling():
-    suite = await TradingSuite.create("MNQ", features=["auto_reconnect"])
+    suite = await TradingSuite.create(["MNQ"], features=["auto_reconnect"])
 
     # Check connection status
     client_connected = await suite.client.is_connected()
@@ -679,7 +680,7 @@ timeframes:
 features:
   - "orderbook"
   - "risk_manager"
-initial_days: 10
+initial_days: 7
 timezone: "America/Chicago"
 
 order_manager:
@@ -728,10 +729,10 @@ orderbook:
 
 ```python
 # Recommended: Use TradingSuite.create()
-suite = await TradingSuite.create("MNQ", features=["orderbook"])
+suite = await TradingSuite.create(["MNQ"], features=["orderbook"])
 
 # Good: Use context manager for automatic cleanup
-async with TradingSuite.create("MNQ") as suite:
+async with TradingSuite.create(["MNQ"]) as suite:
     # Trading operations
     pass
 
@@ -742,17 +743,20 @@ async with TradingSuite.create("MNQ") as suite:
 
 ### Error Handling
 
+### Error Handling
+
 ```python
 from project_x_py.exceptions import ProjectXError
 
 async def robust_trading():
     try:
-        suite = await TradingSuite.create("MNQ")
+        suite = await TradingSuite.create(["MNQ"])
+        mnq_context = suite["MNQ"]
 
         # Trading operations with error handling
         try:
-            order = await suite.orders.place_market_order(
-                contract_id=suite.instrument_id,
+            order = await mnq_context.orders.place_market_order(
+                contract_id=mnq_context.instrument_info.id,
                 side=0,
                 size=1
             )
@@ -771,11 +775,11 @@ async def robust_trading():
 ```python
 async def resource_management():
     # Monitor resource usage
-    suite = await TradingSuite.create("MNQ", features=["orderbook"])
+    suite = await TradingSuite.create(["MNQ"], features=["orderbook"])
 
     # Periodic health checks
     while True:
-        stats = await suite.get_stats()
+        stats = await suite.get_statistics()
         memory_mb = stats.get('memory_usage_mb', 0)
 
         if memory_mb > 100:  # MB threshold

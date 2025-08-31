@@ -73,8 +73,8 @@ Trading Considerations:
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, ClassVar
+from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING, Any, ClassVar, Union
 
 import pytz
 
@@ -518,3 +518,452 @@ class DSTHandlingMixin:
             self.dst_logger.error(f"Error predicting next DST transition: {e}")
 
         return None
+
+    def check_dst_transition(self, timestamp: datetime) -> dict[str, Any] | None:
+        """
+        Check for DST transitions around the given timestamp.
+
+        Args:
+            timestamp: Timestamp to check for nearby DST transitions
+
+        Returns:
+            Dictionary with transition info or None if no transition
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return None
+
+        try:
+            # Get DST transitions for the year
+            transitions = self.get_dst_transition_dates(timestamp.year)
+
+            # Check if we're within 24 hours of a transition
+            for transition_type, transition_date in transitions.items():
+                if (
+                    transition_date
+                    and abs((timestamp.date() - transition_date.date()).days) <= 1
+                ):
+                    if transition_type == "spring_forward":
+                        return {
+                            "type": "spring_forward",
+                            "transition_time": transition_date,
+                            "missing_hour": datetime(
+                                transition_date.year,
+                                transition_date.month,
+                                transition_date.day,
+                                2,
+                                0,
+                                0,
+                            ),
+                        }
+                    else:
+                        return {
+                            "type": "fall_back",
+                            "transition_time": transition_date,
+                            "duplicate_hour": datetime(
+                                transition_date.year,
+                                transition_date.month,
+                                transition_date.day,
+                                1,
+                                0,
+                                0,
+                            ),
+                        }
+
+            return None
+
+        except Exception as e:
+            self.dst_logger.error(f"Error checking DST transition: {e}")
+            return None
+
+    def is_missing_hour(
+        self, timestamp: datetime, transition_date: Union[date, datetime]
+    ) -> bool:
+        """
+        Check if timestamp falls in the missing hour during spring forward.
+
+        Args:
+            timestamp: Timestamp to check
+            transition_date: Date of the DST transition
+
+        Returns:
+            True if timestamp is in the missing hour
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return False
+
+        # Get the transition date
+        date_to_check = (
+            transition_date
+            if isinstance(transition_date, date)
+            and not isinstance(transition_date, datetime)
+            else transition_date.date()
+            if isinstance(transition_date, datetime)
+            else transition_date
+        )
+
+        # Only check times on the transition date
+        if timestamp.date() != date_to_check:
+            return False
+
+        # Get DST transition dates for this year
+        transitions = self.get_dst_transition_dates(timestamp.year)
+        spring_forward_date = transitions.get("spring_forward")
+
+        if (
+            spring_forward_date
+            and (
+                spring_forward_date.date()
+                if isinstance(spring_forward_date, datetime)
+                else spring_forward_date
+            )
+            == date_to_check
+            and timestamp.hour == 2
+        ):
+            # Spring forward typically happens at 2:00 AM -> 3:00 AM
+            # Times between 2:00 AM and 2:59:59 AM are missing
+            try:
+                # Try to localize with is_dst=None to trigger exceptions
+                self.timezone.localize(timestamp, is_dst=None)
+                return False
+            except pytz.NonExistentTimeError:
+                return True
+            except Exception:
+                return False
+
+        return False
+
+    def is_duplicate_hour(
+        self, timestamp: datetime, transition_date: Union[date, datetime]
+    ) -> bool:
+        """
+        Check if timestamp falls in the duplicate hour during fall back.
+
+        Args:
+            timestamp: Timestamp to check
+            transition_date: Date of the DST transition
+
+        Returns:
+            True if timestamp is in the duplicate hour
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return False
+
+        # Get the transition date
+        date_to_check = (
+            transition_date
+            if isinstance(transition_date, date)
+            and not isinstance(transition_date, datetime)
+            else transition_date.date()
+            if isinstance(transition_date, datetime)
+            else transition_date
+        )
+
+        # Only check times on the transition date
+        if timestamp.date() != date_to_check:
+            return False
+
+        # Get DST transition dates for this year
+        transitions = self.get_dst_transition_dates(timestamp.year)
+        fall_back_date = transitions.get("fall_back")
+
+        if (
+            fall_back_date
+            and (
+                fall_back_date.date()
+                if isinstance(fall_back_date, datetime)
+                else fall_back_date
+            )
+            == date_to_check
+            and timestamp.hour == 1
+        ):
+            # Fall back typically creates duplicate 1:00-2:00 AM hour
+            # Times between 1:00 AM and 1:59:59 AM occur twice
+            try:
+                # Try to localize with is_dst=None to trigger exceptions
+                self.timezone.localize(timestamp, is_dst=None)
+                return False
+            except pytz.AmbiguousTimeError:
+                return True
+            except Exception:
+                return False
+
+        return False
+
+    def adjust_bar_time_for_dst(self, timestamp: datetime) -> datetime:
+        """
+        Adjust bar time to handle DST transitions.
+
+        Args:
+            timestamp: Original timestamp
+
+        Returns:
+            Adjusted timestamp that accounts for DST
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return timestamp
+
+        try:
+            # Check if this is during a spring forward (missing hour)
+            if self.is_missing_hour(timestamp, timestamp.date()):
+                # Move to next valid hour (3 AM)
+                return timestamp.replace(hour=3, minute=0, second=0, microsecond=0)
+
+            # For fall back or normal times, return as-is
+            return timestamp
+
+        except Exception as e:
+            self.dst_logger.error(f"Error adjusting bar time for DST: {e}")
+            return timestamp
+
+    def get_dst_transition_dates(self, year: int) -> dict[str, Union[datetime, None]]:
+        """
+        Get DST transition dates for a given year.
+
+        Args:
+            year: Year to get transitions for
+
+        Returns:
+            Dictionary with spring_forward and fall_back dates
+        """
+        transitions: dict[str, Union[datetime, None]] = {
+            "spring_forward": None,
+            "fall_back": None,
+        }
+
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return transitions
+
+        try:
+            # For US timezones, DST typically:
+            # Spring forward: Second Sunday in March at 2:00 AM
+            # Fall back: First Sunday in November at 2:00 AM
+
+            # Find second Sunday in March
+            march_first = datetime(year, 3, 1)
+            days_until_sunday = (6 - march_first.weekday()) % 7
+            first_sunday_march = march_first + timedelta(days=days_until_sunday)
+            second_sunday_march = first_sunday_march + timedelta(days=7)
+            spring_forward = second_sunday_march.replace(
+                hour=2, minute=0, second=0, microsecond=0
+            )
+
+            # Find first Sunday in November
+            nov_first = datetime(year, 11, 1)
+            days_until_sunday = (6 - nov_first.weekday()) % 7
+            first_sunday_nov = nov_first + timedelta(days=days_until_sunday)
+            fall_back = first_sunday_nov.replace(
+                hour=2, minute=0, second=0, microsecond=0
+            )
+
+            transitions["spring_forward"] = spring_forward
+            transitions["fall_back"] = fall_back
+
+        except Exception as e:
+            self.dst_logger.error(f"Error getting DST transition dates: {e}")
+
+        return transitions
+
+    def is_dst_transition_day(self, check_date: Union[date, datetime]) -> bool:
+        """
+        Check if date is a DST transition day.
+
+        Args:
+            check_date: Date to check
+
+        Returns:
+            True if date has a DST transition
+        """
+        date_to_check = (
+            check_date
+            if isinstance(check_date, date) and not isinstance(check_date, datetime)
+            else check_date.date()
+            if isinstance(check_date, datetime)
+            else check_date
+        )
+        year = date_to_check.year
+        transitions = self.get_dst_transition_dates(year)
+
+        spring_match = (
+            transitions["spring_forward"] is not None
+            and (
+                transitions["spring_forward"].date()
+                if isinstance(transitions["spring_forward"], datetime)
+                else transitions["spring_forward"]
+            )
+            == date_to_check
+        )
+        fall_match = (
+            transitions["fall_back"] is not None
+            and (
+                transitions["fall_back"].date()
+                if isinstance(transitions["fall_back"], datetime)
+                else transitions["fall_back"]
+            )
+            == date_to_check
+        )
+
+        return spring_match or fall_match
+
+    def calculate_bar_intervals_across_dst(
+        self, start_time: datetime, interval: str, count: int
+    ) -> list[datetime]:
+        """
+        Calculate bar intervals that properly handle DST transitions.
+
+        Args:
+            start_time: Starting timestamp
+            interval: Interval string (e.g., "1hr", "1min")
+            count: Number of intervals to calculate
+
+        Returns:
+            List of timestamps accounting for DST
+        """
+        intervals = []
+        current = start_time
+
+        # Parse interval
+        if interval == "1hr":
+            delta = timedelta(hours=1)
+        elif interval == "1min":
+            delta = timedelta(minutes=1)
+        else:
+            # Parse other formats as needed
+            delta = timedelta(hours=1)  # Default
+
+        for _ in range(count):
+            # Check if current time is valid (not missing due to DST)
+            if not self.is_missing_hour(current, current.date()):
+                intervals.append(current)
+
+            current += delta
+
+        return intervals
+
+    def validate_timestamp_dst_aware(self, timestamp: datetime) -> bool:
+        """
+        Validate that timestamp is DST-aware and valid.
+
+        Args:
+            timestamp: Timestamp to validate
+
+        Returns:
+            True if timestamp is valid considering DST
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return True
+
+        try:
+            # Check if timestamp falls in missing hour
+            if self.is_missing_hour(timestamp, timestamp.date()):
+                return False
+
+            # Try to localize to verify it's valid
+            if timestamp.tzinfo is None:
+                self.timezone.localize(timestamp)
+
+            return True
+
+        except (pytz.NonExistentTimeError, pytz.AmbiguousTimeError):
+            return False
+        except Exception:
+            return True  # Assume valid if we can't determine otherwise
+
+    def resolve_ambiguous_time(
+        self, timestamp: datetime, first: bool = True
+    ) -> datetime:
+        """
+        Resolve ambiguous time during fall back transition.
+
+        Args:
+            timestamp: Ambiguous timestamp
+            first: True for first occurrence, False for second
+
+        Returns:
+            Resolved timestamp with proper DST info
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return timestamp
+
+        try:
+            if timestamp.tzinfo is None:
+                # Localize with is_dst parameter to resolve ambiguity
+                return self.timezone.localize(timestamp, is_dst=first)
+            else:
+                return timestamp
+
+        except Exception as e:
+            self.dst_logger.error(f"Error resolving ambiguous time: {e}")
+            return timestamp
+
+    def convert_to_local_time(self, utc_time: datetime) -> datetime:
+        """
+        Convert UTC time to local timezone with DST awareness.
+
+        Args:
+            utc_time: UTC timestamp
+
+        Returns:
+            Local timestamp with timezone info
+        """
+        if not hasattr(self, "timezone") or self.timezone is None:
+            return utc_time
+
+        try:
+            if utc_time.tzinfo is None:
+                utc_time = pytz.UTC.localize(utc_time)
+            elif utc_time.tzinfo != pytz.UTC:
+                utc_time = utc_time.astimezone(pytz.UTC)
+
+            return utc_time.astimezone(self.timezone)
+
+        except Exception as e:
+            self.dst_logger.error(f"Error converting to local time: {e}")
+            return utc_time
+
+    def get_next_valid_bar_time(
+        self, invalid_time: datetime, interval: str
+    ) -> datetime:
+        """
+        Get the next valid bar time after an invalid one.
+
+        Args:
+            invalid_time: Invalid timestamp (e.g., during spring forward)
+            interval: Bar interval
+
+        Returns:
+            Next valid timestamp
+        """
+        if interval == "1hr":
+            # For spring forward, next hour after 2 AM is 3 AM
+            return invalid_time.replace(hour=3, minute=0, second=0, microsecond=0)
+        else:
+            # For other intervals, just add the interval
+            return invalid_time + timedelta(hours=1)
+
+    def dst_transition_within_hours(self, timestamp: datetime, hours: int) -> bool:
+        """
+        Check if DST transition occurs within specified hours from timestamp.
+
+        Args:
+            timestamp: Starting timestamp
+            hours: Hours to look ahead
+
+        Returns:
+            True if DST transition occurs within the time window
+        """
+        end_time = timestamp + timedelta(hours=hours)
+
+        # Check all days in the range
+        current = timestamp.date()
+        end_date = end_time.date()
+
+        while current <= end_date:
+            if self.is_dst_transition_day(current):
+                return True
+            current += timedelta(days=1)
+
+        return False
+
+    def _init_dst_handling(self) -> None:
+        """Initialize DST handling - called by mixins that need it."""
+        # This method exists for compatibility with test setup

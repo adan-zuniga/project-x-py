@@ -25,12 +25,13 @@ from project_x_py import TradingSuite, EventType
 async def main():
     # Create suite with real-time capabilities
     suite = await TradingSuite.create(
-        "MNQ",
+        ["MNQ"],
         timeframes=["15sec", "1min"],
         initial_days=1  # Minimal historical data
     )
+    mnq_context = suite["MNQ"]
 
-    print(f"Real-time streaming started for {suite.instrument}")
+    print(f"Real-time streaming started for {mnq_context.symbol}")
     print(f"Connected: {suite.is_connected}")
 
     # Track statistics
@@ -68,9 +69,9 @@ async def main():
         print(f"Connection Status: {status}")
 
     # Register event handlers
-    await suite.on(EventType.TICK, on_tick)
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.CONNECTION_STATUS, on_connection_status)
+    await mnq_context.on(EventType.TICK, on_tick)
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
+    await mnq_context.on(EventType.CONNECTION_STATUS, on_connection_status)
 
     print("Listening for real-time data... Press Ctrl+C to exit")
 
@@ -79,8 +80,8 @@ async def main():
             await asyncio.sleep(10)
 
             # Display periodic status
-            current_price = await suite.data.get_current_price()
-            connection_health = await suite.data.get_connection_health()
+            current_price = await mnq_context.data.get_current_price()
+            connection_health = await mnq_context.data.get_connection_health()
 
             print(f"Status - Price: ${current_price:.2f} | Ticks: {tick_count} | Bars: {bar_count} | Health: {connection_health}")
 
@@ -208,14 +209,14 @@ class MultiTimeframeDataProcessor:
 
         for tf, analysis in self.last_analysis.items():
             trend_emoji = "=" if analysis['trend'] == 'bullish' else "="
-            momentum_emoji = "=" if analysis['momentum'] == 'strong' else "="
+            momentum_emoji = "=" if analysis['momentum'] == 'strong' else "="
 
             print(f"  {tf:>5} {trend_emoji} {analysis['trend']:>8} | RSI: {analysis['rsi']:>5.1f} | {momentum_emoji} {analysis['momentum']}")
 
         print("-" * 40)
 
         # Get current market data
-        current_price = await self.suite.data.get_current_price()
+        current_price = await self.suite["MNQ"].data.get_current_price()
         print(f"Current Price: ${current_price:.2f}")
         print()
 

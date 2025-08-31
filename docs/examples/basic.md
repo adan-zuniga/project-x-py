@@ -26,19 +26,20 @@ from project_x_py import TradingSuite
 async def main():
     # One-line setup - creates and connects everything
     suite = await TradingSuite.create(
-        "MNQ",  # Micro E-mini NASDAQ
+        ["MNQ"],  # Micro E-mini NASDAQ
         timeframes=["1min", "5min"],  # Optional: specific timeframes
         initial_days=3  # Optional: historical data to load
     )
+    mnq_context = suite["MNQ"]
 
     print(f"Connected: {suite.is_connected}")
-    print(f"Instrument: {suite.instrument}")
-    print(f"Current Price: {await suite.data.get_current_price()}")
+    print(f"Instrument: {mnq_context.symbol}")
+    print(f"Current Price: {await mnq_context.data.get_current_price()}")
 
     # Access all managers directly
-    print(f"Data Manager: {type(suite.data).__name__}")
-    print(f"Order Manager: {type(suite.orders).__name__}")
-    print(f"Position Manager: {type(suite.positions).__name__}")
+    print(f"Data Manager: {type(mnq_context.data).__name__}")
+    print(f"Order Manager: {type(mnq_context.orders).__name__}")
+    print(f"Position Manager: {type(mnq_context.positions).__name__}")
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -94,15 +95,16 @@ from datetime import datetime, timedelta
 from project_x_py import TradingSuite
 
 async def main():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min", "5min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min", "5min"])
+    mnq_data = suite["MNQ"].data
 
     # Get current market data
-    current_price = await suite.data.get_current_price()
+    current_price = await mnq_data.get_current_price()
     print(f"Current Price: ${current_price:,.2f}")
 
     # Get historical bars for different timeframes
-    bars_1min = await suite.data.get_data("1min")
-    bars_5min = await suite.data.get_data("5min")
+    bars_1min = await mnq_data.get_data("1min")
+    bars_5min = await mnq_data.get_data("5min")
 
     print(f"1min bars: {len(bars_1min)} records")
     print(f"5min bars: {len(bars_5min)} records")
@@ -143,14 +145,15 @@ import asyncio
 from project_x_py import TradingSuite
 
 async def main():
-    suite = await TradingSuite.create("MNQ")
+    suite = await TradingSuite.create(["MNQ"])
+    mnq_positions = suite["MNQ"].positions
 
     # Get all current positions
-    positions = await suite.positions.get_all_positions()
+    positions = await mnq_positions.get_all_positions()
     print(f"Total positions: {len(positions)}")
 
     # Check specific instrument position
-    mnq_position = await suite.positions.get_position("MNQ")
+    mnq_position = await mnq_positions.get_position("MNQ")
     if mnq_position:
         print(f"MNQ Position:")
         print(f"  Size: {mnq_position.size}")
@@ -162,7 +165,7 @@ async def main():
         print("No MNQ position found")
 
     # Get portfolio-level statistics
-    portfolio_stats = await suite.positions.get_portfolio_stats()
+    portfolio_stats = await mnq_positions.get_portfolio_stats()
     print(f"Portfolio Stats:")
     print(f"  Total P&L: ${portfolio_stats.get('total_pnl', 0):.2f}")
     print(f"  Open Positions: {portfolio_stats.get('open_positions', 0)}")
@@ -185,10 +188,11 @@ from project_x_py import TradingSuite
 from project_x_py.indicators import SMA, RSI, MACD, ATR
 
 async def main():
-    suite = await TradingSuite.create("MNQ", timeframes=["5min"], initial_days=5)
+    suite = await TradingSuite.create(["MNQ"], timeframes=["5min"], initial_days=5)
+    mnq_data = suite["MNQ"].data
 
     # Get market data
-    bars = await suite.data.get_data("5min")
+    bars = await mnq_data.get_data("5min")
     print(f"Calculating indicators on {len(bars)} bars")
 
     # Simple Moving Average
@@ -244,7 +248,8 @@ import asyncio
 from project_x_py import TradingSuite, EventType
 
 async def main():
-    suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+    suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+    mnq_context = suite["MNQ"]
 
     # Define event handlers
     async def on_new_bar(event):
@@ -256,8 +261,8 @@ async def main():
         print(f"New tick: ${tick_data.get('price', 0):.2f}")
 
     # Register event handlers
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.TICK, on_tick)
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
+    await mnq_context.on(EventType.TICK, on_tick)
 
     print("Listening for events... Press Ctrl+C to exit")
 
@@ -267,7 +272,7 @@ async def main():
             await asyncio.sleep(1)
 
             # Display current data periodically
-            current_price = await suite.data.get_current_price()
+            current_price = await mnq_context.data.get_current_price()
             print(f"Current price: ${current_price:.2f}")
 
     except KeyboardInterrupt:
@@ -339,18 +344,19 @@ logger = logging.getLogger(__name__)
 
 async def main():
     try:
-        suite = await TradingSuite.create("MNQ", timeframes=["1min"])
+        suite = await TradingSuite.create(["MNQ"], timeframes=["1min"])
+        mnq_context = suite["MNQ"]
 
         # Attempt to get data with error handling
         try:
-            current_price = await suite.data.get_current_price()
+            current_price = await mnq_context.data.get_current_price()
             logger.info(f"Current price: ${current_price:.2f}")
         except ProjectXException as e:
             logger.error(f"Failed to get current price: {e}")
 
         # Attempt to get positions with error handling
         try:
-            positions = await suite.positions.get_all_positions()
+            positions = await mnq_context.positions.get_all_positions()
             logger.info(f"Retrieved {len(positions)} positions")
         except ProjectXException as e:
             logger.error(f"Failed to get positions: {e}")

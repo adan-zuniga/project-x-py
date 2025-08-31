@@ -89,6 +89,7 @@ class TestDataProcessing:
         async def process_ticks() -> None:
             # Create a mock data manager
             from unittest.mock import AsyncMock, MagicMock
+
             from project_x_py.realtime_data_manager import RealtimeDataManager
 
             # Create minimal mock components

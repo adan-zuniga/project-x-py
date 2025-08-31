@@ -8,13 +8,14 @@ Author: TDD Implementation
 Date: 2025-08-28
 """
 
-import pytest
 import asyncio
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import polars as pl
-from datetime import datetime, timezone, timedelta
 
-from project_x_py import TradingSuite, EventType
+import polars as pl
+import pytest
+
+from project_x_py import EventType, TradingSuite
 from project_x_py.sessions import SessionConfig, SessionType
 
 
