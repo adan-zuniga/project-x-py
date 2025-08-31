@@ -78,7 +78,7 @@ asyncio.run(multi_instrument_main())
 async def multi_timeframe_setup():
     # Setup with multiple timeframes for analysis
     suite = await TradingSuite.create(
-        instruments=["MNQ"],  # Single instrument with multiple timeframes
+        ["MNQ"],  # Single instrument with multiple timeframes
         timeframes=["1min", "5min", "15min"],
         initial_days=10  # Load 10 days of historical data
     )
@@ -99,7 +99,7 @@ async def multi_timeframe_setup():
 # Multi-instrument with multiple timeframes
 async def multi_instrument_timeframes():
     suite = await TradingSuite.create(
-        instruments=["MNQ", "ES"],
+        ["MNQ", "ES"],  # List of instruments
         timeframes=["1min", "5min", "15min"]
     )
 
@@ -119,7 +119,7 @@ asyncio.run(multi_timeframe_setup())
 async def feature_setup():
     # Enable optional features for multiple instruments
     suite = await TradingSuite.create(
-        instruments=["MNQ", "ES"],
+        ["MNQ", "ES"],  # List of instruments
         timeframes=["1min", "5min"],
         features=["orderbook", "risk_manager"]
     )
@@ -156,7 +156,7 @@ from project_x_py import TradingSuite
 
 async def basic_config():
     suite = await TradingSuite.create(
-        instrument="ES",           # E-mini S&P 500
+        "ES",                      # E-mini S&P 500 (positional argument)
         timeframes=["5min"],       # Single timeframe
         initial_days=5,            # 5 days of history
         timezone="America/New_York", # Eastern timezone
@@ -196,7 +196,7 @@ async def advanced_config():
     )
 
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        "MNQ",  # Positional argument
         timeframes=["1min", "5min"],
         features=["orderbook"],
         order_manager_config=order_config,
@@ -800,7 +800,7 @@ async def complete_trading_example():
 
     # Setup with multiple features
     suite = await TradingSuite.create(
-        instrument="MNQ",
+        "MNQ",  # Positional argument
         timeframes=["1min", "5min"],
         features=["orderbook", "risk_manager"],
         initial_days=5
@@ -856,7 +856,7 @@ async def complete_trading_example():
 
     async def on_order_filled(event):
         """Handle order fills."""
-        print(f" Order {event.order_id} filled at ${event.fill_price:.2f}")
+        print(f"Order {event.order_id} filled at ${event.fill_price:.2f}")
 
     async def on_position_changed(event):
         """Handle position changes."""
@@ -908,7 +908,7 @@ async def complete_trading_example():
 
         # Cleanup
         await suite.disconnect()
-        print("= Disconnected successfully")
+        print("= Disconnected successfully")
 
 # Run the example
 if __name__ == "__main__":
@@ -920,10 +920,10 @@ if __name__ == "__main__":
 ### Initialization
 
 ```python
-#  Recommended: Use TradingSuite.create()
+#  Recommended: Use TradingSuite.create()
 suite = await TradingSuite.create("MNQ", features=["orderbook"])
 
-#  Good: Use context manager for automatic cleanup
+#  Good: Use context manager for automatic cleanup
 async with TradingSuite.create("MNQ") as suite:
     # Trading operations
 
@@ -935,12 +935,12 @@ async with TradingSuite.create("MNQ") as suite:
 ### Resource Management
 
 ```python
-#  Good: Monitor resource usage
+#  Good: Monitor resource usage
 stats = await suite.get_stats()
 if stats['memory_usage_mb'] > 100:  # 100MB threshold
     print("High memory usage - consider cleanup")
 
-#  Good: Use appropriate features
+# Good: Use appropriate features
 features = ["orderbook"]  # Only what you need
 suite = await TradingSuite.create("MNQ", features=features)
 ```
@@ -948,7 +948,7 @@ suite = await TradingSuite.create("MNQ", features=features)
 ### Error Handling
 
 ```python
-#  Good: Handle connection errors
+# Good: Handle connection errors
 try:
     suite = await TradingSuite.create("MNQ")
 except ProjectXConnectionError:
@@ -956,7 +956,7 @@ except ProjectXConnectionError:
 except Exception as e:
     print(f"Unexpected error: {e}")
 
-#  Good: Check component availability
+# Good: Check component availability
 if suite.orderbook:
     depth = await suite.orderbook.get_depth()
 else:
@@ -966,13 +966,13 @@ else:
 ### Performance
 
 ```python
-#  Good: Use appropriate timeframes
+# Good: Use appropriate timeframes
 await TradingSuite.create("MNQ", timeframes=["5min", "15min"])  # What you need
 
 # L Wasteful: Too many timeframes
 # await TradingSuite.create("MNQ", timeframes=["15sec", "30sec", "1min", "2min", "5min"])
 
-#  Good: Batch operations when possible
+# Good: Batch operations when possible
 positions = await suite.positions.get_all_positions()  # Single call
 # vs multiple individual calls
 ```

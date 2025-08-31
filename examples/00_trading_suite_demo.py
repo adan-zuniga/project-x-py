@@ -32,17 +32,18 @@ async def main():
 
     # Everything is connected and ready!
     print(f"Connected: {suite.is_connected}")
-    print(f"Instrument: {suite.instrument}")
+    print(f"Instrument: {suite.symbol}")  # Use symbol property instead of instrument
 
-    # Access components directly
-    print("\n=== Component Access ===")
-    print(f"Data Manager: {suite.data}")
-    print(f"Order Manager: {suite.orders}")
-    print(f"Position Manager: {suite.positions}")
+    # Access components - new multi-instrument way (recommended)
+    print("\n=== Component Access (Recommended) ===")
+    mnq_context = suite["MNQ"]
+    print(f"Data Manager: {mnq_context.data}")
+    print(f"Order Manager: {mnq_context.orders}")
+    print(f"Position Manager: {mnq_context.positions}")
 
     # Get some data
     print("\n=== Market Data ===")
-    current_price = await suite.data.get_current_price()
+    current_price = await mnq_context.data.get_current_price()
     print(f"Current price: {current_price}")
 
     # Get stats

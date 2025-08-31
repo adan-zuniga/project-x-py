@@ -14,6 +14,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.2] - 2025-01-31
+
+### 🐛 Fixed
+
+**Session Management Bug Fixes**:
+- **Fixed AttributeError in Multi-Instrument Mode**: Session management methods (`set_session_type()`, `get_session_data()`, `get_session_statistics()`) were incorrectly using `_contexts` instead of `_instruments` attribute, causing AttributeError in multi-instrument mode
+- **Implementation Bugs**: Fixed actual implementation issues discovered during comprehensive testing (lines 1403, 1441, 1472 in trading_suite.py)
+- **Documentation Accuracy**: Updated all documentation to correctly reflect the actual API implementation
+
+### 📝 Documentation
+
+**Comprehensive Documentation Updates**:
+- **API Documentation**: Fixed all incorrect parameter usage examples (positional vs named arguments)
+- **Multi-Instrument Examples**: Added comprehensive multi-instrument usage examples with correct syntax
+- **Container Protocol**: Added complete documentation for dictionary-like access methods
+- **Deprecated Patterns**: Clearly marked deprecated access patterns with migration guidance
+- **Example Files**: Updated example files to use recommended API patterns
+
+### ✅ Testing
+
+**Comprehensive Test Coverage**:
+- **Added 51 new tests** in `test_trading_suite_complete_coverage.py` for 100% coverage
+- **TradingSuiteConfig Methods**: Full test coverage for all configuration generation methods
+- **Multi-Instrument Support**: Tests for parallel context creation and cleanup
+- **Container Protocol**: Complete testing of all dictionary-like methods
+- **Session Handling**: Tests for both single and multi-instrument session management
+- **Edge Cases**: Comprehensive error handling and edge case testing
+- **Backward Compatibility**: Tests ensuring deprecated patterns still work with warnings
+
+### 🔧 Changed
+
+- **Test-Driven Development**: All tests now follow strict TDD principles - tests define expected behavior, not current implementation
+- **88 total tests** for TradingSuite module, all passing with proper expectations
+
 ## [3.5.1] - 2025-01-30
 
 ### 🐛 Fixed
