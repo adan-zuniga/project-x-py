@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from project_x_py.orderbook.realtime import RealtimeHandler
 from project_x_py.orderbook.base import OrderBookBase
+from project_x_py.orderbook.realtime import RealtimeHandler
 from project_x_py.types import DomType
 
 

@@ -9,16 +9,17 @@ Author: TDD Implementation
 Date: 2025-08-28
 """
 
+from datetime import datetime, time, timedelta, timezone
+from typing import Any, Dict
+
 import pytest
-from datetime import time, datetime, timezone, timedelta
-from typing import Dict, Any
 
 # Note: These imports will fail initially - that's expected in RED phase
 from project_x_py.sessions import (
+    DEFAULT_SESSIONS,
     SessionConfig,
     SessionTimes,
-    DEFAULT_SESSIONS,
-    SessionType
+    SessionType,
 )
 
 

@@ -156,7 +156,7 @@ class MemoryManagementMixin(TaskManagerMixin):
         # Optional methods from overflow mixin
         async def _check_overflow_needed(self, _timeframe: str) -> bool: ...
         async def _overflow_to_disk(self, _timeframe: str) -> None: ...
-        async def get_overflow_stats(self) -> dict[str, Any]: ...
+        async def get_overflow_stats(self, timeframe: str) -> dict[str, Any]: ...
 
     def __init__(self) -> None:
         """Initialize memory management attributes."""
@@ -520,9 +520,9 @@ class MemoryManagementMixin(TaskManagerMixin):
 
         # Add overflow stats if available
         overflow_stats = {}
-        if hasattr(self, "get_overflow_stats"):
+        if hasattr(self, "get_overflow_stats_summary"):
             try:
-                method = self.get_overflow_stats
+                method = self.get_overflow_stats_summary
                 if callable(method):
                     # Method is always async now
                     overflow_stats = await method()

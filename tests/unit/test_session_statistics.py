@@ -9,19 +9,20 @@ Author: TDD Implementation
 Date: 2025-08-28
 """
 
-import pytest
-import polars as pl
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+import polars as pl
+import pytest
 
 # Note: These imports will fail initially - that's expected in RED phase
 from project_x_py.sessions import (
-    SessionStatistics,
-    SessionFilterMixin,
+    SessionAnalytics,
     SessionConfig,
+    SessionFilterMixin,
+    SessionStatistics,
     SessionType,
-    SessionAnalytics
 )
 
 
@@ -472,8 +473,9 @@ class TestSessionStatisticsIntegration:
     @pytest.mark.asyncio
     async def test_session_statistics_memory_efficiency(self, large_session_dataset):
         """Should be memory efficient with large datasets."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         memory_before = process.memory_info().rss / 1024 / 1024  # MB

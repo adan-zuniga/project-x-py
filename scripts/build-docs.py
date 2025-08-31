@@ -54,9 +54,9 @@ def run_command(cmd, cwd=None, capture_output=False):
 def check_dependencies():
     """Check if required dependencies are installed."""
     try:
-        import myst_parser
-        import sphinx
-        import sphinx_rtd_theme
+        __import__("myst_parser")
+        __import__("sphinx")
+        __import__("sphinx_rtd_theme")
 
         print("✅ Documentation dependencies found")
         return True
@@ -77,7 +77,7 @@ def clean_build_dir(docs_dir):
             run_command(f"rm -rf {build_dir}", cwd=docs_dir)
         print("✅ Build directory cleaned")
     else:
-        print("ℹ️  Build directory already clean")
+        print("i  Build directory already clean")
 
 
 def build_html(docs_dir):
@@ -144,7 +144,7 @@ def serve_docs(docs_dir):
     try:
         # Try to use sphinx-autobuild if available
         run_command("sphinx-autobuild . _build/html", cwd=docs_dir)
-    except:
+    except Exception:
         print(
             "⚠️  sphinx-autobuild not found, install with: uv add --dev sphinx-autobuild"
         )

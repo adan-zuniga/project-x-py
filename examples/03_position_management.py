@@ -493,9 +493,9 @@ async def main() -> bool:
                         # Use a simple default rather than waiting for input on interrupt
                         print("Auto-closing positions for safety...")
                         cleanup_positions = True
-                    except:
+                    except Exception:
                         cleanup_positions = True
-            except:
+            except Exception:
                 pass
 
         return False

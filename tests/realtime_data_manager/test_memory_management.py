@@ -82,7 +82,6 @@ class MockRealtimeDataManager(MemoryManagementMixin):
     # Mock methods for statistics
     async def increment(self, metric, value=1):
         """Mock increment method."""
-        pass
 
 
 class TestMemoryManagementMixinBasicFunctionality:

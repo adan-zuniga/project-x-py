@@ -35,11 +35,11 @@ class TestCallbackTypes:
         hints = get_type_hints(OrderUpdateData, include_extras=True)
 
         assert "order_id" in hints
-        assert hints["order_id"] == int
+        assert hints["order_id"] is int
         assert "status" in hints
-        assert hints["status"] == int
+        assert hints["status"] is int
         assert "timestamp" in hints
-        assert hints["timestamp"] == str
+        assert hints["timestamp"] is str
 
         # Optional fields
         assert "order" in hints
@@ -51,30 +51,30 @@ class TestCallbackTypes:
         hints = get_type_hints(OrderFilledData, include_extras=True)
 
         assert "order_id" in hints
-        assert hints["order_id"] == int
+        assert hints["order_id"] is int
         assert "order" in hints
-        assert hints["order"] == Order
+        assert hints["order"] is Order
         assert "filled_price" in hints
-        assert hints["filled_price"] == float
+        assert hints["filled_price"] is float
         assert "filled_volume" in hints
-        assert hints["filled_volume"] == int
+        assert hints["filled_volume"] is int
 
     def test_position_update_data_structure(self):
         """Test PositionUpdateData structure."""
         hints = get_type_hints(PositionUpdateData, include_extras=True)
 
         assert "position_id" in hints
-        assert hints["position_id"] == int
+        assert hints["position_id"] is int
         assert "position" in hints
-        assert hints["position"] == Position
+        assert hints["position"] is Position
         assert "contract_id" in hints
-        assert hints["contract_id"] == str
+        assert hints["contract_id"] is str
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
         assert "average_price" in hints
-        assert hints["average_price"] == float
+        assert hints["average_price"] is float
         assert "type" in hints
-        assert hints["type"] == int
+        assert hints["type"] is int
 
         # Optional
         assert "old_position" in hints
@@ -84,9 +84,9 @@ class TestCallbackTypes:
         hints = get_type_hints(PositionClosedData, include_extras=True)
 
         assert "contract_id" in hints
-        assert hints["contract_id"] == str
+        assert hints["contract_id"] is str
         assert "position" in hints
-        assert hints["position"] == Position
+        assert hints["position"] is Position
         assert "timestamp" in hints
 
         # Optional P&L
@@ -98,9 +98,9 @@ class TestCallbackTypes:
 
         assert "contract_id" in hints
         assert "message" in hints
-        assert hints["message"] == str
+        assert hints["message"] is str
         assert "position" in hints
-        assert hints["position"] == Position
+        assert hints["position"] is Position
         assert "alert" in hints
 
     def test_quote_update_data_structure(self):
@@ -108,7 +108,7 @@ class TestCallbackTypes:
         hints = get_type_hints(QuoteUpdateData, include_extras=True)
 
         assert "contract_id" in hints
-        assert hints["contract_id"] == str
+        assert hints["contract_id"] is str
         assert "timestamp" in hints
 
         # Optional quote fields
@@ -124,11 +124,11 @@ class TestCallbackTypes:
 
         assert "contract_id" in hints
         assert "price" in hints
-        assert hints["price"] == float
+        assert hints["price"] is float
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
         assert "side" in hints
-        assert hints["side"] == int
+        assert hints["side"] is int
         assert "timestamp" in hints
 
         # Optional trade ID
@@ -148,7 +148,7 @@ class TestCallbackTypes:
         hints = get_type_hints(NewBarData, include_extras=True)
 
         assert "timeframe" in hints
-        assert hints["timeframe"] == str
+        assert hints["timeframe"] is str
         assert "data" in hints
         assert "timestamp" in hints
 
@@ -157,9 +157,9 @@ class TestCallbackTypes:
         hints = get_type_hints(AccountUpdateData, include_extras=True)
 
         assert "account_id" in hints
-        assert hints["account_id"] == int
+        assert hints["account_id"] is int
         assert "balance" in hints
-        assert hints["balance"] == float
+        assert hints["balance"] is float
         assert "timestamp" in hints
 
         # Optional fields
@@ -171,16 +171,16 @@ class TestCallbackTypes:
         hints = get_type_hints(TradeExecutionData, include_extras=True)
 
         assert "trade_id" in hints
-        assert hints["trade_id"] == int
+        assert hints["trade_id"] is int
         assert "order_id" in hints
-        assert hints["order_id"] == int
+        assert hints["order_id"] is int
         assert "contract_id" in hints
         assert "price" in hints
-        assert hints["price"] == float
+        assert hints["price"] is float
         assert "size" in hints
-        assert hints["size"] == int
+        assert hints["size"] is int
         assert "fees" in hints
-        assert hints["fees"] == float
+        assert hints["fees"] is float
 
         # Optional P&L
         assert "pnl" in hints
@@ -190,9 +190,9 @@ class TestCallbackTypes:
         hints = get_type_hints(ConnectionStatusData, include_extras=True)
 
         assert "hub" in hints
-        assert hints["hub"] == str
+        assert hints["hub"] is str
         assert "connected" in hints
-        assert hints["connected"] == bool
+        assert hints["connected"] is bool
         assert "timestamp" in hints
 
         # Optional error
@@ -203,9 +203,9 @@ class TestCallbackTypes:
         hints = get_type_hints(ErrorData, include_extras=True)
 
         assert "error_type" in hints
-        assert hints["error_type"] == str
+        assert hints["error_type"] is str
         assert "message" in hints
-        assert hints["message"] == str
+        assert hints["message"] is str
         assert "timestamp" in hints
 
         # Optional details
@@ -216,7 +216,7 @@ class TestCallbackTypes:
         hints = get_type_hints(SystemStatusData, include_extras=True)
 
         assert "status" in hints
-        assert hints["status"] == str
+        assert hints["status"] is str
         assert "timestamp" in hints
 
         # Optional message

@@ -72,11 +72,9 @@ class MockDataProcessingManager(DataProcessingMixin):
 
     async def _trigger_callbacks(self, event_type, data):
         """Mock callback triggering."""
-        pass
 
     async def _cleanup_old_data(self):
         """Mock cleanup."""
-        pass
 
     async def track_error(self, error, context, details=None):
         """Mock error tracking."""

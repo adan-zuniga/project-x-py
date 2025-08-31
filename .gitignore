@@ -285,3 +285,4 @@ coverage.xml
 test.py
 test.sh
 test.log
+benchmark.json

@@ -71,8 +71,8 @@ class TestEnhancedStatsTracking:
     @pytest.mark.asyncio
     async def test_pii_sanitization(self):
         """Test that PII is properly sanitized from exports."""
-        from project_x_py.statistics.export import StatsExporter
         from project_x_py.statistics.aggregator import StatisticsAggregator
+        from project_x_py.statistics.export import StatsExporter
 
         component = TestComponent()
 
@@ -179,9 +179,10 @@ class TestEnhancedStatsTracking:
     async def test_data_quality_tracking(self):
         """Test data quality metrics tracking."""
         # Since track_data_quality is OrderBook-specific, test with OrderBook
-        from project_x_py.orderbook import OrderBook
-        from project_x_py.event_bus import EventBus
         from unittest.mock import MagicMock
+
+        from project_x_py.event_bus import EventBus
+        from project_x_py.orderbook import OrderBook
 
         # Create OrderBook with mock dependencies
         mock_client = MagicMock()

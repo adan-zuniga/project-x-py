@@ -9,16 +9,17 @@ Date: 2025-08-28
 """
 
 import asyncio
-import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-import polars as pl
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from project_x_py.sessions import SessionConfig, SessionType, SessionFilterMixin
-from project_x_py.realtime_data_manager import RealtimeDataManager
-from project_x_py.realtime import ProjectXRealtimeClient
+import polars as pl
+import pytest
+
 from project_x_py import ProjectX
+from project_x_py.realtime import ProjectXRealtimeClient
+from project_x_py.realtime_data_manager import RealtimeDataManager
+from project_x_py.sessions import SessionConfig, SessionFilterMixin, SessionType
 
 
 class TestRealtimeSessionIntegration:

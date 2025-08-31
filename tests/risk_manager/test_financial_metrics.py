@@ -5,7 +5,7 @@ If tests fail, we fix the implementation, not the tests.
 """
 
 import statistics
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, Mock
 

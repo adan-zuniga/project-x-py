@@ -5,14 +5,15 @@ Provides common mocks and fixtures used across multiple test files.
 Follows the proven testing patterns from other successful modules.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
-from decimal import Decimal
 from datetime import datetime, timezone
-import polars as pl
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, Mock
 
-from project_x_py.models import Instrument
+import polars as pl
+import pytest
+
 from project_x_py.event_bus import EventBus
+from project_x_py.models import Instrument
 from project_x_py.types.config_types import DataManagerConfig
 
 

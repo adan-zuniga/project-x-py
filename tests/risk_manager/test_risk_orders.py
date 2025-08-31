@@ -7,14 +7,20 @@ If tests fail, we fix the implementation, not the tests.
 import asyncio
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
 
 from project_x_py.event_bus import EventBus
-from project_x_py.models import Account, Instrument, Order, Position, BracketOrderResponse
+from project_x_py.models import (
+    Account,
+    BracketOrderResponse,
+    Instrument,
+    Order,
+    Position,
+)
 from project_x_py.risk_manager import RiskConfig, RiskManager
-from project_x_py.types import OrderSide, OrderType, OrderStatus
+from project_x_py.types import OrderSide, OrderStatus, OrderType
 
 
 @pytest.fixture

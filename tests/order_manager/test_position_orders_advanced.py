@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
-from project_x_py.exceptions import ProjectXOrderError
-from project_x_py.models import Order, OrderPlaceResponse, Position, Account
-from project_x_py.types.trading import OrderSide, OrderStatus, OrderType
 from project_x_py.event_bus import EventBus
+from project_x_py.exceptions import ProjectXOrderError
+from project_x_py.models import Account, Order, OrderPlaceResponse, Position
 from project_x_py.order_manager.core import OrderManager
+from project_x_py.types.trading import OrderSide, OrderStatus, OrderType
 
 
 @pytest.fixture
