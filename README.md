@@ -1,10 +1,17 @@
 # ProjectX Python SDK
 
+[![CI](https://github.com/TexasCoding/project-x-py/workflows/CI/badge.svg)](https://github.com/TexasCoding/project-x-py/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/TexasCoding/project-x-py/branch/main/graph/badge.svg)](https://codecov.io/gh/TexasCoding/project-x-py)
+[![PyPI - Version](https://img.shields.io/pypi/v/project-x-py)](https://pypi.org/project/project-x-py/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/project-x-py)](https://pypi.org/project/project-x-py/)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![MyPy](https://img.shields.io/badge/mypy-checked-blue)](https://github.com/python/mypy)
+[![Security: bandit](https://img.shields.io/badge/security-bandit-green.svg)](https://github.com/PyCQA/bandit)
 [![Performance](https://img.shields.io/badge/performance-optimized-brightgreen.svg)](#performance-optimizations)
 [![Async](https://img.shields.io/badge/async-native-brightgreen.svg)](#async-architecture)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://texascoding.github.io/project-x-py/)
 
 A **high-performance async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, historical market data, real-time streaming, technical analysis, and advanced market microstructure tools with enterprise-grade performance optimizations.
 
@@ -826,8 +833,8 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 🔗 Resources
 
 - [ProjectX Platform](https://www.projectx.com/)
-- [API Documentation](https://documenter.getpostman.com/view/24500417/2s9YRCXrKF)
-- [GitHub Repository](https://github.com/yourusername/project-x-py)
+- [API Documentation](https://texascoding.github.io/project-x-py/)
+- [GitHub Repository](https://github.com/TexasCoding/project-x-py)
 - [PyPI Package](https://pypi.org/project/project-x-py/)
 
 ## ⚠️ Disclaimer

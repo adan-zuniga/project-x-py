@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/project-x-py.svg)](https://pypi.org/project/project-x-py/)
 [![Python versions](https://img.shields.io/pypi/pyversions/project-x-py.svg)](https://pypi.org/project/project-x-py/)
 [![License](https://img.shields.io/github/license/TexasCoding/project-x-py.svg)](https://github.com/TexasCoding/project-x-py/blob/main/LICENSE)
-[![Documentation Status](https://readthedocs.org/projects/project-x-py/badge/?version=latest)](https://project-x-py.readthedocs.io/en/latest/?badge=latest)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://texascoding.github.io/project-x-py/)
 
 **project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 59+ TA-Lib compatible indicators including pattern recognition and chaos theory analysis.
 
