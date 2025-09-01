@@ -388,3 +388,20 @@ class EventBus:
                 count = len(self._legacy_handlers.get(str(event), []))
                 count += len(self._wildcard_handlers)
                 return count
+
+    async def forward_to(self, target_bus: "EventBus") -> None:
+        """
+        Forward all events from this bus to the target bus.
+
+        This sets up a wildcard handler that forwards all events to another EventBus,
+        enabling event propagation from instrument-specific buses to the main suite bus.
+
+        Args:
+            target_bus: The EventBus to forward events to
+        """
+
+        async def forwarder(event: Event) -> None:
+            """Forward event to target bus."""
+            await target_bus.emit(event.type, event.data, event.source)
+
+        await self.on_any(forwarder)

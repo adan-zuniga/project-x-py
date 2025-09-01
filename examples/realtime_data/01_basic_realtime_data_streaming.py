@@ -58,9 +58,9 @@ async def main():
         print(f"Connection Status: {status}")
 
     # Register event handlers
-    await suite.on(EventType.QUOTE_UPDATE, on_tick)
-    await suite.on(EventType.NEW_BAR, on_new_bar)
-    await suite.on(EventType.CONNECTED, on_connection_status)
+    await mnq_context.on(EventType.QUOTE_UPDATE, on_tick)
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
+    await mnq_context.on(EventType.CONNECTED, on_connection_status)
 
     print("Listening for real-time data... Press Ctrl+C to exit")
 
