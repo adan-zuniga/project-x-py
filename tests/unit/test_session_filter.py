@@ -685,16 +685,17 @@ class TestSessionFilterBoundaryValidation:
 
     def test_daylight_saving_transitions(self, session_filter):
         """Test session filtering during DST transitions."""
-        # Spring forward: 2024-03-10 2:00 AM -> 3:00 AM ET
-        # Fall back: 2024-11-03 2:00 AM -> 1:00 AM ET
+        # Spring forward: 2024-03-10 2:00 AM -> 3:00 AM ET (Sunday)
+        # Fall back: 2024-11-03 2:00 AM -> 1:00 AM ET (Sunday)
+        # Test on the Monday after DST transitions when markets are open
 
-        # Test during spring DST transition
-        spring_forward = datetime(2024, 3, 10, 15, 0, tzinfo=timezone.utc)  # Should be RTH
-        assert session_filter.is_in_session(spring_forward, SessionType.RTH, "ES") is True
+        # Monday after spring DST transition (March 11, 2024)
+        spring_monday = datetime(2024, 3, 11, 15, 0, tzinfo=timezone.utc)  # 11:00 AM EDT - Should be RTH
+        assert session_filter.is_in_session(spring_monday, SessionType.RTH, "ES") is True
 
-        # Test during fall DST transition
-        fall_back = datetime(2024, 11, 3, 15, 0, tzinfo=timezone.utc)  # Should be RTH
-        assert session_filter.is_in_session(fall_back, SessionType.RTH, "ES") is True
+        # Monday after fall DST transition (November 4, 2024)
+        fall_monday = datetime(2024, 11, 4, 15, 0, tzinfo=timezone.utc)  # 10:00 AM EST - Should be RTH
+        assert session_filter.is_in_session(fall_monday, SessionType.RTH, "ES") is True
 
     def test_leap_second_handling(self, session_filter):
         """Test handling of leap seconds (rare edge case)."""

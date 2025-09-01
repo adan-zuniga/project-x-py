@@ -22,24 +22,80 @@ from .config import DEFAULT_SESSIONS, SessionConfig, SessionTimes, SessionType
 class SessionFilterMixin:
     """Mixin class providing session filtering capabilities."""
 
-    def __init__(self, config: SessionConfig | None = None):
-        """Initialize with optional session configuration."""
+    # Configurable performance thresholds
+    LAZY_EVAL_THRESHOLD = 100_000  # Rows before using lazy evaluation
+    CACHE_MAX_SIZE = 1000  # Maximum cache entries
+    CACHE_TTL_SECONDS = 3600  # Cache time-to-live in seconds
+
+    def __init__(
+        self,
+        config: SessionConfig | None = None,
+        lazy_eval_threshold: int | None = None,
+        cache_max_size: int | None = None,
+        cache_ttl: int | None = None,
+    ):
+        """Initialize with optional session configuration and performance settings.
+
+        Args:
+            config: Session configuration
+            lazy_eval_threshold: Number of rows before using lazy evaluation
+            cache_max_size: Maximum number of cache entries
+            cache_ttl: Cache time-to-live in seconds
+        """
         self.config = config or SessionConfig()
         self._session_boundary_cache: dict[str, Any] = {}
+        self._cache_timestamps: dict[str, float] = {}
+
+        # Allow overriding performance thresholds
+        self.lazy_eval_threshold = lazy_eval_threshold or self.LAZY_EVAL_THRESHOLD
+        self.cache_max_size = cache_max_size or self.CACHE_MAX_SIZE
+        self.cache_ttl = cache_ttl or self.CACHE_TTL_SECONDS
 
     def _get_cached_session_boundaries(
         self, data_hash: str, product: str, session_type: str
     ) -> tuple[list[int], list[int]]:
-        """Get cached session boundaries for performance optimization."""
+        """Get cached session boundaries for performance optimization with TTL and size limits."""
+        import time
+
         cache_key = f"{data_hash}_{product}_{session_type}"
+        current_time = time.time()
+
+        # Check if cached result exists and is still valid
         if cache_key in self._session_boundary_cache:
-            cached_result = self._session_boundary_cache[cache_key]
-            if isinstance(cached_result, tuple) and len(cached_result) == 2:
-                return cached_result
+            # Check TTL (backward compatible - if no timestamp, treat as valid)
+            if cache_key in self._cache_timestamps:
+                cache_age = current_time - self._cache_timestamps[cache_key]
+                if cache_age < self.cache_ttl:
+                    cached_result = self._session_boundary_cache[cache_key]
+                    if isinstance(cached_result, tuple) and len(cached_result) == 2:
+                        return cached_result
+                else:
+                    # Expired - remove from cache
+                    del self._session_boundary_cache[cache_key]
+                    del self._cache_timestamps[cache_key]
+            else:
+                # No timestamp entry (backward compatibility) - treat as valid
+                cached_result = self._session_boundary_cache[cache_key]
+                if isinstance(cached_result, tuple) and len(cached_result) == 2:
+                    # Add timestamp for future TTL checks
+                    self._cache_timestamps[cache_key] = current_time
+                    return cached_result
+
+        # Enforce cache size limit with LRU eviction
+        if (
+            len(self._session_boundary_cache) >= self.cache_max_size
+            and self._cache_timestamps
+        ):
+            oldest_key = min(
+                self._cache_timestamps.keys(), key=lambda k: self._cache_timestamps[k]
+            )
+            del self._session_boundary_cache[oldest_key]
+            del self._cache_timestamps[oldest_key]
 
         # Calculate and cache boundaries (simplified implementation)
         boundaries: tuple[list[int], list[int]] = ([], [])
         self._session_boundary_cache[cache_key] = boundaries
+        self._cache_timestamps[cache_key] = current_time
         return boundaries
 
     def _use_lazy_evaluation(self, data: pl.DataFrame) -> pl.LazyFrame:
@@ -48,8 +104,8 @@ class SessionFilterMixin:
 
     def _optimize_filtering(self, data: pl.DataFrame) -> pl.DataFrame:
         """Apply optimized filtering strategies for large datasets."""
-        # For large datasets (>100k rows), use lazy evaluation
-        if len(data) > 100_000:
+        # Use configurable threshold for lazy evaluation
+        if len(data) > self.lazy_eval_threshold:
             lazy_df = self._use_lazy_evaluation(data)
             # Would implement optimized lazy operations here
             return lazy_df.collect()
@@ -148,14 +204,33 @@ class SessionFilterMixin:
         self, data: pl.DataFrame, session_times: SessionTimes
     ) -> pl.DataFrame:
         """Filter data to RTH hours only."""
-        # Convert to market timezone and filter by time
-        # This is a simplified implementation for testing
+        # Convert session times from ET to UTC for filtering
+        # This properly handles DST transitions
+        from datetime import UTC
 
-        # For ES: RTH is 9:30 AM - 4:00 PM ET
-        # In UTC: 14:30 - 21:00 (standard time)
+        import pytz
 
-        # Calculate UTC hours for RTH session times
-        et_to_utc_offset = 5  # Standard time offset
+        # Get market timezone
+        et_tz = pytz.timezone("America/New_York")
+
+        # Get a sample timestamp from data to determine DST status
+        if not data.is_empty():
+            sample_ts = data["timestamp"][0]
+            if sample_ts.tzinfo is None:
+                # Assume UTC if no timezone
+                sample_ts = sample_ts.replace(tzinfo=UTC)
+
+            # Convert to ET to check DST
+            et_time = sample_ts.astimezone(et_tz)
+            is_dst = bool(et_time.dst())
+
+            # Calculate proper UTC offset
+            et_to_utc_offset = 4 if is_dst else 5  # EDT = UTC-4, EST = UTC-5
+        else:
+            # Default to standard time if no data
+            et_to_utc_offset = 5
+
+        # Convert session times to UTC hours
         rth_start_hour = session_times.rth_start.hour + et_to_utc_offset
         rth_start_min = session_times.rth_start.minute
         rth_end_hour = session_times.rth_end.hour + et_to_utc_offset
@@ -188,6 +263,9 @@ class SessionFilterMixin:
         """Filter data to ETH hours excluding maintenance breaks."""
         # ETH excludes maintenance breaks which vary by product
         # Most US futures: maintenance break 5:00 PM - 6:00 PM ET daily
+        from datetime import UTC
+
+        import pytz
 
         # Get maintenance break times for product
         maintenance_breaks = self._get_maintenance_breaks(product)
@@ -196,13 +274,25 @@ class SessionFilterMixin:
             # No maintenance breaks for this product - return all data
             return data
 
+        # Get market timezone
+        et_tz = pytz.timezone("America/New_York")
+
+        # Determine DST status from sample timestamp
+        if not data.is_empty():
+            sample_ts = data["timestamp"][0]
+            if sample_ts.tzinfo is None:
+                sample_ts = sample_ts.replace(tzinfo=UTC)
+            et_time = sample_ts.astimezone(et_tz)
+            is_dst = bool(et_time.dst())
+            et_to_utc_offset = 4 if is_dst else 5  # EDT = UTC-4, EST = UTC-5
+        else:
+            et_to_utc_offset = 5  # Default to standard time
+
         # Start with all data and exclude maintenance periods
         filtered_conditions = []
 
         for break_start, break_end in maintenance_breaks:
             # Convert ET maintenance times to UTC for filtering
-            et_to_utc_offset = 5  # Standard time offset (need to handle DST properly)
-
             break_start_hour = break_start.hour + et_to_utc_offset
             break_start_min = break_start.minute
             break_end_hour = break_end.hour + et_to_utc_offset
@@ -311,7 +401,7 @@ class SessionFilterMixin:
         if self._is_weekend_outside_eth(timestamp, market_time, session_type):
             return False
 
-        if self._is_maintenance_break(market_time.time()):
+        if self._is_maintenance_break(market_time.time(), product):
             return False
 
         # Apply session-specific logic
@@ -358,48 +448,15 @@ class SessionFilterMixin:
             date.month == 12 and date.day == 31
         )
 
-    def _is_dst_transition_date(self, date: date) -> bool:
-        """Check if the given date is a DST transition date."""
-        # DST transitions in the US:
-        # - Spring forward: Second Sunday in March
-        # - Fall back: First Sunday in November
-
-        # Spring DST transition (second Sunday in March)
-        if date.month == 3:
-            # Find second Sunday in March
-            first_day = date.replace(day=1)
-            days_to_first_sunday = (6 - first_day.weekday()) % 7
-            if days_to_first_sunday == 0:
-                days_to_first_sunday = (
-                    7  # If March 1st is Sunday, first Sunday is March 8th
-                )
-            first_sunday = first_day.day + days_to_first_sunday
-            second_sunday = first_sunday + 7
-            return date.day == second_sunday
-
-        # Fall DST transition (first Sunday in November)
-        elif date.month == 11:
-            # Find first Sunday in November
-            first_day = date.replace(day=1)
-            days_to_first_sunday = (6 - first_day.weekday()) % 7
-            first_sunday = first_day.day + days_to_first_sunday
-            return date.day == first_sunday
-
-        return False
-
     def _is_weekend_outside_eth(
         self,
-        timestamp: datetime | str,  # Keep for API compatibility
+        timestamp: datetime | str,
         market_time: datetime,
         session_type: SessionType,
     ) -> bool:
         """Check if it's weekend outside of ETH trading hours."""
         if market_time.weekday() < 5:  # Weekday
             return False
-
-        # Check for DST transition dates - these are special cases where RTH might be valid
-        if self._is_dst_transition_date(market_time.date()):
-            return False  # Allow RTH during DST transitions for testing
 
         # Weekend - check for Sunday evening ETH exception
         return not (
@@ -408,9 +465,16 @@ class SessionFilterMixin:
             and session_type == SessionType.ETH
         )
 
-    def _is_maintenance_break(self, current_time: time) -> bool:
-        """Check if current time is during maintenance break."""
-        return time(17, 0) <= current_time < time(18, 0)
+    def _is_maintenance_break(self, current_time: time, product: str = "ES") -> bool:
+        """Check if current time is during maintenance break for the given product."""
+        maintenance_breaks = self._get_maintenance_breaks(product)
+
+        for break_start, break_end in maintenance_breaks:
+            # Check if current time falls within any maintenance break
+            if break_start <= current_time < break_end:
+                return True
+
+        return False
 
     def _check_session_hours(
         self, session_type: SessionType, session_times: SessionTimes, current_time: time
