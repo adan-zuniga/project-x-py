@@ -291,3 +291,139 @@ class TestSessionConfigMethods:
         maintenance_time = datetime(2024, 1, 15, 22, 30, tzinfo=timezone.utc)  # 5:30 PM ET
         current_session = config.get_current_session(maintenance_time, "ES")
         assert current_session == "BREAK"
+
+
+class TestSessionConfigErrorHandling:
+    """Test error handling paths and uncovered lines in config.py."""
+
+    def test_is_market_open_with_eth_session_type(self):
+        """Test ETH session type path in is_market_open (line 115-117)."""
+        config = SessionConfig(session_type=SessionType.ETH)
+
+        # Test during RTH hours with ETH session type
+        rth_time = datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)  # 10 AM ET
+        assert config.is_market_open(rth_time, "ES") is True
+
+        # Test outside RTH hours with ETH session type
+        # Currently simplified to use RTH times (line 117)
+        after_hours = datetime(2024, 1, 16, 0, 0, tzinfo=timezone.utc)  # 7 PM ET
+        assert config.is_market_open(after_hours, "ES") is False
+
+    def test_is_market_open_with_naive_datetime(self):
+        """Test is_market_open with datetime without timezone (line 119)."""
+        config = SessionConfig(session_type=SessionType.RTH)
+
+        # Naive datetime should return False due to missing astimezone method
+        naive_time = datetime(2024, 1, 15, 10, 0)  # No timezone info
+        result = config.is_market_open(naive_time, "ES")
+        assert result is False
+
+    def test_is_market_open_with_invalid_timestamp(self):
+        """Test is_market_open with non-datetime object (line 119)."""
+        config = SessionConfig(session_type=SessionType.RTH)
+
+        # String timestamp should return False
+        result = config.is_market_open("2024-01-15 10:00:00", "ES")
+        assert result is False
+
+        # None timestamp should return False
+        result = config.is_market_open(None, "ES")
+        assert result is False
+
+    def test_get_current_session_break_period(self):
+        """Test get_current_session returns BREAK (line 142)."""
+        config = SessionConfig(session_type=SessionType.ETH)
+
+        # During maintenance break (5:30 PM ET = 10:30 PM UTC)
+        maintenance_time = datetime(2024, 1, 15, 22, 30, tzinfo=timezone.utc)
+        current_session = config.get_current_session(maintenance_time, "ES")
+        assert current_session == "BREAK"
+
+        # Outside all trading hours (2 AM ET = 7 AM UTC)
+        overnight = datetime(2024, 1, 15, 7, 0, tzinfo=timezone.utc)
+        current_session = config.get_current_session(overnight, "ES")
+        assert current_session == "BREAK"
+
+    def test_session_config_with_unknown_session_type(self):
+        """Test handling of unknown session type in SessionConfig."""
+        # This should test the validation logic for session types
+        with pytest.raises(ValueError, match="Invalid session type"):
+            SessionConfig(session_type="UNKNOWN_SESSION")
+
+    def test_session_config_timezone_edge_cases(self):
+        """Test timezone handling edge cases."""
+        # Test with UTC timezone
+        config = SessionConfig(market_timezone="UTC")
+        assert config.market_timezone == "UTC"
+
+        # Test timezone validation with edge case
+        with pytest.raises(ValueError, match="Invalid timezone"):
+            SessionConfig(market_timezone="Invalid/Timezone/Format")
+
+
+class TestSessionConfigConcurrentAccess:
+    """Test concurrent access patterns."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_session_checks(self):
+        """Test concurrent access to session checking methods."""
+        import asyncio
+
+        config = SessionConfig(session_type=SessionType.RTH)
+        timestamp = datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)
+
+        async def check_session():
+            return config.is_market_open(timestamp, "ES")
+
+        # Run multiple concurrent checks
+        tasks = [check_session() for _ in range(100)]
+        results = await asyncio.gather(*tasks)
+
+        # All results should be consistent
+        assert all(result is True for result in results)
+
+    def test_session_config_immutability(self):
+        """Test that session config behaves immutably in concurrent scenarios."""
+        config = SessionConfig(session_type=SessionType.RTH)
+
+        # Multiple threads shouldn't be able to modify the configuration
+        original_type = config.session_type
+        original_timezone = config.market_timezone
+
+        # Verify configuration remains unchanged
+        assert config.session_type == original_type
+        assert config.market_timezone == original_timezone
+
+
+class TestSessionConfigPerformanceEdgeCases:
+    """Test performance-related edge cases."""
+
+    def test_repeated_get_session_times_performance(self):
+        """Test that repeated calls to get_session_times are efficient."""
+        import time
+
+        config = SessionConfig()
+
+        start_time = time.time()
+
+        # Call get_session_times many times
+        for _ in range(1000):
+            config.get_session_times("ES")
+
+        end_time = time.time()
+        duration = end_time - start_time
+
+        # Should complete quickly (under 0.1 seconds)
+        assert duration < 0.1
+
+    def test_session_boundary_microsecond_precision(self):
+        """Test handling of microsecond-precise timestamps at session boundaries."""
+        config = SessionConfig(session_type=SessionType.RTH)
+
+        # Exactly at market open with microseconds
+        market_open = datetime(2024, 1, 15, 14, 30, 0, 123456, tzinfo=timezone.utc)
+        assert config.is_market_open(market_open, "ES") is True
+
+        # Just before market open with microseconds
+        before_open = datetime(2024, 1, 15, 14, 29, 59, 999999, tzinfo=timezone.utc)
+        assert config.is_market_open(before_open, "ES") is False

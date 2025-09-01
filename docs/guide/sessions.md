@@ -22,24 +22,28 @@ This feature is particularly useful for:
 ### Basic Session Filtering
 
 ```python
-from project_x_py import TradingSuite
-from project_x_py.sessions import SessionConfig, SessionType
+from project_x_py.sessions import SessionConfig, SessionType, SessionFilterMixin
+import polars as pl
 
-# RTH-only trading (9:30 AM - 4:00 PM ET)
-rth_suite = await TradingSuite.create(
-    "MNQ",
-    timeframes=["1min", "5min"],
-    session_config=SessionConfig(session_type=SessionType.RTH)
+# Create session configurations
+rth_config = SessionConfig(session_type=SessionType.RTH)
+eth_config = SessionConfig(session_type=SessionType.ETH)
+
+# Initialize filter
+session_filter = SessionFilterMixin()
+
+# Filter data by session (async method)
+rth_data = await session_filter.filter_by_session(
+    data,
+    SessionType.RTH,
+    "ES"
 )
 
-# ETH-only analysis (overnight sessions, excludes maintenance)
-eth_suite = await TradingSuite.create(
-    "ES",
-    session_config=SessionConfig(session_type=SessionType.ETH)
+eth_data = await session_filter.filter_by_session(
+    data,
+    SessionType.ETH,
+    "ES"
 )
-
-# Default behavior - includes all sessions
-both_suite = await TradingSuite.create("CL")  # No session_config = BOTH
 ```
 
 ## Session Configuration
@@ -59,178 +63,223 @@ SessionType.BOTH  # All trading hours (default)
 Different futures products have different session schedules:
 
 ```python
-# Equity Index Futures (ES, NQ, MNQ, MES)
-equity_config = SessionConfig(
-    session_type=SessionType.RTH,
-    product="ES"  # RTH: 9:30 AM - 4:00 PM ET
-)
+from project_x_py.sessions import SessionConfig, DEFAULT_SESSIONS
 
-# Energy Futures (CL)
-energy_config = SessionConfig(
-    session_type=SessionType.RTH,
-    product="CL"  # RTH: 9:00 AM - 2:30 PM ET
-)
+# Access predefined session times
+equity_times = DEFAULT_SESSIONS["ES"]  # ES, NQ, MNQ, MES
+energy_times = DEFAULT_SESSIONS["CL"]  # CL, NG
+treasury_times = DEFAULT_SESSIONS["ZN"]  # ZN, ZB
 
-# Treasury Futures (ZN, ZB)
-treasury_config = SessionConfig(
-    session_type=SessionType.RTH,
-    product="ZN"  # RTH: 8:20 AM - 3:00 PM ET
-)
-```
-
-### Maintenance Break Handling
-
-The system automatically excludes daily maintenance windows:
-
-```python
-# ETH sessions automatically exclude 5:00 PM - 6:00 PM ET maintenance
-eth_config = SessionConfig(session_type=SessionType.ETH)
-
-# Data during maintenance periods is filtered out
-# This prevents gaps and artifacts in technical indicators
-```
-
-## Session-Aware Indicators
-
-### Calculating Indicators on Session Data
-
-```python
-from project_x_py.sessions import calculate_session_indicators
-
-# Get RTH-only data
-rth_data = await suite.data.get_session_bars(
-    timeframe="5min",
+# Create config with product-specific times
+config = SessionConfig(
     session_type=SessionType.RTH
 )
 
-# Calculate indicators on RTH data only
-rth_with_indicators = await calculate_session_indicators(
-    rth_data,
-    indicators=["RSI", "MACD", "SMA"]
-)
-
-# Compare with ETH indicators
-eth_data = await suite.data.get_session_bars(
-    timeframe="5min",
-    session_type=SessionType.ETH
-)
-
-eth_with_indicators = await calculate_session_indicators(
-    eth_data,
-    indicators=["RSI", "MACD", "SMA"]
-)
+# Get session times for a product
+session_times = config.get_session_times("ES")
+print(f"RTH: {session_times.rth_start} - {session_times.rth_end}")
 ```
 
-### Session Volume Analysis
-
-```python
-# Analyze volume distribution by session
-rth_volume = rth_data['volume'].sum()
-eth_volume = eth_data['volume'].sum()
-
-volume_ratio = rth_volume / (rth_volume + eth_volume)
-print(f"RTH Volume: {volume_ratio:.1%} of total")
-
-# Session-specific VWAP
-rth_vwap = (rth_data['close'] * rth_data['volume']).sum() / rth_volume
-eth_vwap = (eth_data['close'] * eth_data['volume']).sum() / eth_volume
-```
-
-## Session Statistics
-
-### Performance Metrics by Session
-
-```python
-from project_x_py.sessions import SessionStatistics
-
-# Initialize session statistics tracker
-stats = SessionStatistics(suite)
-
-# Calculate session-specific metrics
-rth_stats = await stats.calculate_session_stats(SessionType.RTH)
-eth_stats = await stats.calculate_session_stats(SessionType.ETH)
-
-print(f"RTH Volatility: {rth_stats['volatility']:.2%}")
-print(f"ETH Volatility: {eth_stats['volatility']:.2%}")
-print(f"RTH Average Range: ${rth_stats['avg_range']:.2f}")
-print(f"ETH Average Range: ${eth_stats['avg_range']:.2f}")
-```
-
-### Session Transition Analysis
-
-```python
-# Analyze overnight gaps (ETH close to RTH open)
-gaps = await stats.calculate_overnight_gaps()
-
-for gap in gaps:
-    print(f"Date: {gap['date']}")
-    print(f"ETH Close: ${gap['eth_close']:.2f}")
-    print(f"RTH Open: ${gap['rth_open']:.2f}")
-    print(f"Gap: ${gap['gap_size']:.2f} ({gap['gap_percent']:.2%})")
-```
-
-## Advanced Usage
-
-### Custom Session Boundaries
+### Custom Session Times
 
 ```python
 from project_x_py.sessions import SessionTimes
-import pytz
+from datetime import time
 
 # Define custom session times
 custom_times = SessionTimes(
     rth_start=time(9, 0),   # 9:00 AM
     rth_end=time(15, 30),    # 3:30 PM
     eth_start=time(18, 0),   # 6:00 PM
-    eth_end=time(17, 0),     # 5:00 PM next day
-    timezone=pytz.timezone("US/Eastern")
+    eth_end=time(17, 0)      # 5:00 PM next day
 )
 
+# Use custom times in config
 custom_config = SessionConfig(
     session_type=SessionType.RTH,
-    custom_times=custom_times
+    session_times=custom_times
 )
 ```
 
-### Session Filtering with DataFrames
+### Checking Market Status
 
 ```python
-# Manual session filtering on Polars DataFrames
-import polars as pl
+from datetime import datetime, timezone
 
-# Get raw data
-data = await suite.data.get_data("1min")
+config = SessionConfig(session_type=SessionType.RTH)
 
-# Apply session filter
-from project_x_py.sessions import SessionFilterMixin
+# Check if market is open
+timestamp = datetime.now(timezone.utc)
+is_open = config.is_market_open(timestamp, "ES")
 
-filter_mixin = SessionFilterMixin(
-    session_config=SessionConfig(session_type=SessionType.RTH)
-)
-
-rth_filtered = filter_mixin.filter_session_data(data)
+# Get current session
+current = config.get_current_session(timestamp, "ES")
+# Returns: "RTH", "ETH", or "BREAK"
 ```
 
-### Backtesting with Sessions
+## Session-Aware Indicators
+
+### Session VWAP Calculation
 
 ```python
-# Backtest strategy on RTH data only
-async def backtest_rth_strategy():
-    # Historical data with RTH filter
-    historical = await suite.client.get_bars(
-        "MNQ",
-        days=30,
-        interval=300  # 5-minute bars
-    )
+from project_x_py.sessions import calculate_session_vwap
 
-    # Apply RTH filter
-    rth_historical = filter_mixin.filter_session_data(historical)
+# Calculate VWAP for RTH session only
+rth_vwap_data = await calculate_session_vwap(
+    data,
+    SessionType.RTH,
+    "ES"
+)
+# Adds 'session_vwap' column to DataFrame
+```
 
-    # Run strategy on RTH data
-    signals = generate_signals(rth_historical)
-    results = calculate_returns(signals, rth_historical)
+### Anchored VWAP
 
-    return results
+```python
+from project_x_py.sessions import calculate_anchored_vwap
+
+# Anchor VWAP to session open
+anchored_data = await calculate_anchored_vwap(
+    data,
+    anchor_point="session_open"  # or "session_high", "session_low"
+)
+# Adds 'anchored_vwap' column
+```
+
+### Session Levels
+
+```python
+from project_x_py.sessions import calculate_session_levels
+
+# Calculate session high/low/open/close
+levels_data = await calculate_session_levels(data)
+# Adds columns: 'session_high', 'session_low', 'session_open', 'session_close'
+```
+
+### Cumulative Volume
+
+```python
+from project_x_py.sessions import calculate_session_cumulative_volume
+
+# Calculate cumulative volume within sessions
+volume_data = await calculate_session_cumulative_volume(data)
+# Adds 'cumulative_volume' column that resets at session boundaries
+```
+
+### Session-Relative Indicators
+
+```python
+from project_x_py.sessions import (
+    calculate_relative_to_vwap,
+    calculate_percent_from_open
+)
+
+# Calculate price relative to VWAP
+relative_data = await calculate_relative_to_vwap(data)
+# Adds 'relative_to_vwap' column (percentage above/below VWAP)
+
+# Calculate percent change from session open
+percent_data = await calculate_percent_from_open(data)
+# Adds 'percent_from_open' column
+```
+
+## Session Statistics
+
+### Basic Statistics
+
+```python
+from project_x_py.sessions import SessionStatistics
+
+# Initialize statistics calculator
+stats = SessionStatistics()
+
+# Calculate session statistics
+session_stats = await stats.calculate_session_stats(data, "ES")
+
+# Returns dictionary with:
+# - rth_volume, eth_volume
+# - rth_vwap, eth_vwap
+# - rth_high, rth_low, rth_range
+# - eth_high, eth_low, eth_range
+```
+
+### Session Analytics
+
+```python
+from project_x_py.sessions import SessionAnalytics
+
+analytics = SessionAnalytics()
+
+# Compare RTH vs ETH sessions
+comparison = await analytics.compare_sessions(data, "ES")
+# Returns volume ratios, volatility comparison, etc.
+
+# Get volume profile by hour
+volume_profile = await analytics.get_session_volume_profile(data, "ES")
+# Returns hourly volume distribution
+
+# Analyze session volatility
+volatility = await analytics.analyze_session_volatility(data, "ES")
+# Returns volatility metrics by session
+
+# Analyze gaps between sessions
+gaps = await analytics.analyze_session_gaps(data, "ES")
+# Returns gap statistics
+
+# Calculate efficiency metrics
+efficiency = await analytics.calculate_efficiency_metrics(data, "ES")
+# Returns session efficiency indicators
+```
+
+## Advanced Usage
+
+### Session Alert Generation
+
+```python
+from project_x_py.sessions import generate_session_alerts
+
+# Define alert conditions
+conditions = {
+    "breakout": "close > sma_10",
+    "overbought": "rsi_14 > 70",
+    "at_high": "high == session_high"
+}
+
+# Generate alerts based on conditions
+alerts_data = await generate_session_alerts(data, conditions)
+# Adds 'alerts' column with triggered alert names
+```
+
+### Time Aggregation with Sessions
+
+```python
+from project_x_py.sessions import aggregate_with_sessions
+
+# Aggregate 1-minute bars to 5-minute with session awareness
+aggregated = await aggregate_with_sessions(
+    data,
+    timeframe="5min",
+    session_type=SessionType.RTH
+)
+# Ensures aggregation respects session boundaries
+```
+
+### Manual Session Filtering
+
+```python
+from project_x_py.sessions import SessionFilterMixin, SessionType
+from datetime import datetime, timezone
+
+# Create filter instance
+filter_mixin = SessionFilterMixin()
+
+# Async batch filtering
+filtered_data = await filter_mixin.filter_by_session(
+    data,
+    SessionType.RTH,
+    "ES",
+    custom_session_times=custom_times  # Optional
+)
 ```
 
 ## Performance Considerations
@@ -240,165 +289,189 @@ async def backtest_rth_strategy():
 The session filtering system includes several optimizations:
 
 1. **Boundary Caching**: Session boundaries are cached to avoid recalculation
-2. **Lazy Evaluation**: Filters are only applied when data is accessed
+2. **Lazy Evaluation**: Large datasets (>100k rows) use lazy evaluation
 3. **Efficient Filtering**: Uses Polars' vectorized operations for speed
 
 ```python
-# Performance tips
-# 1. Reuse SessionConfig objects
-config = SessionConfig(session_type=SessionType.RTH)
-suite1 = await TradingSuite.create("MNQ", session_config=config)
-suite2 = await TradingSuite.create("ES", session_config=config)
+# The system automatically optimizes based on data size
+large_data = pl.DataFrame(...)  # 100k+ rows
 
-# 2. Filter once, use multiple times
-rth_data = await suite.data.get_session_bars("5min", SessionType.RTH)
-# Use rth_data for multiple calculations without re-filtering
+# Automatically uses lazy evaluation for large datasets
+filtered = await filter_mixin.filter_by_session(
+    large_data,
+    SessionType.RTH,
+    "ES"
+)
 ```
 
 ### Memory Management
 
 ```python
-# For large datasets, consider chunking
-async def process_large_dataset():
-    for day in range(30):
-        daily_data = await suite.client.get_bars("MNQ", days=1)
-        rth_daily = filter_mixin.filter_session_data(daily_data)
+# For very large datasets, process in chunks
+async def process_large_dataset(data: pl.DataFrame):
+    filter_mixin = SessionFilterMixin()
+
+    # Split into daily chunks
+    for date in data['timestamp'].dt.date().unique():
+        daily_data = data.filter(pl.col('timestamp').dt.date() == date)
 
         # Process daily chunk
-        process_day(rth_daily)
+        rth_daily = await filter_mixin.filter_by_session(
+            daily_data,
+            SessionType.RTH,
+            "ES"
+        )
 
-        # Clear memory
+        # Process and clear memory
+        process_day(rth_daily)
         del daily_data, rth_daily
 ```
 
-## Examples
+## Complete Examples
 
-### Complete Example: Session Comparison
+### Example: Session Comparison
 
 ```python
 import asyncio
-from project_x_py import TradingSuite
-from project_x_py.sessions import SessionConfig, SessionType
-from project_x_py.indicators import RSI, ATR
+import polars as pl
+from datetime import datetime, timedelta, timezone
+from project_x_py.sessions import (
+    SessionFilterMixin,
+    SessionStatistics,
+    SessionAnalytics,
+    SessionType,
+    calculate_session_vwap
+)
 
-async def compare_sessions():
-    # Create suites for each session type
-    rth_suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["5min"],
-        session_config=SessionConfig(session_type=SessionType.RTH)
+async def compare_sessions(data: pl.DataFrame):
+    # Initialize components
+    filter_mixin = SessionFilterMixin()
+    stats = SessionStatistics()
+    analytics = SessionAnalytics()
+
+    # Filter data by session
+    rth_data = await filter_mixin.filter_by_session(
+        data, SessionType.RTH, "ES"
+    )
+    eth_data = await filter_mixin.filter_by_session(
+        data, SessionType.ETH, "ES"
     )
 
-    eth_suite = await TradingSuite.create(
-        "MNQ",
-        timeframes=["5min"],
-        session_config=SessionConfig(session_type=SessionType.ETH)
-    )
+    # Check for empty data
+    if rth_data is None or rth_data.is_empty() or eth_data is None or eth_data.is_empty():
+        print("Insufficient data for comparison")
+        return
 
-    # Get session-specific data
-    rth_bars = await rth_suite.data.get_data("5min")
-    eth_bars = await eth_suite.data.get_data("5min")
+    # Calculate VWAPs
+    rth_vwap = await calculate_session_vwap(rth_data, SessionType.RTH, "ES")
+    eth_vwap = await calculate_session_vwap(eth_data, SessionType.ETH, "ES")
 
-    # Calculate indicators
-    rth_with_rsi = RSI(rth_bars, period=14)
-    eth_with_rsi = RSI(eth_bars, period=14)
+    # Get statistics
+    session_stats = await stats.calculate_session_stats(data, "ES")
 
-    rth_with_atr = ATR(rth_with_rsi, period=14)
-    eth_with_atr = ATR(eth_with_rsi, period=14)
+    # Compare sessions
+    comparison = await analytics.compare_sessions(data, "ES")
 
-    # Compare metrics
-    rth_avg_atr = rth_with_atr['atr'].mean()
-    eth_avg_atr = eth_with_atr['atr'].mean()
+    if session_stats and comparison:
+        print(f"RTH Volume: {session_stats.get('rth_volume', 0):,}")
+        print(f"ETH Volume: {session_stats.get('eth_volume', 0):,}")
+        print(f"RTH Range: ${session_stats.get('rth_range', 0):.2f}")
+        print(f"ETH Range: ${session_stats.get('eth_range', 0):.2f}")
+        if 'rth_vs_eth_volume_ratio' in comparison:
+            print(f"Volume Ratio: {comparison['rth_vs_eth_volume_ratio']:.2f}")
 
-    print(f"RTH Average ATR: ${rth_avg_atr:.2f}")
-    print(f"ETH Average ATR: ${eth_avg_atr:.2f}")
-    print(f"Volatility Ratio: {eth_avg_atr/rth_avg_atr:.2f}x")
-
-    # Cleanup
-    await rth_suite.disconnect()
-    await eth_suite.disconnect()
-
-asyncio.run(compare_sessions())
+# Run example
+# asyncio.run(compare_sessions(your_data))
 ```
 
-### Example: Overnight Gap Trading
+### Example: Overnight Gap Analysis
 
 ```python
-async def overnight_gap_strategy():
-    suite = await TradingSuite.create("ES", timeframes=["1min"])
+from project_x_py.sessions import SessionFilterMixin, SessionType
 
-    # Get overnight gap
-    eth_close = await suite.data.get_session_close(SessionType.ETH)
-    rth_open = await suite.data.get_session_open(SessionType.RTH)
+async def analyze_overnight_gaps(data: pl.DataFrame):
+    filter_mixin = SessionFilterMixin()
 
-    gap_size = rth_open - eth_close
-    gap_percent = gap_size / eth_close
+    # Get Friday RTH close
+    friday_rth = await filter_mixin.filter_by_session(
+        data.filter(pl.col('timestamp').dt.weekday() == 5),
+        SessionType.RTH,
+        "ES"
+    )
 
-    # Trading logic based on gap
-    if gap_percent > 0.005:  # 0.5% gap up
-        # Fade the gap
-        order = await suite.orders.place_limit_order(
-            contract_id=suite.instrument_id,
-            side=1,  # Sell
-            size=1,
-            limit_price=rth_open - 2.0
-        )
-    elif gap_percent < -0.005:  # 0.5% gap down
-        # Buy the dip
-        order = await suite.orders.place_limit_order(
-            contract_id=suite.instrument_id,
-            side=0,  # Buy
-            size=1,
-            limit_price=rth_open + 2.0
-        )
+    # Get Monday RTH open
+    monday_rth = await filter_mixin.filter_by_session(
+        data.filter(pl.col('timestamp').dt.weekday() == 1),
+        SessionType.RTH,
+        "ES"
+    )
 
-    await suite.disconnect()
+    if friday_rth is not None and not friday_rth.is_empty() and monday_rth is not None and not monday_rth.is_empty():
+        friday_close = friday_rth['close'][-1]
+        monday_open = monday_rth['open'][0]
+
+        gap = monday_open - friday_close
+        gap_pct = (gap / friday_close) * 100
+
+        print(f"Weekend Gap: ${gap:.2f} ({gap_pct:.2%})")
+
+        # Trading decision based on gap
+        if abs(gap_pct) > 0.5:  # 0.5% gap threshold
+            print(f"Significant gap detected - consider fade strategy")
 ```
 
 ## Best Practices
 
-### 1. Choose Appropriate Session Type
+### 1. Use Async Methods
 
-- **RTH**: Best for strategies focused on liquid, regular hours
-- **ETH**: Useful for overnight positions and gap analysis
-- **BOTH**: Default for continuous market analysis
-
-### 2. Handle Session Transitions
+All public indicator functions are async for consistency:
 
 ```python
-# Monitor session changes
-async def on_session_change(event):
-    if event.new_session == SessionType.RTH:
-        print("RTH session started")
-        # Adjust position sizing, activate day trading logic
-    elif event.new_session == SessionType.ETH:
-        print("ETH session started")
-        # Reduce position size, switch to overnight logic
+# Correct - use await
+vwap_data = await calculate_session_vwap(data, SessionType.RTH, "ES")
 
-suite.on("session_change", on_session_change)
+# The module handles async operations internally for optimal performance
 ```
 
-### 3. Validate Data Availability
+### 2. Handle Empty Results
+
+Always check for None and empty DataFrames after filtering:
 
 ```python
-# Check data availability by session
-rth_data = await suite.data.get_session_bars("1min", SessionType.RTH)
+rth_data = await filter_mixin.filter_by_session(data, SessionType.RTH, "ES")
 
-if rth_data.is_empty():
-    print("No RTH data available")
-    # Handle weekend/holiday/pre-market scenarios
+if rth_data is None or rth_data.is_empty():
+    print("No RTH data available - market may be closed")
+    return
 ```
 
-### 4. Consider Time Zones
+### 3. Consider Time Zones
+
+Session times are in Eastern Time by default:
 
 ```python
-# Always work in Eastern Time for US futures
 from pytz import timezone
 
+# Check current time in ET
 et = timezone("US/Eastern")
 current_et = datetime.now(et)
 
-# Session times are automatically handled in ET
+# SessionConfig handles timezone conversion automatically
+config = SessionConfig(market_timezone="US/Eastern")
+```
+
+### 4. Use Product-Specific Sessions
+
+Different products have different trading hours:
+
+```python
+# Always specify the product for accurate session times
+config = SessionConfig(session_type=SessionType.RTH)
+
+# Get correct session times for each product
+es_times = config.get_session_times("ES")  # 9:30 AM - 4:00 PM ET
+cl_times = config.get_session_times("CL")  # 9:00 AM - 2:30 PM ET
+gc_times = config.get_session_times("GC")  # 8:20 AM - 1:30 PM ET
 ```
 
 ## Troubleshooting
@@ -406,37 +479,76 @@ current_et = datetime.now(et)
 ### Common Issues
 
 1. **No data returned for session**
-   - Check if market is open for that session
-   - Verify product-specific session times
-   - Ensure data subscription includes desired sessions
+   ```python
+   # Check if timestamp is in session
+   config = SessionConfig(session_type=SessionType.RTH)
+   if not config.is_market_open(datetime.now(timezone.utc), "ES"):
+       print("Market is closed for RTH session")
+   ```
 
 2. **Incorrect session boundaries**
-   - Verify product configuration
-   - Check for holidays/early closes
-   - Consider using custom session times
+   ```python
+   # Verify session times for your product
+   config = SessionConfig()
+   times = config.get_session_times("YOUR_PRODUCT")
+   print(f"RTH: {times.rth_start} - {times.rth_end}")
+   print(f"ETH: {times.eth_start} - {times.eth_end}")
+   ```
 
-3. **Performance degradation**
-   - Use caching for repeated calculations
-   - Filter data once and reuse
-   - Consider chunking large datasets
+3. **Performance issues with large datasets**
+   ```python
+   # The module automatically optimizes for datasets > 100k rows
+   # For manual control, check data size:
+   if len(data) > 100_000:
+       print("Large dataset - using lazy evaluation")
+   ```
 
 ### Debug Logging
 
 ```python
 import logging
 
-# Enable session filtering debug logs
+# Enable debug logging for sessions module
 logging.getLogger("project_x_py.sessions").setLevel(logging.DEBUG)
 
 # This will show:
 # - Session boundary calculations
 # - Filter application details
 # - Cache hit/miss information
+# - Optimization decisions
 ```
+
+## API Reference
+
+### Core Classes
+
+- `SessionConfig`: Configuration for session types and times
+- `SessionTimes`: Definition of session start/end times
+- `SessionType`: Enum for RTH, ETH, BOTH
+- `SessionFilterMixin`: Main filtering functionality
+- `SessionStatistics`: Statistical calculations by session
+- `SessionAnalytics`: Advanced analytics and comparisons
+
+### Public Functions
+
+All functions are async and exported from `project_x_py.sessions`:
+
+- `calculate_session_vwap()`: Session-aware VWAP
+- `calculate_anchored_vwap()`: Anchored VWAP calculations
+- `calculate_session_levels()`: High/low/open/close levels
+- `calculate_session_cumulative_volume()`: Cumulative volume
+- `calculate_relative_to_vwap()`: Price relative to VWAP
+- `calculate_percent_from_open()`: Percent change from open
+- `aggregate_with_sessions()`: Time-based aggregation
+- `generate_session_alerts()`: Alert generation system
 
 ## See Also
 
-- [TradingSuite API](../api/trading-suite.md) - Main trading interface
-- [Data Manager Guide](realtime.md) - Real-time data management
+- [Session Examples](https://github.com/TexasCoding/project-x-py/tree/main/examples/sessions/) - Complete working examples
+  - `01_basic_session_filtering.py` - Basic filtering and market status
+  - `02_session_statistics.py` - Session statistics and analytics
+  - `03_session_indicators.py` - Session-aware technical indicators
+  - `04_session_comparison.py` - RTH vs ETH comparison
+  - `05_multi_instrument_sessions.py` - Multi-instrument session management
 - [Indicators Guide](indicators.md) - Technical indicator calculations
-- [Example Script](https://github.com/TexasCoding/project-x-py/blob/main/examples/sessions/16_eth_vs_rth_sessions_demo.py) - Complete demonstration
+- [Architecture Documentation](../development/architecture.md) - System design

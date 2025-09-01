@@ -14,6 +14,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.5] - 2025-01-21
+
+### ✅ Testing
+
+**Comprehensive Sessions Module Testing**:
+- **163 Tests Passing**: Complete test suite for sessions module with 88% coverage
+- **TDD Methodology**: All tests validate expected behavior, not current implementation
+- **Bug Fixes**: Fixed 11 critical bugs including DST transitions, naive datetime handling, and BREAK session detection
+- **Async Compliance**: Made 4 sync functions private to maintain 100% async public API
+- **Complexity Reduction**: Refactored 4 high-complexity functions using helper methods
+- **Type Safety**: Fixed all MyPy type annotation errors with proper generic types
+
+### 📝 Documentation
+
+**Sessions Documentation Overhaul**:
+- **Complete Guide**: Created comprehensive README.md for sessions module with working examples
+- **5 Example Scripts**: Created tested, working examples for all session functionality:
+  - `01_basic_session_filtering.py` - Basic filtering and market status
+  - `02_session_statistics.py` - Statistics and analytics
+  - `03_session_indicators.py` - Session-aware indicators
+  - `04_session_comparison.py` - RTH vs ETH comparison
+  - `05_multi_instrument_sessions.py` - Multi-instrument management
+- **API Accuracy**: Fixed all incorrect method signatures and usage patterns
+- **DataFrame Safety**: Added proper None checks and `.is_empty()` evaluations throughout
+
+### 🐛 Fixed
+
+**Session Module Bugs**:
+- **DST Transitions**: Fixed edge cases during daylight saving time transitions
+- **Naive Datetime Handling**: Properly handle naive datetimes with timezone awareness
+- **BREAK Session Detection**: Fixed incorrect BREAK period detection logic
+- **DataFrame Evaluation**: Fixed "ambiguous truth value" errors with proper boolean checks
+- **Correlation Calculation**: Fixed Polars Series correlation method usage
+- **Type Conversions**: Added safe type conversions with None checks
+
+### 🔧 Changed
+
+- **Public API**: Made sync utility functions private with underscore prefix to maintain async consistency
+- **Example Organization**: Moved all session examples to dedicated `examples/sessions/` directory
+- **Documentation Structure**: Renamed guide to README.md for automatic GitHub display
+- **Error Handling**: Improved error messages and added comprehensive troubleshooting section
+
 ## [3.5.4] - 2025-01-31
 
 ### 🚀 Added

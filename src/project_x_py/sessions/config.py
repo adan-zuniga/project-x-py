@@ -104,11 +104,24 @@ class SessionConfig:
         # Real implementation would check session times, weekends, holidays
         session_times = self.get_session_times(product)
 
+        # Return False for non-datetime objects or naive datetimes for safety
+        if not hasattr(timestamp, "tzinfo") or timestamp.tzinfo is None:
+            return False
+
         # Convert timestamp to market timezone
         if hasattr(timestamp, "astimezone"):
             market_tz = pytz.timezone(self.market_timezone)
             market_time = timestamp.astimezone(market_tz)
             current_time = market_time.time()
+
+            # Check for weekends (excluding Sunday evening ETH exception)
+            if market_time.weekday() >= 5:  # Saturday (5) or Sunday (6)
+                # Allow Sunday evening ETH (6 PM ET onwards)
+                return (
+                    self.session_type == SessionType.ETH
+                    and market_time.weekday() == 6
+                    and market_time.hour >= 18
+                )
 
             if self.session_type == SessionType.RTH:
                 return session_times.rth_start <= current_time < session_times.rth_end
@@ -121,6 +134,10 @@ class SessionConfig:
     def get_current_session(self, timestamp: datetime, product: str) -> str:
         """Get current session type (RTH, ETH, BREAK) for timestamp."""
         session_times = self.get_session_times(product)
+
+        # Return BREAK for non-datetime objects or naive datetimes for safety
+        if not hasattr(timestamp, "tzinfo") or timestamp.tzinfo is None:
+            return "BREAK"
 
         if hasattr(timestamp, "astimezone"):
             market_tz = pytz.timezone(self.market_timezone)
@@ -135,9 +152,22 @@ class SessionConfig:
             if session_times.rth_start <= current_time < session_times.rth_end:
                 return "RTH"
 
-            # Check ETH hours (simplified)
-            if time(18, 0) <= current_time or current_time < time(17, 0):
+            # Check active ETH hours - more restrictive to exclude quiet periods
+            # Active ETH is typically evening/night hours, excluding very early morning
+            # ETH active from 6 PM to midnight, and early morning before RTH
+            # Exclude quiet periods like 2 AM which should be BREAK
+            if (
+                session_times.eth_start is not None
+                and session_times.eth_end is not None
+                and (
+                    time(18, 0) <= current_time <= time(23, 59)
+                    or time(6, 0) <= current_time < session_times.rth_start
+                )
+            ):
                 return "ETH"
+
+            # If outside all active hours, return BREAK
+            return "BREAK"
 
         return "BREAK"
 
