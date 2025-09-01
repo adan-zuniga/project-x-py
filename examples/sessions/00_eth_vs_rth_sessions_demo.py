@@ -89,14 +89,19 @@ async def demonstrate_historical_session_analysis():
         # Get historical data for both sessions
         print("\nFetching historical data...")
 
-        # RTH data (9:30 AM - 4:00 PM ET only)
-        rth_data_1min = await rth_suite.get_session_data("1min", SessionType.RTH)
-        rth_data_5min = await rth_suite.get_session_data("5min", SessionType.RTH)
+        # Get session-filtered data using the data manager's get_session_data method
+        rth_context = rth_suite["MNQ"]
+        eth_context = eth_suite["MNQ"]
 
-        # ETH data (24-hour excluding maintenance breaks)
-        eth_data_1min = await eth_suite.get_session_data("1min", SessionType.ETH)
-        eth_data_5min = await eth_suite.get_session_data("5min", SessionType.ETH)
+        # These methods exist on the data manager and filter by session
+        rth_data_1min = await rth_context.data.get_session_data("1min", SessionType.RTH)
+        rth_data_5min = await rth_context.data.get_session_data("5min", SessionType.RTH)
 
+        eth_data_1min = await eth_context.data.get_session_data("1min", SessionType.ETH)
+        eth_data_5min = await eth_context.data.get_session_data("5min", SessionType.ETH)
+
+        if rth_data_1min is None or rth_data_5min is None or eth_data_1min is None or eth_data_5min is None:
+            raise ValueError("Failed to get data")
         # Compare data volumes
         print("\nData Comparison (1min):")
         print(f"RTH bars: {len(rth_data_1min):,}")
@@ -147,8 +152,15 @@ async def demonstrate_session_indicators():
         )
         print("✅ RTH TradingSuite created for indicators")
 
-        # Get RTH data
-        rth_data = await suite.get_session_data("5min", SessionType.RTH)
+        # Get RTH data using data manager's session method
+        mnq_context = suite["MNQ"]
+        rth_data = await mnq_context.data.get_session_data("5min", SessionType.RTH)
+
+        if rth_data is None:
+            print("No RTH data available")
+            await suite.disconnect()
+            return
+
         print(f"Retrieved {len(rth_data):,} RTH bars")
 
         if not rth_data.is_empty():
@@ -168,37 +180,67 @@ async def demonstrate_session_indicators():
                 sma_stats = with_indicators["sma_20"].drop_nulls()
                 if len(sma_stats) > 0:
                     print("\nSMA(20) Stats (RTH only):")
-                    print(f"  Mean: ${float(sma_stats.mean()):.2f}")
-                    print(f"  Min:  ${float(sma_stats.min()):.2f}")
-                    print(f"  Max:  ${float(sma_stats.max()):.2f}")
+                    sma_mean = sma_stats.mean()
+                    sma_min = sma_stats.min()
+                    sma_max = sma_stats.max()
+                    # Cast to float, handling potential None or complex types
+                    if sma_mean is not None:
+                        mean_val = float(str(sma_mean)) if not isinstance(sma_mean, (int, float)) else float(sma_mean)
+                        print(f"  Mean: ${mean_val:.2f}")
+                    if sma_min is not None:
+                        min_val = float(str(sma_min)) if not isinstance(sma_min, (int, float)) else float(sma_min)
+                        print(f"  Min:  ${min_val:.2f}")
+                    if sma_max is not None:
+                        max_val = float(str(sma_max)) if not isinstance(sma_max, (int, float)) else float(sma_max)
+                        print(f"  Max:  ${max_val:.2f}")
 
             if "rsi_14" in with_indicators.columns:
                 rsi_stats = with_indicators["rsi_14"].drop_nulls()
                 if len(rsi_stats) > 0:
                     print("\nRSI(14) Stats (RTH only):")
-                    print(f"  Mean: {float(rsi_stats.mean()):.1f}")
-                    print(f"  Min:  {float(rsi_stats.min()):.1f}")
-                    print(f"  Max:  {float(rsi_stats.max()):.1f}")
+                    rsi_mean = rsi_stats.mean()
+                    rsi_min = rsi_stats.min()
+                    rsi_max = rsi_stats.max()
+                    # Cast to float, handling potential None or complex types
+                    if rsi_mean is not None:
+                        mean_val = float(str(rsi_mean)) if not isinstance(rsi_mean, (int, float)) else float(rsi_mean)
+                        print(f"  Mean: {mean_val:.1f}")
+                    if rsi_min is not None:
+                        min_val = float(str(rsi_min)) if not isinstance(rsi_min, (int, float)) else float(rsi_min)
+                        print(f"  Min:  {min_val:.1f}")
+                    if rsi_max is not None:
+                        max_val = float(str(rsi_max)) if not isinstance(rsi_max, (int, float)) else float(rsi_max)
+                        print(f"  Max:  {max_val:.1f}")
 
-            # Compare with ETH indicators
+            # Compare with ETH indicators - need to create ETH suite
             print("\nComparing RTH vs ETH indicators...")
-            await suite.set_session_type(SessionType.ETH)
-            eth_data = await suite.get_session_data("5min", SessionType.ETH)
+            eth_suite = await TradingSuite.create(
+                "MNQ",
+                timeframes=["5min"],
+                session_config=SessionConfig(session_type=SessionType.ETH),
+            )
+            eth_context = eth_suite["MNQ"]
+            eth_data = await eth_context.data.get_session_data("5min", SessionType.ETH)
 
-            if not eth_data.is_empty():
+            if eth_data is not None and not eth_data.is_empty():
                 eth_indicators = eth_data.pipe(SMA, period=20).pipe(RSI, period=14)
 
                 if "sma_20" in eth_indicators.columns:
                     eth_sma = eth_indicators["sma_20"].drop_nulls()
                     if len(eth_sma) > 0:
-                        eth_sma_mean = float(eth_sma.mean())
-                        rth_sma_mean = (
-                            float(sma_stats.mean()) if len(sma_stats) > 0 else 0
-                        )
-                        print("\nSMA(20) Comparison:")
-                        print(f"  RTH Mean: ${rth_sma_mean:.2f}")
-                        print(f"  ETH Mean: ${eth_sma_mean:.2f}")
-                        print(f"  Difference: ${abs(eth_sma_mean - rth_sma_mean):.2f}")
+                        eth_mean_val = eth_sma.mean()
+                        if eth_mean_val is not None and 'sma_stats' in locals() and len(sma_stats) > 0:
+                            rth_mean_val = sma_stats.mean()
+                            if rth_mean_val is not None:
+                                # Safely convert to float
+                                eth_sma_mean = float(str(eth_mean_val)) if not isinstance(eth_mean_val, (int, float)) else float(eth_mean_val)
+                                rth_sma_mean = float(str(rth_mean_val)) if not isinstance(rth_mean_val, (int, float)) else float(rth_mean_val)
+                                print("\nSMA(20) Comparison:")
+                                print(f"  RTH Mean: ${rth_sma_mean:.2f}")
+                                print(f"  ETH Mean: ${eth_sma_mean:.2f}")
+                                print(f"  Difference: ${abs(eth_sma_mean - rth_sma_mean):.2f}")
+
+            await eth_suite.disconnect()
 
         await suite.disconnect()
         await asyncio.sleep(0.1)  # Brief delay to avoid connection cleanup race
@@ -224,10 +266,12 @@ async def demonstrate_session_statistics():
         )
         print("✅ ETH TradingSuite created for statistics")
 
-        # Get session statistics
+        # Get session statistics using data manager's method
         print("\nCalculating session statistics...")
         try:
-            stats = await suite.get_session_statistics()
+            # Get the statistics directly from data manager
+            mnq_context = suite["MNQ"]
+            stats = await mnq_context.data.get_session_statistics("1min")
 
             print("\n📊 Session Statistics:")
             print(f"RTH Volume: {stats.get('rth_volume', 'N/A'):,}")
