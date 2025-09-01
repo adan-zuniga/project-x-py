@@ -69,9 +69,9 @@ async def main():
         print(f"Connection Status: {status}")
 
     # Register event handlers
-    await mnq_context.on(EventType.TICK, on_tick)
-    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
-    await mnq_context.on(EventType.CONNECTION_STATUS, on_connection_status)
+    await suite.on(EventType.QUOTE_UPDATE, on_tick)
+    await suite.on(EventType.NEW_BAR, on_new_bar)
+    await suite.on(EventType.CONNECTED, on_connection_status)
 
     print("Listening for real-time data... Press Ctrl+C to exit")
 
@@ -81,7 +81,7 @@ async def main():
 
             # Display periodic status
             current_price = await mnq_context.data.get_current_price()
-            connection_health = await mnq_context.data.get_connection_health()
+            connection_health = await suite.get_session_statistics()
 
             print(f"Status - Price: ${current_price:.2f} | Ticks: {tick_count} | Bars: {bar_count} | Health: {connection_health}")
 
