@@ -40,25 +40,44 @@ async def main():
 
     async def on_new_bar(event):
         nonlocal bar_count
-        bar_data = event.data
         bar_count += 1
 
         timestamp = datetime.now().strftime("%H:%M:%S")
-        timeframe = bar_data.get("timeframe", "unknown")
+
+        # The event.data contains timeframe and nested data
+        event_data = event.data
+        timeframe = event_data.get("timeframe", "unknown")
+
+        # The actual bar data is nested in the 'data' field
+        bar_data = event_data.get(
+            "data", event_data
+        )  # Fallback to event_data if not nested
 
         print(f"[{timestamp}] New {timeframe} bar #{bar_count}:")
-        print(
-            f"  OHLC: ${bar_data['open']:.2f} / ${bar_data['high']:.2f} / ${bar_data['low']:.2f} / ${bar_data['close']:.2f}"
-        )
-        print(f"  Volume: {bar_data.get('volume', 0)}")
-        print(f"  Timestamp: {bar_data.get('timestamp')}")
+
+        # Check if bar_data has the expected fields
+        if (
+            "open" in bar_data
+            and "high" in bar_data
+            and "low" in bar_data
+            and "close" in bar_data
+        ):
+            print(
+                f"  OHLC: ${bar_data['open']:.2f} / ${bar_data['high']:.2f} / ${bar_data['low']:.2f} / ${bar_data['close']:.2f}"
+            )
+            print(f"  Volume: {bar_data.get('volume', 0)}")
+            print(f"  Timestamp: {bar_data.get('timestamp')}")
+        else:
+            # Debug: show what fields are actually present
+            print(f"  Bar data fields: {list(bar_data.keys())}")
+            print(f"  Full event data: {event_data}")
 
     async def on_connection_status(event):
         status = event.data.get("status", "unknown")
         print(f"Connection Status: {status}")
 
     # Register event handlers
-    await mnq_context.on(EventType.QUOTE_UPDATE, on_tick)
+    await mnq_context.on(EventType.TRADE_TICK, on_tick)
     await mnq_context.on(EventType.NEW_BAR, on_new_bar)
     await mnq_context.on(EventType.CONNECTED, on_connection_status)
 
