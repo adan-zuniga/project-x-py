@@ -27,6 +27,9 @@ class SessionFilterMixin:
     CACHE_MAX_SIZE = 1000  # Maximum cache entries
     CACHE_TTL_SECONDS = 3600  # Cache time-to-live in seconds
 
+    # Cached timezone object for performance
+    _market_tz = None
+
     def __init__(
         self,
         config: SessionConfig | None = None,
@@ -419,7 +422,10 @@ class SessionFilterMixin:
         """Convert timestamp to market timezone (ET)."""
         from datetime import datetime as dt_class
 
-        market_tz = pytz.timezone("America/New_York")
+        # Use cached timezone object for performance
+        if SessionFilterMixin._market_tz is None:
+            SessionFilterMixin._market_tz = pytz.timezone("America/New_York")
+        market_tz = SessionFilterMixin._market_tz
 
         # Handle string timestamps
         if isinstance(timestamp, str):
