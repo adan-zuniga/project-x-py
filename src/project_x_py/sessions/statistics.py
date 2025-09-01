@@ -29,77 +29,96 @@ class SessionStatistics:
         self, data: pl.DataFrame, product: str
     ) -> dict[str, Any]:
         """Calculate comprehensive session statistics."""
+        # Early return for empty data
         if data.is_empty():
-            return {
-                "rth_volume": 0,
-                "eth_volume": 0,
-                "rth_vwap": 0.0,
-                "eth_vwap": 0.0,
-                "rth_range": 0.0,
-                "eth_range": 0.0,
-                "rth_high": 0.0,
-                "rth_low": 0.0,
-                "eth_high": 0.0,
-                "eth_low": 0.0,
-            }
+            return self._get_empty_stats()
 
         # Filter data by sessions
         rth_data = await self.filter.filter_by_session(data, SessionType.RTH, product)
         eth_data = await self.filter.filter_by_session(data, SessionType.ETH, product)
 
-        # Calculate volume statistics
-        rth_volume = int(rth_data["volume"].sum()) if not rth_data.is_empty() else 0
-        eth_volume = int(eth_data["volume"].sum()) if not eth_data.is_empty() else 0
+        # Calculate statistics for both sessions
+        rth_stats = self._calculate_session_metrics(rth_data, "rth")
+        eth_stats = self._calculate_session_metrics(eth_data, "eth")
 
-        # Calculate VWAP
-        rth_vwap = self._calculate_vwap(rth_data) if not rth_data.is_empty() else 0.0
-        eth_vwap = self._calculate_vwap(eth_data) if not eth_data.is_empty() else 0.0
+        # Combine results
+        return {**rth_stats, **eth_stats}
 
-        # Calculate ranges and high/low
-        if not rth_data.is_empty():
-            rth_high_val = rth_data["high"].max()
-            rth_low_val = rth_data["low"].min()
-            # Type guard to ensure values are numeric
-            if rth_high_val is not None and isinstance(rth_high_val, int | float):
-                rth_high = float(rth_high_val)
-            else:
-                rth_high = 0.0
-            if rth_low_val is not None and isinstance(rth_low_val, int | float):
-                rth_low = float(rth_low_val)
-            else:
-                rth_low = 0.0
-        else:
-            rth_high, rth_low = 0.0, 0.0
-        rth_range = rth_high - rth_low if rth_high > 0 else 0.0
+    def _get_empty_stats(self) -> dict[str, Any]:
+        """Return empty statistics structure."""
+        return {
+            "rth_volume": 0,
+            "eth_volume": 0,
+            "rth_vwap": 0.0,
+            "eth_vwap": 0.0,
+            "rth_range": 0.0,
+            "eth_range": 0.0,
+            "rth_high": 0.0,
+            "rth_low": 0.0,
+            "eth_high": 0.0,
+            "eth_low": 0.0,
+        }
 
-        if not eth_data.is_empty():
-            eth_high_val = eth_data["high"].max()
-            eth_low_val = eth_data["low"].min()
-            # Type guard to ensure values are numeric
-            if eth_high_val is not None and isinstance(eth_high_val, int | float):
-                eth_high = float(eth_high_val)
-            else:
-                eth_high = 0.0
-            if eth_low_val is not None and isinstance(eth_low_val, int | float):
-                eth_low = float(eth_low_val)
-            else:
-                eth_low = 0.0
-        else:
-            eth_high, eth_low = 0.0, 0.0
-        eth_range = eth_high - eth_low if eth_high > 0 else 0.0
+    def _calculate_session_metrics(
+        self, data: pl.DataFrame, session_prefix: str
+    ) -> dict[str, Any]:
+        """Calculate metrics for a single session."""
+        if data.is_empty():
+            return self._get_empty_session_metrics(session_prefix)
+
+        volume = self._calculate_volume(data)
+        vwap = self._calculate_vwap(data)
+        high_low = self._calculate_high_low_range(data)
 
         return {
-            "rth_volume": rth_volume,
-            "eth_volume": eth_volume,
-            "rth_vwap": rth_vwap,
-            "eth_vwap": eth_vwap,
-            "rth_range": rth_range,
-            "eth_range": eth_range,
-            "rth_high": rth_high,
-            "rth_low": rth_low,
-            "eth_high": eth_high,
-            "eth_low": eth_low,
+            f"{session_prefix}_volume": volume,
+            f"{session_prefix}_vwap": vwap,
+            f"{session_prefix}_range": high_low["range"],
+            f"{session_prefix}_high": high_low["high"],
+            f"{session_prefix}_low": high_low["low"],
         }
+
+    def _get_empty_session_metrics(self, session_prefix: str) -> dict[str, Any]:
+        """Return empty metrics for a single session."""
+        return {
+            f"{session_prefix}_volume": 0,
+            f"{session_prefix}_vwap": 0.0,
+            f"{session_prefix}_range": 0.0,
+            f"{session_prefix}_high": 0.0,
+            f"{session_prefix}_low": 0.0,
+        }
+
+    def _calculate_volume(self, data: pl.DataFrame) -> int:
+        """Calculate total volume from data."""
+        return int(data["volume"].sum())
+
+    def _calculate_high_low_range(self, data: pl.DataFrame) -> dict[str, float]:
+        """Calculate high, low, and range values."""
+        # Check if data has any non-null values
+        if data["high"].is_null().all() or data["low"].is_null().all():
+            return {"high": 0.0, "low": 0.0, "range": 0.0}
+
+        # Filter out null values before calculating max/min
+        high_data = data.filter(pl.col("high").is_not_null())
+        low_data = data.filter(pl.col("low").is_not_null())
+
+        if high_data.is_empty() or low_data.is_empty():
+            return {"high": 0.0, "low": 0.0, "range": 0.0}
+
+        high_val = high_data["high"].max()
+        low_val = low_data["low"].min()
+
+        high = self._safe_convert_to_float(high_val)
+        low = self._safe_convert_to_float(low_val)
+        range_val = high - low if high > 0 else 0.0
+
+        return {"high": high, "low": low, "range": range_val}
+
+    def _safe_convert_to_float(self, value: Any) -> float:
+        """Safely convert a value to float with type checking."""
+        if value is not None and isinstance(value, int | float):
+            return float(value)
+        return 0.0
 
     def _calculate_vwap(self, data: pl.DataFrame) -> float:
         """Calculate Volume Weighted Average Price."""

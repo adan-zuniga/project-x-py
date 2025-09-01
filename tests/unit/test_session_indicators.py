@@ -22,13 +22,16 @@ from project_x_py.sessions.indicators import (
     calculate_percent_from_open,
     calculate_relative_to_vwap,
     calculate_session_cumulative_volume,
+    calculate_session_gap,
     calculate_session_levels,
     calculate_session_vwap,
-    create_minute_data,
-    create_single_session_data,
-    find_session_boundaries,
     generate_session_alerts,
-    identify_sessions,
+    get_session_performance_metrics,
+    get_volume_profile,
+    _create_minute_data,
+    _create_single_session_data,
+    _find_session_boundaries,
+    _identify_sessions,
 )
 
 
@@ -171,7 +174,7 @@ class TestSessionAwareIndicators:
 
         # Should handle overnight gaps without distortion
         # Check RSI continuity across session boundaries
-        session_boundaries = find_session_boundaries(rth_with_rsi)
+        session_boundaries = _find_session_boundaries(rth_with_rsi)
         for boundary in session_boundaries:
             # RSI shouldn't spike at boundaries
             before = float(rth_with_rsi["rsi_14"][boundary - 1])
@@ -202,7 +205,7 @@ class TestSessionAwareIndicators:
     async def test_session_anchored_vwap(self):
         """Should support session-anchored VWAP."""
         # Create session data
-        session_data = create_single_session_data()
+        session_data = _create_single_session_data()
 
         # Anchored VWAP from session open
         anchored_vwap = await calculate_anchored_vwap(
@@ -269,7 +272,7 @@ class TestSessionAwareIndicators:
         assert "session_cumulative_volume" in with_cum_volume.columns
 
         # Should reset at session boundaries
-        sessions = identify_sessions(with_cum_volume)
+        sessions = _identify_sessions(with_cum_volume)
         for session_start in sessions:
             # First bar of session should have volume equal to its own volume
             first_cum = float(with_cum_volume["session_cumulative_volume"][session_start])
@@ -279,7 +282,7 @@ class TestSessionAwareIndicators:
     @pytest.mark.asyncio
     async def test_session_relative_indicators(self):
         """Should calculate indicators relative to session metrics."""
-        session_data = create_single_session_data()
+        session_data = _create_single_session_data()
 
         # Calculate price relative to session VWAP
         relative_data = await calculate_relative_to_vwap(session_data)
@@ -331,7 +334,7 @@ class TestSessionIndicatorIntegration:
     async def test_multi_timeframe_session_indicators(self):
         """Should calculate indicators across multiple timeframes."""
         # Create 1-minute data
-        minute_data = create_minute_data()
+        minute_data = _create_minute_data()
 
         # Aggregate to 5-minute maintaining session awareness
         five_min_data = await aggregate_with_sessions(
@@ -354,7 +357,7 @@ class TestSessionIndicatorIntegration:
     @pytest.mark.asyncio
     async def test_session_indicator_alerts(self):
         """Should generate alerts based on session indicators."""
-        session_data = create_single_session_data()
+        session_data = _create_single_session_data()
 
         # Calculate indicators
         with_indicators = session_data.pipe(SMA, period=10).pipe(RSI, period=14)
@@ -377,3 +380,297 @@ class TestSessionIndicatorIntegration:
 
 # Helper functions are imported from the actual implementation above
 # No stub implementations needed - using real functions from sessions.indicators module
+
+
+class TestSessionIndicatorsEdgeCases:
+    """Test edge cases and uncovered lines in indicators.py."""
+
+    @pytest.mark.asyncio
+    async def test_calculate_session_vwap_empty_dataframe(self):
+        """Test calculate_session_vwap with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "timestamp": [],
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": []
+        }, schema={
+            "timestamp": pl.Datetime(time_zone="UTC"),
+            "open": pl.Float64,
+            "high": pl.Float64,
+            "low": pl.Float64,
+            "close": pl.Float64,
+            "volume": pl.Int64
+        })
+
+        result = await calculate_session_vwap(empty_df, SessionType.RTH, "ES")
+
+        assert len(result) == 0
+        assert "session_vwap" in result.columns
+
+    def test_find_session_boundaries_empty_data(self):
+        """Test _find_session_boundaries with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "timestamp": []
+        }, schema={"timestamp": pl.Datetime(time_zone="UTC")})
+
+        boundaries = _find_session_boundaries(empty_df)
+        assert boundaries == []
+
+    def test_find_session_boundaries_multi_session(self):
+        """Test _find_session_boundaries with multiple sessions."""
+        multi_session = pl.DataFrame({
+            "timestamp": [
+                datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc),  # Day 1
+                datetime(2024, 1, 15, 16, 0, tzinfo=timezone.utc),  # Day 1
+                datetime(2024, 1, 16, 15, 0, tzinfo=timezone.utc),  # Day 2 - boundary
+                datetime(2024, 1, 16, 16, 0, tzinfo=timezone.utc),  # Day 2
+                datetime(2024, 1, 17, 15, 0, tzinfo=timezone.utc),  # Day 3 - boundary
+            ]
+        })
+
+        boundaries = _find_session_boundaries(multi_session)
+        # Should find boundaries at indices 2 and 4 (start of new days)
+        assert boundaries == [2, 4]
+
+    def test_create_single_session_data_structure(self):
+        """Test _create_single_session_data returns correct structure."""
+        data = _create_single_session_data()
+
+        # Should have 390 rows (6.5 hours * 60 minutes)
+        assert len(data) == 390
+
+        # Should have all OHLCV columns
+        expected_columns = ["timestamp", "open", "high", "low", "close", "volume"]
+        assert set(data.columns) == set(expected_columns)
+
+        # Should have proper data types
+        assert data["timestamp"].dtype == pl.Datetime(time_zone="UTC")
+
+        # Prices should be ascending
+        opens = data["open"].to_list()
+        assert opens[0] < opens[-1]
+
+    def test_identify_sessions_empty_data(self):
+        """Test _identify_sessions with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "timestamp": []
+        }, schema={"timestamp": pl.Datetime(time_zone="UTC")})
+
+        sessions = _identify_sessions(empty_df)
+        assert sessions == []
+
+    def test_identify_sessions_single_row(self):
+        """Test _identify_sessions with single row."""
+        single_row = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)]
+        })
+
+        sessions = _identify_sessions(single_row)
+        # First row is always a session start
+        assert sessions == [0]
+
+    @pytest.mark.asyncio
+    async def test_calculate_anchored_vwap_empty_data(self):
+        """Test calculate_anchored_vwap with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "timestamp": [],
+            "close": [],
+            "volume": []
+        }, schema={
+            "timestamp": pl.Datetime(time_zone="UTC"),
+            "close": pl.Float64,
+            "volume": pl.Int64
+        })
+
+        result = await calculate_anchored_vwap(empty_df, "session_open")
+
+        assert len(result) == 0
+        assert "anchored_vwap" in result.columns
+
+    @pytest.mark.asyncio
+    async def test_calculate_anchored_vwap_unknown_anchor(self):
+        """Test calculate_anchored_vwap with unknown anchor point."""
+        data = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "close": [100.0],
+            "volume": [1000]
+        })
+
+        result = await calculate_anchored_vwap(data, "unknown_anchor")
+
+        # Should return original data without anchored_vwap column
+        assert result.equals(data)
+        assert "anchored_vwap" not in result.columns
+
+    @pytest.mark.asyncio
+    async def test_generate_session_alerts_empty_data(self):
+        """Test generate_session_alerts with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "close": [],
+            "sma_10": [],
+            "rsi_14": []
+        }, schema={
+            "close": pl.Float64,
+            "sma_10": pl.Float64,
+            "rsi_14": pl.Float64
+        })
+
+        conditions = {"breakout": "close > sma_10"}
+        result = await generate_session_alerts(empty_df, conditions)
+
+        assert len(result) == 0
+        assert "alerts" in result.columns
+
+    @pytest.mark.asyncio
+    async def test_generate_session_alerts_no_conditions(self):
+        """Test generate_session_alerts with no conditions."""
+        data = pl.DataFrame({
+            "close": [100.0, 101.0],
+            "sma_10": [99.0, 100.0]
+        })
+
+        result = await generate_session_alerts(data, {})
+
+        assert len(result) == 2
+        assert "alerts" in result.columns
+        # Should have None values for alerts when no conditions
+        alerts = result["alerts"].to_list()
+        assert all(alert is None for alert in alerts)
+
+    def test_calculate_session_gap_empty_data(self):
+        """Test calculate_session_gap with empty DataFrames."""
+        empty_df = pl.DataFrame({
+            "close": [],
+            "open": []
+        }, schema={"close": pl.Float64, "open": pl.Float64})
+
+        # Both empty
+        result = calculate_session_gap(empty_df, empty_df)
+        assert result == {"gap_size": 0.0, "gap_percentage": 0.0}
+
+    def test_calculate_session_gap_zero_friday_close(self):
+        """Test calculate_session_gap with zero Friday close."""
+        friday_data = pl.DataFrame({"close": [0.0]})
+        monday_data = pl.DataFrame({"open": [100.0]})
+
+        result = calculate_session_gap(friday_data, monday_data)
+
+        assert result["gap_size"] == 100.0
+        assert result["gap_percentage"] == 0.0  # Avoid division by zero
+
+    def test_get_volume_profile_empty_data(self):
+        """Test get_volume_profile with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "volume": []
+        }, schema={"volume": pl.Int64})
+
+        result = get_volume_profile(empty_df, SessionType.RTH)
+
+        expected = {"open_volume": 0, "midday_volume": 0, "close_volume": 0}
+        assert result == expected
+
+    def test_get_volume_profile_insufficient_data(self):
+        """Test get_volume_profile with insufficient data points."""
+        # Test with 1 data point
+        single_point = pl.DataFrame({"volume": [1000]})
+        result = get_volume_profile(single_point, SessionType.RTH)
+
+        assert result["open_volume"] == 1000
+        assert result["midday_volume"] == 1000
+        assert result["close_volume"] == 1000
+
+    def test_get_session_performance_metrics_none_data(self):
+        """Test get_session_performance_metrics with None data."""
+        result = get_session_performance_metrics(None)
+
+        expected_keys = ["rth_tick_rate", "eth_tick_rate", "rth_data_quality", "session_efficiency"]
+        for key in expected_keys:
+            assert key in result
+            assert isinstance(result[key], float)
+
+    def test_get_session_performance_metrics_single_point(self):
+        """Test get_session_performance_metrics with single data point."""
+        single_point = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)]
+        })
+
+        result = get_session_performance_metrics(single_point)
+
+        # Should return default metrics (can't calculate rate with single point)
+        assert result["rth_tick_rate"] == 0.0
+
+
+class TestSessionIndicatorsConditionEvaluators:
+    """Test condition evaluators and alert generation edge cases."""
+
+    def test_evaluate_close_gt_sma_10_missing_fields(self):
+        """Test _evaluate_close_gt_sma_10 with missing fields."""
+        from project_x_py.sessions.indicators import _evaluate_close_gt_sma_10
+
+        # Missing close
+        row = {"sma_10": 100.0}
+        assert _evaluate_close_gt_sma_10(row) is False
+
+        # Missing sma_10
+        row = {"close": 101.0}
+        assert _evaluate_close_gt_sma_10(row) is False
+
+        # None values
+        row = {"close": None, "sma_10": 100.0}
+        assert _evaluate_close_gt_sma_10(row) is False
+
+    def test_evaluate_close_gt_sma_10_valid_conditions(self):
+        """Test _evaluate_close_gt_sma_10 with valid conditions."""
+        from project_x_py.sessions.indicators import _evaluate_close_gt_sma_10
+
+        # True condition
+        row = {"close": 101.0, "sma_10": 100.0}
+        assert _evaluate_close_gt_sma_10(row) is True
+
+        # False condition
+        row = {"close": 99.0, "sma_10": 100.0}
+        assert _evaluate_close_gt_sma_10(row) is False
+
+    def test_has_valid_fields_edge_cases(self):
+        """Test _has_valid_fields helper function."""
+        from project_x_py.sessions.indicators import _has_valid_fields
+
+        # Empty row
+        assert _has_valid_fields({}, ["field1"]) is False
+
+        # Missing field
+        row = {"field1": 100}
+        assert _has_valid_fields(row, ["field2"]) is False
+
+        # None value
+        row = {"field1": None}
+        assert _has_valid_fields(row, ["field1"]) is False
+
+        # Valid field
+        row = {"field1": 100, "field2": 200}
+        assert _has_valid_fields(row, ["field1", "field2"]) is True
+
+
+class TestSessionIndicatorsConcurrentAccess:
+    """Test concurrent access patterns for indicators."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_vwap_calculations(self):
+        """Test concurrent VWAP calculations don't interfere."""
+        import asyncio
+
+        data = _create_single_session_data()
+
+        async def calc_vwap():
+            return await calculate_session_vwap(data, SessionType.RTH, "ES")
+
+        # Run multiple concurrent calculations
+        tasks = [calc_vwap() for _ in range(5)]
+        results = await asyncio.gather(*tasks)
+
+        # All results should be identical
+        first_result = results[0]
+        for result in results[1:]:
+            assert result.equals(first_result)

@@ -491,3 +491,318 @@ class TestSessionStatisticsIntegration:
 
         # Should still return valid results
         assert stats["rth_volume"] > 0
+
+
+class TestSessionStatisticsEdgeCases:
+    """Test edge cases and uncovered lines in statistics.py."""
+
+    @pytest.fixture
+    def stats(self):
+        from project_x_py.sessions.statistics import SessionStatistics
+        return SessionStatistics()
+
+    @pytest.mark.asyncio
+    async def test_calculate_session_stats_empty_dataframe(self, stats):
+        """Test calculate_session_stats with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "timestamp": [],
+            "open": [],
+            "high": [],
+            "low": [],
+            "close": [],
+            "volume": []
+        }, schema={
+            "timestamp": pl.Datetime(time_zone="UTC"),
+            "open": pl.Float64,
+            "high": pl.Float64,
+            "low": pl.Float64,
+            "close": pl.Float64,
+            "volume": pl.Int64
+        })
+
+        result = await stats.calculate_session_stats(empty_df, "ES")
+
+        # Should return empty stats structure
+        expected_keys = [
+            "rth_volume", "eth_volume", "rth_vwap", "eth_vwap",
+            "rth_range", "eth_range", "rth_high", "rth_low", "eth_high", "eth_low"
+        ]
+        for key in expected_keys:
+            assert key in result
+            assert result[key] == 0 or result[key] == 0.0
+
+    def test_safe_convert_to_float_edge_cases(self, stats):
+        """Test _safe_convert_to_float with various input types."""
+        # None input
+        assert stats._safe_convert_to_float(None) == 0.0
+
+        # Valid int
+        assert stats._safe_convert_to_float(42) == 42.0
+
+        # Valid float
+        assert stats._safe_convert_to_float(3.14) == 3.14
+
+        # String input (invalid)
+        assert stats._safe_convert_to_float("not_a_number") == 0.0
+
+        # List input (invalid)
+        assert stats._safe_convert_to_float([1, 2, 3]) == 0.0
+
+        # Boolean input (should work as it's int-like)
+        assert stats._safe_convert_to_float(True) == 1.0
+        assert stats._safe_convert_to_float(False) == 0.0
+
+    def test_calculate_high_low_range_empty_data(self, stats):
+        """Test _calculate_high_low_range with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "high": [],
+            "low": []
+        }, schema={"high": pl.Float64, "low": pl.Float64})
+
+        result = stats._calculate_high_low_range(empty_df)
+
+        # Should handle empty data gracefully
+        expected = {"high": 0.0, "low": 0.0, "range": 0.0}
+        assert result == expected
+
+    def test_calculate_high_low_range_none_values(self, stats):
+        """Test _calculate_high_low_range with None values from Polars."""
+        # Create DataFrame with actual None values
+        df_with_none = pl.DataFrame({
+            "high": [None, None],
+            "low": [None, None]
+        })
+
+        result = stats._calculate_high_low_range(df_with_none)
+
+        # Should handle None values safely
+        assert result["high"] == 0.0
+        assert result["low"] == 0.0
+        assert result["range"] == 0.0
+
+    def test_calculate_vwap_empty_data(self, stats):
+        """Test _calculate_vwap with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "close": [],
+            "volume": []
+        }, schema={"close": pl.Float64, "volume": pl.Int64})
+
+        result = stats._calculate_vwap(empty_df)
+        assert result == 0.0
+
+    def test_calculate_vwap_zero_volume(self, stats):
+        """Test _calculate_vwap with zero total volume."""
+        zero_volume_df = pl.DataFrame({
+            "close": [100.0, 101.0, 102.0],
+            "volume": [0, 0, 0]
+        })
+
+        result = stats._calculate_vwap(zero_volume_df)
+        # Should return 0.0 to avoid division by zero
+        assert result == 0.0
+
+    def test_calculate_volume_precision(self, stats):
+        """Test _calculate_volume handles large numbers correctly."""
+        large_volume_df = pl.DataFrame({
+            "volume": [1_000_000, 2_000_000, 3_000_000]
+        })
+
+        result = stats._calculate_volume(large_volume_df)
+        assert result == 6_000_000
+        assert isinstance(result, int)
+
+
+class TestSessionAnalyticsEdgeCases:
+    """Test edge cases in SessionAnalytics."""
+
+    @pytest.fixture
+    def analytics(self):
+        from project_x_py.sessions.statistics import SessionAnalytics
+        return SessionAnalytics()
+
+    @pytest.mark.asyncio
+    async def test_compare_sessions_zero_volume(self, analytics):
+        """Test compare_sessions with zero volume scenarios."""
+        # Create data with zero ETH volume
+        data_with_zero = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "open": [100.0],
+            "high": [101.0],
+            "low": [99.0],
+            "close": [100.5],
+            "volume": [1000]  # This will be filtered to show RTH volume only
+        })
+
+        result = await analytics.compare_sessions(data_with_zero, "ES")
+
+        # Should handle division by zero gracefully
+        assert "rth_vs_eth_volume_ratio" in result
+        assert isinstance(result["rth_vs_eth_volume_ratio"], float)
+
+    @pytest.mark.asyncio
+    async def test_get_session_volume_profile_empty_data(self, analytics):
+        """Test get_session_volume_profile with empty DataFrame."""
+        empty_df = pl.DataFrame({
+            "timestamp": [],
+            "volume": []
+        }, schema={
+            "timestamp": pl.Datetime(time_zone="UTC"),
+            "volume": pl.Int64
+        })
+
+        result = await analytics.get_session_volume_profile(empty_df, "ES")
+
+        # Should return default structure
+        expected_keys = ["rth_volume_by_hour", "eth_volume_by_hour", "peak_volume_time"]
+        for key in expected_keys:
+            assert key in result
+
+        # Peak volume time should have defaults
+        assert result["peak_volume_time"]["hour"] == 0
+        assert result["peak_volume_time"]["volume"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_session_volume_profile_single_hour(self, analytics):
+        """Test get_session_volume_profile with single hour of data."""
+        single_hour_df = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "volume": [5000]
+        })
+
+        result = await analytics.get_session_volume_profile(single_hour_df, "ES")
+
+        # Should identify peak volume time correctly
+        peak_time = result["peak_volume_time"]
+        assert peak_time["hour"] == 15  # 15:00 UTC
+        assert peak_time["volume"] == 5000
+        assert peak_time["session"] == "RTH"
+
+    @pytest.mark.asyncio
+    async def test_analyze_session_volatility_zero_range(self, analytics):
+        """Test analyze_session_volatility with zero ETH range."""
+        # Create flat price data (no volatility)
+        flat_data = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "open": [100.0],
+            "high": [100.0],  # Same as open/close
+            "low": [100.0],   # Same as open/close
+            "close": [100.0],
+            "volume": [1000]
+        })
+
+        result = await analytics.analyze_session_volatility(flat_data, "ES")
+
+        # Should handle zero volatility case
+        assert "volatility_ratio" in result
+        assert isinstance(result["volatility_ratio"], float)
+
+
+class TestSessionStatisticsConcurrentAccess:
+    """Test concurrent access patterns for statistics."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_stats_calculations(self):
+        """Test concurrent statistics calculations don't interfere."""
+        import asyncio
+        from project_x_py.sessions.statistics import SessionStatistics
+
+        stats = SessionStatistics()
+        data = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "open": [100.0],
+            "high": [101.0],
+            "low": [99.0],
+            "close": [100.5],
+            "volume": [1000]
+        })
+
+        async def calc_stats():
+            return await stats.calculate_session_stats(data, "ES")
+
+        # Run multiple concurrent calculations
+        tasks = [calc_stats() for _ in range(10)]
+        results = await asyncio.gather(*tasks)
+
+        # All results should be identical
+        first_result = results[0]
+        for result in results[1:]:
+            assert result == first_result
+
+    @pytest.mark.asyncio
+    async def test_concurrent_analytics_operations(self):
+        """Test concurrent analytics operations."""
+        import asyncio
+        from project_x_py.sessions.statistics import SessionAnalytics
+
+        analytics = SessionAnalytics()
+        data = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "open": [100.0],
+            "high": [101.0],
+            "low": [99.0],
+            "close": [100.5],
+            "volume": [1000]
+        })
+
+        async def run_analytics():
+            compare_task = analytics.compare_sessions(data, "ES")
+            volatility_task = analytics.analyze_session_volatility(data, "ES")
+            profile_task = analytics.get_session_volume_profile(data, "ES")
+
+            return await asyncio.gather(compare_task, volatility_task, profile_task)
+
+        # Run concurrent analytics
+        results = await run_analytics()
+
+        # Should have 3 different result types
+        assert len(results) == 3
+        assert all(isinstance(result, dict) for result in results)
+
+
+class TestSessionStatisticsErrorHandling:
+    """Test error handling and recovery scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_malformed_data_handling(self):
+        """Test handling of malformed data."""
+        from project_x_py.sessions.statistics import SessionStatistics
+
+        stats = SessionStatistics()
+
+        # Missing required columns
+        bad_data = pl.DataFrame({"price": [100, 101, 102]})
+
+        # Should handle gracefully (may raise exception or return empty stats)
+        try:
+            result = await stats.calculate_session_stats(bad_data, "ES")
+            # If no exception, should return some form of valid response
+            assert isinstance(result, dict)
+        except Exception as e:
+            # If exception is raised, it should be informative
+            assert "timestamp" in str(e).lower() or "column" in str(e).lower()
+
+    @pytest.mark.asyncio
+    async def test_extreme_price_values(self):
+        """Test with extreme price values."""
+        import math
+        from project_x_py.sessions.statistics import SessionStatistics
+
+        stats = SessionStatistics()
+
+        # Very small prices
+        small_price_data = pl.DataFrame({
+            "timestamp": [datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)],
+            "open": [0.00001],
+            "high": [0.00002],
+            "low": [0.000005],
+            "close": [0.000015],
+            "volume": [1000000]  # Large volume to offset small prices
+        })
+
+        result = await stats.calculate_session_stats(small_price_data, "ES")
+
+        # Should handle small values without overflow/underflow
+        for key, value in result.items():
+            if isinstance(value, float):
+                assert not math.isnan(value)
+                assert not math.isinf(value)

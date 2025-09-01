@@ -92,14 +92,14 @@ async def session_setup():
 
     # Custom session times
     from datetime import time
-    import pytz
 
     custom_config = SessionConfig(
         session_type=SessionType.RTH,
-        custom_times=SessionTimes(
+        session_times=SessionTimes(
             rth_start=time(9, 0),
             rth_end=time(15, 30),
-            timezone=pytz.timezone("US/Eastern")
+            eth_start=time(18, 0),
+            eth_end=time(17, 0)
         )
     )
 
@@ -228,13 +228,18 @@ async def multi_instrument_sessions():
     # Set session type for all instruments
     await suite.set_session_type(SessionType.RTH)
 
-    # Get session data for all instruments
+    # Get session data for all instruments (returns dict)
     session_data = await suite.get_session_data("5min", SessionType.RTH)
-    # Returns: {"MNQ": data, "MES": data}
+    # Returns: {"MNQ": DataFrame, "MES": DataFrame}
+
+    for symbol, data in session_data.items():
+        if data is not None and not data.is_empty():
+            print(f"{symbol} RTH bars: {len(data)}")
 
     # Get session statistics for all instruments
     session_stats = await suite.get_session_statistics("5min")
-    # Returns: {"MNQ": stats, "MES": stats}
+    # Returns: {"MNQ": stats_dict, "MES": stats_dict} for multi-instrument
+    # or just stats_dict for single instrument
 
     await suite.disconnect()
 ```
@@ -303,8 +308,7 @@ async def custom_configuration():
 
     # Session configuration (v3.4.0+)
     session_config = SessionConfig(
-        session_type=SessionType.RTH,
-        product="MNQ"  # Product-specific session times
+        session_type=SessionType.RTH
     )
 
     suite = await TradingSuite.create(
@@ -437,7 +441,7 @@ async def data_access():
 ### Session-Aware Data Access (v3.4.0+)
 
 ```python
-from project_x_py.sessions import SessionType
+from project_x_py.sessions import SessionType, SessionConfig
 
 async def session_data_access():
     # Create suite with session configuration
@@ -446,22 +450,22 @@ async def session_data_access():
         timeframes=["1min", "5min"],
         session_config=SessionConfig(session_type=SessionType.RTH)
     )
-    mnq_data = suite["MNQ"].data
+    mnq_context = suite["MNQ"]
 
-    # Get session-specific data
-    rth_data = await mnq_data.get_session_bars("5min", SessionType.RTH)
-    eth_data = await mnq_data.get_session_bars("5min", SessionType.ETH)
+    # Get session-specific data using data manager methods
+    rth_data = await mnq_context.data.get_session_data("5min", SessionType.RTH)
+    eth_data = await mnq_context.data.get_session_data("5min", SessionType.ETH)
 
-    # Session trades
-    rth_trades = await mnq_data.get_session_trades(SessionType.RTH)
+    # Get session statistics from data manager
+    session_stats = await mnq_context.data.get_session_statistics("5min")
 
-    # Session statistics
-    from project_x_py.sessions import SessionStatistics
-    stats = SessionStatistics(suite["MNQ"])
-    rth_stats = await stats.calculate_session_stats(SessionType.RTH)
-
-    print(f"RTH Volatility: {rth_stats['volatility']:.2%}")
-    print(f"RTH Volume: {rth_stats['total_volume']:,}")
+    if session_stats:
+        print(f"RTH Volume: {session_stats.get('rth_volume', 0):,}")
+        print(f"ETH Volume: {session_stats.get('eth_volume', 0):,}")
+        print(f"RTH VWAP: ${session_stats.get('rth_vwap', 0):.2f}")
+        print(f"ETH VWAP: ${session_stats.get('eth_vwap', 0):.2f}")
+        print(f"RTH Range: ${session_stats.get('rth_range', 0):.2f}")
+        print(f"ETH Range: ${session_stats.get('eth_range', 0):.2f}")
 
     await suite.disconnect()
 ```

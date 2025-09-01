@@ -10,8 +10,9 @@ Date: 2025-08-28
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -96,9 +97,11 @@ async def calculate_session_vwap(
     )
 
 
-def find_session_boundaries(data: pl.DataFrame) -> list:
+def _find_session_boundaries(data: pl.DataFrame) -> list[int]:
     """
     Find indices where sessions start/end.
+
+    Private utility function for internal use.
 
     Args:
         data: DataFrame with timestamp column
@@ -125,8 +128,11 @@ def find_session_boundaries(data: pl.DataFrame) -> list:
     return boundaries
 
 
-def create_single_session_data() -> pl.DataFrame:
-    """Create data for a single trading session."""
+def _create_single_session_data() -> pl.DataFrame:
+    """Create data for a single trading session.
+
+    Private utility function for testing and internal use.
+    """
     from datetime import timedelta
 
     timestamps = []
@@ -256,9 +262,11 @@ async def calculate_session_cumulative_volume(data: pl.DataFrame) -> pl.DataFram
     return result
 
 
-def identify_sessions(data: pl.DataFrame) -> list:
+def _identify_sessions(data: pl.DataFrame) -> list[int]:
     """
     Identify session start points.
+
+    Private utility function for internal use.
 
     Args:
         data: DataFrame with timestamp column
@@ -353,8 +361,11 @@ async def calculate_percent_from_open(data: pl.DataFrame) -> pl.DataFrame:
     return result
 
 
-def create_minute_data() -> pl.DataFrame:
-    """Create 1-minute resolution data."""
+def _create_minute_data() -> pl.DataFrame:
+    """Create 1-minute resolution data.
+
+    Private utility function for testing and internal use.
+    """
     from datetime import timedelta
 
     timestamps = []
@@ -440,7 +451,9 @@ async def aggregate_with_sessions(
     return aggregated
 
 
-async def generate_session_alerts(data: pl.DataFrame, conditions: dict) -> pl.DataFrame:
+async def generate_session_alerts(
+    data: pl.DataFrame, conditions: dict[str, Any]
+) -> pl.DataFrame:
     """
     Generate alerts based on conditions.
 
@@ -451,41 +464,80 @@ async def generate_session_alerts(data: pl.DataFrame, conditions: dict) -> pl.Da
     Returns:
         DataFrame with alerts column
     """
-    # Initialize alerts column
+    # Early return for empty data or no conditions
+    if data.is_empty() or not conditions:
+        return data.with_columns(pl.Series("alerts", [None] * len(data)))
+
     alerts = []
+    condition_evaluators = _build_condition_evaluators()
 
-    # For each row, check conditions
+    # Process each row for alerts
     for row in data.iter_rows(named=True):
-        row_alerts = []
-
-        for alert_name, condition in conditions.items():
-            # Simple evaluation for common conditions
-            if condition == "close > sma_10":
-                if (
-                    "sma_10" in row
-                    and row.get("close")
-                    and row.get("sma_10")
-                    and row["close"] > row["sma_10"]
-                ):
-                    row_alerts.append(alert_name)
-            elif condition == "rsi_14 > 70":
-                if "rsi_14" in row and row.get("rsi_14") and row["rsi_14"] > 70:
-                    row_alerts.append(alert_name)
-            elif (
-                condition == "high == session_high"
-                and "high" in row
-                and "session_high" in row
-                and row.get("high") == row.get("session_high")
-            ):
-                row_alerts.append(alert_name)
-
+        row_alerts = _evaluate_row_conditions(row, conditions, condition_evaluators)
         alerts.append(row_alerts if row_alerts else None)
 
-    # Add alerts column
     return data.with_columns(pl.Series("alerts", alerts))
 
 
-def calculate_session_gap(friday_data: pl.DataFrame, monday_data: pl.DataFrame) -> dict:
+def _build_condition_evaluators() -> dict[str, Callable[[dict[str, Any]], bool]]:
+    """Build a lookup table of condition evaluators to reduce complexity."""
+    return {
+        "close > sma_10": _evaluate_close_gt_sma_10,
+        "rsi_14 > 70": _evaluate_rsi_gt_70,
+        "high == session_high": _evaluate_high_eq_session_high,
+    }
+
+
+def _evaluate_row_conditions(
+    row: dict[str, Any],
+    conditions: dict[str, Any],
+    evaluators: dict[str, Callable[[dict[str, Any]], bool]],
+) -> list[str]:
+    """Evaluate all conditions for a single row."""
+    row_alerts = []
+
+    for alert_name, condition in conditions.items():
+        evaluator = evaluators.get(condition)
+        if evaluator and evaluator(row):
+            row_alerts.append(alert_name)
+
+    return row_alerts
+
+
+def _evaluate_close_gt_sma_10(row: dict[str, Any]) -> bool:
+    """Evaluate: close > sma_10 condition."""
+    required_fields = ["close", "sma_10"]
+    if not _has_valid_fields(row, required_fields):
+        return False
+
+    return bool(row["close"] > row["sma_10"])
+
+
+def _evaluate_rsi_gt_70(row: dict[str, Any]) -> bool:
+    """Evaluate: rsi_14 > 70 condition."""
+    if not _has_valid_fields(row, ["rsi_14"]):
+        return False
+
+    return bool(row["rsi_14"] > 70)
+
+
+def _evaluate_high_eq_session_high(row: dict[str, Any]) -> bool:
+    """Evaluate: high == session_high condition."""
+    required_fields = ["high", "session_high"]
+    if not _has_valid_fields(row, required_fields):
+        return False
+
+    return bool(row["high"] == row["session_high"])
+
+
+def _has_valid_fields(row: dict[str, Any], fields: list[str]) -> bool:
+    """Check if row has all required fields with valid (non-None) values."""
+    return all(field in row and row.get(field) is not None for field in fields)
+
+
+def calculate_session_gap(
+    friday_data: pl.DataFrame, monday_data: pl.DataFrame
+) -> dict[str, float]:
     """
     Calculate the gap between Friday close and Monday open.
 
@@ -508,7 +560,7 @@ def calculate_session_gap(friday_data: pl.DataFrame, monday_data: pl.DataFrame) 
     return {"gap_size": gap_size, "gap_percentage": gap_percentage}
 
 
-def get_volume_profile(data: pl.DataFrame, session_type: SessionType) -> dict:
+def get_volume_profile(data: pl.DataFrame, session_type: SessionType) -> dict[str, int]:
     """
     Build volume profile showing U-shaped pattern.
 
@@ -551,7 +603,7 @@ def get_volume_profile(data: pl.DataFrame, session_type: SessionType) -> dict:
     }
 
 
-def get_session_performance_metrics(data: pl.DataFrame | None) -> dict:
+def get_session_performance_metrics(data: pl.DataFrame | None) -> dict[str, float]:
     """
     Calculate performance metrics for session data.
 
