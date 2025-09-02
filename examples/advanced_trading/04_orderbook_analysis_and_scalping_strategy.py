@@ -41,12 +41,6 @@ class OrderBookScalpingStrategy:
             if hasattr(mnq_context, "orderbook") and mnq_context.orderbook:
                 self.orderbook = mnq_context.orderbook
                 print("✅ Order book initialized successfully")
-
-                # Enable analytics if available
-                if hasattr(self.orderbook, "enable_analytics"):
-                    await self.orderbook.enable_analytics()
-                    print("✅ Order book analytics enabled")
-
                 return True
             else:
                 print(
@@ -63,64 +57,57 @@ class OrderBookScalpingStrategy:
             return None
 
         try:
-            # Get order book imbalance using analytics
-            if hasattr(self.orderbook, "get_imbalance"):
-                imbalance = await self.orderbook.get_imbalance(levels=5)
+            # Get market imbalance using the correct method
+            imbalance_data = await self.orderbook.get_market_imbalance(levels=5)
 
-                if imbalance and abs(imbalance.ratio) >= self.imbalance_threshold:
+            if imbalance_data and hasattr(imbalance_data, "imbalance_ratio"):
+                ratio = float(imbalance_data.imbalance_ratio)
+
+                if abs(ratio) >= self.imbalance_threshold:
                     return {
-                        "direction": "bullish" if imbalance.ratio > 0 else "bearish",
-                        "strength": abs(imbalance.ratio),
-                        "bid_size": imbalance.bid_size,
-                        "ask_size": imbalance.ask_size,
-                        "spread": imbalance.spread,
-                        "levels": imbalance.levels,
-                    }
-            else:
-                # Fallback to manual calculation
-                book_state = await self.orderbook.get_state()
-
-                if not book_state or not book_state.bids or not book_state.asks:
-                    return None
-
-                # Take top 5 levels
-                top_bids = list(book_state.bids.values())[:5]
-                top_asks = list(book_state.asks.values())[:5]
-
-                # Calculate size at each level
-                total_bid_size = sum(order.size for order in top_bids)
-                total_ask_size = sum(order.size for order in top_asks)
-
-                if total_bid_size + total_ask_size == 0:
-                    return None
-
-                # Calculate imbalance ratio
-                bid_ratio = total_bid_size / (total_bid_size + total_ask_size)
-
-                # Get best bid/ask for spread
-                best_bid = max(book_state.bids.keys()) if book_state.bids else 0
-                best_ask = min(book_state.asks.keys()) if book_state.asks else 0
-                spread = float(best_ask - best_bid) if best_bid and best_ask else 0
-
-                # Determine imbalance direction
-                if bid_ratio >= self.imbalance_threshold:
-                    return {
-                        "direction": "bullish",
-                        "strength": bid_ratio,
-                        "bid_size": total_bid_size,
-                        "ask_size": total_ask_size,
-                        "spread": spread,
+                        "direction": "bullish" if ratio > 0 else "bearish",
+                        "strength": abs(ratio),
+                        "bid_liquidity": imbalance_data.bid_liquidity,
+                        "ask_liquidity": imbalance_data.ask_liquidity,
+                        "spread": imbalance_data.spread
+                        if hasattr(imbalance_data, "spread")
+                        else 0,
                         "levels": 5,
                     }
-                elif bid_ratio <= (1 - self.imbalance_threshold):
-                    return {
-                        "direction": "bearish",
-                        "strength": 1 - bid_ratio,
-                        "bid_size": total_bid_size,
-                        "ask_size": total_ask_size,
-                        "spread": spread,
-                        "levels": 5,
-                    }
+
+            # Fallback to orderbook snapshot
+            snapshot = await self.orderbook.get_orderbook_snapshot(levels=5)
+
+            if snapshot:
+                # Calculate imbalance from snapshot
+                bid_sizes = (
+                    sum(level.size for level in snapshot.bids) if snapshot.bids else 0
+                )
+                ask_sizes = (
+                    sum(level.size for level in snapshot.asks) if snapshot.asks else 0
+                )
+
+                if bid_sizes + ask_sizes > 0:
+                    bid_ratio = bid_sizes / (bid_sizes + ask_sizes)
+
+                    if bid_ratio >= self.imbalance_threshold:
+                        return {
+                            "direction": "bullish",
+                            "strength": bid_ratio,
+                            "bid_size": bid_sizes,
+                            "ask_size": ask_sizes,
+                            "spread": float(snapshot.spread) if snapshot.spread else 0,
+                            "levels": 5,
+                        }
+                    elif bid_ratio <= (1 - self.imbalance_threshold):
+                        return {
+                            "direction": "bearish",
+                            "strength": 1 - bid_ratio,
+                            "bid_size": bid_sizes,
+                            "ask_size": ask_sizes,
+                            "spread": float(snapshot.spread) if snapshot.spread else 0,
+                            "levels": 5,
+                        }
 
             return None
 
@@ -130,21 +117,29 @@ class OrderBookScalpingStrategy:
 
     async def check_for_iceberg_orders(self) -> Optional[dict]:
         """Detect potential iceberg orders in the book."""
-        if not self.orderbook or not hasattr(self.orderbook, "detect_iceberg"):
+        if not self.orderbook:
             return None
 
         try:
             # Use orderbook's iceberg detection
-            iceberg_info = await self.orderbook.detect_iceberg()
+            iceberg_info = await self.orderbook.detect_iceberg_orders(
+                threshold=0.7, lookback_seconds=60
+            )
 
-            if iceberg_info and iceberg_info.detected:
-                return {
-                    "detected": True,
-                    "side": "bid" if iceberg_info.side == 0 else "ask",
-                    "price_level": iceberg_info.price_level,
-                    "confidence": iceberg_info.confidence,
-                    "refill_count": iceberg_info.refill_count,
-                }
+            if iceberg_info and iceberg_info.get("detected"):
+                detections = iceberg_info.get("detections", [])
+                if detections:
+                    # Get the most confident detection
+                    best_detection = max(
+                        detections, key=lambda x: x.get("confidence", 0)
+                    )
+                    return {
+                        "detected": True,
+                        "side": best_detection.get("side", "unknown"),
+                        "price_level": best_detection.get("price", 0),
+                        "confidence": best_detection.get("confidence", 0),
+                        "refill_count": best_detection.get("refill_count", 0),
+                    }
 
             return None
 
@@ -154,25 +149,31 @@ class OrderBookScalpingStrategy:
 
     async def analyze_volume_profile(self) -> Optional[dict]:
         """Analyze volume profile for key levels."""
-        if not self.orderbook or not hasattr(self.orderbook, "get_volume_profile"):
+        if not self.orderbook:
             return None
 
         try:
-            profile = await self.orderbook.get_volume_profile(bins=10)
+            # Get volume profile with correct parameters
+            profile = await self.orderbook.get_volume_profile(
+                lookback_periods=100, price_bins=10
+            )
 
-            if profile:
-                # Find Point of Control (highest volume level)
-                poc = profile.poc
-                value_area = profile.value_area
-
+            if profile and hasattr(profile, "poc"):
                 return {
-                    "poc": float(poc.price),
-                    "poc_volume": poc.volume,
-                    "value_area_high": float(value_area.high),
-                    "value_area_low": float(value_area.low),
-                    "total_volume": profile.total_volume,
+                    "poc": float(profile.poc.price) if profile.poc else 0,
+                    "poc_volume": profile.poc.volume if profile.poc else 0,
+                    "value_area_high": float(profile.value_area.high)
+                    if profile.value_area
+                    else 0,
+                    "value_area_low": float(profile.value_area.low)
+                    if profile.value_area
+                    else 0,
+                    "total_volume": profile.total_volume
+                    if hasattr(profile, "total_volume")
+                    else 0,
                 }
 
+            # If no profile data, return None
             return None
 
         except Exception as e:
@@ -261,14 +262,19 @@ class OrderBookScalpingStrategy:
             # Display analysis details
             if "orderbook" in analysis_data:
                 ob = analysis_data["orderbook"]
-                print(f"\nOrder Book Analysis:")
+                print("\nOrder Book Analysis:")
                 print(f"  Imbalance: {ob['strength']:.2%} {ob['direction']}")
-                print(f"  Bid Size: {ob['bid_size']}, Ask Size: {ob['ask_size']}")
+                if "bid_size" in ob:
+                    print(f"  Bid Size: {ob['bid_size']}, Ask Size: {ob['ask_size']}")
+                elif "bid_liquidity" in ob:
+                    print(
+                        f"  Bid Liquidity: {ob['bid_liquidity']}, Ask Liquidity: {ob['ask_liquidity']}"
+                    )
                 print(f"  Spread: ${ob['spread']:.2f}")
 
             if "tape" in analysis_data:
                 tape = analysis_data["tape"]
-                print(f"\nTape Reading:")
+                print("\nTape Reading:")
                 print(f"  Momentum: {tape['strength']:.2%} {tape['direction']}")
                 print(f"  Volume: Buy={tape['buy_volume']}, Sell={tape['sell_volume']}")
 
@@ -344,7 +350,7 @@ class OrderBookScalpingStrategy:
 
                 # Time-based cancellation (scalps should be quick)
                 if elapsed_time > 300:  # 5 minutes
-                    print(f"\nCancelling stale scalp order (>5 min old)")
+                    print("\nCancelling stale scalp order (>5 min old)")
 
                     # Cancel stop and target orders
                     bracket = scalp["bracket"]
@@ -468,7 +474,7 @@ async def main():
     print("Strategy Settings:")
     print(f"  Imbalance Threshold: {strategy.imbalance_threshold:.0%}")
     print(f"  Profit Target: {strategy.scalp_profit_ticks} ticks")
-    print(f"  Stop Loss: 3 ticks")
+    print("  Stop Loss: 3 ticks")
     print(f"  Max Positions: {strategy.max_positions}")
     print("\nAnalyzing market microstructure for scalping opportunities...")
     print("Press Ctrl+C to exit")
@@ -490,7 +496,7 @@ async def main():
                 # Get volume profile if available
                 volume_profile = await strategy.analyze_volume_profile()
 
-                print(f"\nStatus Update:")
+                print("\nStatus Update:")
                 print(f"  Price: ${current_price:.2f}")
                 print(f"  Active Scalps: {active_scalps}/{strategy.max_positions}")
                 print(f"  Tick Buffer: {recent_ticks}/100")
