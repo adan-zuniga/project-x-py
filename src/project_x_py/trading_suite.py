@@ -89,6 +89,7 @@ class InstrumentContext:
         data: Real-time data manager for OHLCV data
         orders: Order management system
         positions: Position tracking system
+        event_bus: Event bus for this instrument's events
         orderbook: Level 2 market depth (optional)
         risk_manager: Risk management system (optional)
     """
@@ -98,8 +99,59 @@ class InstrumentContext:
     data: RealtimeDataManager
     orders: OrderManager
     positions: PositionManager
+    event_bus: EventBus
     orderbook: OrderBook | None = None
     risk_manager: RiskManager | None = None
+
+    async def on(self, event: EventType | str, handler: Any) -> None:
+        """
+        Register event handler on this instrument's event bus.
+
+        Args:
+            event: Event type to listen for
+            handler: Async callable to handle events
+        """
+        await self.event_bus.on(event, handler)
+
+    async def once(self, event: EventType | str, handler: Any) -> None:
+        """
+        Register one-time event handler on this instrument's event bus.
+
+        Args:
+            event: Event type to listen for
+            handler: Async callable to handle event once
+        """
+        await self.event_bus.once(event, handler)
+
+    async def off(
+        self, event: EventType | str | None = None, handler: Any | None = None
+    ) -> None:
+        """
+        Remove event handler(s) from this instrument's event bus.
+
+        Args:
+            event: Event type to remove handler from (None for all)
+            handler: Specific handler to remove (None for all)
+        """
+        await self.event_bus.off(event, handler)
+
+    async def wait_for(
+        self, event: EventType | str, timeout: float | None = None
+    ) -> Any:
+        """
+        Wait for specific event to occur on this instrument's event bus.
+
+        Args:
+            event: Event type to wait for
+            timeout: Optional timeout in seconds
+
+        Returns:
+            Event object when received
+
+        Raises:
+            TimeoutError: If timeout expires
+        """
+        return await self.event_bus.wait_for(event, timeout)
 
 
 class Features(str, Enum):
@@ -489,6 +541,9 @@ class TradingSuite:
             # Create suite instance with contexts
             suite = cls(client, realtime_client, config, instrument_contexts)
 
+            # Set up event forwarding from instrument buses to suite bus
+            await suite._setup_event_forwarding()
+
             # Store the context for cleanup later
             suite._client_context = client_context
 
@@ -587,6 +642,7 @@ class TradingSuite:
                 data=data_manager,
                 orders=order_manager,
                 positions=position_manager,
+                event_bus=event_bus,
                 orderbook=orderbook,
                 risk_manager=risk_manager,
             )
@@ -639,6 +695,20 @@ class TradingSuite:
             async with cleanup_lock:
                 await cls._cleanup_contexts(created_contexts.copy())
             raise
+
+    async def _setup_event_forwarding(self) -> None:
+        """
+        Set up event forwarding from instrument EventBuses to the suite's main EventBus.
+
+        This ensures that events emitted to instrument-specific EventBuses are also
+        forwarded to the suite-level EventBus, allowing suite-level handlers to receive
+        events from all instruments.
+        """
+        if not self._instruments:
+            return
+
+        for context in self._instruments.values():
+            await context.event_bus.forward_to(self.events)
 
     @classmethod
     async def _cleanup_contexts(cls, contexts: dict[str, InstrumentContext]) -> None:

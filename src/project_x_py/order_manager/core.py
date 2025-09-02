@@ -86,7 +86,6 @@ from .tracking import OrderTrackingMixin
 from .utils import (
     align_price_to_tick_size,
     resolve_contract_id,
-    validate_price_tick_size,
 )
 
 if TYPE_CHECKING:
@@ -462,43 +461,46 @@ class OrderManager(
             if trail_price is not None and trail_price < 0:
                 raise ProjectXOrderError(f"Invalid negative price: {trail_price}")
 
-            # CRITICAL: Validate tick size BEFORE any price operations
-            await validate_price_tick_size(
-                limit_price, contract_id, self.project_x, "limit_price"
-            )
-            await validate_price_tick_size(
-                stop_price, contract_id, self.project_x, "stop_price"
-            )
-            await validate_price_tick_size(
-                trail_price, contract_id, self.project_x, "trail_price"
-            )
+            # CRITICAL: Align prices to tick size BEFORE any price operations
+            if limit_price is not None:
+                aligned_limit = await align_price_to_tick_size(
+                    limit_price, contract_id, self.project_x
+                )
+                if aligned_limit is not None and aligned_limit != limit_price:
+                    self.logger.info(
+                        f"Limit price aligned from {limit_price} to {aligned_limit}"
+                    )
+                    limit_price = aligned_limit
 
-            # Convert prices to Decimal for precision, then align to tick size
-            decimal_limit_price = (
+            if stop_price is not None:
+                aligned_stop = await align_price_to_tick_size(
+                    stop_price, contract_id, self.project_x
+                )
+                if aligned_stop is not None and aligned_stop != stop_price:
+                    self.logger.info(
+                        f"Stop price aligned from {stop_price} to {aligned_stop}"
+                    )
+                    stop_price = aligned_stop
+
+            if trail_price is not None:
+                aligned_trail = await align_price_to_tick_size(
+                    trail_price, contract_id, self.project_x
+                )
+                if aligned_trail is not None and aligned_trail != trail_price:
+                    self.logger.info(
+                        f"Trail price aligned from {trail_price} to {aligned_trail}"
+                    )
+                    trail_price = aligned_trail
+
+            # Convert prices to Decimal for precision (already aligned above)
+            aligned_limit_price = (
                 Decimal(str(limit_price)) if limit_price is not None else None
             )
-            decimal_stop_price = (
+            aligned_stop_price = (
                 Decimal(str(stop_price)) if stop_price is not None else None
             )
-            decimal_trail_price = (
+            aligned_trail_price = (
                 Decimal(str(trail_price)) if trail_price is not None else None
-            )
-
-            # Align all prices to tick size to prevent "Invalid price" errors
-            aligned_limit_price = await align_price_to_tick_size(
-                float(decimal_limit_price) if decimal_limit_price is not None else None,
-                contract_id,
-                self.project_x,
-            )
-            aligned_stop_price = await align_price_to_tick_size(
-                float(decimal_stop_price) if decimal_stop_price is not None else None,
-                contract_id,
-                self.project_x,
-            )
-            aligned_trail_price = await align_price_to_tick_size(
-                float(decimal_trail_price) if decimal_trail_price is not None else None,
-                contract_id,
-                self.project_x,
             )
 
             # Use account_info if no account_id provided
@@ -1043,13 +1045,26 @@ class OrderManager(
 
             contract_id = existing_order.contractId
 
-            # CRITICAL: Validate tick size BEFORE any price operations
-            await validate_price_tick_size(
-                limit_price, contract_id, self.project_x, "limit_price"
-            )
-            await validate_price_tick_size(
-                stop_price, contract_id, self.project_x, "stop_price"
-            )
+            # CRITICAL: Align prices to tick size BEFORE any price operations
+            if limit_price is not None:
+                aligned_limit = await align_price_to_tick_size(
+                    limit_price, contract_id, self.project_x
+                )
+                if aligned_limit is not None and aligned_limit != limit_price:
+                    self.logger.info(
+                        f"Limit price aligned from {limit_price} to {aligned_limit}"
+                    )
+                    limit_price = aligned_limit
+
+            if stop_price is not None:
+                aligned_stop = await align_price_to_tick_size(
+                    stop_price, contract_id, self.project_x
+                )
+                if aligned_stop is not None and aligned_stop != stop_price:
+                    self.logger.info(
+                        f"Stop price aligned from {stop_price} to {aligned_stop}"
+                    )
+                    stop_price = aligned_stop
 
             # Convert prices to Decimal for precision, then align to tick size
             decimal_limit = (

@@ -28,18 +28,18 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.5.5 - Sessions Module Testing & Documentation
+## 🚀 v3.5.6 - Event System & Bracket Order Enhancements
 
-**Latest Version**: v3.5.5 - Comprehensive testing and documentation improvements for the ETH vs RTH Trading Sessions feature, ensuring production-ready session filtering and analysis.
+**Latest Version**: v3.5.6 - Critical fixes for multi-instrument event handling and automatic price alignment for bracket orders, ensuring robust real-time trading operations.
 
-**Key Benefits**:
-- 🎯 **Multi-Asset Strategies**: Trade ES vs NQ pairs, commodity spreads, sector rotation
-- 📊 **Portfolio Management**: Unified risk management across multiple instruments
-- 🔄 **Parallel Processing**: Efficient concurrent data processing and order management
-- 🛡️ **Backward Compatible**: Existing single-instrument code continues to work
-- ⚡ **Performance Optimized**: Parallel context creation and resource sharing
+**Key Improvements**:
+- 🔄 **Event Forwarding**: Fixed multi-instrument event propagation with proper bus forwarding
+- 🎯 **Smart Price Alignment**: Bracket orders now auto-align to tick sizes instead of failing
+- 📊 **Enhanced Examples**: All advanced trading examples updated and tested
+- 🛡️ **Improved Reliability**: 30+ test fixes ensuring production stability
+- ⚡ **Real-time Fixes**: Corrected bar data access in streaming examples
 
-See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.5 features including sessions module improvements and comprehensive example scripts.
+See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.6 fixes and previous version features.
 
 ### 📦 Production Stability Guarantee
 
