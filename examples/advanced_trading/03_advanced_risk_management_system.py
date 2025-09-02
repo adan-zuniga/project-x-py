@@ -144,7 +144,7 @@ class AdvancedRiskManager:
             # Calculate trade risk
             risk_per_contract = abs(entry_price - stop_loss) * 20  # MNQ multiplier
             total_risk = risk_per_contract * position_size
-            risk_pct = float((total_risk / self.account_balance) * 100)
+            risk_pct = float((total_risk / float(self.account_balance)) * 100)
 
             # Display trade details
             print("\n" + "=" * 50)
@@ -161,7 +161,7 @@ class AdvancedRiskManager:
             # Show current status
             positions = await self.suite["MNQ"].positions.get_all_positions()
             active_positions = [p for p in positions if p.size != 0]
-            print(f"\nCurrent Status:")
+            print("\nCurrent Status:")
             print(f"  Active Positions: {len(active_positions)}")
             print(f"  Daily P&L: ${self.daily_pnl:.2f}")
             print("=" * 50)

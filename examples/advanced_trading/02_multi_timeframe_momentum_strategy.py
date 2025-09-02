@@ -17,6 +17,7 @@ from typing import Any, Optional
 from project_x_py import EventType, TradingSuite
 from project_x_py.event_bus import Event
 from project_x_py.indicators import ATR, EMA, MACD, RSI
+from project_x_py.models import BracketOrderResponse
 
 
 class MultiTimeframeMomentumStrategy:
@@ -388,7 +389,9 @@ async def main():
 
         # Cancel active orders if any
         if strategy.active_position:
-            bracket_result = strategy.active_position.get("bracket_result")
+            bracket_result: BracketOrderResponse = strategy.active_position.get(
+                "bracket_result", {}
+            )
             if bracket_result:
                 try:
                     # Cancel stop and target orders
