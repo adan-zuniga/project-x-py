@@ -519,15 +519,22 @@ class OrderManager(
                     )
 
             # Build order request payload
+            # Convert Decimal prices to float for JSON serialization
             payload = {
                 "accountId": account_id,
                 "contractId": contract_id,
                 "type": order_type,
                 "side": side,
                 "size": size,
-                "limitPrice": aligned_limit_price,
-                "stopPrice": aligned_stop_price,
-                "trailPrice": aligned_trail_price,
+                "limitPrice": float(aligned_limit_price)
+                if aligned_limit_price is not None
+                else None,
+                "stopPrice": float(aligned_stop_price)
+                if aligned_stop_price is not None
+                else None,
+                "trailPrice": float(aligned_trail_price)
+                if aligned_trail_price is not None
+                else None,
                 "linkedOrderId": linked_order_id,
             }
 

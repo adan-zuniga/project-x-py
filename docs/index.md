@@ -7,8 +7,8 @@
 
 **project-x-py** is a high-performance **async Python SDK** for the [ProjectX Trading Platform](https://www.projectx.com/) Gateway API. This library enables developers to build sophisticated trading strategies and applications by providing comprehensive async access to futures trading operations, real-time market data, Level 2 orderbook analysis, and a complete technical analysis suite with 59+ TA-Lib compatible indicators including pattern recognition and chaos theory analysis.
 
-!!! note "Version 3.5.4 - Lorenz Formula Indicator & Test Suite Improvements"
-    **Latest Release**: Introduces the innovative Lorenz Formula indicator applying chaos theory mathematics to market analysis, providing unique insights into market dynamics through volatility, trend strength, and volume patterns. Also includes comprehensive test suite reorganization for better maintainability and enhanced statistics module coverage. Full backward compatibility maintained with all existing APIs.
+!!! note "Version 3.5.7 - Order Placement Serialization Fix"
+    **Latest Release**: Fixed JSON serialization error when placing orders with Decimal prices. All price values are now properly converted to float for API requests while maintaining internal Decimal precision for accurate tick size alignment. Full backward compatibility maintained with all existing APIs.
 
 !!! note "Stable Production Release"
     Since v3.1.1, this project maintains strict semantic versioning with backward compatibility between minor versions. Breaking changes only occur in major version releases (4.0.0+). Deprecation warnings are provided for at least 2 minor versions before removal.
@@ -215,6 +215,12 @@ mnq_context = suite["MNQ"]  # Access specific instrument
 - [Breaking Changes](migration/breaking-changes.md) - Change history
 
 ## Recent Changes
+
+### v3.5.7 - Order Placement Serialization Fix (2025-02-02)
+- **Fixed**: JSON serialization error when placing orders with Decimal prices
+- **Fixed**: API compatibility by converting Decimal prices to float for JSON requests
+- **Fixed**: Documentation examples to work with the corrected serialization
+- **Maintained**: Internal Decimal precision for accurate tick size alignment
 
 ### v3.5.3 - Complete Documentation & Testing Improvements (2025-01-31)
 - **Fixed**: Mypy error with `get_overflow_stats()` method signatures in mmap overflow handling

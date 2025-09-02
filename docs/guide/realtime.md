@@ -1,6 +1,6 @@
 # Real-time Data Guide
 
-This guide covers comprehensive real-time data streaming using ProjectX Python SDK v3.5.6+. All real-time operations are fully asynchronous and provide high-performance WebSocket connectivity with automatic reconnection, memory management, and enhanced event forwarding for multi-instrument support.
+This guide covers comprehensive real-time data streaming using ProjectX Python SDK v3.5.7+. All real-time operations are fully asynchronous and provide high-performance WebSocket connectivity with automatic reconnection, memory management, and enhanced event forwarding for multi-instrument support.
 
 ## Overview
 

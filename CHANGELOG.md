@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.7] - 2025-02-02
+
+### 🐛 Fixed
+
+**Order Placement**:
+- **Decimal Serialization**: Fixed JSON serialization error when placing orders with Decimal prices
+- **API Compatibility**: Ensured all price values are properly converted to float for API requests
+- **Price Precision**: Maintained internal Decimal precision while ensuring JSON compatibility
+
+### 📚 Documentation
+
+**Examples**:
+- **Quick Start Example**: Fixed and verified the quick_start.py example in Documentation_Examples
+- **Order Placement**: Ensured all documentation examples work with the fixed serialization
+
 ## [3.5.6] - 2025-02-02
 
 ### 🐛 Fixed

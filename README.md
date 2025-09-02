@@ -28,9 +28,9 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.5.6 - Event System & Bracket Order Enhancements
+## 🚀 v3.5.7 - Order Placement Serialization Fix
 
-**Latest Version**: v3.5.6 - Critical fixes for multi-instrument event handling and automatic price alignment for bracket orders, ensuring robust real-time trading operations.
+**Latest Version**: v3.5.7 - Fixed JSON serialization error when placing orders with Decimal prices, ensuring all price values are properly converted for API requests while maintaining internal precision.
 
 **Key Improvements**:
 - 🔄 **Event Forwarding**: Fixed multi-instrument event propagation with proper bus forwarding
@@ -39,7 +39,7 @@ This Python SDK acts as a bridge between your trading strategies and the Project
 - 🛡️ **Improved Reliability**: 30+ test fixes ensuring production stability
 - ⚡ **Real-time Fixes**: Corrected bar data access in streaming examples
 
-See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.6 fixes and previous version features.
+See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.7 fixes and previous version features.
 
 ### 📦 Production Stability Guarantee
 

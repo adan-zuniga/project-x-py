@@ -5,6 +5,36 @@ All notable changes to the ProjectX Python SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.7] - 2025-02-02
+
+### 🐛 Fixed
+
+**Order Placement**:
+- **Decimal Serialization**: Fixed JSON serialization error when placing orders with Decimal prices
+- **API Compatibility**: Ensured all price values are properly converted to float for API requests
+- **Price Precision**: Maintained internal Decimal precision while ensuring JSON compatibility
+
+### 📚 Documentation
+
+**Examples**:
+- **Quick Start Example**: Fixed and verified the quick_start.py example in Documentation_Examples
+- **Order Placement**: Ensured all documentation examples work with the fixed serialization
+
+## [3.5.6] - 2025-02-02
+
+### 🐛 Fixed
+
+**Multi-Instrument Event System**:
+- **Event Forwarding**: Implemented event forwarding from instrument-specific EventBuses to suite-level EventBus
+- **InstrumentContext Methods**: Added `on()`, `once()`, `off()`, and `wait_for()` methods that delegate to event_bus
+- **Event Propagation**: Fixed broken event system that prevented `mnq_context.wait_for(EventType.NEW_BAR)` from working
+- **Multi-Instrument Support**: Events now properly flow from individual instruments to the suite level
+
+**Bracket Order Improvements**:
+- **Automatic Price Alignment**: Changed validation from failing to auto-aligning prices to tick size
+- **Smart Adjustment**: Orders with misaligned prices are now automatically corrected instead of rejected
+- **Better UX**: Improved user experience by handling price alignment transparently
+
 ## [3.4.0] - 2025-08-28
 
 ### 🚀 New Feature: ETH vs RTH Trading Sessions (Experimental)
