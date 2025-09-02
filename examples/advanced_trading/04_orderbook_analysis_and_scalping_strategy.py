@@ -356,7 +356,7 @@ class OrderBookScalpingStrategy:
                     print("\nCancelling stale scalp order (>5 min old)")
 
                     # Cancel stop and target orders
-                    bracket = scalp["bracket"]
+                    bracket: BracketOrderResponse = scalp["bracket"]
                     if bracket.stop_order_id:
                         await mnq_context.orders.cancel_order(bracket.stop_order_id)
                     if bracket.target_order_id:
@@ -458,7 +458,8 @@ async def main():
 
         # Update active orders
         for scalp in strategy.active_orders[:]:
-            if scalp["bracket"].entry_order_id == order_data.get("order_id"):
+            bracket: BracketOrderResponse = scalp["bracket"]
+            if bracket.entry_order_id == order_data.get("order_id"):
                 print(f"  Entry filled for {scalp['direction']} scalp")
                 break
 
@@ -517,7 +518,7 @@ async def main():
         # Cancel any active orders
         for scalp in strategy.active_orders:
             try:
-                bracket = scalp["bracket"]
+                bracket: BracketOrderResponse = scalp["bracket"]
                 if bracket.stop_order_id:
                     await mnq_context.orders.cancel_order(bracket.stop_order_id)
                     print(f"Cancelled stop order {bracket.stop_order_id}")

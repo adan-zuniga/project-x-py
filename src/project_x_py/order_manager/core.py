@@ -492,32 +492,15 @@ class OrderManager(
                     )
                     trail_price = aligned_trail
 
-            # Convert prices to Decimal for precision, then align to tick size
-            decimal_limit_price = (
+            # Convert prices to Decimal for precision (already aligned above)
+            aligned_limit_price = (
                 Decimal(str(limit_price)) if limit_price is not None else None
             )
-            decimal_stop_price = (
+            aligned_stop_price = (
                 Decimal(str(stop_price)) if stop_price is not None else None
             )
-            decimal_trail_price = (
+            aligned_trail_price = (
                 Decimal(str(trail_price)) if trail_price is not None else None
-            )
-
-            # Align all prices to tick size to prevent "Invalid price" errors
-            aligned_limit_price = await align_price_to_tick_size(
-                float(decimal_limit_price) if decimal_limit_price is not None else None,
-                contract_id,
-                self.project_x,
-            )
-            aligned_stop_price = await align_price_to_tick_size(
-                float(decimal_stop_price) if decimal_stop_price is not None else None,
-                contract_id,
-                self.project_x,
-            )
-            aligned_trail_price = await align_price_to_tick_size(
-                float(decimal_trail_price) if decimal_trail_price is not None else None,
-                contract_id,
-                self.project_x,
             )
 
             # Use account_info if no account_id provided

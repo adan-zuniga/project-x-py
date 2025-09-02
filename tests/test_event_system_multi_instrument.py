@@ -18,16 +18,28 @@ from project_x_py.event_bus import EventType
 @pytest.mark.asyncio
 async def test_suite_receives_events_from_all_instruments():
     """Test that suite-level event handlers receive events from all instruments."""
-    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class:
+    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class, \
+         patch("project_x_py.trading_suite.ProjectXRealtimeClient") as mock_realtime_class:
+
+        # Mock main client
         mock_client = AsyncMock()
         mock_client_class.from_env.return_value.__aenter__.return_value = mock_client
 
+        # Mock realtime client
+        mock_realtime = AsyncMock()
+        mock_realtime_class.return_value = mock_realtime
+
         # Setup mock responses
         mock_client.authenticate.return_value = None
-        mock_client.get_instrument.return_value = MagicMock(
-            symbol="MNQ", name="MNQ", exchange="CME", min_tick=0.25
-        )
+        # Create enough mock instruments for multiple calls
+        def mock_get_instrument(symbol):
+            return MagicMock(symbol=symbol, name=symbol, exchange="CME", min_tick=0.25, id=f"id_{symbol}")
+        mock_client.get_instrument.side_effect = mock_get_instrument
         mock_client.get_bars.return_value = MagicMock(is_empty=lambda: True)
+
+        # Mock realtime client connection
+        mock_realtime.connect.return_value = None
+        mock_realtime.is_connected.return_value = True
 
         suite = await TradingSuite.create(["MNQ", "NQ"], timeframes=["1min"])
 
@@ -60,9 +72,16 @@ async def test_suite_receives_events_from_all_instruments():
 @pytest.mark.asyncio
 async def test_instrument_context_has_event_methods():
     """Test that InstrumentContext provides wait_for and on methods."""
-    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class:
+    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class, \
+         patch("project_x_py.trading_suite.ProjectXRealtimeClient") as mock_realtime_class:
+
+        # Mock main client
         mock_client = AsyncMock()
         mock_client_class.from_env.return_value.__aenter__.return_value = mock_client
+
+        # Mock realtime client
+        mock_realtime = AsyncMock()
+        mock_realtime_class.return_value = mock_realtime
 
         # Setup mock responses
         mock_client.authenticate.return_value = None
@@ -70,6 +89,10 @@ async def test_instrument_context_has_event_methods():
             symbol="MNQ", name="MNQ", exchange="CME", min_tick=0.25
         )
         mock_client.get_bars.return_value = MagicMock(is_empty=lambda: True)
+
+        # Mock realtime client connection
+        mock_realtime.connect.return_value = None
+        mock_realtime.is_connected.return_value = True
 
         suite = await TradingSuite.create("MNQ", timeframes=["1min"])
         mnq_context = suite["MNQ"]
@@ -104,16 +127,28 @@ async def test_instrument_context_has_event_methods():
 @pytest.mark.asyncio
 async def test_wait_for_works_at_suite_level():
     """Test that suite.wait_for() receives events from any instrument."""
-    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class:
+    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class, \
+         patch("project_x_py.trading_suite.ProjectXRealtimeClient") as mock_realtime_class:
+
+        # Mock main client
         mock_client = AsyncMock()
         mock_client_class.from_env.return_value.__aenter__.return_value = mock_client
 
+        # Mock realtime client
+        mock_realtime = AsyncMock()
+        mock_realtime_class.return_value = mock_realtime
+
         # Setup mock responses
         mock_client.authenticate.return_value = None
-        mock_client.get_instrument.return_value = MagicMock(
-            symbol="MNQ", name="MNQ", exchange="CME", min_tick=0.25
-        )
+        # Create enough mock instruments for multiple calls
+        def mock_get_instrument(symbol):
+            return MagicMock(symbol=symbol, name=symbol, exchange="CME", min_tick=0.25, id=f"id_{symbol}")
+        mock_client.get_instrument.side_effect = mock_get_instrument
         mock_client.get_bars.return_value = MagicMock(is_empty=lambda: True)
+
+        # Mock realtime client connection
+        mock_realtime.connect.return_value = None
+        mock_realtime.is_connected.return_value = True
 
         suite = await TradingSuite.create(["MNQ", "NQ"], timeframes=["1min"])
 
@@ -144,9 +179,16 @@ async def test_wait_for_works_at_suite_level():
 @pytest.mark.asyncio
 async def test_wait_for_works_at_instrument_level():
     """Test that instrument_context.wait_for() receives events for that instrument."""
-    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class:
+    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class, \
+         patch("project_x_py.trading_suite.ProjectXRealtimeClient") as mock_realtime_class:
+
+        # Mock main client
         mock_client = AsyncMock()
         mock_client_class.from_env.return_value.__aenter__.return_value = mock_client
+
+        # Mock realtime client
+        mock_realtime = AsyncMock()
+        mock_realtime_class.return_value = mock_realtime
 
         # Setup mock responses
         mock_client.authenticate.return_value = None
@@ -154,6 +196,10 @@ async def test_wait_for_works_at_instrument_level():
             symbol="MNQ", name="MNQ", exchange="CME", min_tick=0.25
         )
         mock_client.get_bars.return_value = MagicMock(is_empty=lambda: True)
+
+        # Mock realtime client connection
+        mock_realtime.connect.return_value = None
+        mock_realtime.is_connected.return_value = True
 
         suite = await TradingSuite.create("MNQ", timeframes=["1min"])
         mnq_context = suite["MNQ"]
@@ -185,17 +231,28 @@ async def test_wait_for_works_at_instrument_level():
 @pytest.mark.asyncio
 async def test_event_filtering_by_instrument():
     """Test that instrument contexts can filter events by instrument."""
-    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class:
+    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class, \
+         patch("project_x_py.trading_suite.ProjectXRealtimeClient") as mock_realtime_class:
+
+        # Mock main client
         mock_client = AsyncMock()
         mock_client_class.from_env.return_value.__aenter__.return_value = mock_client
 
+        # Mock realtime client
+        mock_realtime = AsyncMock()
+        mock_realtime_class.return_value = mock_realtime
+
         # Setup mock responses
         mock_client.authenticate.return_value = None
-        mock_client.get_instrument.side_effect = [
-            MagicMock(symbol="MNQ", name="MNQ", exchange="CME", min_tick=0.25),
-            MagicMock(symbol="NQ", name="NQ", exchange="CME", min_tick=0.25),
-        ]
+        # Create enough mock instruments for multiple calls
+        def mock_get_instrument(symbol):
+            return MagicMock(symbol=symbol, name=symbol, exchange="CME", min_tick=0.25, id=f"id_{symbol}")
+        mock_client.get_instrument.side_effect = mock_get_instrument
         mock_client.get_bars.return_value = MagicMock(is_empty=lambda: True)
+
+        # Mock realtime client connection
+        mock_realtime.connect.return_value = None
+        mock_realtime.is_connected.return_value = True
 
         suite = await TradingSuite.create(["MNQ", "NQ"], timeframes=["1min"])
 
@@ -234,18 +291,28 @@ async def test_event_filtering_by_instrument():
 @pytest.mark.asyncio
 async def test_suite_level_handler_receives_all_instruments():
     """Test that a single suite-level handler receives events from all instruments."""
-    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class:
+    with patch("project_x_py.trading_suite.ProjectX") as mock_client_class, \
+         patch("project_x_py.trading_suite.ProjectXRealtimeClient") as mock_realtime_class:
+
+        # Mock main client
         mock_client = AsyncMock()
         mock_client_class.from_env.return_value.__aenter__.return_value = mock_client
 
+        # Mock realtime client
+        mock_realtime = AsyncMock()
+        mock_realtime_class.return_value = mock_realtime
+
         # Setup mock responses
         mock_client.authenticate.return_value = None
-        mock_client.get_instrument.side_effect = [
-            MagicMock(symbol="MNQ", name="MNQ", exchange="CME", min_tick=0.25),
-            MagicMock(symbol="NQ", name="NQ", exchange="CME", min_tick=0.25),
-            MagicMock(symbol="ES", name="ES", exchange="CME", min_tick=0.25),
-        ]
+        # Create enough mock instruments for multiple calls
+        def mock_get_instrument(symbol):
+            return MagicMock(symbol=symbol, name=symbol, exchange="CME", min_tick=0.25, id=f"id_{symbol}")
+        mock_client.get_instrument.side_effect = mock_get_instrument
         mock_client.get_bars.return_value = MagicMock(is_empty=lambda: True)
+
+        # Mock realtime client connection
+        mock_realtime.connect.return_value = None
+        mock_realtime.is_connected.return_value = True
 
         suite = await TradingSuite.create(["MNQ", "NQ", "ES"], timeframes=["1min"])
 

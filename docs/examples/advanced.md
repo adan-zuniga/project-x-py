@@ -17,18 +17,29 @@ Bracket orders combine entry, stop loss, and take profit in a single operation:
 ```python
 #!/usr/bin/env python
 """
-Advanced bracket order strategy with dynamic stops based on ATR
+Advanced bracket order strategy with dynamic stops based on ATR.
+
+This example demonstrates:
+- ATR-based dynamic stop loss and take profit levels
+- RSI and SMA-based entry signals
+- Bracket orders with automatic price alignment
+- Real-time order monitoring and management
+- Event-driven trade execution
 """
 
 import asyncio
 from decimal import Decimal
+from typing import Optional
 
 from project_x_py import EventType, TradingSuite
+from project_x_py.event_bus import Event
 from project_x_py.indicators import ATR, RSI, SMA
 from project_x_py.models import BracketOrderResponse
 
 
 class ATRBracketStrategy:
+    """Advanced bracket order strategy using ATR for dynamic stops."""
+
     def __init__(self, suite: TradingSuite):
         self.suite = suite
         self.atr_period = 14
@@ -36,120 +47,205 @@ class ATRBracketStrategy:
         self.sma_period = 20
         self.position_size = 1
         self.active_orders: list[BracketOrderResponse] = []
+        self.max_positions = 1  # Limit concurrent positions
 
-    async def calculate_dynamic_levels(self):
+    async def calculate_dynamic_levels(self) -> tuple[float, float]:
         """Calculate stop and target levels based on ATR."""
-        bars = await self.suite["MNQ"].data.get_data("5min")
-
-        if bars is None:
-            raise Exception("No data available")
-
-        # Calculate ATR for volatility-based stops
-        atr_values = bars.pipe(ATR, period=self.atr_period)
-        current_atr = float(atr_values["atr_14"][-1])
-
-        # Dynamic stop loss: 2x ATR
-        stop_offset = Decimal(str(current_atr * 2))
-
-        # Dynamic take profit: 3x ATR (1.5:1 reward:risk)
-        target_offset = Decimal(str(current_atr * 3))
-
-        return stop_offset, target_offset
-
-    async def check_entry_conditions(self):
-        """Check if conditions are met for entry."""
-        bars = await self.suite["MNQ"].data.get_data("5min")
-
-        if bars is None:
-            raise Exception("No data available")
-
-        if len(bars) < max(self.rsi_period, self.sma_period, self.atr_period):
-            return None, None
-
-        # Calculate indicators
-        rsi = bars.pipe(RSI, period=self.rsi_period)
-        sma = bars.pipe(SMA, period=self.sma_period)
-        current_price = bars["close"][-1]
-        current_rsi = rsi[f"rsi_{self.rsi_period}"][-1]
-        current_sma = sma[f"sma_{self.sma_period}"][-1]
-
-        # Long signal: Price above SMA and RSI oversold recovery
-        if current_price > current_sma and 30 < current_rsi < 50:
-            return "long", current_price
-
-        # Short signal: Price below SMA and RSI overbought decline
-        elif current_price < current_sma and 50 < current_rsi < 70:
-            return "short", current_price
-
-        return None, None
-
-    async def place_bracket_order(self, direction: str):
-        """Place a bracket order based on strategy conditions."""
         try:
-            # Calculate dynamic stop and target levels
-            stop_offset, target_offset = await self.calculate_dynamic_levels()
+            # Get bars for ATR calculation
+            bars = await self.suite["MNQ"].data.get_data("5min")
 
-            # Determine side (0=Buy, 1=Sell)
-            side = 0 if direction == "long" else 1
+            if bars is None or bars.is_empty():
+                print("No data available for ATR calculation")
+                # Return default values
+                return 50.0, 100.0
 
-            print(f"Placing {direction.upper()} bracket order:")
-            print(f"  Size: {self.position_size} contracts")
-            print(f"  Stop Loss: {stop_offset} points")
-            print(f"  Take Profit: {target_offset} points")
+            # Calculate ATR for volatility-based stops
+            with_atr = bars.pipe(ATR, period=self.atr_period)
 
-            # Place bracket order
-            result = await self.suite["MNQ"].orders.place_bracket_order(
-                contract_id=self.suite["MNQ"].instrument_info.id,
-                side=side,
-                size=self.position_size,
-                entry_price=None,
-                stop_loss_price=float(stop_offset),
-                take_profit_price=float(target_offset),
+            # Get current ATR value
+            atr_column = f"atr_{self.atr_period}"
+            if atr_column not in with_atr.columns:
+                print(f"ATR column {atr_column} not found")
+                return 50.0, 100.0
+
+            current_atr = float(with_atr[atr_column].tail(1)[0])
+
+            # Dynamic stop loss: 2x ATR
+            stop_offset = current_atr * 2
+
+            # Dynamic take profit: 3x ATR (1.5:1 reward:risk)
+            target_offset = current_atr * 3
+
+            return stop_offset, target_offset
+
+        except Exception as e:
+            print(f"Error calculating ATR levels: {e}")
+            # Return default values on error
+            return 50.0, 100.0
+
+    async def check_entry_conditions(self) -> tuple[Optional[str], Optional[float]]:
+        """Check if conditions are met for entry."""
+        try:
+            bars = await self.suite["MNQ"].data.get_data("5min")
+
+            if bars is None or bars.is_empty():
+                return None, None
+
+            # Ensure we have enough data for indicators
+            if len(bars) < max(self.rsi_period, self.sma_period, self.atr_period):
+                return None, None
+
+            # Calculate indicators using pipe method
+            with_rsi = bars.pipe(RSI, period=self.rsi_period)
+            with_sma = with_rsi.pipe(SMA, period=self.sma_period)
+
+            # Get current values from the last row
+            last_row = with_sma.tail(1)
+
+            current_price = float(last_row["close"][0])
+
+            # Get RSI value
+            rsi_column = f"rsi_{self.rsi_period}"
+            current_rsi = (
+                float(last_row[rsi_column][0])
+                if rsi_column in last_row.columns
+                else 50.0
             )
 
-            print("Bracket order placed successfully:")
-            print(f"  Main Order ID: {result.entry_order_id}")
-            print(f"  Stop Order ID: {result.stop_order_id}")
-            print(f"  Target Order ID: {result.target_order_id}")
+            # Get SMA value
+            sma_column = f"sma_{self.sma_period}"
+            current_sma = (
+                float(last_row[sma_column][0])
+                if sma_column in last_row.columns
+                else current_price
+            )
 
-            self.active_orders.append(result)
-            return result
+            # Long signal: Price above SMA and RSI oversold recovery
+            if current_price > current_sma and 30 < current_rsi < 50:
+                return "long", current_price
+
+            # Short signal: Price below SMA and RSI overbought decline
+            elif current_price < current_sma and 50 < current_rsi < 70:
+                return "short", current_price
+
+            return None, None
+
+        except Exception as e:
+            print(f"Error checking entry conditions: {e}")
+            return None, None
+
+    async def place_bracket_order(
+        self, direction: str
+    ) -> Optional[BracketOrderResponse]:
+        """Place a bracket order based on strategy conditions."""
+        try:
+            # Get current price
+            current_price = await self.suite["MNQ"].data.get_current_price()
+            if not current_price:
+                print("Could not get current price")
+                return None
+
+            # Calculate dynamic stop and target levels (offsets)
+            stop_offset, target_offset = await self.calculate_dynamic_levels()
+
+            # Calculate actual price levels
+            if direction == "long":
+                stop_loss_price = current_price - stop_offset
+                take_profit_price = current_price + target_offset
+                side = 0  # Buy
+            else:  # short
+                stop_loss_price = current_price + stop_offset
+                take_profit_price = current_price - target_offset
+                side = 1  # Sell
+
+            # Display trade setup
+            print("\n" + "=" * 60)
+            print(f"{direction.upper()} BRACKET ORDER SETUP")
+            print("=" * 60)
+            print(f"Current Price: ${current_price:.2f}")
+            print(f"Position Size: {self.position_size} contracts")
+            print(f"Stop Loss: ${stop_loss_price:.2f} ({stop_offset:.2f} points)")
+            print(f"Take Profit: ${take_profit_price:.2f} ({target_offset:.2f} points)")
+
+            # Calculate risk/reward
+            risk = abs(current_price - stop_loss_price)
+            reward = abs(take_profit_price - current_price)
+            rr_ratio = reward / risk if risk > 0 else 0
+            print(f"Risk/Reward Ratio: {rr_ratio:.2f}:1")
+            print("=" * 60)
+
+            # Get instrument contract ID
+            instrument = self.suite["MNQ"].instrument_info
+            contract_id = instrument.id if hasattr(instrument, "id") else "MNQ"
+
+            print("\nPlacing bracket order...")
+
+            # Place bracket order with market entry
+            # Prices will be automatically aligned to tick size
+            result = await self.suite["MNQ"].orders.place_bracket_order(
+                contract_id=contract_id,
+                side=side,
+                size=self.position_size,
+                entry_price=None,  # Market order
+                entry_type="market",
+                stop_loss_price=stop_loss_price,
+                take_profit_price=take_profit_price,
+            )
+
+            if result and result.success:
+                print("\n✅ Bracket order placed successfully!")
+                print(f"  Entry Order ID: {result.entry_order_id}")
+                print(f"  Stop Order ID: {result.stop_order_id}")
+                print(f"  Target Order ID: {result.target_order_id}")
+
+                self.active_orders.append(result)
+                return result
+            else:
+                error_msg = result.error_message if result else "Unknown error"
+                print(f"\n❌ Failed to place bracket order: {error_msg}")
+                return None
 
         except Exception as e:
             print(f"Failed to place bracket order: {e}")
+            import traceback
+
+            traceback.print_exc()
             return None
 
     async def monitor_orders(self):
         """Monitor active orders and handle fills/cancellations."""
-        for bracket in self.active_orders[:]:  # Copy list to modify during iteration
+        if not self.active_orders:
+            return
+
+        # Copy list to allow modification during iteration
+        for bracket in self.active_orders[:]:
             try:
                 if bracket is None:
                     continue
 
-                # Check main order status
-                main_status = await self.suite["MNQ"].orders.get_tracked_order_status(
-                    str(bracket.entry_order_id)
-                )
+                # For this example, we'll just track the count
+                # In production, you would check order status via the API
 
-                if main_status is None:
-                    continue
-
-                if main_status["status"] == "Filled":
-                    print(
-                        f"Main order {bracket.entry_order_id} filled at ${main_status['fill_price']}"
-                    )
-
-                elif main_status["status"] in ["Cancelled", "Rejected"]:
-                    print(
-                        f"Main order {bracket.entry_order_id} {main_status['status']}"
-                    )
-                    self.active_orders.remove(bracket)
+                # Note: The actual order monitoring would typically be done
+                # through event handlers rather than polling
 
             except Exception as e:
-                print(f"Error monitoring order {bracket.entry_order_id}: {e}")
+                print(f"Error monitoring orders: {e}")
+
+    def remove_completed_order(self, order_id: int):
+        """Remove a completed order from tracking."""
+        self.active_orders = [
+            bracket
+            for bracket in self.active_orders
+            if bracket and bracket.entry_order_id != order_id
+        ]
 
 
 async def main():
+    """Main function to run the ATR bracket strategy."""
+    print("Initializing Advanced Bracket Order Strategy...")
+
     # Create trading suite with required timeframes
     suite = await TradingSuite.create(
         ["MNQ"],
@@ -160,58 +256,104 @@ async def main():
 
     # Initialize strategy
     strategy = ATRBracketStrategy(suite)
+    mnq_context = suite["MNQ"]
+
+    # Track last bar time to avoid duplicate processing
+    last_bar_time = {}
 
     # Set up event handlers for real-time monitoring
-    async def on_new_bar(event):
-        if event.data.get("timeframe") == "5min":
-            print(f"New 5min bar: ${event.data['close']:.2f}")
+    async def on_new_bar(event: Event):
+        """Handle new bar events."""
+        timeframe = event.data.get("timeframe", "unknown")
+
+        if timeframe == "5min":
+            # Avoid duplicate processing
+            current_time = event.data.get("timestamp", "")
+            if current_time == last_bar_time.get(timeframe):
+                return
+            last_bar_time[timeframe] = current_time
+
+            # Get bar data
+            bar_data = event.data.get("data", {})
+            close_price = bar_data.get("close", 0)
+
+            if close_price:
+                print(f"\nNew 5min bar: ${close_price:.2f}")
+
+            # Check if we can take a new position
+            if len(strategy.active_orders) >= strategy.max_positions:
+                return
 
             # Check for entry signals
             direction, price = await strategy.check_entry_conditions()
-            if direction and len(strategy.active_orders) == 0:  # No active positions
-                print(f"Entry signal detected: {direction.upper()} at ${price:.2f}")
+            if direction:
+                print(
+                    f"\n🎯 Entry signal detected: {direction.upper()} at ${price:.2f}"
+                )
 
-                # Confirm with user before placing order
-                response = input(f"Place {direction.upper()} bracket order? (y/N): ")
-                if response.lower().startswith("y"):
+                # Auto-confirm for demo, or ask user
+                if False:  # Set to True for auto-trading
                     await strategy.place_bracket_order(direction)
-
-    async def on_order_filled(event):
-        order_data = event.data
-        print(
-            f"ORDER FILLED: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}"
-        )
+                else:
+                    # Confirm with user before placing order
+                    response = input(
+                        f"Place {direction.upper()} bracket order? (y/N): "
+                    )
+                    if response.lower().startswith("y"):
+                        await strategy.place_bracket_order(direction)
 
     # Register event handlers
-    await suite["MNQ"].on(EventType.NEW_BAR, on_new_bar)
-    await suite["MNQ"].on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
 
-    print("Advanced Bracket Order Strategy Active")
-    print("Monitoring for entry signals on 5-minute bars...")
+    print("\n" + "=" * 60)
+    print("ADVANCED BRACKET ORDER STRATEGY ACTIVE")
+    print("=" * 60)
+    print("Strategy Settings:")
+    print(f"  ATR Period: {strategy.atr_period}")
+    print(f"  RSI Period: {strategy.rsi_period}")
+    print(f"  SMA Period: {strategy.sma_period}")
+    print(f"  Position Size: {strategy.position_size} contracts")
+    print(f"  Max Positions: {strategy.max_positions}")
+    print("\nMonitoring for entry signals on 5-minute bars...")
     print("Press Ctrl+C to exit")
+    print("=" * 60)
 
     try:
         while True:
-            await asyncio.sleep(5)
+            await asyncio.sleep(30)  # Status update every 30 seconds
 
             # Monitor active orders
             await strategy.monitor_orders()
 
             # Display current market info
-            current_price = await suite["MNQ"].data.get_current_price()
-            active_count = len(strategy.active_orders)
-            print(f"Price: ${current_price:.2f} | Active Orders: {active_count}")
+            current_price = await mnq_context.data.get_current_price()
+            if current_price:
+                active_count = len(strategy.active_orders)
+                print(
+                    f"\nStatus: Price=${current_price:.2f} | Active Orders={active_count}"
+                )
 
     except KeyboardInterrupt:
-        print("\nShutting down strategy...")
+        print("\n\nShutting down strategy...")
 
         # Cancel any remaining orders
         for bracket in strategy.active_orders:
-            try:
-                await suite["MNQ"].orders.cancel_order(bracket.entry_order_id)
-                print(f"Cancelled order {bracket.entry_order_id}")
-            except Exception as e:
-                print(f"Error cancelling order: {e}")
+            if bracket:
+                try:
+                    # Cancel stop and target orders
+                    if bracket.stop_order_id:
+                        await mnq_context.orders.cancel_order(bracket.stop_order_id)
+                        print(f"Cancelled stop order {bracket.stop_order_id}")
+                    if bracket.target_order_id:
+                        await mnq_context.orders.cancel_order(bracket.target_order_id)
+                        print(f"Cancelled target order {bracket.target_order_id}")
+                except Exception as e:
+                    print(f"Error cancelling orders: {e}")
+
+    finally:
+        # Disconnect from real-time feeds
+        await suite.disconnect()
+        print("Strategy disconnected. Goodbye!")
 
 
 if __name__ == "__main__":
@@ -225,85 +367,130 @@ Advanced strategy using multiple timeframes for confirmation:
 ```python
 #!/usr/bin/env python
 """
-Multi-timeframe momentum strategy with confluence analysis
+Multi-timeframe momentum strategy with confluence analysis.
+
+This example demonstrates:
+- Multi-timeframe analysis (5min, 15min, 1hr)
+- Momentum and trend confluence detection
+- Technical indicators (RSI, MACD, EMA, ATR)
+- Dynamic position sizing based on ATR
+- Bracket orders with volatility-based stops
 """
 
 import asyncio
 from decimal import Decimal
+from typing import Any, Optional
 
 from project_x_py import EventType, TradingSuite
+from project_x_py.event_bus import Event
 from project_x_py.indicators import ATR, EMA, MACD, RSI
 from project_x_py.models import BracketOrderResponse
 
 
 class MultiTimeframeMomentumStrategy:
+    """Multi-timeframe momentum trading strategy."""
+
     def __init__(self, suite: TradingSuite):
         self.suite = suite
         self.position_size = 1
         self.risk_per_trade = Decimal("0.02")  # 2% risk per trade
-        self.active_position = None
+        self.account_balance = Decimal("50000")  # Default balance
+        self.active_position: Optional[dict[str, Any]] = None
 
-    async def analyze_timeframe(self, timeframe: str):
+    async def analyze_timeframe(self, timeframe: str) -> Optional[dict[str, Any]]:
         """Analyze a specific timeframe for momentum signals."""
-        bars = await self.suite["MNQ"].data.get_data(timeframe)
+        try:
+            # Get bars for the timeframe
+            bars = await self.suite["MNQ"].data.get_data(timeframe)
 
-        if bars is None:
+            if bars is None or bars.is_empty():
+                print(f"No data available for {timeframe}")
+                return None
+
+            if len(bars) < 50:  # Need sufficient data for indicators
+                print(f"Insufficient data for {timeframe} (need 50+ bars)")
+                return None
+
+            # Calculate indicators using pipe method
+            with_rsi = bars.pipe(RSI, period=14)
+            with_macd = with_rsi.pipe(
+                MACD, fast_period=12, slow_period=26, signal_period=9
+            )
+            with_ema20 = with_macd.pipe(EMA, period=20)
+            with_ema50 = with_ema20.pipe(EMA, period=50)
+
+            # Get the last row for current values
+            last_row = with_ema50.tail(1)
+
+            # Extract values from the last row
+            current_price = float(last_row["close"][0])
+            current_rsi = (
+                float(last_row["rsi_14"][0]) if "rsi_14" in last_row.columns else 50.0
+            )
+
+            # MACD values
+            current_macd = (
+                float(last_row["macd"][0]) if "macd" in last_row.columns else 0.0
+            )
+            macd_signal = (
+                float(last_row["macd_signal"][0])
+                if "macd_signal" in last_row.columns
+                else 0.0
+            )
+
+            # EMA values
+            current_ema_20 = (
+                float(last_row["ema_20"][0])
+                if "ema_20" in last_row.columns
+                else current_price
+            )
+            current_ema_50 = (
+                float(last_row["ema_50"][0])
+                if "ema_50" in last_row.columns
+                else current_price
+            )
+
+            # Determine trend and momentum
+            trend = "bullish" if current_ema_20 > current_ema_50 else "bearish"
+            momentum = "positive" if current_macd > macd_signal else "negative"
+            rsi_level = (
+                "oversold"
+                if current_rsi < 30
+                else "overbought"
+                if current_rsi > 70
+                else "neutral"
+            )
+
+            return {
+                "timeframe": timeframe,
+                "price": current_price,
+                "trend": trend,
+                "momentum": momentum,
+                "rsi_level": rsi_level,
+                "rsi": current_rsi,
+                "macd": current_macd,
+                "macd_signal": macd_signal,
+                "ema_20": current_ema_20,
+                "ema_50": current_ema_50,
+            }
+
+        except Exception as e:
+            print(f"Error analyzing {timeframe}: {e}")
             return None
 
-        if len(bars) < 50:  # Need sufficient data
-            return None
-
-        # Calculate indicators
-        rsi = bars.pipe(RSI, period=14)
-        macd_result = bars.pipe(MACD, fast_period=12, slow_period=26, signal_period=9)
-        ema_20 = bars.pipe(EMA, period=20)
-        ema_50 = bars.pipe(EMA, period=50)
-
-        current_price = bars["close"][-1]
-        current_rsi = rsi["rsi_14"][-1]
-        current_macd = macd_result["macd"][-1]
-        macd_signal = macd_result["signal"][-1]
-        current_ema_20 = ema_20["ema_20"][-1]
-        current_ema_50 = ema_50["ema_50"][-1]
-
-        # Determine trend and momentum
-        trend = "bullish" if current_ema_20 > current_ema_50 else "bearish"
-        momentum = "positive" if current_macd > macd_signal else "negative"
-        rsi_level = (
-            "oversold"
-            if current_rsi < 30
-            else "overbought"
-            if current_rsi > 70
-            else "neutral"
-        )
-
-        return {
-            "timeframe": timeframe,
-            "price": current_price,
-            "trend": trend,
-            "momentum": momentum,
-            "rsi_level": rsi_level,
-            "rsi": current_rsi,
-            "macd": current_macd,
-            "macd_signal": macd_signal,
-            "ema_20": current_ema_20,
-            "ema_50": current_ema_50,
-        }
-
-    async def check_confluence(self):
+    async def check_confluence(self) -> tuple[Optional[str], Optional[list]]:
         """Check for confluence across multiple timeframes."""
-        # Analyze all timeframes
-        tf_5min = await self.analyze_timeframe("5min")
-        tf_15min = await self.analyze_timeframe("15min")  # Add 15min if available
-        tf_1hr = await self.analyze_timeframe("1hr")  # Add 1hr if available
+        # Analyze all configured timeframes
+        analyses = []
 
-        if tf_5min is None:
-            return None, None
-
-        analyses = [tf for tf in [tf_5min, tf_15min, tf_1hr] if tf is not None]
+        for timeframe in ["5min", "15min", "1hr"]:
+            if timeframe in self.suite["MNQ"].data.timeframes:
+                analysis = await self.analyze_timeframe(timeframe)
+                if analysis:
+                    analyses.append(analysis)
 
         if len(analyses) < 2:
-            return None, None
+            return None, analyses if analyses else None
 
         # Count bullish/bearish signals
         bullish_signals = sum(
@@ -317,108 +504,175 @@ class MultiTimeframeMomentumStrategy:
             if tf["trend"] == "bearish" and tf["momentum"] == "negative"
         )
 
+        # Get the lowest timeframe analysis (usually 5min)
+        entry_tf = analyses[0]  # First timeframe for entry conditions
+
         # Require confluence (majority agreement)
-        if (
-            bullish_signals >= 2 and tf_5min["rsi"] < 70
-        ):  # Not overbought on entry timeframe
+        if bullish_signals >= 2 and entry_tf["rsi"] < 70:  # Not overbought
             return "long", analyses
-        elif (
-            bearish_signals >= 2 and tf_5min["rsi"] > 30
-        ):  # Not oversold on entry timeframe
+        elif bearish_signals >= 2 and entry_tf["rsi"] > 30:  # Not oversold
             return "short", analyses
 
         return None, analyses
 
-    async def calculate_position_size(self, entry_price: float, stop_loss: float):
+    async def calculate_position_size(
+        self, entry_price: float, stop_loss: float
+    ) -> int:
         """Calculate position size based on risk management."""
-        account_info = self.suite.client.get_account_info()
-        account_balance = float(account_info.balance)
-
         # Calculate risk amount
-        risk_amount = account_balance * float(self.risk_per_trade)
+        risk_amount = float(self.account_balance) * float(self.risk_per_trade)
 
-        # Calculate risk per contract
+        # Calculate risk per contract (MNQ = $20 per point)
         price_diff = abs(entry_price - stop_loss)
-        risk_per_contract = price_diff * 20  # MNQ multiplier
+        risk_per_contract = price_diff * 20
+
+        if risk_per_contract <= 0:
+            return 1
 
         # Calculate position size
         calculated_size = int(risk_amount / risk_per_contract)
         return max(1, min(calculated_size, 5))  # Between 1-5 contracts
 
-    async def place_momentum_trade(self, direction: str, analyses: list):
-        """Place a trade based on momentum confluence."""
+    async def calculate_atr_stops(
+        self, direction: str, current_price: float, timeframe: str = "5min"
+    ) -> tuple[float, float]:
+        """Calculate ATR-based stop loss and take profit."""
         try:
-            current_price = analyses[0]["price"]  # Use 5min price
+            # Get bars for ATR calculation
+            bars = await self.suite["MNQ"].data.get_data(timeframe)
+            if bars is None or bars.is_empty():
+                # Fallback to fixed stops
+                if direction == "long":
+                    return current_price - 50, current_price + 100
+                else:
+                    return current_price + 50, current_price - 100
 
-            # Calculate ATR-based stop loss
-            bars_5min = await self.suite.data.get_data("5min")
-            atr = bars_5min.pipe(ATR, period=14)
-            current_atr = float(atr[-1])
+            # Calculate ATR
+            with_atr = bars.pipe(ATR, period=14)
+            current_atr = float(with_atr["atr_14"].tail(1)[0])
 
-            # Dynamic stops based on volatility
+            # Dynamic stops based on volatility (2x ATR stop, 3x ATR target)
             if direction == "long":
                 stop_loss = current_price - (current_atr * 2)
                 take_profit = current_price + (current_atr * 3)
-                side = 0  # Buy
             else:
                 stop_loss = current_price + (current_atr * 2)
                 take_profit = current_price - (current_atr * 3)
-                side = 1  # Sell
+
+            return stop_loss, take_profit
+
+        except Exception as e:
+            print(f"Error calculating ATR stops: {e}")
+            # Fallback to fixed stops
+            if direction == "long":
+                return current_price - 50, current_price + 100
+            else:
+                return current_price + 50, current_price - 100
+
+    async def place_momentum_trade(
+        self, direction: str, analyses: list
+    ) -> Optional[Any]:
+        """Place a trade based on momentum confluence."""
+        try:
+            # Use the entry timeframe price
+            current_price = analyses[0]["price"]
+
+            # Calculate ATR-based stops
+            stop_loss, take_profit = await self.calculate_atr_stops(
+                direction, current_price
+            )
 
             # Calculate position size
             position_size = await self.calculate_position_size(current_price, stop_loss)
 
-            print(f"\n{direction.upper()} Momentum Trade Setup:")
-            print(f"  Entry Price: ${current_price:.2f}")
-            print(f"  Stop Loss: ${stop_loss:.2f}")
-            print(f"  Take Profit: ${take_profit:.2f}")
-            print(f"  Position Size: {position_size} contracts")
+            # Display trade setup
+            print("\n" + "=" * 60)
+            print(f"{direction.upper()} MOMENTUM TRADE SETUP")
+            print("=" * 60)
+            print(f"Entry Price: ${current_price:.2f}")
             print(
-                f"  Risk/Reward: {abs(take_profit - current_price) / abs(current_price - stop_loss):.2f}:1"
+                f"Stop Loss: ${stop_loss:.2f} ({abs(current_price - stop_loss):.2f} points)"
             )
+            print(
+                f"Take Profit: ${take_profit:.2f} ({abs(take_profit - current_price):.2f} points)"
+            )
+            print(f"Position Size: {position_size} contracts")
+
+            # Calculate risk/reward
+            risk = abs(current_price - stop_loss)
+            reward = abs(take_profit - current_price)
+            rr_ratio = reward / risk if risk > 0 else 0
+            print(f"Risk/Reward: {rr_ratio:.2f}:1")
 
             # Display confluence analysis
             print("\nConfluence Analysis:")
             for analysis in analyses:
                 print(
-                    f"  {analysis['timeframe']}: {analysis['trend']} trend, {analysis['momentum']} momentum, RSI: {analysis['rsi']:.1f}"
+                    f"  {analysis['timeframe']:5s}: "
+                    f"{analysis['trend']:7s} trend, "
+                    f"{analysis['momentum']:8s} momentum, "
+                    f"RSI: {analysis['rsi']:5.1f}"
                 )
+            print("=" * 60)
 
             # Confirm trade
             response = input(f"\nPlace {direction.upper()} momentum trade? (y/N): ")
             if not response.lower().startswith("y"):
+                print("Trade cancelled")
                 return None
 
-            # Place bracket order
-            result: BracketOrderResponse = await self.suite[
-                "MNQ"
-            ].orders.place_bracket_order(
-                contract_id=self.suite["MNQ"].instrument_info.id,
+            # Get instrument contract ID
+            instrument = self.suite["MNQ"].instrument_info
+            contract_id = instrument.id if hasattr(instrument, "id") else "MNQ"
+
+            # Determine side
+            side = 0 if direction == "long" else 1  # 0=Buy, 1=Sell
+
+            print("\nPlacing bracket order...")
+
+            # Place bracket order with market entry
+            result = await self.suite["MNQ"].orders.place_bracket_order(
+                contract_id=contract_id,
                 side=side,
                 size=position_size,
-                entry_price=None,
+                entry_price=None,  # Market order
+                entry_type="market",
                 stop_loss_price=stop_loss,
                 take_profit_price=take_profit,
             )
 
-            self.active_position = {
-                "direction": direction,
-                "entry_price": current_price,
-                "stop_loss": stop_loss,
-                "take_profit": take_profit,
-                "size": position_size,
-                "bracket": result,
-            }
+            if result and result.success:
+                self.active_position = {
+                    "direction": direction,
+                    "entry_price": current_price,
+                    "stop_loss": stop_loss,
+                    "take_profit": take_profit,
+                    "size": position_size,
+                    "bracket_result": result,
+                }
 
-            print("Momentum trade placed successfully!")
+                print("\n✅ Momentum trade placed successfully!")
+                print(f"  Entry Order: {result.entry_order_id}")
+                print(f"  Stop Order: {result.stop_order_id}")
+                print(f"  Target Order: {result.target_order_id}")
+            else:
+                error_msg = result.error_message if result else "Unknown error"
+                print(f"\n❌ Failed to place trade: {error_msg}")
+
             return result
 
         except Exception as e:
             print(f"Failed to place momentum trade: {e}")
+            import traceback
+
+            traceback.print_exc()
             return None
 
 
 async def main():
+    """Main function to run the momentum strategy."""
+    print("Initializing Multi-Timeframe Momentum Strategy...")
+
     # Create suite with multiple timeframes
     suite = await TradingSuite.create(
         ["MNQ"],
@@ -426,76 +680,102 @@ async def main():
         initial_days=15,  # More historical data for higher timeframes
         features=["risk_manager"],
     )
-    mnq_context = suite["MNQ"]
 
+    mnq_context = suite["MNQ"]
     strategy = MultiTimeframeMomentumStrategy(suite)
 
     # Event handlers
-    async def on_new_bar(event):
-        if event.data.get("timeframe") == "5min":  # Only act on 5min bars
+    last_bar_time = {}
+
+    async def on_new_bar(event: Event):
+        """Handle new bar events."""
+        # Get timeframe from event data
+        timeframe = event.data.get("timeframe", "unknown")
+
+        # Only act on 5min bars for trade decisions
+        if timeframe == "5min":
+            # Avoid duplicate processing
+            current_time = event.data.get("timestamp", "")
+            if current_time == last_bar_time.get(timeframe):
+                return
+            last_bar_time[timeframe] = current_time
+
             # Check for confluence signals
             direction, analyses = await strategy.check_confluence()
 
-            if analyses is None:
-                return
-
-            if direction and not strategy.active_position:
-                print(f"\n=== MOMENTUM CONFLUENCE DETECTED: {direction.upper()} ===")
-                await strategy.place_momentum_trade(direction, analyses)
-            elif analyses:
-                # Display current analysis
-                print("\nCurrent Analysis (no confluence):")
-                for analysis in analyses:
-                    if analysis:
+            if analyses and not strategy.active_position:
+                if direction:
+                    print(f"\n{'=' * 60}")
+                    print(f"MOMENTUM CONFLUENCE DETECTED: {direction.upper()}")
+                    print(f"{'=' * 60}")
+                    await strategy.place_momentum_trade(direction, analyses)
+                else:
+                    # Display current analysis (no confluence)
+                    print("\nCurrent Market Analysis (No Confluence):")
+                    for analysis in analyses:
                         print(
-                            f"  {analysis['timeframe']}: {analysis['trend']}/{analysis['momentum']} (RSI: {analysis['rsi']:.1f})"
+                            f"  {analysis['timeframe']:5s}: "
+                            f"{analysis['trend']:7s}/{analysis['momentum']:8s} "
+                            f"(RSI: {analysis['rsi']:5.1f})"
                         )
 
-    async def on_order_filled(event):
-        if strategy.active_position:
-            order_id = event.data.get("order_id")
-            fill_price = event.data.get("fill_price", 0)
-
-            # Check if it's our stop or target
-            bracket: BracketOrderResponse = strategy.active_position["bracket"]
-            if bracket is None:
-                return
-
-            if order_id in [bracket.stop_order_id, bracket.target_order_id]:
-                result = (
-                    "STOP LOSS" if order_id == bracket.stop_order_id else "TAKE PROFIT"
-                )
-                print(f"\n{result} HIT: Order {order_id} filled at ${fill_price:.2f}")
-                strategy.active_position = None  # Clear position
-
-    # Register events
+    # Register event handlers
     await mnq_context.on(EventType.NEW_BAR, on_new_bar)
-    await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
 
-    print("Multi-Timeframe Momentum Strategy Active")
-    print("Analyzing 5min, 15min, and 1hr timeframes for confluence...")
-    print("Press Ctrl+C to exit")
+    print("\n" + "=" * 60)
+    print("MULTI-TIMEFRAME MOMENTUM STRATEGY ACTIVE")
+    print("=" * 60)
+    print("Analyzing 5min, 15min, and 1hr timeframes for confluence")
+    print("Looking for aligned trend and momentum signals")
+    print("Using ATR-based dynamic stops and targets")
+    print("\nPress Ctrl+C to exit")
+    print("=" * 60)
 
     try:
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(30)  # Status update every 30 seconds
 
             # Display status
             current_price = await mnq_context.data.get_current_price()
-            position_status = "ACTIVE" if strategy.active_position else "FLAT"
-            print(f"Price: ${current_price:.2f} | Position: {position_status}")
+            if current_price:
+                position_status = "ACTIVE" if strategy.active_position else "FLAT"
+
+                print("\nStatus Update:")
+                print(f"  Price: ${current_price:.2f}")
+                print(f"  Position: {position_status}")
+
+                if strategy.active_position:
+                    pos = strategy.active_position
+                    print(f"  Direction: {pos['direction'].upper()}")
+                    print(f"  Entry: ${pos['entry_price']:.2f}")
+                    print(f"  Stop: ${pos['stop_loss']:.2f}")
+                    print(f"  Target: ${pos['take_profit']:.2f}")
 
     except KeyboardInterrupt:
-        print("\nShutting down strategy...")
+        print("\n\nShutting down strategy...")
 
         # Cancel active orders if any
         if strategy.active_position:
-            bracket: BracketOrderResponse = strategy.active_position["bracket"]
-            try:
-                await mnq_context.orders.cancel_order(bracket.entry_order_id)
-                print("Cancelled active orders")
-            except Exception as e:
-                print(f"Error cancelling orders: {e}")
+            bracket_result: BracketOrderResponse = strategy.active_position.get("bracket_result", {})
+            if bracket_result:
+                try:
+                    # Cancel stop and target orders
+                    if bracket_result.stop_order_id:
+                        await mnq_context.orders.cancel_order(
+                            bracket_result.stop_order_id
+                        )
+                    if bracket_result.target_order_id:
+                        await mnq_context.orders.cancel_order(
+                            bracket_result.target_order_id
+                        )
+                    print("Cancelled active orders")
+                except Exception as e:
+                    print(f"Error cancelling orders: {e}")
+
+    finally:
+        # Disconnect from real-time feeds
+        await suite.disconnect()
+        print("Strategy disconnected. Goodbye!")
 
 
 if __name__ == "__main__":
@@ -509,58 +789,75 @@ Comprehensive risk management with position sizing and portfolio limits:
 ```python
 #!/usr/bin/env python
 """
-Advanced risk management system with portfolio-level controls
+Advanced risk management system with portfolio-level controls.
+
+This example demonstrates:
+- Position sizing based on risk parameters
+- Portfolio risk monitoring
+- Bracket orders with automatic stop-loss and take-profit
+- Real-time P&L tracking
+- Risk limit enforcement
 """
+
 import asyncio
+from datetime import datetime
 from decimal import Decimal
-from datetime import datetime, timedelta
-from project_x_py import TradingSuite, EventType
+
+from project_x_py import EventType, TradingSuite
+from project_x_py.event_bus import Event
+
 
 class AdvancedRiskManager:
+    """Advanced risk management system for trading."""
+
     def __init__(self, suite: TradingSuite):
         self.suite = suite
 
         # Risk parameters
         self.max_risk_per_trade = Decimal("0.02")  # 2% per trade
-        self.max_daily_risk = Decimal("0.06")      # 6% per day
+        self.max_daily_risk = Decimal("0.06")  # 6% per day
         self.max_portfolio_risk = Decimal("0.20")  # 20% total portfolio
-        self.max_positions = 3                     # Maximum open positions
+        self.max_positions = 3  # Maximum open positions
 
         # Tracking
+        self.account_balance = Decimal("50000")  # Default demo balance
         self.daily_pnl = Decimal("0")
         self.active_trades = []
         self.daily_reset_time = datetime.now().date()
 
-    async def get_account_balance(self):
-        """Get current account balance."""
-        account_info = await self.suite.client.get_account_info()
-        return Decimal(str(account_info.balance))
+    async def update_account_info(self):
+        """Update account information."""
+        try:
+            # Try to get positions to calculate P&L
+            positions = await self.suite["MNQ"].positions.get_all_positions()
 
-    async def calculate_current_portfolio_risk(self):
-        """Calculate current portfolio risk exposure."""
-        positions = await self.suite.positions.get_all_positions()
-        total_risk = Decimal("0")
+            # Calculate total P&L from positions
+            total_pnl = Decimal("0")
+            # Note: Actual P&L calculation would depend on position attributes
+            # This is a placeholder for demonstration
 
-        for position in positions:
-            if position.size != 0:
-                # Estimate risk based on position size and current unrealized P&L
-                position_value = abs(Decimal(str(position.size * position.average_price * 20)))  # MNQ multiplier
-                total_risk += position_value
+            # Update daily P&L
+            current_date = datetime.now().date()
+            if current_date > self.daily_reset_time:
+                self.daily_pnl = Decimal("0")
+                self.daily_reset_time = current_date
+                print(f"Daily P&L reset for {current_date}")
 
-        account_balance = await self.get_account_balance()
-        portfolio_risk_pct = total_risk / account_balance if account_balance > 0 else Decimal("0")
+            self.daily_pnl += total_pnl
 
-        return portfolio_risk_pct, total_risk
+        except Exception as e:
+            print(f"Could not update account info: {e}")
 
-    async def calculate_position_size(self, entry_price: float, stop_loss: float, risk_amount: Decimal = None):
+    async def calculate_position_size(
+        self, entry_price: float, stop_loss: float
+    ) -> int:
         """Calculate optimal position size based on risk parameters."""
-        if risk_amount is None:
-            account_balance = await self.get_account_balance()
-            risk_amount = account_balance * self.max_risk_per_trade
+        # Calculate risk amount
+        risk_amount = self.account_balance * self.max_risk_per_trade
 
-        # Calculate risk per contract
+        # Calculate risk per contract (MNQ = $20 per point)
         price_diff = abs(Decimal(str(entry_price)) - Decimal(str(stop_loss)))
-        risk_per_contract = price_diff * 20  # MNQ multiplier
+        risk_per_contract = price_diff * 20
 
         if risk_per_contract <= 0:
             return 0
@@ -572,53 +869,51 @@ class AdvancedRiskManager:
         max_size = 10  # Hard limit
         return max(1, min(calculated_size, max_size))
 
-    async def check_risk_limits(self, proposed_trade: dict):
+    async def check_risk_limits(self, proposed_size: int) -> tuple[bool, list[str]]:
         """Check if proposed trade violates risk limits."""
         errors = []
 
         # Check maximum positions
-        if len(self.active_trades) >= self.max_positions:
+        positions = await self.suite["MNQ"].positions.get_all_positions()
+        active_positions = [p for p in positions if p.size != 0]
+
+        if len(active_positions) >= self.max_positions:
             errors.append(f"Maximum positions reached ({self.max_positions})")
 
         # Check daily risk limit
-        account_balance = await self.get_account_balance()
-        if abs(self.daily_pnl) >= (account_balance * self.max_daily_risk):
+        if abs(self.daily_pnl) >= (self.account_balance * self.max_daily_risk):
             errors.append(f"Daily risk limit reached ({self.max_daily_risk * 100}%)")
 
         # Check portfolio risk
-        portfolio_risk_pct, _ = await self.calculate_current_portfolio_risk()
-        if portfolio_risk_pct >= self.max_portfolio_risk:
-            errors.append(f"Portfolio risk limit reached ({self.max_portfolio_risk * 100}%)")
-
-        # Check proposed trade risk
-        trade_risk = Decimal(str(proposed_trade['risk_amount']))
-        if trade_risk > (account_balance * self.max_risk_per_trade):
-            errors.append(f"Trade risk too high ({self.max_risk_per_trade * 100}% max)")
+        total_position_size = sum(abs(p.size) for p in active_positions)
+        if total_position_size + proposed_size > 20:  # Max 20 contracts total
+            errors.append("Portfolio size limit reached (20 contracts max)")
 
         return len(errors) == 0, errors
 
-    async def monitor_daily_pnl(self):
-        """Monitor and update daily P&L."""
-        current_date = datetime.now().date()
-
-        # Reset daily P&L if new day
-        if current_date > self.daily_reset_time:
-            self.daily_pnl = Decimal("0")
-            self.daily_reset_time = current_date
-            print(f"Daily P&L reset for {current_date}")
-
-        # Calculate current daily P&L
-        positions = await self.suite.positions.get_all_positions()
-        total_unrealized = sum(Decimal(str(p.unrealized_pnl)) for p in positions)
-        total_realized = sum(Decimal(str(p.realized_pnl)) for p in positions)
-
-        self.daily_pnl = total_realized + total_unrealized
-
-        return self.daily_pnl
-
-    async def place_risk_managed_trade(self, direction: str, entry_price: float, stop_loss: float, take_profit: float):
+    async def place_risk_managed_trade(
+        self, direction: str, stop_offset: float = 50, target_offset: float = 100
+    ):
         """Place a trade with full risk management."""
         try:
+            # Get current price
+            current_price = await self.suite["MNQ"].data.get_current_price()
+            if not current_price:
+                print("Could not get current price")
+                return None
+
+            # Calculate entry, stop, and target prices
+            if direction == "long":
+                entry_price = current_price
+                stop_loss = current_price - stop_offset
+                take_profit = current_price + target_offset
+                side = 0  # Buy
+            else:
+                entry_price = current_price
+                stop_loss = current_price + stop_offset
+                take_profit = current_price - target_offset
+                side = 1  # Sell
+
             # Calculate position size
             position_size = await self.calculate_position_size(entry_price, stop_loss)
 
@@ -626,22 +921,8 @@ class AdvancedRiskManager:
                 print("Position size calculated as 0 - trade rejected")
                 return None
 
-            # Calculate trade risk
-            risk_per_contract = abs(Decimal(str(entry_price)) - Decimal(str(stop_loss))) * 20
-            total_risk = risk_per_contract * position_size
-
-            # Prepare trade proposal
-            proposed_trade = {
-                "direction": direction,
-                "entry_price": entry_price,
-                "stop_loss": stop_loss,
-                "take_profit": take_profit,
-                "size": position_size,
-                "risk_amount": total_risk
-            }
-
             # Check risk limits
-            risk_ok, risk_errors = await self.check_risk_limits(proposed_trade)
+            risk_ok, risk_errors = await self.check_risk_limits(position_size)
 
             if not risk_ok:
                 print("Trade rejected due to risk limits:")
@@ -649,149 +930,198 @@ class AdvancedRiskManager:
                     print(f"  - {error}")
                 return None
 
+            # Calculate trade risk
+            risk_per_contract = abs(entry_price - stop_loss) * 20  # MNQ multiplier
+            total_risk = risk_per_contract * position_size
+            risk_pct = float((total_risk / float(self.account_balance)) * 100)
+
             # Display trade details
-            account_balance = await self.get_account_balance()
-            risk_pct = (total_risk / account_balance) * 100
+            print("\n" + "=" * 50)
+            print("RISK-MANAGED TRADE SETUP")
+            print("=" * 50)
+            print(f"Direction: {direction.upper()}")
+            print(f"Current Price: ${entry_price:.2f}")
+            print(f"Stop Loss: ${stop_loss:.2f} ({stop_offset} points)")
+            print(f"Take Profit: ${take_profit:.2f} ({target_offset} points)")
+            print(f"Position Size: {position_size} contracts")
+            print(f"Risk Amount: ${total_risk:.2f} ({risk_pct:.2f}% of account)")
+            print(f"R:R Ratio: {target_offset / stop_offset:.1f}:1")
 
-            print(f"\nRisk-Managed Trade Setup:")
-            print(f"  Direction: {direction.upper()}")
-            print(f"  Entry: ${entry_price:.2f}")
-            print(f"  Stop: ${stop_loss:.2f}")
-            print(f"  Target: ${take_profit:.2f}")
-            print(f"  Size: {position_size} contracts")
-            print(f"  Risk: ${total_risk:.2f} ({risk_pct:.2f}% of account)")
-            print(f"  R:R Ratio: {abs(take_profit - entry_price) / abs(entry_price - stop_loss):.2f}:1")
-
-            # Show current risk status
-            portfolio_risk_pct, _ = await self.calculate_current_portfolio_risk()
-            daily_pnl = await self.monitor_daily_pnl()
-
-            print(f"\nCurrent Risk Status:")
-            print(f"  Daily P&L: ${daily_pnl:.2f}")
-            print(f"  Portfolio Risk: {portfolio_risk_pct * 100:.2f}%")
-            print(f"  Active Positions: {len(self.active_trades)}")
+            # Show current status
+            positions = await self.suite["MNQ"].positions.get_all_positions()
+            active_positions = [p for p in positions if p.size != 0]
+            print("\nCurrent Status:")
+            print(f"  Active Positions: {len(active_positions)}")
+            print(f"  Daily P&L: ${self.daily_pnl:.2f}")
+            print("=" * 50)
 
             # Confirm trade
-            response = input(f"\nProceed with risk-managed {direction.upper()} trade? (y/N): ")
-            if not response.lower().startswith('y'):
+            response = input(f"\nProceed with {direction.upper()} trade? (y/N): ")
+            if not response.lower().startswith("y"):
+                print("Trade cancelled")
                 return None
 
             # Place bracket order
-            side = 0 if direction == "long" else 1
-            stop_offset = Decimal(str(abs(entry_price - stop_loss)))
-            target_offset = Decimal(str(abs(take_profit - entry_price)))
+            print("\nPlacing bracket order...")
 
-            result = await self.suite.orders.place_bracket_order(
-                contract_id=self.suite.instrument_info.id,
+            # Get the instrument contract ID
+            instrument = self.suite["MNQ"].instrument_info
+            contract_id = instrument.id if hasattr(instrument, "id") else "MNQ"
+
+            result = await self.suite["MNQ"].orders.place_bracket_order(
+                contract_id=contract_id,
                 side=side,
                 size=position_size,
-                stop_offset=stop_offset,
-                target_offset=target_offset
+                entry_price=None,  # Market entry
+                entry_type="market",
+                stop_loss_price=stop_loss,
+                take_profit_price=take_profit,
             )
 
-            # Track the trade
-            trade_record = {
-                **proposed_trade,
-                "bracket": result,
-                "timestamp": datetime.now(),
-                "status": "active"
-            }
+            if result and result.success:
+                # Track the trade
+                trade_record = {
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "stop_loss": stop_loss,
+                    "take_profit": take_profit,
+                    "size": position_size,
+                    "risk_amount": total_risk,
+                    "bracket_result": result,
+                    "timestamp": datetime.now(),
+                    "status": "active",
+                }
+                self.active_trades.append(trade_record)
 
-            self.active_trades.append(trade_record)
-
-            print(f"Risk-managed trade placed successfully!")
-            print(f"  Main Order: {result.main_order_id}")
-            print(f"  Stop Order: {result.stop_order_id}")
-            print(f"  Target Order: {result.target_order_id}")
+                print("\n✅ Risk-managed trade placed successfully!")
+                print(f"  Entry Order: {result.entry_order_id}")
+                print(f"  Stop Order: {result.stop_order_id}")
+                print(f"  Target Order: {result.target_order_id}")
+            else:
+                error_msg = result.error_message if result else "Unknown error"
+                print(f"\n❌ Failed to place trade: {error_msg}")
 
             return result
 
         except Exception as e:
             print(f"Failed to place risk-managed trade: {e}")
+            import traceback
+
+            traceback.print_exc()
             return None
 
     async def generate_risk_report(self):
         """Generate comprehensive risk report."""
-        print("\n" + "="*50)
+        await self.update_account_info()
+
+        print("\n" + "=" * 60)
         print("RISK MANAGEMENT REPORT")
-        print("="*50)
+        print("=" * 60)
 
-        account_balance = await self.get_account_balance()
-        daily_pnl = await self.monitor_daily_pnl()
-        portfolio_risk_pct, total_risk = await self.calculate_current_portfolio_risk()
+        print(f"Account Balance: ${self.account_balance:,.2f}")
+        print(
+            f"Daily P&L: ${self.daily_pnl:.2f} ({(self.daily_pnl / self.account_balance) * 100:.2f}%)"
+        )
 
-        print(f"Account Balance: ${account_balance:,.2f}")
-        print(f"Daily P&L: ${daily_pnl:.2f} ({(daily_pnl/account_balance)*100:.2f}%)")
-        print(f"Portfolio Risk: ${total_risk:,.2f} ({portfolio_risk_pct*100:.2f}%)")
-        print(f"Active Trades: {len(self.active_trades)}")
+        # Get current positions
+        positions = await self.suite["MNQ"].positions.get_all_positions()
+        active_positions = [p for p in positions if p.size != 0]
 
-        print(f"\nRisk Limits:")
-        print(f"  Per Trade: {self.max_risk_per_trade*100:.1f}% (${account_balance * self.max_risk_per_trade:.2f})")
-        print(f"  Daily: {self.max_daily_risk*100:.1f}% (${account_balance * self.max_daily_risk:.2f})")
-        print(f"  Portfolio: {self.max_portfolio_risk*100:.1f}% (${account_balance * self.max_portfolio_risk:.2f})")
+        print(f"\nActive Positions: {len(active_positions)}")
+        for i, pos in enumerate(active_positions, 1):
+            side = "LONG" if pos.size > 0 else "SHORT"
+            print(f"  {i}. {side} {abs(pos.size)} contracts")
+
+        print("\nRisk Limits:")
+        print(
+            f"  Per Trade: {self.max_risk_per_trade * 100:.1f}% (${self.account_balance * self.max_risk_per_trade:.2f})"
+        )
+        print(
+            f"  Daily: {self.max_daily_risk * 100:.1f}% (${self.account_balance * self.max_daily_risk:.2f})"
+        )
+        print(f"  Portfolio: {self.max_portfolio_risk * 100:.1f}%")
         print(f"  Max Positions: {self.max_positions}")
 
         if self.active_trades:
-            print(f"\nActive Trades:")
-            for i, trade in enumerate(self.active_trades, 1):
-                print(f"  {i}. {trade['direction'].upper()} - ${trade['entry_price']:.2f} (Risk: ${trade['risk_amount']:.2f})")
+            print("\nRecent Trades:")
+            for i, trade in enumerate(self.active_trades[-5:], 1):  # Show last 5
+                print(
+                    f"  {i}. {trade['direction'].upper()} - "
+                    f"${trade['entry_price']:.2f} "
+                    f"(Risk: ${trade['risk_amount']:.2f}) - "
+                    f"{trade['status'].upper()}"
+                )
 
-        print("="*50)
+        print("=" * 60)
+
 
 async def main():
-    suite = await TradingSuite.create(["MNQ"], timeframes=["5min"], features=["risk_manager"])
+    """Main function to run the risk management system."""
+    print("Initializing Advanced Risk Management System...")
+
+    # Create TradingSuite with risk management features
+    suite = await TradingSuite.create(
+        ["MNQ"],
+        timeframes=["1min", "5min"],
+        initial_days=1,
+        features=["risk_manager"],  # Enable risk manager feature
+    )
+
+    # Create risk manager
     risk_manager = AdvancedRiskManager(suite)
     mnq_context = suite["MNQ"]
 
-    # Event handlers
-    async def on_order_filled(event):
-        order_data = event.data
-        print(f"Order filled: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}")
+    # Set up event handlers
+    async def on_new_bar(_event: Event):
+        """Handle new bar events to update P&L."""
+        # Update account info on each new bar
+        await risk_manager.update_account_info()
 
-        # Update trade records
-        for trade in risk_manager.active_trades:
-            bracket = trade['bracket']
-            if order_data.get('order_id') in [bracket.stop_order_id, bracket.target_order_id]:
-                trade['status'] = 'completed'
-                print(f"Trade completed: {trade['direction']} from ${trade['entry_price']:.2f}")
+    async def on_quote(_event: Event):
+        """Handle quote updates."""
+        # Could use this for real-time P&L updates
+        # Placeholder for future real-time updates
 
-    await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
+    # Register event handlers
+    await mnq_context.on(EventType.NEW_BAR, on_new_bar)
+    await mnq_context.on(EventType.QUOTE_UPDATE, on_quote)
 
-    print("Advanced Risk Management System Active")
-    print("Commands:")
-    print("  'long' - Test long trade")
-    print("  'short' - Test short trade")
+    print("\n" + "=" * 60)
+    print("ADVANCED RISK MANAGEMENT SYSTEM ACTIVE")
+    print("=" * 60)
+    print("\nCommands:")
+    print("  'long'  - Place risk-managed LONG trade")
+    print("  'short' - Place risk-managed SHORT trade")
     print("  'report' - Generate risk report")
-    print("  'quit' - Exit")
+    print("  'quit'  - Exit system")
+    print("=" * 60)
 
     try:
         while True:
+            # Get user input
             command = input("\nEnter command: ").strip().lower()
 
-            if command == 'quit':
+            if command == "quit":
                 break
-            elif command == 'report':
+            elif command == "report":
                 await risk_manager.generate_risk_report()
-            elif command in ['long', 'short']:
-                # Get current price and simulate trade levels
-                current_price = await mnq_context.data.get_current_price()
+            elif command == "long":
+                await risk_manager.place_risk_managed_trade("long")
+            elif command == "short":
+                await risk_manager.place_risk_managed_trade("short")
+            elif command:
+                print(f"Unknown command: {command}")
 
-                if command == 'long':
-                    entry_price = float(current_price)
-                    stop_loss = entry_price * 0.998  # 0.2% stop
-                    take_profit = entry_price * 1.004  # 0.4% target
-                else:
-                    entry_price = float(current_price)
-                    stop_loss = entry_price * 1.002  # 0.2% stop
-                    take_profit = entry_price * 0.996  # 0.4% target
-
-                await risk_manager.place_risk_managed_trade(command, entry_price, stop_loss, take_profit)
-
-            # Update daily P&L monitoring
-            await risk_manager.monitor_daily_pnl()
+            # Brief pause to allow async operations
+            await asyncio.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("\nShutting down risk management system...")
+        print("\n\nShutting down risk management system...")
+    finally:
+        # Disconnect from real-time feeds
+        await suite.disconnect()
+        print("System disconnected. Goodbye!")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

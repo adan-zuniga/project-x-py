@@ -34,6 +34,7 @@ async def test_instrument_context_creation():
     mock_data_manager = MagicMock()
     mock_order_manager = MagicMock()
     mock_position_manager = MagicMock()
+    mock_event_bus = MagicMock()
     mock_orderbook = MagicMock()
     mock_risk_manager = MagicMock()
 
@@ -44,6 +45,7 @@ async def test_instrument_context_creation():
         data=mock_data_manager,
         orders=mock_order_manager,
         positions=mock_position_manager,
+        event_bus=mock_event_bus,
         orderbook=mock_orderbook,
         risk_manager=mock_risk_manager,
     )

@@ -14,6 +14,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.6] - 2025-02-02
+
+### 🐛 Fixed
+
+**Multi-Instrument Event System**:
+- **Event Forwarding**: Implemented event forwarding from instrument-specific EventBuses to suite-level EventBus
+- **InstrumentContext Methods**: Added `on()`, `once()`, `off()`, and `wait_for()` methods that delegate to event_bus
+- **Event Propagation**: Fixed broken event system that prevented `mnq_context.wait_for(EventType.NEW_BAR)` from working
+- **Multi-Instrument Support**: Events now properly flow from individual instruments to the suite level
+
+**Bracket Order Improvements**:
+- **Automatic Price Alignment**: Changed validation from failing to auto-aligning prices to tick size
+- **Smart Adjustment**: Orders with misaligned prices are now automatically corrected instead of rejected
+- **Better UX**: Improved user experience by handling price alignment transparently
+
+**Example Scripts**:
+- **Advanced Trading Examples**: Fixed all 4 advanced trading examples with proper async/await patterns
+- **Real-time Streaming**: Fixed bar data access in real-time streaming example
+- **OrderBook Methods**: Corrected API usage with proper method names and parameters
+- **TypedDict Access**: Fixed bracket notation for TypedDict field access
+
+### ✅ Testing
+
+- **Test Suite Updates**: Fixed 30 failing tests to match new correct behavior
+- **Event System Tests**: Updated tests to verify event forwarding functionality
+- **Price Alignment Tests**: Tests now verify automatic alignment instead of rejection
+- **InstrumentContext Tests**: Added event_bus parameter to all test constructors
+
+### 🔧 Changed
+
+- **OrderManager**: Removed duplicate price alignment calls in `place_order()` method
+- **TradingSuite**: Added `_setup_event_forwarding()` method for event bus connectivity
+- **InstrumentContext**: Now requires `event_bus` parameter in constructor
+
 ## [3.5.5] - 2025-01-21
 
 ### ✅ Testing

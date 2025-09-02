@@ -296,6 +296,7 @@ class TestMultiInstrumentContexts:
             data=AsyncMock(spec=RealtimeDataManager),
             orders=AsyncMock(spec=OrderManager),
             positions=AsyncMock(spec=PositionManager),
+            event_bus=AsyncMock(spec=EventBus),
             orderbook=AsyncMock(spec=OrderBook),
             risk_manager=AsyncMock(spec=RiskManager),
         )
@@ -306,6 +307,7 @@ class TestMultiInstrumentContexts:
             data=AsyncMock(spec=RealtimeDataManager),
             orders=AsyncMock(spec=OrderManager),
             positions=AsyncMock(spec=PositionManager),
+            event_bus=AsyncMock(spec=EventBus),
             orderbook=None,  # No orderbook
             risk_manager=None,  # No risk manager
         )
@@ -337,6 +339,7 @@ class TestMultiInstrumentContexts:
             data=AsyncMock(spec=RealtimeDataManager),
             orders=AsyncMock(spec=OrderManager),
             positions=AsyncMock(spec=PositionManager),
+            event_bus=AsyncMock(spec=EventBus),
             orderbook=AsyncMock(spec=OrderBook),
             risk_manager=None,
         )
@@ -491,6 +494,7 @@ class TestContainerProtocol:
                 data=Mock(spec=RealtimeDataManager),
                 orders=Mock(spec=OrderManager),
                 positions=Mock(spec=PositionManager),
+                event_bus=Mock(spec=EventBus),
                 orderbook=None,
                 risk_manager=None,
             )
@@ -610,6 +614,7 @@ class TestSessionHandling:
                 data=data_manager,
                 orders=Mock(spec=OrderManager),
                 positions=Mock(spec=PositionManager),
+                event_bus=Mock(spec=EventBus),
                 orderbook=None,
                 risk_manager=None,
             )
@@ -711,6 +716,7 @@ class TestPropertiesAndGetAttr:
             data=Mock(spec=RealtimeDataManager),
             orders=Mock(spec=OrderManager),
             positions=Mock(spec=PositionManager),
+            event_bus=Mock(spec=EventBus),
             orderbook=None,
             risk_manager=None,
         )
@@ -733,6 +739,7 @@ class TestPropertiesAndGetAttr:
                 data=Mock(spec=RealtimeDataManager),
                 orders=Mock(spec=OrderManager),
                 positions=Mock(spec=PositionManager),
+                event_bus=Mock(spec=EventBus),
                 orderbook=None,
                 risk_manager=None,
             )
@@ -791,6 +798,7 @@ class TestDisconnectAndCleanup:
                 data=data,
                 orders=Mock(spec=OrderManager),
                 positions=Mock(spec=PositionManager),
+                event_bus=Mock(spec=EventBus),
                 orderbook=orderbook,
                 risk_manager=None,
             )
@@ -897,6 +905,7 @@ class TestBackwardCompatibilityProperties:
             data=Mock(spec=RealtimeDataManager),
             orders=Mock(spec=OrderManager),
             positions=Mock(spec=PositionManager),
+            event_bus=Mock(spec=EventBus),
             orderbook=None,
             risk_manager=None,
         )

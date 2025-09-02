@@ -248,9 +248,11 @@ class TestPriceAlignmentAndValidation:
             # Should have aligned all three prices
             assert mock_align.call_count == 3
             call_args = order_manager.project_x._make_request.call_args[1]["data"]
-            assert call_args.get("limitPrice") == 100.78
-            assert call_args.get("stopPrice") == 99.33
-            assert call_args.get("trailPrice") == 2.00
+            # Prices are now Decimal objects for precision
+            from decimal import Decimal
+            assert call_args.get("limitPrice") == Decimal('100.78')
+            assert call_args.get("stopPrice") == Decimal('99.33')
+            assert call_args.get("trailPrice") == Decimal('2.0')
 
 
 class TestConcurrentOrderOperations:
