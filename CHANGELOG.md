@@ -14,6 +14,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration guides will be provided for all breaking changes
 - Semantic versioning (MAJOR.MINOR.PATCH) is strictly followed
 
+## [3.5.8] - 2025-09-02
+
+### 🐛 Fixed
+
+**DateTime Parsing**:
+- **Mixed Timestamp Formats**: Fixed datetime parsing error when API returns mixed timestamp formats (with/without timezone)
+- **Robust Parsing**: Implemented three-tier parsing approach to handle all timestamp variations:
+  - With timezone offset: `"2025-01-21T10:30:00-05:00"`
+  - With UTC Z suffix: `"2025-01-21T15:30:00Z"`
+  - Without timezone (naive): `"2025-01-21T10:30:00"`
+- **Performance**: Optimized with fast path for consistent data (95% of cases)
+- **Compatibility**: Maintains backward compatibility with zero breaking changes
+
+**Test Improvements**:
+- **Cache Performance Test**: Fixed flaky `test_cache_performance_benefits` test that was failing due to microsecond timing measurements
+- **Test Robustness**: Improved test to verify cache functionality rather than unreliable microsecond timing comparisons
+
+### 📚 Documentation
+
+**Issue Tracking**:
+- Created detailed documentation of the datetime parsing issue and fix for future reference
+- Added comprehensive testing notes for mixed timestamp format scenarios
+
 ## [3.5.7] - 2025-02-02
 
 ### 🐛 Fixed

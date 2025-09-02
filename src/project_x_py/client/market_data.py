@@ -538,6 +538,7 @@ class MarketDataMixin:
             return pl.DataFrame()
 
         # Convert to DataFrame and process
+        # First create the DataFrame with renamed columns
         data = (
             pl.DataFrame(bars_data)
             .sort("t")
@@ -551,14 +552,45 @@ class MarketDataMixin:
                     "v": "volume",
                 }
             )
-            .with_columns(
-                # Optimized datetime conversion with cached timezone
+        )
+
+        # Handle datetime conversion robustly
+        # Try the simple approach first (fastest for consistent data)
+        try:
+            data = data.with_columns(
                 pl.col("timestamp")
                 .str.to_datetime()
                 .dt.replace_time_zone("UTC")
                 .dt.convert_time_zone(self.config.timezone)
             )
-        )
+        except Exception:
+            # Fallback: Handle mixed timestamp formats
+            # Some timestamps may have timezone info, others may not
+            try:
+                # Try with UTC assumption for naive timestamps
+                data = data.with_columns(
+                    pl.col("timestamp")
+                    .str.to_datetime(time_zone="UTC")
+                    .dt.convert_time_zone(self.config.timezone)
+                )
+            except Exception:
+                # Last resort: Parse with specific format patterns
+                # This handles the most complex mixed-format scenarios
+                data = data.with_columns(
+                    pl.when(pl.col("timestamp").str.contains("[+-]\\d{2}:\\d{2}$|Z$"))
+                    .then(
+                        # Has timezone info - parse as-is
+                        pl.col("timestamp").str.to_datetime()
+                    )
+                    .otherwise(
+                        # No timezone - assume UTC
+                        pl.col("timestamp")
+                        .str.to_datetime()
+                        .dt.replace_time_zone("UTC")
+                    )
+                    .dt.convert_time_zone(self.config.timezone)
+                    .alias("timestamp")
+                )
 
         if data.is_empty():
             return data
