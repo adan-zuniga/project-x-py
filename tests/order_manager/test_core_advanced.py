@@ -250,9 +250,9 @@ class TestPriceAlignmentAndValidation:
             call_args = order_manager.project_x._make_request.call_args[1]["data"]
             # Prices are now Decimal objects for precision
             from decimal import Decimal
-            assert call_args.get("limitPrice") == Decimal('100.78')
-            assert call_args.get("stopPrice") == Decimal('99.33')
-            assert call_args.get("trailPrice") == Decimal('2.0')
+            assert call_args.get("limitPrice") == float(Decimal('100.78'))
+            assert call_args.get("stopPrice") == float(Decimal('99.33'))
+            assert call_args.get("trailPrice") == float(Decimal('2.0'))
 
 
 class TestConcurrentOrderOperations:
