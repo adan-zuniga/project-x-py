@@ -22,7 +22,9 @@ The TradingSuite simplifies SDK usage by:
 
 ```python
 import asyncio
+
 from project_x_py import TradingSuite
+
 
 async def main():
     # Traditional single instrument (still supported)
@@ -41,18 +43,24 @@ async def main():
     # Clean shutdown
     await suite.disconnect()
 
+
 asyncio.run(main())
 ```
 
 ### Multi-Instrument Setup (v3.5.0 New)
 
 ```python
+import asyncio
+
+from project_x_py import TradingSuite
+
+
 async def multi_instrument_main():
     # Revolutionary multi-instrument support
     suite = await TradingSuite.create(
         instruments=["MNQ", "ES", "MGC"],  # Multiple futures
         timeframes=["1min", "5min"],
-        features=["orderbook", "risk_manager"]
+        features=["orderbook", "risk_manager"],
     )
 
     print(f"Managing {len(suite)} instruments: {list(suite.keys())}")
@@ -69,18 +77,29 @@ async def multi_instrument_main():
 
     await suite.disconnect()
 
+
 asyncio.run(multi_instrument_main())
 ```
 
 ### Multi-Timeframe Setup
 
 ```python
+import asyncio
+
+from project_x_py import TradingSuite
+
+
+async def main():
+    await multi_timeframe_setup()
+    await multi_instrument_timeframes()
+
+
 async def multi_timeframe_setup():
     # Setup with multiple timeframes for analysis
     suite = await TradingSuite.create(
         ["MNQ"],  # Single instrument with multiple timeframes
         timeframes=["1min", "5min", "15min"],
-        initial_days=10  # Load 10 days of historical data
+        initial_days=10,  # Load 10 days of historical data
     )
 
     mnq = suite["MNQ"]
@@ -90,39 +109,60 @@ async def multi_timeframe_setup():
     bars_5min = await mnq.data.get_data("5min")
     bars_15min = await mnq.data.get_data("15min")
 
+    if bars_1min is None or bars_5min is None or bars_15min is None:
+        raise Exception("No data available")
+
     print(f"MNQ 1min bars: {len(bars_1min)}")
     print(f"MNQ 5min bars: {len(bars_5min)}")
     print(f"MNQ 15min bars: {len(bars_15min)}")
 
     await suite.disconnect()
 
+
 # Multi-instrument with multiple timeframes
 async def multi_instrument_timeframes():
     suite = await TradingSuite.create(
         ["MNQ", "ES"],  # List of instruments
-        timeframes=["1min", "5min", "15min"]
+        timeframes=["1min", "5min", "15min"],
     )
 
     # Each instrument has all timeframes available
     for symbol, context in suite.items():
+        bars_1min = await context.data.get_data("1min")
         bars_5min = await context.data.get_data("5min")
+        bars_15min = await context.data.get_data("15min")
+
+        if bars_1min is None or bars_5min is None or bars_15min is None:
+            raise Exception("No data available")
+        print(f"{symbol} 1min bars: {len(bars_1min)}")
         print(f"{symbol} 5min bars: {len(bars_5min)}")
+        print(f"{symbol} 15min bars: {len(bars_15min)}")
 
     await suite.disconnect()
 
-asyncio.run(multi_timeframe_setup())
+
+asyncio.run(main())
 ```
 
 ### Multi-Instrument with Optional Features
 
 ```python
+import asyncio
+
+from project_x_py import TradingSuite
+from project_x_py.trading_suite import Features
+
+
 async def feature_setup():
     # Enable optional features for multiple instruments
     suite = await TradingSuite.create(
-        ["MNQ", "ES"],  # List of instruments
+        ["MNQ", "MES"],  # List of instruments
         timeframes=["1min", "5min"],
-        features=["orderbook", "risk_manager"],
+        features=[Features.ORDERBOOK, Features.RISK_MANAGER],
     )
+
+    # Wait for 120 seconds to ensure features are initialized
+    await asyncio.sleep(20)
 
     # Each instrument has its own feature instances
     total_exposure = 0.0
@@ -132,6 +172,8 @@ async def feature_setup():
         # Level 2 order book data (per instrument)
         if context.orderbook:
             snapshot = await context.orderbook.get_orderbook_snapshot()
+
+            print(snapshot)
             print(
                 f"  Order book depth: {len(snapshot['bids'])} bids, {len(snapshot['asks'])} asks"
             )
