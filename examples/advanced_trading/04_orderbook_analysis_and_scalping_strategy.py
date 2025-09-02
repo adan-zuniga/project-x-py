@@ -60,32 +60,32 @@ class OrderBookScalpingStrategy:
             # Get market imbalance using the correct method
             imbalance_data = await self.orderbook.get_market_imbalance(levels=5)
 
-            if imbalance_data and hasattr(imbalance_data, "imbalance_ratio"):
-                ratio = float(imbalance_data.imbalance_ratio)
+            if imbalance_data:
+                # LiquidityAnalysisResponse is a TypedDict, access with brackets
+                if "imbalance_ratio" in imbalance_data:
+                    ratio = float(imbalance_data["imbalance_ratio"])
 
-                if abs(ratio) >= self.imbalance_threshold:
-                    return {
-                        "direction": "bullish" if ratio > 0 else "bearish",
-                        "strength": abs(ratio),
-                        "bid_liquidity": imbalance_data.bid_liquidity,
-                        "ask_liquidity": imbalance_data.ask_liquidity,
-                        "spread": imbalance_data.spread
-                        if hasattr(imbalance_data, "spread")
-                        else 0,
-                        "levels": 5,
-                    }
+                    if abs(ratio) >= self.imbalance_threshold:
+                        return {
+                            "direction": "bullish" if ratio > 0 else "bearish",
+                            "strength": abs(ratio),
+                            "bid_liquidity": imbalance_data.get("bid_liquidity", 0),
+                            "ask_liquidity": imbalance_data.get("ask_liquidity", 0),
+                            "spread": imbalance_data.get("spread", 0),
+                            "levels": 5,
+                        }
 
             # Fallback to orderbook snapshot
             snapshot = await self.orderbook.get_orderbook_snapshot(levels=5)
 
             if snapshot:
+                # OrderbookSnapshot is a TypedDict, access with brackets
+                bids = snapshot.get("bids", [])
+                asks = snapshot.get("asks", [])
+
                 # Calculate imbalance from snapshot
-                bid_sizes = (
-                    sum(level.size for level in snapshot.bids) if snapshot.bids else 0
-                )
-                ask_sizes = (
-                    sum(level.size for level in snapshot.asks) if snapshot.asks else 0
-                )
+                bid_sizes = sum(level.get("size", 0) for level in bids) if bids else 0
+                ask_sizes = sum(level.get("size", 0) for level in asks) if asks else 0
 
                 if bid_sizes + ask_sizes > 0:
                     bid_ratio = bid_sizes / (bid_sizes + ask_sizes)
@@ -96,7 +96,7 @@ class OrderBookScalpingStrategy:
                             "strength": bid_ratio,
                             "bid_size": bid_sizes,
                             "ask_size": ask_sizes,
-                            "spread": float(snapshot.spread) if snapshot.spread else 0,
+                            "spread": float(snapshot.get("spread") or 0),
                             "levels": 5,
                         }
                     elif bid_ratio <= (1 - self.imbalance_threshold):
@@ -105,7 +105,7 @@ class OrderBookScalpingStrategy:
                             "strength": 1 - bid_ratio,
                             "bid_size": bid_sizes,
                             "ask_size": ask_sizes,
-                            "spread": float(snapshot.spread) if snapshot.spread else 0,
+                            "spread": float(snapshot.get("spread") or 0),
                             "levels": 5,
                         }
 
@@ -121,9 +121,9 @@ class OrderBookScalpingStrategy:
             return None
 
         try:
-            # Use orderbook's iceberg detection
+            # Use orderbook's iceberg detection with correct parameters
             iceberg_info = await self.orderbook.detect_iceberg_orders(
-                threshold=0.7, lookback_seconds=60
+                min_refreshes=3, volume_threshold=100, time_window_minutes=5
             )
 
             if iceberg_info and iceberg_info.get("detected"):
@@ -155,23 +155,26 @@ class OrderBookScalpingStrategy:
         try:
             # Get volume profile with correct parameters
             profile = await self.orderbook.get_volume_profile(
-                lookback_periods=100, price_bins=10
+                time_window_minutes=60, price_bins=10
             )
 
-            if profile and hasattr(profile, "poc"):
-                return {
-                    "poc": float(profile.poc.price) if profile.poc else 0,
-                    "poc_volume": profile.poc.volume if profile.poc else 0,
-                    "value_area_high": float(profile.value_area.high)
-                    if profile.value_area
-                    else 0,
-                    "value_area_low": float(profile.value_area.low)
-                    if profile.value_area
-                    else 0,
-                    "total_volume": profile.total_volume
-                    if hasattr(profile, "total_volume")
-                    else 0,
-                }
+            if profile:
+                # Check if profile has the expected structure
+                poc = profile.get("poc")
+                value_area = profile.get("value_area")
+
+                if poc:
+                    return {
+                        "poc": float(poc.get("price", 0)),
+                        "poc_volume": poc.get("volume", 0),
+                        "value_area_high": float(value_area.get("high", 0))
+                        if value_area
+                        else 0,
+                        "value_area_low": float(value_area.get("low", 0))
+                        if value_area
+                        else 0,
+                        "total_volume": profile.get("total_volume", 0),
+                    }
 
             # If no profile data, return None
             return None
