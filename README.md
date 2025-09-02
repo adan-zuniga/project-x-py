@@ -28,18 +28,18 @@ A **high-performance async Python SDK** for the [ProjectX Trading Platform](http
 
 This Python SDK acts as a bridge between your trading strategies and the ProjectX platform, handling all the complex API interactions, data processing, and real-time connectivity.
 
-## 🚀 v3.5.7 - Order Placement Serialization Fix
+## 🚀 v3.5.8 - DateTime Parsing Fix for Mixed Timestamp Formats
 
-**Latest Version**: v3.5.7 - Fixed JSON serialization error when placing orders with Decimal prices, ensuring all price values are properly converted for API requests while maintaining internal precision.
+**Latest Version**: v3.5.8 - Fixed critical datetime parsing error when API returns mixed timestamp formats, ensuring reliable market data retrieval across all scenarios.
 
 **Key Improvements**:
-- 🔄 **Event Forwarding**: Fixed multi-instrument event propagation with proper bus forwarding
-- 🎯 **Smart Price Alignment**: Bracket orders now auto-align to tick sizes instead of failing
-- 📊 **Enhanced Examples**: All advanced trading examples updated and tested
-- 🛡️ **Improved Reliability**: 30+ test fixes ensuring production stability
-- ⚡ **Real-time Fixes**: Corrected bar data access in streaming examples
+- 🕐 **Robust DateTime Parsing**: Handles all timestamp formats (with/without timezone info)
+- ⚡ **Performance Optimized**: Fast path for 95% of cases, with intelligent fallbacks
+- 🔄 **Zero Breaking Changes**: Fully backward compatible implementation
+- 🧪 **Test Stability**: Fixed flaky performance tests for reliable CI/CD
+- 📊 **TradingSuite Compatible**: Ensures smooth initialization with mixed data formats
 
-See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.7 fixes and previous version features.
+See [CHANGELOG.md](CHANGELOG.md) for complete v3.5.8 fixes and previous version features.
 
 ### 📦 Production Stability Guarantee
 

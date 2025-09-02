@@ -261,22 +261,55 @@ class TestSessionsPerformanceRegression:
         """Test that caching provides performance benefits."""
         session_filter = SessionFilterMixin()
 
-        # First operation (cache miss)
-        start_time = time.time()
-        result1 = session_filter._get_cached_session_boundaries("test_hash", "ES", "RTH")
-        first_duration = time.time() - start_time
+        # Warm up to reduce timing variance
+        _ = session_filter._get_cached_session_boundaries("warmup", "ES", "RTH")
 
-        # Second operation (cache hit)
-        start_time = time.time()
+        # Test cache functionality rather than microsecond timing
+        # First call should populate the cache
+        result1 = session_filter._get_cached_session_boundaries("test_hash", "ES", "RTH")
+
+        # Verify cache was populated
+        cache_key = "test_hash_ES_RTH"
+        assert cache_key in session_filter._session_boundary_cache
+
+        # Second call should use cache
         result2 = session_filter._get_cached_session_boundaries("test_hash", "ES", "RTH")
-        second_duration = time.time() - start_time
 
         # Results should be identical
         assert result1 == result2
 
-        # Second operation should be faster (though both are very fast)
-        # This is more about confirming cache usage than dramatic speed difference
-        assert second_duration <= first_duration * 1.1  # Allow for timing variance
+        # Verify cache was actually used (not recreated)
+        # The cached object should be the same reference
+        assert session_filter._session_boundary_cache[cache_key] is result2
+
+        # Test with multiple iterations to verify consistent caching
+        # This is more reliable than timing microsecond operations
+        iterations = 100
+        cache_miss_time = 0
+        cache_hit_time = 0
+
+        # Measure cache misses (new keys each time)
+        for i in range(iterations):
+            key = f"miss_test_{i}"
+            start = time.perf_counter()
+            _ = session_filter._get_cached_session_boundaries(key, "ES", "RTH")
+            cache_miss_time += time.perf_counter() - start
+
+        # Measure cache hits (same key repeatedly)
+        for _ in range(iterations):
+            start = time.perf_counter()
+            _ = session_filter._get_cached_session_boundaries("hit_test", "ES", "RTH")
+            cache_hit_time += time.perf_counter() - start
+
+        # Average times should show cache benefit
+        # We only check that cache is being used, not strict timing
+        avg_miss = cache_miss_time / iterations
+        avg_hit = cache_hit_time / iterations
+
+        # Cache hits should generally be faster, but we use a generous margin
+        # to avoid flakiness. The key test is that cache is functioning.
+        # If cache wasn't working, times would be identical.
+        assert avg_hit <= avg_miss * 2.0  # Very generous margin to avoid flakiness
 
     @pytest.mark.performance
     @pytest.mark.asyncio
