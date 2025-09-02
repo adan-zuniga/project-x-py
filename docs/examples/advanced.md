@@ -1,6 +1,6 @@
 # Advanced Trading Examples
 
-This page demonstrates sophisticated trading strategies and advanced features of the ProjectX Python SDK v3.3.4. These examples include order placement, risk management, and complex event-driven trading systems.
+This page demonstrates sophisticated trading strategies and advanced features of the ProjectX Python SDK v3.5.6. These examples include order placement with automatic price alignment, risk management, and complex event-driven trading systems with proper multi-instrument event forwarding.
 
 !!! warning "Live Trading Alert"
     **These examples place REAL ORDERS on the market!**

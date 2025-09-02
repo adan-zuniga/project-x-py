@@ -538,6 +538,14 @@ async def risk_manager_feature():
 
 ## Event Handling
 
+### Event System Architecture (v3.5.6+)
+
+The event system in v3.5.6+ features automatic event forwarding from instrument-specific EventBuses to the suite-level EventBus, enabling flexible event handling patterns:
+
+- **Instrument-level events**: Each instrument has its own EventBus for isolated event handling
+- **Suite-level events**: All instrument events are forwarded to the suite EventBus for unified handling
+- **Event methods on InstrumentContext**: Direct access to `on()`, `once()`, `off()`, and `wait_for()` methods
+
 ### Setting Up Event Handlers
 
 #### Single Instrument Event Handling
@@ -566,10 +574,13 @@ async def event_handling():
         print(f"  New size: {position.size}")
         print(f"  Unrealized P&L: ${position.unrealized_pnl:.2f}")
 
-    # Register event handlers for MNQ
+    # Register event handlers directly on instrument context (v3.5.6+)
     await mnq.on(EventType.NEW_BAR, on_new_bar)
     await mnq.on(EventType.ORDER_FILLED, on_order_filled)
     await mnq.on(EventType.POSITION_CHANGED, on_position_changed)
+
+    # Or use wait_for for specific events (v3.5.6+)
+    new_bar_event = await mnq.wait_for(EventType.NEW_BAR)
 
     # Keep the application running to receive events
     await asyncio.sleep(300)  # Run for 5 minutes
@@ -586,7 +597,7 @@ async def multi_instrument_events():
         timeframes=["1min", "5min"]
     )
 
-    # Set up event handlers for each instrument
+    # Option 1: Register handlers on individual instruments
     for symbol, context in suite.items():
         # Create symbol-specific handlers using closures
         def make_handlers(sym):
@@ -603,11 +614,19 @@ async def multi_instrument_events():
 
             return on_new_bar, on_order_filled, on_position_changed
 
-        # Register handlers for this instrument
+        # Register handlers for this instrument (v3.5.6+ direct methods)
         bar_handler, order_handler, position_handler = make_handlers(symbol)
         await context.on(EventType.NEW_BAR, bar_handler)
         await context.on(EventType.ORDER_FILLED, order_handler)
         await context.on(EventType.POSITION_CHANGED, position_handler)
+
+    # Option 2: Register a single handler at suite level for all instruments (v3.5.6+)
+    async def unified_bar_handler(event):
+        # Events from all instruments are forwarded to suite EventBus
+        instrument = event.data.get("instrument", "Unknown")
+        print(f"{instrument} new bar: ${event.data.close:.2f}")
+
+    await suite.on(EventType.NEW_BAR, unified_bar_handler)
 
     print("Monitoring events for all instruments...")
     await asyncio.sleep(300)  # Run for 5 minutes

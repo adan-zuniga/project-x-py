@@ -1,6 +1,6 @@
 # Real-time Data Processing Examples
 
-This page demonstrates how to work with real-time market data streams using the ProjectX Python SDK v3.3.4. Learn to handle WebSocket data, process multiple timeframes, and build real-time trading systems.
+This page demonstrates how to work with real-time market data streams using the ProjectX Python SDK v3.5.6. Learn to handle WebSocket data, process multiple timeframes, and build real-time trading systems with the enhanced event system.
 
 ## Prerequisites
 
