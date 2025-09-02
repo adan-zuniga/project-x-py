@@ -31,13 +31,6 @@ class RealTimeDataExporter:
         """Initialize CSV files for data export."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Tick data CSV
-        tick_file = self.export_dir / f"ticks_{timestamp}.csv"
-        tick_csv = open(tick_file, "w", newline="")
-        tick_writer = csv.writer(tick_csv)
-        tick_writer.writerow(["timestamp", "price", "size", "bid", "ask"])
-        self.csv_files["ticks"] = {"file": tick_csv, "writer": tick_writer}
-
         # Bar data CSV
         bar_file = self.export_dir / f"bars_{timestamp}.csv"
         bar_csv = open(bar_file, "w", newline="")
@@ -51,20 +44,27 @@ class RealTimeDataExporter:
 
     async def process_bar(self, event):
         """Process and export bar data."""
-        bar_data = event.data
-        print(f"Bar data: {bar_data}")
         timestamp = datetime.now().isoformat()
+
+        # Get the real data for the timeframe
+        # Data from the event is from the new bar that was just started, so we need to get the previous bar
+        real_data = await self.suite["MNQ"].data.get_data(
+            event.data.get("timeframe", "unknown")
+        )
+
+        if real_data is None:
+            return
 
         # Store in memory
         bar_record = {
             "timestamp": timestamp,
-            "bar_timestamp": bar_data.get("timestamp"),
-            "timeframe": bar_data.get("timeframe", "unknown"),
-            "open": bar_data.get("open", 0),
-            "high": bar_data.get("high", 0),
-            "low": bar_data.get("low", 0),
-            "close": bar_data.get("close", 0),
-            "volume": bar_data.get("volume", 0),
+            "bar_timestamp": real_data["timestamp"][-2],
+            "timeframe": event.data.get("timeframe", "unknown"),
+            "open": real_data["open"][-2],
+            "high": real_data["high"][-2],
+            "low": real_data["low"][-2],
+            "close": real_data["close"][-2],
+            "volume": real_data["volume"][-2],
         }
 
         self.bar_data.append(bar_record)
@@ -94,14 +94,10 @@ class RealTimeDataExporter:
         snapshot = {
             "export_timestamp": datetime.now().isoformat(),
             "data_summary": {
-                "tick_count": len(self.tick_data),
                 "bar_count": len(self.bar_data),
-                "trade_count": len(self.trade_data),
             },
             "recent_data": {
-                "ticks": self.tick_data[-10:],  # Last 10 ticks
                 "bars": self.bar_data[-5:],  # Last 5 bars
-                "trades": self.trade_data[-20:],  # Last 20 trades
             },
         }
 
@@ -146,6 +142,9 @@ async def main():
 
             # Periodic status
             current_price = await mnq_context.data.get_current_price()
+            if current_price is None:
+                continue
+
             print(f"Price: ${current_price:.2f} | Bars: {len(exporter.bar_data)}")
 
             # Auto-export JSON snapshot every 5 minutes

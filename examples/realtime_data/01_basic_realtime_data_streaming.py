@@ -31,7 +31,7 @@ async def main():
         tick_data = event.data
 
         tick_count += 1
-        last_price = tick_data.get("price", 0)
+        last_price = tick_data.get("last") or last_price
 
         # Display every 10th tick to avoid spam
         if tick_count % 10 == 0:
@@ -67,17 +67,13 @@ async def main():
             )
             print(f"  Volume: {bar_data.get('volume', 0)}")
             print(f"  Timestamp: {bar_data.get('timestamp')}")
-        else:
-            # Debug: show what fields are actually present
-            print(f"  Bar data fields: {list(bar_data.keys())}")
-            print(f"  Full event data: {event_data}")
 
     async def on_connection_status(event):
         status = event.data.get("status", "unknown")
         print(f"Connection Status: {status}")
 
     # Register event handlers
-    await mnq_context.on(EventType.TRADE_TICK, on_tick)
+    await mnq_context.on(EventType.QUOTE_UPDATE, on_tick)
     await mnq_context.on(EventType.NEW_BAR, on_new_bar)
     await mnq_context.on(EventType.CONNECTED, on_connection_status)
 
@@ -89,7 +85,7 @@ async def main():
 
             # Display periodic status
             current_price = await mnq_context.data.get_current_price()
-            connection_health = await suite.get_session_statistics()
+            connection_health = await mnq_context.data.get_health_score()
 
             print(
                 f"Status - Price: ${current_price:.2f} | Ticks: {tick_count} | Bars: {bar_count} | Health: {connection_health}"

@@ -21,9 +21,8 @@ class MultiTimeframeDataProcessor:
 
     async def process_new_bar(self, event):
         """Process incoming bar data for all timeframes."""
-        bar_data = event.data
-        print(bar_data)
-        timeframe = bar_data.get("timeframe", "unknown")
+        bar_data = event.data.get("data", event.data)
+        timeframe = event.data.get("timeframe", "unknown")
 
         if timeframe not in self.timeframes:
             return
@@ -50,18 +49,20 @@ class MultiTimeframeDataProcessor:
         """Analyze a specific timeframe with technical indicators."""
         try:
             # Get fresh data from suite
-            bars = await self.suite.data.get_data(timeframe)
+            bars = await self.suite["MNQ"].data.get_data(timeframe)
+
+            if bars is None:
+                return
 
             if len(bars) < 50:  # Need enough data for indicators
                 return
 
             # Calculate indicators
-            sma_20 = bars.pipe(SMA, period=20)
-            rsi = bars.pipe(RSI, period=14)
+            bars = bars.pipe(SMA, period=20).pipe(RSI, period=14)
 
             current_price = bars["close"][-1]
-            current_sma = sma_20[-1]
-            current_rsi = rsi[-1]
+            current_sma = bars["sma_20"][-1]
+            current_rsi = bars["rsi_14"][-1]
 
             # Determine trend and momentum
             trend = "bullish" if current_price > current_sma else "bearish"
