@@ -1,89 +1,126 @@
 #!/usr/bin/env python
 """
-Advanced order book analysis and scalping strategy
+Advanced order book analysis and scalping strategy.
+
+This example demonstrates:
+- Level 2 order book analysis and imbalance detection
+- Tape reading for momentum confirmation
+- Market microstructure analysis for scalping
+- Iceberg order detection
+- Volume profile analysis
+- Tight risk management for scalping
 """
 
 import asyncio
 from collections import deque
-from decimal import Decimal
+from typing import Any, Optional
 
 from project_x_py import EventType, TradingSuite
+from project_x_py.event_bus import Event
+from project_x_py.models import BracketOrderResponse
 
 
 class OrderBookScalpingStrategy:
+    """Scalping strategy based on order book analysis."""
+
     def __init__(self, suite: TradingSuite):
         self.suite = suite
         self.orderbook = None
         self.tick_history = deque(maxlen=100)
         self.imbalance_threshold = 0.70  # 70% imbalance threshold
         self.min_size_edge = 50  # Minimum size difference for edge
-        self.active_orders = []
+        self.active_orders: list[dict[str, Any]] = []
         self.scalp_profit_ticks = 2  # Target 2 ticks profit
+        self.max_positions = 2  # Max concurrent scalps
 
-    async def initialize_orderbook(self):
+    async def initialize_orderbook(self) -> bool:
         """Initialize order book for analysis."""
         try:
-            # Access orderbook if available
-            if hasattr(self.suite, "orderbook") and self.suite.orderbook:
-                self.orderbook = self.suite.orderbook
-                print("Order book initialized successfully")
+            # Access orderbook through InstrumentContext
+            mnq_context = self.suite["MNQ"]
+            if hasattr(mnq_context, "orderbook") and mnq_context.orderbook:
+                self.orderbook = mnq_context.orderbook
+                print("✅ Order book initialized successfully")
+
+                # Enable analytics if available
+                if hasattr(self.orderbook, "enable_analytics"):
+                    await self.orderbook.enable_analytics()
+                    print("✅ Order book analytics enabled")
+
                 return True
             else:
                 print(
-                    "Order book not available - create suite with 'orderbook' feature"
+                    "❌ Order book not available - ensure suite was created with 'orderbook' feature"
                 )
                 return False
         except Exception as e:
             print(f"Failed to initialize order book: {e}")
             return False
 
-    async def analyze_order_book_imbalance(self):
+    async def analyze_order_book_imbalance(self) -> Optional[dict]:
         """Analyze order book for size imbalances."""
         if not self.orderbook:
             return None
 
         try:
-            # Get current bid/ask levels
-            book_data = await self.orderbook.get_book_snapshot()
+            # Get order book imbalance using analytics
+            if hasattr(self.orderbook, "get_imbalance"):
+                imbalance = await self.orderbook.get_imbalance(levels=5)
 
-            if not book_data or "bids" not in book_data or "asks" not in book_data:
-                return None
+                if imbalance and abs(imbalance.ratio) >= self.imbalance_threshold:
+                    return {
+                        "direction": "bullish" if imbalance.ratio > 0 else "bearish",
+                        "strength": abs(imbalance.ratio),
+                        "bid_size": imbalance.bid_size,
+                        "ask_size": imbalance.ask_size,
+                        "spread": imbalance.spread,
+                        "levels": imbalance.levels,
+                    }
+            else:
+                # Fallback to manual calculation
+                book_state = await self.orderbook.get_state()
 
-            bids = book_data["bids"][:5]  # Top 5 levels
-            asks = book_data["asks"][:5]
+                if not book_state or not book_state.bids or not book_state.asks:
+                    return None
 
-            # Calculate size at each level
-            total_bid_size = sum(level["size"] for level in bids)
-            total_ask_size = sum(level["size"] for level in asks)
+                # Take top 5 levels
+                top_bids = list(book_state.bids.values())[:5]
+                top_asks = list(book_state.asks.values())[:5]
 
-            if total_bid_size + total_ask_size == 0:
-                return None
+                # Calculate size at each level
+                total_bid_size = sum(order.size for order in top_bids)
+                total_ask_size = sum(order.size for order in top_asks)
 
-            # Calculate imbalance ratio
-            bid_ratio = total_bid_size / (total_bid_size + total_ask_size)
-            ask_ratio = total_ask_size / (total_bid_size + total_ask_size)
+                if total_bid_size + total_ask_size == 0:
+                    return None
 
-            # Determine imbalance direction
-            if bid_ratio >= self.imbalance_threshold:
-                return {
-                    "direction": "bullish",
-                    "strength": bid_ratio,
-                    "bid_size": total_bid_size,
-                    "ask_size": total_ask_size,
-                    "spread": asks[0]["price"] - bids[0]["price"]
-                    if bids and asks
-                    else 0,
-                }
-            elif ask_ratio >= self.imbalance_threshold:
-                return {
-                    "direction": "bearish",
-                    "strength": ask_ratio,
-                    "bid_size": total_bid_size,
-                    "ask_size": total_ask_size,
-                    "spread": asks[0]["price"] - bids[0]["price"]
-                    if bids and asks
-                    else 0,
-                }
+                # Calculate imbalance ratio
+                bid_ratio = total_bid_size / (total_bid_size + total_ask_size)
+
+                # Get best bid/ask for spread
+                best_bid = max(book_state.bids.keys()) if book_state.bids else 0
+                best_ask = min(book_state.asks.keys()) if book_state.asks else 0
+                spread = float(best_ask - best_bid) if best_bid and best_ask else 0
+
+                # Determine imbalance direction
+                if bid_ratio >= self.imbalance_threshold:
+                    return {
+                        "direction": "bullish",
+                        "strength": bid_ratio,
+                        "bid_size": total_bid_size,
+                        "ask_size": total_ask_size,
+                        "spread": spread,
+                        "levels": 5,
+                    }
+                elif bid_ratio <= (1 - self.imbalance_threshold):
+                    return {
+                        "direction": "bearish",
+                        "strength": 1 - bid_ratio,
+                        "bid_size": total_bid_size,
+                        "ask_size": total_ask_size,
+                        "spread": spread,
+                        "levels": 5,
+                    }
 
             return None
 
@@ -91,7 +128,58 @@ class OrderBookScalpingStrategy:
             print(f"Error analyzing order book: {e}")
             return None
 
-    async def analyze_tape_reading(self):
+    async def check_for_iceberg_orders(self) -> Optional[dict]:
+        """Detect potential iceberg orders in the book."""
+        if not self.orderbook or not hasattr(self.orderbook, "detect_iceberg"):
+            return None
+
+        try:
+            # Use orderbook's iceberg detection
+            iceberg_info = await self.orderbook.detect_iceberg()
+
+            if iceberg_info and iceberg_info.detected:
+                return {
+                    "detected": True,
+                    "side": "bid" if iceberg_info.side == 0 else "ask",
+                    "price_level": iceberg_info.price_level,
+                    "confidence": iceberg_info.confidence,
+                    "refill_count": iceberg_info.refill_count,
+                }
+
+            return None
+
+        except Exception as e:
+            print(f"Error detecting iceberg orders: {e}")
+            return None
+
+    async def analyze_volume_profile(self) -> Optional[dict]:
+        """Analyze volume profile for key levels."""
+        if not self.orderbook or not hasattr(self.orderbook, "get_volume_profile"):
+            return None
+
+        try:
+            profile = await self.orderbook.get_volume_profile(bins=10)
+
+            if profile:
+                # Find Point of Control (highest volume level)
+                poc = profile.poc
+                value_area = profile.value_area
+
+                return {
+                    "poc": float(poc.price),
+                    "poc_volume": poc.volume,
+                    "value_area_high": float(value_area.high),
+                    "value_area_low": float(value_area.low),
+                    "total_volume": profile.total_volume,
+                }
+
+            return None
+
+        except Exception as e:
+            print(f"Error analyzing volume profile: {e}")
+            return None
+
+    async def analyze_tape_reading(self) -> Optional[dict]:
         """Analyze recent trades for momentum."""
         if len(self.tick_history) < 10:
             return None
@@ -118,20 +206,33 @@ class OrderBookScalpingStrategy:
                 "direction": "bullish",
                 "strength": buy_ratio,
                 "volume": total_volume,
+                "buy_volume": buy_volume,
+                "sell_volume": sell_volume,
             }
         elif buy_ratio <= 0.30:
             return {
                 "direction": "bearish",
                 "strength": 1 - buy_ratio,
                 "volume": total_volume,
+                "buy_volume": buy_volume,
+                "sell_volume": sell_volume,
             }
 
         return None
 
-    async def place_scalp_order(self, direction: str, analysis_data: dict):
+    async def place_scalp_order(
+        self, direction: str, analysis_data: dict
+    ) -> Optional[BracketOrderResponse]:
         """Place a scalping order with tight stops."""
         try:
-            current_price = await self.suite.data.get_current_price()
+            mnq_context = self.suite["MNQ"]
+
+            # Get current price
+            current_price = await mnq_context.data.get_current_price()
+            if not current_price:
+                print("Could not get current price")
+                return None
+
             tick_size = 0.25  # MNQ tick size
 
             if direction == "long":
@@ -145,69 +246,113 @@ class OrderBookScalpingStrategy:
                 take_profit = entry_price - (tick_size * self.scalp_profit_ticks)
                 side = 1
 
-            print(f"\nScalp Setup ({direction.upper()}):")
-            print(f"  Entry: ${entry_price:.2f}")
+            # Display scalp setup
+            print("\n" + "=" * 60)
+            print(f"SCALP SETUP ({direction.upper()})")
+            print("=" * 60)
+            print(f"Entry: ${entry_price:.2f}")
             print(
-                f"  Stop: ${stop_loss:.2f} ({abs(entry_price - stop_loss) / tick_size:.0f} ticks)"
+                f"Stop: ${stop_loss:.2f} ({abs(entry_price - stop_loss) / tick_size:.0f} ticks)"
             )
             print(
-                f"  Target: ${take_profit:.2f} ({abs(take_profit - entry_price) / tick_size:.0f} ticks)"
+                f"Target: ${take_profit:.2f} ({abs(take_profit - entry_price) / tick_size:.0f} ticks)"
             )
-            print(f"  Analysis: {analysis_data}")
+
+            # Display analysis details
+            if "orderbook" in analysis_data:
+                ob = analysis_data["orderbook"]
+                print(f"\nOrder Book Analysis:")
+                print(f"  Imbalance: {ob['strength']:.2%} {ob['direction']}")
+                print(f"  Bid Size: {ob['bid_size']}, Ask Size: {ob['ask_size']}")
+                print(f"  Spread: ${ob['spread']:.2f}")
+
+            if "tape" in analysis_data:
+                tape = analysis_data["tape"]
+                print(f"\nTape Reading:")
+                print(f"  Momentum: {tape['strength']:.2%} {tape['direction']}")
+                print(f"  Volume: Buy={tape['buy_volume']}, Sell={tape['sell_volume']}")
+
+            if "iceberg" in analysis_data and analysis_data["iceberg"]:
+                ice = analysis_data["iceberg"]
+                print(
+                    f"\n⚠️  Iceberg Detected: {ice['side']} @ ${ice['price_level']:.2f}"
+                )
+
+            print("=" * 60)
 
             # Quick confirmation for scalping
-            response = input(f"Execute {direction.upper()} scalp? (y/N): ")
+            response = input(f"\nExecute {direction.upper()} scalp? (y/N): ")
             if not response.lower().startswith("y"):
                 return None
 
+            # Get instrument contract ID
+            instrument = mnq_context.instrument_info
+            contract_id = instrument.id if hasattr(instrument, "id") else "MNQ"
+
+            print("\nPlacing scalp order...")
+
             # Place bracket order with tight parameters
-            result = await self.suite.orders.place_bracket_order(
-                contract_id=self.suite.instrument_info.id,
+            # Prices will be automatically aligned to tick size
+            result = await mnq_context.orders.place_bracket_order(
+                contract_id=contract_id,
                 side=side,
                 size=1,  # Small size for scalping
-                stop_offset=Decimal(str(abs(entry_price - stop_loss))),
-                target_offset=Decimal(str(abs(take_profit - entry_price))),
+                entry_price=None,  # Market order for quick fills
+                entry_type="market",
+                stop_loss_price=stop_loss,
+                take_profit_price=take_profit,
             )
 
-            scalp_record = {
-                "direction": direction,
-                "entry_price": entry_price,
-                "bracket": result,
-                "analysis": analysis_data,
-                "timestamp": asyncio.get_event_loop().time(),
-            }
+            if result and result.success:
+                scalp_record = {
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "stop_loss": stop_loss,
+                    "take_profit": take_profit,
+                    "bracket": result,
+                    "analysis": analysis_data,
+                    "timestamp": asyncio.get_event_loop().time(),
+                }
 
-            self.active_orders.append(scalp_record)
-            print(f"Scalp order placed: {result.main_order_id}")
-            return result
+                self.active_orders.append(scalp_record)
+
+                print("✅ Scalp order placed successfully!")
+                print(f"  Entry Order: {result.entry_order_id}")
+                print(f"  Stop Order: {result.stop_order_id}")
+                print(f"  Target Order: {result.target_order_id}")
+
+                return result
+            else:
+                error_msg = result.error_message if result else "Unknown error"
+                print(f"❌ Failed to place scalp order: {error_msg}")
+                return None
 
         except Exception as e:
             print(f"Failed to place scalp order: {e}")
+            import traceback
+
+            traceback.print_exc()
             return None
 
     async def monitor_scalps(self):
         """Monitor active scalping positions."""
+        mnq_context = self.suite["MNQ"]
+
         for scalp in self.active_orders[:]:
             try:
-                # Check if orders are still active
-                main_status = await self.suite.orders.get_order_status(
-                    scalp["bracket"].main_order_id
-                )
-
-                if main_status.status in ["Filled", "Cancelled", "Rejected"]:
-                    print(
-                        f"Scalp completed: {scalp['direction']} - {main_status.status}"
-                    )
-                    self.active_orders.remove(scalp)
+                elapsed_time = asyncio.get_event_loop().time() - scalp["timestamp"]
 
                 # Time-based cancellation (scalps should be quick)
-                elif (
-                    asyncio.get_event_loop().time() - scalp["timestamp"]
-                ) > 300:  # 5 minutes
-                    print(
-                        f"Cancelling stale scalp order: {scalp['bracket'].main_order_id}"
-                    )
-                    await self.suite.orders.cancel_order(scalp["bracket"].main_order_id)
+                if elapsed_time > 300:  # 5 minutes
+                    print(f"\nCancelling stale scalp order (>5 min old)")
+
+                    # Cancel stop and target orders
+                    bracket = scalp["bracket"]
+                    if bracket.stop_order_id:
+                        await mnq_context.orders.cancel_order(bracket.stop_order_id)
+                    if bracket.target_order_id:
+                        await mnq_context.orders.cancel_order(bracket.target_order_id)
+
                     self.active_orders.remove(scalp)
 
             except Exception as e:
@@ -215,6 +360,9 @@ class OrderBookScalpingStrategy:
 
 
 async def main():
+    """Main function to run the scalping strategy."""
+    print("Initializing Order Book Scalping Strategy...")
+
     # Create suite with order book feature
     suite = await TradingSuite.create(
         ["MNQ"],
@@ -222,17 +370,23 @@ async def main():
         features=["orderbook"],  # Essential for order book analysis
         initial_days=1,
     )
-    mnq_context = suite["MNQ"]
 
+    mnq_context = suite["MNQ"]
     strategy = OrderBookScalpingStrategy(suite)
 
     # Initialize order book
     if not await strategy.initialize_orderbook():
         print("Cannot proceed without order book data")
+        await suite.disconnect()
         return
 
+    # Track tick count for analysis frequency
+    tick_count = 0
+
     # Event handlers
-    async def on_tick(event):
+    async def on_tick(event: Event):
+        """Handle tick updates."""
+        nonlocal tick_count
         tick_data = event.data
 
         # Store tick for analysis
@@ -245,71 +399,129 @@ async def main():
             }
         )
 
+        tick_count += 1
+
         # Analyze every 10th tick to avoid over-trading
-        if len(strategy.tick_history) % 10 == 0:
+        if (
+            tick_count % 10 == 0
+            and len(strategy.active_orders) < strategy.max_positions
+        ):
             # Check for order book imbalances
             ob_analysis = await strategy.analyze_order_book_imbalance()
             tape_analysis = await strategy.analyze_tape_reading()
+            iceberg_check = await strategy.check_for_iceberg_orders()
 
             # Look for confluence between order book and tape
             if ob_analysis and tape_analysis:
-                if (
-                    ob_analysis["direction"] == tape_analysis["direction"]
-                    and len(strategy.active_orders) == 0
-                ):  # No active scalps
-                    print("\nScalping signal detected:")
+                if ob_analysis["direction"] == tape_analysis["direction"]:
+                    print("\n🎯 Scalping signal detected!")
                     print(
-                        f"  Order Book: {ob_analysis['direction']} ({ob_analysis['strength']:.2f})"
+                        f"  Order Book: {ob_analysis['direction']} "
+                        f"({ob_analysis['strength']:.2%})"
                     )
                     print(
-                        f"  Tape: {tape_analysis['direction']} ({tape_analysis['strength']:.2f})"
+                        f"  Tape: {tape_analysis['direction']} "
+                        f"({tape_analysis['strength']:.2%})"
                     )
+
+                    if iceberg_check:
+                        print(
+                            f"  ⚠️  Iceberg: {iceberg_check['side']} "
+                            f"@ ${iceberg_check['price_level']:.2f}"
+                        )
 
                     await strategy.place_scalp_order(
                         ob_analysis["direction"],
-                        {"orderbook": ob_analysis, "tape": tape_analysis},
+                        {
+                            "orderbook": ob_analysis,
+                            "tape": tape_analysis,
+                            "iceberg": iceberg_check,
+                        },
                     )
 
-    async def on_order_filled(event):
+    async def on_order_filled(event: Event):
+        """Handle order fill events."""
         order_data = event.data
         print(
-            f"SCALP FILL: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}"
+            f"\n✅ SCALP FILL: Order {order_data.get('order_id')} "
+            f"filled at ${order_data.get('fill_price', 0):.2f}"
         )
+
+        # Update active orders
+        for scalp in strategy.active_orders[:]:
+            if scalp["bracket"].entry_order_id == order_data.get("order_id"):
+                print(f"  Entry filled for {scalp['direction']} scalp")
+                break
+
+    async def on_orderbook_update(_event: Event):
+        """Handle order book updates."""
+        # Could use this for more real-time analysis
 
     # Register events
     await mnq_context.on(EventType.QUOTE_UPDATE, on_tick)
     await mnq_context.on(EventType.ORDER_FILLED, on_order_filled)
+    await mnq_context.on(EventType.ORDERBOOK_UPDATE, on_orderbook_update)
 
-    print("Order Book Scalping Strategy Active")
-    print("Analyzing market microstructure for scalping opportunities...")
+    print("\n" + "=" * 60)
+    print("ORDER BOOK SCALPING STRATEGY ACTIVE")
+    print("=" * 60)
+    print("Strategy Settings:")
+    print(f"  Imbalance Threshold: {strategy.imbalance_threshold:.0%}")
+    print(f"  Profit Target: {strategy.scalp_profit_ticks} ticks")
+    print(f"  Stop Loss: 3 ticks")
+    print(f"  Max Positions: {strategy.max_positions}")
+    print("\nAnalyzing market microstructure for scalping opportunities...")
     print("Press Ctrl+C to exit")
+    print("=" * 60)
 
     try:
         while True:
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)  # Status update every 10 seconds
 
             # Monitor active scalps
             await strategy.monitor_scalps()
 
             # Display status
             current_price = await mnq_context.data.get_current_price()
-            active_scalps = len(strategy.active_orders)
-            recent_ticks = len(strategy.tick_history)
+            if current_price:
+                active_scalps = len(strategy.active_orders)
+                recent_ticks = len(strategy.tick_history)
 
-            print(
-                f"Price: ${current_price:.2f} | Active Scalps: {active_scalps} | Ticks: {recent_ticks}"
-            )
+                # Get volume profile if available
+                volume_profile = await strategy.analyze_volume_profile()
+
+                print(f"\nStatus Update:")
+                print(f"  Price: ${current_price:.2f}")
+                print(f"  Active Scalps: {active_scalps}/{strategy.max_positions}")
+                print(f"  Tick Buffer: {recent_ticks}/100")
+
+                if volume_profile:
+                    print(f"  POC: ${volume_profile['poc']:.2f}")
+                    print(
+                        f"  Value Area: ${volume_profile['value_area_low']:.2f} - "
+                        f"${volume_profile['value_area_high']:.2f}"
+                    )
 
     except KeyboardInterrupt:
-        print("\nShutting down scalping strategy...")
+        print("\n\nShutting down scalping strategy...")
 
         # Cancel any active orders
         for scalp in strategy.active_orders:
             try:
-                await mnq_context.orders.cancel_order(scalp["bracket"].main_order_id)
-                print(f"Cancelled scalp order: {scalp['bracket'].main_order_id}")
+                bracket = scalp["bracket"]
+                if bracket.stop_order_id:
+                    await mnq_context.orders.cancel_order(bracket.stop_order_id)
+                    print(f"Cancelled stop order {bracket.stop_order_id}")
+                if bracket.target_order_id:
+                    await mnq_context.orders.cancel_order(bracket.target_order_id)
+                    print(f"Cancelled target order {bracket.target_order_id}")
             except Exception as e:
                 print(f"Error cancelling order: {e}")
+
+    finally:
+        # Disconnect from real-time feeds
+        await suite.disconnect()
+        print("Strategy disconnected. Goodbye!")
 
 
 if __name__ == "__main__":
