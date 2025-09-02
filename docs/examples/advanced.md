@@ -19,10 +19,14 @@ Bracket orders combine entry, stop loss, and take profit in a single operation:
 """
 Advanced bracket order strategy with dynamic stops based on ATR
 """
+
 import asyncio
 from decimal import Decimal
-from project_x_py import TradingSuite, EventType
+
+from project_x_py import EventType, TradingSuite
 from project_x_py.indicators import ATR, RSI, SMA
+from project_x_py.models import BracketOrderResponse
+
 
 class ATRBracketStrategy:
     def __init__(self, suite: TradingSuite):
@@ -31,15 +35,18 @@ class ATRBracketStrategy:
         self.rsi_period = 14
         self.sma_period = 20
         self.position_size = 1
-        self.active_orders = []
+        self.active_orders: list[BracketOrderResponse] = []
 
     async def calculate_dynamic_levels(self):
         """Calculate stop and target levels based on ATR."""
-        bars = await self.suite.data.get_data("5min")
+        bars = await self.suite["MNQ"].data.get_data("5min")
+
+        if bars is None:
+            raise Exception("No data available")
 
         # Calculate ATR for volatility-based stops
         atr_values = bars.pipe(ATR, period=self.atr_period)
-        current_atr = float(atr_values[-1])
+        current_atr = float(atr_values["atr_14"][-1])
 
         # Dynamic stop loss: 2x ATR
         stop_offset = Decimal(str(current_atr * 2))
@@ -51,7 +58,10 @@ class ATRBracketStrategy:
 
     async def check_entry_conditions(self):
         """Check if conditions are met for entry."""
-        bars = await self.suite.data.get_data("5min")
+        bars = await self.suite["MNQ"].data.get_data("5min")
+
+        if bars is None:
+            raise Exception("No data available")
 
         if len(bars) < max(self.rsi_period, self.sma_period, self.atr_period):
             return None, None
@@ -59,9 +69,9 @@ class ATRBracketStrategy:
         # Calculate indicators
         rsi = bars.pipe(RSI, period=self.rsi_period)
         sma = bars.pipe(SMA, period=self.sma_period)
-        current_price = bars['close'][-1]
-        current_rsi = rsi[-1]
-        current_sma = sma[-1]
+        current_price = bars["close"][-1]
+        current_rsi = rsi[f"rsi_{self.rsi_period}"][-1]
+        current_sma = sma[f"sma_{self.sma_period}"][-1]
 
         # Long signal: Price above SMA and RSI oversold recovery
         if current_price > current_sma and 30 < current_rsi < 50:
@@ -88,16 +98,17 @@ class ATRBracketStrategy:
             print(f"  Take Profit: {target_offset} points")
 
             # Place bracket order
-            result = await self.suite.orders.place_bracket_order(
-                contract_id=self.suite.instrument_info.id,
+            result = await self.suite["MNQ"].orders.place_bracket_order(
+                contract_id=self.suite["MNQ"].instrument_info.id,
                 side=side,
                 size=self.position_size,
-                stop_offset=stop_offset,
-                target_offset=target_offset
+                entry_price=None,
+                stop_loss_price=float(stop_offset),
+                take_profit_price=float(target_offset),
             )
 
-            print(f"Bracket order placed successfully:")
-            print(f"  Main Order ID: {result.main_order_id}")
+            print("Bracket order placed successfully:")
+            print(f"  Main Order ID: {result.entry_order_id}")
             print(f"  Stop Order ID: {result.stop_order_id}")
             print(f"  Target Order ID: {result.target_order_id}")
 
@@ -112,18 +123,31 @@ class ATRBracketStrategy:
         """Monitor active orders and handle fills/cancellations."""
         for bracket in self.active_orders[:]:  # Copy list to modify during iteration
             try:
+                if bracket is None:
+                    continue
+
                 # Check main order status
-                main_status = await self.suite.orders.get_order_status(bracket.main_order_id)
+                main_status = await self.suite["MNQ"].orders.get_tracked_order_status(
+                    str(bracket.entry_order_id)
+                )
 
-                if main_status.status == "Filled":
-                    print(f"Main order {bracket.main_order_id} filled at ${main_status.fill_price}")
+                if main_status is None:
+                    continue
 
-                elif main_status.status in ["Cancelled", "Rejected"]:
-                    print(f"Main order {bracket.main_order_id} {main_status.status}")
+                if main_status["status"] == "Filled":
+                    print(
+                        f"Main order {bracket.entry_order_id} filled at ${main_status['fill_price']}"
+                    )
+
+                elif main_status["status"] in ["Cancelled", "Rejected"]:
+                    print(
+                        f"Main order {bracket.entry_order_id} {main_status['status']}"
+                    )
                     self.active_orders.remove(bracket)
 
             except Exception as e:
-                print(f"Error monitoring order {bracket.main_order_id}: {e}")
+                print(f"Error monitoring order {bracket.entry_order_id}: {e}")
+
 
 async def main():
     # Create trading suite with required timeframes
@@ -131,7 +155,7 @@ async def main():
         ["MNQ"],
         timeframes=["1min", "5min"],
         initial_days=10,  # Need historical data for indicators
-        features=["risk_manager"]
+        features=["risk_manager"],
     )
 
     # Initialize strategy
@@ -139,7 +163,7 @@ async def main():
 
     # Set up event handlers for real-time monitoring
     async def on_new_bar(event):
-        if event.data.get('timeframe') == '5min':
+        if event.data.get("timeframe") == "5min":
             print(f"New 5min bar: ${event.data['close']:.2f}")
 
             # Check for entry signals
@@ -149,12 +173,14 @@ async def main():
 
                 # Confirm with user before placing order
                 response = input(f"Place {direction.upper()} bracket order? (y/N): ")
-                if response.lower().startswith('y'):
+                if response.lower().startswith("y"):
                     await strategy.place_bracket_order(direction)
 
     async def on_order_filled(event):
         order_data = event.data
-        print(f"ORDER FILLED: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}")
+        print(
+            f"ORDER FILLED: {order_data.get('order_id')} at ${order_data.get('fill_price', 0):.2f}"
+        )
 
     # Register event handlers
     await suite["MNQ"].on(EventType.NEW_BAR, on_new_bar)
@@ -182,8 +208,8 @@ async def main():
         # Cancel any remaining orders
         for bracket in strategy.active_orders:
             try:
-                await suite["MNQ"].orders.cancel_order(bracket.main_order_id)
-                print(f"Cancelled order {bracket.main_order_id}")
+                await suite["MNQ"].orders.cancel_order(bracket.entry_order_id)
+                print(f"Cancelled order {bracket.entry_order_id}")
             except Exception as e:
                 print(f"Error cancelling order: {e}")
 
@@ -201,10 +227,14 @@ Advanced strategy using multiple timeframes for confirmation:
 """
 Multi-timeframe momentum strategy with confluence analysis
 """
+
 import asyncio
 from decimal import Decimal
-from project_x_py import TradingSuite, EventType
-from project_x_py.indicators import RSI, MACD, EMA, ATR
+
+from project_x_py import EventType, TradingSuite
+from project_x_py.indicators import ATR, EMA, MACD, RSI
+from project_x_py.models import BracketOrderResponse
+
 
 class MultiTimeframeMomentumStrategy:
     def __init__(self, suite: TradingSuite):
@@ -215,7 +245,10 @@ class MultiTimeframeMomentumStrategy:
 
     async def analyze_timeframe(self, timeframe: str):
         """Analyze a specific timeframe for momentum signals."""
-        bars = await self.suite.data.get_data(timeframe)
+        bars = await self.suite["MNQ"].data.get_data(timeframe)
+
+        if bars is None:
+            return None
 
         if len(bars) < 50:  # Need sufficient data
             return None
@@ -226,17 +259,23 @@ class MultiTimeframeMomentumStrategy:
         ema_20 = bars.pipe(EMA, period=20)
         ema_50 = bars.pipe(EMA, period=50)
 
-        current_price = bars['close'][-1]
-        current_rsi = rsi[-1]
-        current_macd = macd_result['macd'][-1]
-        macd_signal = macd_result['signal'][-1]
-        current_ema_20 = ema_20[-1]
-        current_ema_50 = ema_50[-1]
+        current_price = bars["close"][-1]
+        current_rsi = rsi["rsi_14"][-1]
+        current_macd = macd_result["macd"][-1]
+        macd_signal = macd_result["signal"][-1]
+        current_ema_20 = ema_20["ema_20"][-1]
+        current_ema_50 = ema_50["ema_50"][-1]
 
         # Determine trend and momentum
         trend = "bullish" if current_ema_20 > current_ema_50 else "bearish"
         momentum = "positive" if current_macd > macd_signal else "negative"
-        rsi_level = "oversold" if current_rsi < 30 else "overbought" if current_rsi > 70 else "neutral"
+        rsi_level = (
+            "oversold"
+            if current_rsi < 30
+            else "overbought"
+            if current_rsi > 70
+            else "neutral"
+        )
 
         return {
             "timeframe": timeframe,
@@ -248,7 +287,7 @@ class MultiTimeframeMomentumStrategy:
             "macd": current_macd,
             "macd_signal": macd_signal,
             "ema_20": current_ema_20,
-            "ema_50": current_ema_50
+            "ema_50": current_ema_50,
         }
 
     async def check_confluence(self):
@@ -256,7 +295,10 @@ class MultiTimeframeMomentumStrategy:
         # Analyze all timeframes
         tf_5min = await self.analyze_timeframe("5min")
         tf_15min = await self.analyze_timeframe("15min")  # Add 15min if available
-        tf_1hr = await self.analyze_timeframe("1hr")      # Add 1hr if available
+        tf_1hr = await self.analyze_timeframe("1hr")  # Add 1hr if available
+
+        if tf_5min is None:
+            return None, None
 
         analyses = [tf for tf in [tf_5min, tf_15min, tf_1hr] if tf is not None]
 
@@ -264,20 +306,32 @@ class MultiTimeframeMomentumStrategy:
             return None, None
 
         # Count bullish/bearish signals
-        bullish_signals = sum(1 for tf in analyses if tf['trend'] == 'bullish' and tf['momentum'] == 'positive')
-        bearish_signals = sum(1 for tf in analyses if tf['trend'] == 'bearish' and tf['momentum'] == 'negative')
+        bullish_signals = sum(
+            1
+            for tf in analyses
+            if tf["trend"] == "bullish" and tf["momentum"] == "positive"
+        )
+        bearish_signals = sum(
+            1
+            for tf in analyses
+            if tf["trend"] == "bearish" and tf["momentum"] == "negative"
+        )
 
         # Require confluence (majority agreement)
-        if bullish_signals >= 2 and tf_5min['rsi'] < 70:  # Not overbought on entry timeframe
+        if (
+            bullish_signals >= 2 and tf_5min["rsi"] < 70
+        ):  # Not overbought on entry timeframe
             return "long", analyses
-        elif bearish_signals >= 2 and tf_5min['rsi'] > 30:  # Not oversold on entry timeframe
+        elif (
+            bearish_signals >= 2 and tf_5min["rsi"] > 30
+        ):  # Not oversold on entry timeframe
             return "short", analyses
 
         return None, analyses
 
     async def calculate_position_size(self, entry_price: float, stop_loss: float):
         """Calculate position size based on risk management."""
-        account_info = await self.suite.client.get_account_info()
+        account_info = self.suite.client.get_account_info()
         account_balance = float(account_info.balance)
 
         # Calculate risk amount
@@ -294,7 +348,7 @@ class MultiTimeframeMomentumStrategy:
     async def place_momentum_trade(self, direction: str, analyses: list):
         """Place a trade based on momentum confluence."""
         try:
-            current_price = analyses[0]['price']  # Use 5min price
+            current_price = analyses[0]["price"]  # Use 5min price
 
             # Calculate ATR-based stop loss
             bars_5min = await self.suite.data.get_data("5min")
@@ -319,25 +373,32 @@ class MultiTimeframeMomentumStrategy:
             print(f"  Stop Loss: ${stop_loss:.2f}")
             print(f"  Take Profit: ${take_profit:.2f}")
             print(f"  Position Size: {position_size} contracts")
-            print(f"  Risk/Reward: {abs(take_profit - current_price) / abs(current_price - stop_loss):.2f}:1")
+            print(
+                f"  Risk/Reward: {abs(take_profit - current_price) / abs(current_price - stop_loss):.2f}:1"
+            )
 
             # Display confluence analysis
             print("\nConfluence Analysis:")
             for analysis in analyses:
-                print(f"  {analysis['timeframe']}: {analysis['trend']} trend, {analysis['momentum']} momentum, RSI: {analysis['rsi']:.1f}")
+                print(
+                    f"  {analysis['timeframe']}: {analysis['trend']} trend, {analysis['momentum']} momentum, RSI: {analysis['rsi']:.1f}"
+                )
 
             # Confirm trade
             response = input(f"\nPlace {direction.upper()} momentum trade? (y/N): ")
-            if not response.lower().startswith('y'):
+            if not response.lower().startswith("y"):
                 return None
 
             # Place bracket order
-            result = await self.suite.orders.place_bracket_order(
-                contract_id=self.suite.instrument_info.id,
+            result: BracketOrderResponse = await self.suite[
+                "MNQ"
+            ].orders.place_bracket_order(
+                contract_id=self.suite["MNQ"].instrument_info.id,
                 side=side,
                 size=position_size,
-                stop_offset=Decimal(str(abs(current_price - stop_loss))),
-                target_offset=Decimal(str(abs(take_profit - current_price)))
+                entry_price=None,
+                stop_loss_price=stop_loss,
+                take_profit_price=take_profit,
             )
 
             self.active_position = {
@@ -346,15 +407,16 @@ class MultiTimeframeMomentumStrategy:
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
                 "size": position_size,
-                "bracket": result
+                "bracket": result,
             }
 
-            print(f"Momentum trade placed successfully!")
+            print("Momentum trade placed successfully!")
             return result
 
         except Exception as e:
             print(f"Failed to place momentum trade: {e}")
             return None
+
 
 async def main():
     # Create suite with multiple timeframes
@@ -362,7 +424,7 @@ async def main():
         ["MNQ"],
         timeframes=["5min", "15min", "1hr"],
         initial_days=15,  # More historical data for higher timeframes
-        features=["risk_manager"]
+        features=["risk_manager"],
     )
     mnq_context = suite["MNQ"]
 
@@ -370,29 +432,39 @@ async def main():
 
     # Event handlers
     async def on_new_bar(event):
-        if event.data.get('timeframe') == '5min':  # Only act on 5min bars
+        if event.data.get("timeframe") == "5min":  # Only act on 5min bars
             # Check for confluence signals
             direction, analyses = await strategy.check_confluence()
+
+            if analyses is None:
+                return
 
             if direction and not strategy.active_position:
                 print(f"\n=== MOMENTUM CONFLUENCE DETECTED: {direction.upper()} ===")
                 await strategy.place_momentum_trade(direction, analyses)
             elif analyses:
                 # Display current analysis
-                print(f"\nCurrent Analysis (no confluence):")
+                print("\nCurrent Analysis (no confluence):")
                 for analysis in analyses:
                     if analysis:
-                        print(f"  {analysis['timeframe']}: {analysis['trend']}/{analysis['momentum']} (RSI: {analysis['rsi']:.1f})")
+                        print(
+                            f"  {analysis['timeframe']}: {analysis['trend']}/{analysis['momentum']} (RSI: {analysis['rsi']:.1f})"
+                        )
 
     async def on_order_filled(event):
         if strategy.active_position:
-            order_id = event.data.get('order_id')
-            fill_price = event.data.get('fill_price', 0)
+            order_id = event.data.get("order_id")
+            fill_price = event.data.get("fill_price", 0)
 
             # Check if it's our stop or target
-            bracket = strategy.active_position['bracket']
+            bracket: BracketOrderResponse = strategy.active_position["bracket"]
+            if bracket is None:
+                return
+
             if order_id in [bracket.stop_order_id, bracket.target_order_id]:
-                result = "STOP LOSS" if order_id == bracket.stop_order_id else "TAKE PROFIT"
+                result = (
+                    "STOP LOSS" if order_id == bracket.stop_order_id else "TAKE PROFIT"
+                )
                 print(f"\n{result} HIT: Order {order_id} filled at ${fill_price:.2f}")
                 strategy.active_position = None  # Clear position
 
@@ -418,9 +490,9 @@ async def main():
 
         # Cancel active orders if any
         if strategy.active_position:
-            bracket = strategy.active_position['bracket']
+            bracket: BracketOrderResponse = strategy.active_position["bracket"]
             try:
-                await mnq_context.orders.cancel_order(bracket.main_order_id)
+                await mnq_context.orders.cancel_order(bracket.entry_order_id)
                 print("Cancelled active orders")
             except Exception as e:
                 print(f"Error cancelling orders: {e}")

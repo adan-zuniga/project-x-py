@@ -276,20 +276,38 @@ class BracketOrderMixin:
             )
 
         try:
-            # CRITICAL: Validate tick sizes BEFORE any price operations
+            # CRITICAL: Align prices to tick sizes BEFORE any price operations
             if hasattr(self, "project_x") and self.project_x:
-                from .utils import validate_price_tick_size
+                from .utils import align_price_to_tick_size
 
-                if entry_price is not None:  # Only validate if not market order
-                    await validate_price_tick_size(
-                        entry_price, contract_id, self.project_x, "entry_price"
+                # Align all prices to valid tick sizes
+                if entry_price is not None:  # Only align if not market order
+                    aligned_entry = await align_price_to_tick_size(
+                        entry_price, contract_id, self.project_x
                     )
-                await validate_price_tick_size(
-                    stop_loss_price, contract_id, self.project_x, "stop_loss_price"
+                    if aligned_entry is not None and aligned_entry != entry_price:
+                        logger.info(
+                            f"Entry price aligned from {entry_price} to {aligned_entry}"
+                        )
+                        entry_price = aligned_entry
+
+                aligned_stop = await align_price_to_tick_size(
+                    stop_loss_price, contract_id, self.project_x
                 )
-                await validate_price_tick_size(
-                    take_profit_price, contract_id, self.project_x, "take_profit_price"
+                if aligned_stop is not None and aligned_stop != stop_loss_price:
+                    logger.info(
+                        f"Stop loss price aligned from {stop_loss_price} to {aligned_stop}"
+                    )
+                    stop_loss_price = aligned_stop
+
+                aligned_target = await align_price_to_tick_size(
+                    take_profit_price, contract_id, self.project_x
                 )
+                if aligned_target is not None and aligned_target != take_profit_price:
+                    logger.info(
+                        f"Take profit price aligned from {take_profit_price} to {aligned_target}"
+                    )
+                    take_profit_price = aligned_target
 
             # Convert prices to Decimal for precise comparisons
             # For market orders, use a placeholder for entry_decimal that won't affect validation
