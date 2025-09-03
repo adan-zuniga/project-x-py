@@ -22,18 +22,24 @@ The OrderManager provides complete lifecycle management for all order types incl
 ```python
 import asyncio
 from decimal import Decimal
+
 from project_x_py import TradingSuite
+
 
 async def main():
     # Initialize with order management capabilities
     suite = await TradingSuite.create("MNQ")
 
+    mnq_context = suite["MNQ"]
     # Order manager is automatically available
-    order_manager = suite.orders
+    order_manager = mnq_context.orders
 
     # Get instrument information for proper pricing
-    instrument = await suite.client.get_instrument("MNQ")
+    instrument = mnq_context.instrument_info
     print(f"Tick size: ${instrument.tickSize}")
+
+
+asyncio.run(main())
 ```
 
 ### Safety First
@@ -52,29 +58,37 @@ async def main():
 Market orders execute immediately at the current market price with guaranteed fills but no price control.
 
 ```python
+import asyncio
+
+from project_x_py import TradingSuite
+
+
 async def place_market_order():
     suite = await TradingSuite.create("MNQ")
 
     try:
         # Place buy market order
-        response = await suite.orders.place_market_order(
-            contract_id="MNQ",  # Or use suite.instrument_info.id
-            side=0,             # 0 = Buy, 1 = Sell
-            size=1              # Number of contracts
+        response = await suite["MNQ"].orders.place_market_order(
+            contract_id=suite["MNQ"].instrument_info.id,  # Or use suite.instrument_info.id
+            side=0,  # 0 = Buy, 1 = Sell
+            size=1,  # Number of contracts
         )
 
-        print(f"Market order placed: {response.order_id}")
-        print(f"Status: {response.status}")
+        print(f"Market order placed: {response.orderId}")
+        print(f"Status: {response.success}")
 
         # Wait for fill confirmation
         await asyncio.sleep(2)
-        order_status = await suite.orders.get_order_status(response.order_id)
+        order_status = await suite["MNQ"].orders.get_order_statistics_async()
         print(f"Final status: {order_status}")
 
     except Exception as e:
         print(f"Order failed: {e}")
     finally:
         await suite.disconnect()
+
+
+asyncio.run(place_market_order())
 ```
 
 ### Limit Orders
@@ -82,35 +96,47 @@ async def place_market_order():
 Limit orders execute only at specified price or better, providing price control but no fill guarantee.
 
 ```python
+import asyncio
+from decimal import Decimal
+
+from project_x_py import TradingSuite
+
+
 async def place_limit_order():
     suite = await TradingSuite.create("MNQ")
 
     # Get current market price for context
-    current_price = await suite.data.get_current_price()
+    current_price = await suite["MNQ"].data.get_current_price()
 
     # Place buy limit order below market
-    limit_price = Decimal(str(current_price)) - Decimal("25")  # $25 below market
+    limit_price = Decimal(str(current_price)) - Decimal("2.00")  # $2.00 below market
 
-    response = await suite.orders.place_limit_order(
-        contract_id="MNQ",
-        side=0,                    # Buy
+    response = await suite["MNQ"].orders.place_limit_order(
+        contract_id=suite["MNQ"].instrument_info.id,
+        side=0,  # Buy
         size=1,
-        limit_price=limit_price,
-        time_in_force="DAY"        # DAY, GTC, IOC, FOK
+        limit_price=float(limit_price),
     )
 
     print(f"Limit order placed at ${limit_price}")
-    print(f"Order ID: {response.order_id}")
+    print(f"Order ID: {response.orderId}")
 
     # Monitor order status
     while True:
-        status = await suite.orders.get_order_status(response.order_id)
-        print(f"Status: {status}")
+        status = await suite["MNQ"].orders.get_order_by_id(response.orderId)
+        if status is None:
+            continue
 
-        if status in ["FILLED", "CANCELLED", "REJECTED"]:
+        if status.status in [2, 3, 4]:
+            print(
+                f"Status: {'FILLED' if status.status == 2 else 'CANCELLED' if status.status == 3 else 'EXPIRED' if status.status == 4 else 'PENDING'}"
+            )
             break
 
         await asyncio.sleep(5)  # Check every 5 seconds
+
+
+asyncio.run(place_limit_order())
 ```
 
 ### Stop Orders
@@ -118,73 +144,43 @@ async def place_limit_order():
 Stop orders become market orders when the stop price is reached, useful for exits and breakout entries.
 
 ```python
+import asyncio
+from decimal import Decimal
+
+from project_x_py import TradingSuite
+
+
 async def place_stop_order():
     suite = await TradingSuite.create("MNQ")
 
-    current_price = await suite.data.get_current_price()
+    current_price = await suite["MNQ"].data.get_current_price()
 
     # Stop loss order (sell stop below current price)
-    stop_price = Decimal(str(current_price)) - Decimal("50")  # $50 below market
+    stop_price = Decimal(str(current_price)) - Decimal("2.00")  # $2.00 below market
 
-    response = await suite.orders.place_stop_order(
-        contract_id="MNQ",
-        side=1,                    # Sell (for stop loss)
+    response = await suite["MNQ"].orders.place_stop_order(
+        contract_id=suite["MNQ"].instrument_info.id,
+        side=1,  # Sell (for stop loss)
         size=1,
-        stop_price=stop_price,
-        time_in_force="GTC"        # Good Till Cancelled
+        stop_price=float(stop_price),
     )
 
     print(f"Stop order placed at ${stop_price}")
 
     # Or stop entry order (buy stop above current price for breakouts)
-    breakout_price = Decimal(str(current_price)) + Decimal("30")
+    breakout_price = Decimal(str(current_price)) + Decimal("2.00")
 
-    breakout_response = await suite.orders.place_stop_order(
-        contract_id="MNQ",
-        side=0,                    # Buy
+    breakout_response = await suite["MNQ"].orders.place_stop_order(
+        contract_id=suite["MNQ"].instrument_info.id,
+        side=0,  # Buy
         size=1,
-        stop_price=breakout_price
+        stop_price=float(breakout_price),
     )
 
     print(f"Breakout order placed at ${breakout_price}")
-```
 
-### OCO Orders (One Cancels Other)
 
-OCO orders link two orders where filling one automatically cancels the other.
-
-```python
-async def place_oco_order():
-    suite = await TradingSuite.create("MNQ")
-
-    current_price = await suite.data.get_current_price()
-
-    # OCO for profit target and stop loss
-    profit_target = Decimal(str(current_price)) + Decimal("75")  # $75 above
-    stop_loss = Decimal(str(current_price)) - Decimal("50")     # $50 below
-
-    response = await suite.orders.place_oco_order(
-        contract_id="MNQ",
-
-        # First leg: Profit target (sell limit)
-        first_side=1,              # Sell
-        first_size=1,
-        first_order_type="LIMIT",
-        first_price=profit_target,
-
-        # Second leg: Stop loss (sell stop)
-        second_side=1,             # Sell
-        second_size=1,
-        second_order_type="STOP",
-        second_price=stop_loss
-    )
-
-    print(f"OCO placed: Target ${profit_target}, Stop ${stop_loss}")
-    print(f"OCO Group ID: {response.oco_group_id}")
-
-    # Both order IDs are available
-    print(f"Target Order: {response.first_order_id}")
-    print(f"Stop Order: {response.second_order_id}")
+asyncio.run(place_stop_order())
 ```
 
 ### Bracket Orders
@@ -192,43 +188,57 @@ async def place_oco_order():
 Bracket orders are the most sophisticated order type, combining entry, stop loss, and take profit in one operation.
 
 ```python
+import asyncio
+from decimal import Decimal
+
+from project_x_py import TradingSuite
+from project_x_py.models import BracketOrderResponse
+
+
 async def place_bracket_order():
     suite = await TradingSuite.create("MNQ")
 
-    current_price = await suite.data.get_current_price()
+    current_price = await suite["MNQ"].data.get_current_price()
 
     # Complete bracket order setup
-    response = await suite.orders.place_bracket_order(
-        contract_id="MNQ",
-        side=0,                    # Buy entry
+    response = await suite["MNQ"].orders.place_bracket_order(
+        contract_id=suite["MNQ"].instrument_info.id,
+        side=0,  # Buy entry
         size=1,
-
         # Entry order (optional - if None, uses market order)
-        entry_price=Decimal(str(current_price)) - Decimal("10"),  # Buy limit
-
+        entry_type="market",
+        entry_price=None,
         # Risk management
-        stop_offset=Decimal("40"),     # Stop loss $40 from entry
-        target_offset=Decimal("80"),   # Take profit $80 from entry
-
+        stop_loss_price=float(
+            Decimal(str(current_price)) - Decimal("4")
+        ),  # Stop loss $4 from entry
+        take_profit_price=float(
+            Decimal(str(current_price)) + Decimal("8")
+        ),  # Take profit $8 from entry
         # Order timing
-        time_in_force="DAY"
     )
 
-    print(f"Bracket order placed:")
-    print(f"  Entry: {response.main_order_id}")
+
+    print("Bracket order placed:")
+    print(f"  Entry: {response.entry_order_id}")
     print(f"  Stop Loss: {response.stop_order_id}")
     print(f"  Take Profit: {response.target_order_id}")
 
     # Monitor bracket order progress
     await monitor_bracket_order(suite, response)
 
-async def monitor_bracket_order(suite, bracket_response):
+
+async def monitor_bracket_order(
+    suite: TradingSuite, bracket_response: BracketOrderResponse
+):
     """Monitor all three orders in a bracket."""
 
     while True:
+        if bracket_response.entry_order_id is None:
+            continue
         # Check main order status
-        main_status = await suite.orders.get_order_status(
-            bracket_response.main_order_id
+        main_status = await suite["MNQ"].orders.get_order_by_id(
+            bracket_response.entry_order_id
         )
 
         print(f"Entry order: {main_status}")
@@ -238,17 +248,25 @@ async def monitor_bracket_order(suite, bracket_response):
 
             # Now monitor the exit orders
             while True:
-                stop_status = await suite.orders.get_order_status(
+                if bracket_response.stop_order_id is None:
+                    continue
+                stop_status = await suite["MNQ"].orders.get_order_by_id(
                     bracket_response.stop_order_id
                 )
-                target_status = await suite.orders.get_order_status(
+                if bracket_response.target_order_id is None:
+                    continue
+                target_status = await suite["MNQ"].orders.get_order_by_id(
                     bracket_response.target_order_id
                 )
 
-                if stop_status == "FILLED":
+                if stop_status is None:
+                    continue
+                if target_status is None:
+                    continue
+                if stop_status.status == 2:
                     print("Stop loss triggered!")
                     break
-                elif target_status == "FILLED":
+                elif target_status.status == 2:
                     print("Take profit hit!")
                     break
 
@@ -260,6 +278,9 @@ async def monitor_bracket_order(suite, bracket_response):
             break
 
         await asyncio.sleep(5)
+
+
+asyncio.run(place_bracket_order())
 ```
 
 ## Order Lifecycle and Tracking
