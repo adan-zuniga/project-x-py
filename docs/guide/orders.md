@@ -290,88 +290,62 @@ asyncio.run(place_bracket_order())
 Track order status changes in real-time using events or polling:
 
 ```python
-from project_x_py import EventType
+import asyncio
+from decimal import Decimal
+
+from project_x_py import EventType, TradingSuite
+from project_x_py.event_bus import Event
+
+
+def on_order_update(event: Event):
+    order_data = event.data
+    print(f"Order {order_data['order_id']} status: {order_data['status']}")
+
+    if order_data["status"] == "FILLED":
+        print(f"  Filled at ${order_data['fill_price']}")
+        print(f"  Quantity: {order_data['filled_quantity']}")
+
 
 async def setup_order_tracking():
     suite = await TradingSuite.create("MNQ")
 
     # Event-driven tracking (recommended)
-    async def on_order_update(event):
+    async def on_order_update(event: Event):
         order_data = event.data
-        print(f"Order {order_data['order_id']} status: {order_data['status']}")
 
-        if order_data['status'] == 'FILLED':
-            print(f"  Filled at ${order_data['fill_price']}")
+        print(order_data)
+        print(f"Order {order_data['order_id']} status: {order_data['new_status']}")
+
+        if order_data["status"] == "FILLED":
+            print(f"  Filled at ${order_data['filledPrice']}")
             print(f"  Quantity: {order_data['filled_quantity']}")
+        if order_data["status"] == "MODIFIED":
+            print(f"  Modified at ${order_data['limitPrice']}")
+            print(f"  Quantity: {order_data['size']}")
 
-    # Register for order events
-    await suite.on(EventType.ORDER_UPDATED, on_order_update)
-    await suite.on(EventType.ORDER_FILLED, on_order_update)
+    current_price = await suite["MNQ"].data.get_current_price()
+    if current_price:
+        limit_price = Decimal(str(current_price)) - Decimal("2.0")
+    else:
+        return
 
     # Place an order to demonstrate tracking
-    response = await suite.orders.place_market_order("MNQ", 0, 1)
-    print(f"Tracking order: {response.order_id}")
+    response = await suite["MNQ"].orders.place_limit_order(
+        contract_id=suite["MNQ"].instrument_info.id,
+        side=0,
+        size=1,
+        limit_price=float(limit_price),
+    )
+    print(f"Tracking order: {response.orderId}")
+
+    await suite.on(EventType.ORDER_FILLED, on_order_update)
+    await suite.on(EventType.ORDER_MODIFIED, on_order_update)
 
     # Keep connection alive for events
     await asyncio.sleep(30)
 
-# Alternative: Polling-based tracking
-async def poll_order_status(suite, order_id):
-    """Poll order status until completion."""
 
-    while True:
-        try:
-            status = await suite.orders.get_order_status(order_id)
-            print(f"Order {order_id}: {status}")
-
-            if status in ["FILLED", "CANCELLED", "REJECTED"]:
-                # Get final order details
-                order_details = await suite.orders.get_order(order_id)
-                print(f"Final details: {order_details}")
-                break
-
-        except Exception as e:
-            print(f"Error checking status: {e}")
-
-        await asyncio.sleep(2)
-```
-
-### Order History and Reporting
-
-```python
-async def analyze_order_history():
-    suite = await TradingSuite.create("MNQ")
-
-    # Get recent orders
-    recent_orders = await suite.orders.get_orders(
-        limit=50,
-        status_filter=["FILLED", "CANCELLED"]
-    )
-
-    print(f"Found {len(recent_orders)} recent orders")
-
-    # Analyze order performance
-    filled_orders = [o for o in recent_orders if o.status == "FILLED"]
-
-    if filled_orders:
-        avg_fill_time = sum(
-            (o.filled_time - o.created_time).total_seconds()
-            for o in filled_orders
-        ) / len(filled_orders)
-
-        print(f"Average fill time: {avg_fill_time:.2f} seconds")
-
-    # Get orders for specific date range
-    from datetime import datetime, timedelta
-
-    yesterday = datetime.now() - timedelta(days=1)
-
-    daily_orders = await suite.orders.get_orders(
-        start_time=yesterday,
-        end_time=datetime.now()
-    )
-
-    print(f"Orders in last 24h: {len(daily_orders)}")
+asyncio.run(setup_order_tracking())
 ```
 
 ## Order Modification and Cancellation
@@ -379,18 +353,27 @@ async def analyze_order_history():
 ### Modifying Orders
 
 ```python
+import asyncio
+from decimal import Decimal
+
+from project_x_py import TradingSuite
+
+
 async def modify_orders():
     suite = await TradingSuite.create("MNQ")
 
     # Place initial limit order
-    current_price = await suite.data.get_current_price()
+    current_price = await suite["MNQ"].data.get_current_price()
     initial_price = Decimal(str(current_price)) - Decimal("50")
 
-    response = await suite.orders.place_limit_order(
-        "MNQ", 0, 1, initial_price
+    response = await suite["MNQ"].orders.place_limit_order(
+        contract_id=suite["MNQ"].instrument_info.id,
+        side=0,
+        size=1,
+        limit_price=float(initial_price),
     )
 
-    order_id = response.order_id
+    order_id = response.orderId
     print(f"Initial order at ${initial_price}")
 
     # Wait a moment
@@ -399,149 +382,67 @@ async def modify_orders():
     # Modify the order price (move closer to market)
     new_price = Decimal(str(current_price)) - Decimal("25")
 
-    modify_response = await suite.orders.modify_order(
+    modify_response = await suite["MNQ"].orders.modify_order(
         order_id=order_id,
-        new_price=new_price,
-        new_size=2  # Also increase size
+        limit_price=float(new_price),
+        size=2,  # Also increase size
     )
 
     print(f"Order modified to ${new_price}, size: 2")
 
     # Modify only specific fields
-    await suite.orders.modify_order(
+    await suite["MNQ"].orders.modify_order(
         order_id=order_id,
-        new_size=3  # Only change size
+        size=3,  # Only change size
     )
+
+
+asyncio.run(modify_orders())
 ```
 
 ### Cancelling Orders
 
 ```python
+import asyncio
+from decimal import Decimal
+
+from project_x_py import TradingSuite
+
+
 async def cancel_orders():
     suite = await TradingSuite.create("MNQ")
 
     # Place multiple orders
-    orders = []
-    current_price = await suite.data.get_current_price()
+    orders: list[int] = []
+    current_price = await suite["MNQ"].data.get_current_price()
 
     for i in range(3):
         price = Decimal(str(current_price)) - Decimal(str(10 * (i + 1)))
-        response = await suite.orders.place_limit_order("MNQ", 0, 1, price)
-        orders.append(response.order_id)
+        response = await suite["MNQ"].orders.place_limit_order(
+            contract_id=suite["MNQ"].instrument_info.id,
+            side=0,
+            size=1,
+            limit_price=float(price),
+        )
+        orders.append(response.orderId)
 
     print(f"Placed {len(orders)} orders")
 
     # Cancel individual order
-    await suite.orders.cancel_order(orders[0])
+    await suite["MNQ"].orders.cancel_order(order_id=orders[0])
     print("Cancelled first order")
 
     # Cancel multiple orders
-    await suite.orders.cancel_orders(orders[1:])
+    for order in orders[1:]:
+        await suite["MNQ"].orders.cancel_order(order_id=order)
     print("Cancelled remaining orders")
 
     # Cancel all open orders (nuclear option)
-    await suite.orders.cancel_all_orders("MNQ")
+    await suite["MNQ"].orders.cancel_all_orders(contract_id=suite["MNQ"].instrument_info.id)
     print("All orders cancelled")
-```
 
-## Advanced Order Features
 
-### Order Templates
-
-Create reusable order templates for common strategies:
-
-```python
-from project_x_py.order_manager.templates import OrderTemplate
-
-async def use_order_templates():
-    suite = await TradingSuite.create("MNQ")
-
-    # Create scalping template
-    scalp_template = OrderTemplate(
-        name="scalp_template",
-        order_type="bracket",
-        side=0,  # Buy
-        size=2,
-        entry_offset=Decimal("5"),      # 5 points below market
-        stop_offset=Decimal("15"),      # 15 point stop
-        target_offset=Decimal("25"),    # 25 point target
-        time_in_force="DAY"
-    )
-
-    # Apply template
-    current_price = await suite.data.get_current_price()
-
-    response = await suite.orders.place_from_template(
-        template=scalp_template,
-        contract_id="MNQ",
-        reference_price=Decimal(str(current_price))
-    )
-
-    print(f"Template order placed: {response.main_order_id}")
-
-    # Create swing template
-    swing_template = OrderTemplate(
-        name="swing_template",
-        order_type="bracket",
-        side=0,
-        size=1,
-        entry_offset=Decimal("0"),      # Market entry
-        stop_offset=Decimal("100"),     # 100 point stop
-        target_offset=Decimal("300"),   # 300 point target
-        time_in_force="GTC"
-    )
-```
-
-### Position-Based Orders
-
-Place orders based on existing positions:
-
-```python
-async def position_based_orders():
-    suite = await TradingSuite.create("MNQ", features=["risk_manager"])
-
-    # Check current position
-    position = await suite.positions.get_position("MNQ")
-
-    if position and position.size > 0:
-        print(f"Long position: {position.size} contracts")
-
-        # Place protective stop based on position
-        current_price = await suite.data.get_current_price()
-        stop_price = Decimal(str(current_price)) - Decimal("75")
-
-        # Close entire position if stop hit
-        response = await suite.orders.place_position_exit_order(
-            contract_id="MNQ",
-            stop_price=stop_price,
-            position_size=position.size
-        )
-
-        print(f"Protective stop placed: {response.order_id}")
-
-    elif position and position.size < 0:
-        print(f"Short position: {position.size} contracts")
-
-        # Cover stop for short position
-        current_price = await suite.data.get_current_price()
-        cover_price = Decimal(str(current_price)) + Decimal("75")
-
-        response = await suite.orders.place_position_exit_order(
-            contract_id="MNQ",
-            stop_price=cover_price,
-            position_size=abs(position.size)  # Cover the short
-        )
-
-    else:
-        print("No position - placing new entry order")
-
-        # No position, place new bracket order
-        response = await suite.orders.place_bracket_order(
-            contract_id="MNQ",
-            side=0, size=1,
-            stop_offset=Decimal("50"),
-            target_offset=Decimal("100")
-        )
+asyncio.run(cancel_orders())
 ```
 
 ## Error Handling and Recovery
@@ -549,26 +450,44 @@ async def position_based_orders():
 ### Comprehensive Error Handling
 
 ```python
+import asyncio
+from decimal import Decimal
+
+from project_x_py import TradingSuite
 from project_x_py.exceptions import (
     ProjectXOrderError,
+    ProjectXPositionError,
     ProjectXRateLimitError,
-    ProjectXInsufficientMarginError
 )
+
 
 async def robust_order_placement():
     suite = await TradingSuite.create("MNQ")
 
     try:
-        response = await suite.orders.place_bracket_order(
-            contract_id="MNQ",
-            side=0, size=1,
-            stop_offset=Decimal("50"),
-            target_offset=Decimal("100")
+        response = await suite["MNQ"].orders.place_bracket_order(
+            contract_id=suite["MNQ"].instrument_info.id,
+            side=0,
+            size=1,
+            entry_price=None,
+            entry_type="market",
+            stop_loss_price=float(Decimal("50")),
+            take_profit_price=float(Decimal("100")),
         )
 
-        print(f"Order placed successfully: {response.main_order_id}")
+        print(f"Order 1 placed successfully: {response.entry_order_id}")
 
-    except ProjectXInsufficientMarginError as e:
+        # This will raise an error because if the entry_price is None, the entry_type must be "market"
+        response = await suite["MNQ"].orders.place_bracket_order(
+            contract_id=suite["MNQ"].instrument_info.id,
+            side=1,
+            size=1,
+            entry_price=None,
+            stop_loss_price=float(Decimal("50")),
+            take_profit_price=float(Decimal("100")),
+        )
+
+    except ProjectXPositionError as e:
         print(f"Insufficient margin: {e}")
         # Reduce position size or add funds
 
@@ -576,7 +495,7 @@ async def robust_order_placement():
         print(f"Order error: {e}")
         if "invalid price" in str(e).lower():
             # Price alignment issue - check tick size
-            instrument = await suite.client.get_instrument("MNQ")
+            instrument = suite["MNQ"].instrument_info
             print(f"Tick size: {instrument.tickSize}")
 
     except ProjectXRateLimitError as e:
@@ -587,34 +506,8 @@ async def robust_order_placement():
 
     except Exception as e:
         print(f"Unexpected error: {e}")
-```
 
-### Automatic Error Recovery
-
-The OrderManager includes built-in error recovery:
-
-```python
-async def demonstrate_error_recovery():
-    suite = await TradingSuite.create("MNQ")
-
-    # Enable automatic retry for recoverable errors
-    suite.orders.enable_auto_retry(
-        max_attempts=3,
-        backoff_factor=2.0,
-        recoverable_errors=[
-            "NetworkTimeout",
-            "TemporaryUnavailable",
-            "RateLimitExceeded"
-        ]
-    )
-
-    # This will automatically retry on network issues
-    try:
-        response = await suite.orders.place_market_order("MNQ", 0, 1)
-        print(f"Order placed with auto-retry: {response.order_id}")
-
-    except Exception as e:
-        print(f"Failed after all retries: {e}")
+asyncio.run(robust_order_placement())
 ```
 
 ## Performance Optimization
