@@ -53,17 +53,17 @@ A disciplined workflow is required to ensure quality and consistency.
 ```bash
 # Step 1: RED - Write a failing test for a new feature
 # The test must define the expected behavior.
-./test.sh tests/test_new_feature.py::test_specific_behavior
+uv run pytest tests/test_new_feature.py::test_specific_behavior
 # --> MUST FAIL to confirm the RED phase.
 
 # Step 2: GREEN - Write minimal implementation
 # Write only enough code to make the test pass.
-./test.sh tests/test_new_feature.py::test_specific_behavior
+uv run pytest tests/test_new_feature.py::test_specific_behavior
 # --> MUST PASS to confirm the GREEN phase.
 
 # Step 3: REFACTOR - Improve the code
 # Clean up the implementation while keeping all tests green.
-./test.sh
+uv run pytest
 # --> ALL tests must continue to pass.
 ```
 
@@ -87,11 +87,10 @@ uv run mypy src/
 
 ### 3. Test Execution
 
-**ALWAYS use the `./test.sh` script to run tests and examples.** This script correctly sets up the required environment variables.
+**ALWAYS use the `./test.sh` script to run examples.** This script correctly sets up the required environment variables.
 
 ```bash
 # ✅ CORRECT: Use the test wrapper script
-./test.sh tests/test_client.py
 ./test.sh examples/01_basic_client_connection.py
 
 # ❌ WRONG: Do not run python directly
