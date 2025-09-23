@@ -930,9 +930,10 @@ class ValidationMixin:
             self.logger.debug(f"Quote payload content: {quote_data}")
             return None
 
-        # More flexible validation - only require symbol and timestamp
+        # More flexible validation - only require symbol
         # Different quote types have different data (some may not have all price fields)
-        required_fields = {"symbol", "timestamp"}
+        # Note: timestamp is generated when received, not included in raw quote data
+        required_fields = {"symbol"}
         missing_fields = required_fields - set(quote_data.keys())
         if missing_fields:
             self.logger.warning(
