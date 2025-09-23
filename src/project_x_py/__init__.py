@@ -2,8 +2,8 @@
 ProjectX Python SDK for Trading Applications
 
 Author: @TexasCoding
-Date: 2025-09-02
-Version: 3.5.8 - DateTime Parsing Fix
+Date: 2025-09-22
+Version: 3.5.9 - Realtime Data Validation Fix
 
 Overview:
     A comprehensive Python SDK for the ProjectX Trading Platform Gateway API, providing
@@ -109,7 +109,7 @@ See Also:
     - `utils`: Utility functions and calculations
 """
 
-__version__ = "3.5.8"
+__version__ = "3.5.9"
 __author__ = "TexasCoding"
 
 # Core client classes - renamed from Async* to standard names
